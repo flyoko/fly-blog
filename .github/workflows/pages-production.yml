@@ -3,6 +3,8 @@ name: Pages Production
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'backups/**'
   workflow_dispatch:
 
 permissions:

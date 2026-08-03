@@ -1,0 +1,3 @@
+/admin/* /admin 200
+/moments/* /moments 200
+/ai.news /ai.news/ 301

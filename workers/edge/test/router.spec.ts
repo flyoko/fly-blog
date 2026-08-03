@@ -20,6 +20,9 @@ describe('route selection', () => {
 		'/api/admin/articles',
 		'/api/admin/media/1',
 		'/api/health',
+		'/api/moments',
+		'/api/moments/11111111-1111-4111-8111-111111111111',
+		'/api/news',
 		'/media/public/articles/2026/08/image.png',
 	])('routes %s to the API service', (path) => {
 		expect(shouldUseApi(path)).toBe(true)
@@ -70,6 +73,51 @@ describe('edge forwarding', () => {
 			'https://fly-living.pages.dev/archive?page=2',
 			'https://fly-living.pages.dev/api/stats',
 		])
+	})
+
+	it('returns a real 404 for unpublished or missing moment details', async () => {
+		const pages = vi.spyOn(globalThis, 'fetch')
+		const response = await worker.fetch(
+			new Request('https://flyovo.cc.cd/moments/11111111-1111-4111-8111-111111111111'),
+			env(service(request => request.url.includes('/api/moments/')
+				? Response.json({ ok: false }, { status: 404 })
+				: new Response('unexpected'))),
+			{} as ExecutionContext,
+		)
+		expect(response.status).toBe(404)
+		expect(await response.text()).toContain('瞬间不存在')
+		expect(pages).not.toHaveBeenCalled()
+	})
+
+	it('loads the Pages shell only after a published moment probe succeeds', async () => {
+		let apiUrl = ''
+		let pagesUrl = ''
+		vi.spyOn(globalThis, 'fetch').mockImplementation(async (request) => {
+			pagesUrl = (request instanceof Request ? request : new Request(request)).url
+			return new Response('moment shell')
+		})
+		const response = await worker.fetch(
+			new Request('https://flyovo.cc.cd/moments/11111111-1111-4111-8111-111111111111'),
+			env(service((request) => {
+				apiUrl = request.url
+				return Response.json({ ok: true, data: { id: '11111111-1111-4111-8111-111111111111' } })
+			})),
+			{} as ExecutionContext,
+		)
+		expect(await response.text()).toBe('moment shell')
+		expect(apiUrl).toBe('https://flyovo.cc.cd/api/moments/11111111-1111-4111-8111-111111111111')
+		expect(pagesUrl).toBe('https://fly-living.pages.dev/moments/11111111-1111-4111-8111-111111111111')
+	})
+
+	it('rewrites the exact dotted AI news route to its Pages directory index', async () => {
+		let forwarded: Request | undefined
+		vi.spyOn(globalThis, 'fetch').mockImplementation(async (request) => {
+			forwarded = (request instanceof Request ? request : new Request(request)).clone()
+			return new Response('ai news')
+		})
+		const response = await worker.fetch(new Request('https://flyovo.cc.cd/ai.news?from=nav'), env(service(() => new Response('api'))), {} as ExecutionContext)
+		expect(await response.text()).toBe('ai news')
+		expect(forwarded?.url).toBe('https://fly-living.pages.dev/ai.news/?from=nav')
 	})
 
 	it('preserves a public request body and removes hop-by-hop headers', async () => {

@@ -1,11 +1,18 @@
 import type { AppEnvironment } from './env'
 import { Hono } from 'hono'
+import { aboutRoutes } from './features/about/routes'
 import { GitHubRepository } from './features/articles/github-repository'
 import { createArticleRoutes } from './features/articles/routes'
 import { authRoutes } from './features/auth/routes'
 import { healthRoutes } from './features/health/routes'
 import { publicMediaRoutes } from './features/media/public-routes'
 import { mediaRoutes } from './features/media/routes'
+import { momentBackupRoutes } from './features/moment-backups/routes'
+import { MomentBackupService } from './features/moment-backups/service'
+import { publicMomentRoutes } from './features/moments/public-routes'
+import { adminMomentRoutes } from './features/moments/routes'
+import { adminNewsRoutes, publicNewsRoutes } from './features/news/routes'
+import { NewsService } from './features/news/service'
 import { overviewRoutes } from './features/overview/routes'
 import { PublishingService } from './features/publishing/publishing-service'
 import { publishingRoutes } from './features/publishing/routes'
@@ -19,14 +26,31 @@ const articleRoutes = createArticleRoutes({
 
 app.use('*', contextMiddleware)
 app.route('/api/admin/articles', articleRoutes)
+app.route('/api/admin/about', aboutRoutes)
 app.route('/api/admin/overview', overviewRoutes)
 app.route('/api/admin/publishing', publishingRoutes)
 app.route('/api/auth', authRoutes)
 app.route('/api/health', healthRoutes)
 app.route('/api/admin/media', mediaRoutes)
+app.route('/api/admin/moments', adminMomentRoutes)
+app.route('/api/admin/moment-backups', momentBackupRoutes)
+app.route('/api/moments', publicMomentRoutes)
+app.route('/api/admin/news', adminNewsRoutes)
+app.route('/api/news', publicNewsRoutes)
 app.route('/media', publicMediaRoutes)
 app.notFound(c => failure(c, new ApiError('NOT_FOUND', 404, 'Route not found')))
 app.onError((error, c) => failure(c, normalizeError(error)))
 
 export { app }
-export default app
+
+export default {
+	fetch(request, env, ctx) {
+		return app.fetch(request, env, ctx)
+	},
+	async scheduled(_controller: ScheduledController, env: AppEnvironment['Bindings'], ctx: ExecutionContext) {
+		ctx.waitUntil(Promise.all([
+			new MomentBackupService(env).backup(),
+			new NewsService(env).sync(),
+		]))
+	},
+} satisfies ExportedHandler<AppEnvironment['Bindings']>

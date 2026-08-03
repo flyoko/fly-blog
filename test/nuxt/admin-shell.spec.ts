@@ -44,11 +44,10 @@ describe('admin shell contracts', () => {
 		expect(serviceStatusMeta('down')).toEqual({ label: '暂不可用', tone: 'danger' })
 	})
 
-	it('names the later-cycle unavailable sections explicitly', () => {
-		expect(adminUnavailableSections.moments).toMatchObject({ title: '瞬间', cycle: 2 })
-		expect(adminUnavailableSections['ai-news']).toMatchObject({ title: 'AI 阅闻', cycle: 2 })
-		expect(adminUnavailableSections.about).toMatchObject({ title: '自述', cycle: 2 })
-		expect(adminUnavailableSections.music).toMatchObject({ title: '随心听', cycle: 2 })
+	it('keeps only later-cycle unavailable sections as placeholders', () => {
+		expect(Object.keys(adminUnavailableSections)).toEqual(['music', 'modules'])
+		expect(adminUnavailableSections.music).toMatchObject({ title: '随心听', cycle: 3 })
+		expect(adminUnavailableSections.modules).toMatchObject({ title: '模块管理', cycle: 3 })
 	})
 
 	it('keeps login copy user-facing and GitHub-specific', async () => {

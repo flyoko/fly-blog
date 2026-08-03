@@ -112,13 +112,26 @@ export function createOverviewRoutes(options: OverviewRoutesOptions = {}) {
 		const articleRepository = articleRepositoryFactory(c.env)
 		const mediaRepository = new MediaRepository(c.env.DB)
 		const publishRepository = new PublishRepository(c.env.DB)
-		const [articles, activeMedia, openPullRequests, pendingPublishes, failedPublishes, latestPublish] = await Promise.all([
+		const [
+			articles,
+			activeMedia,
+			publishedMoments,
+			publishedNews,
+			openPullRequests,
+			pendingPublishes,
+			failedPublishes,
+			latestPublish,
+			backupState,
+		] = await Promise.all([
 			safeValue(async () => (await articleRepository.listFiles('content/posts/', c.env.GITHUB_DEFAULT_BRANCH)).length),
 			safeValue(() => mediaRepository.countByStatus('active')),
+			safeValue(async () => (await c.env.DB.prepare('SELECT COUNT(*) AS count FROM moments WHERE status = \'published\'').first<{ count: number }>())?.count ?? 0),
+			safeValue(async () => (await c.env.DB.prepare('SELECT COUNT(*) AS count FROM news_items WHERE selected = 1').first<{ count: number }>())?.count ?? 0),
 			safeValue(() => publishRepository.countOpenPullRequests()),
 			safeValue(() => publishRepository.countByStatuses(['created', 'commit_created', 'checks_pending'])),
 			safeValue(() => publishRepository.countByStatuses(['failed', 'conflict'])),
 			safeValue(() => publishRepository.latestRun()),
+			safeValue(() => c.env.DB.prepare('SELECT last_success_at, last_backup_path, last_error FROM moment_backup_state WHERE singleton = 1').first()),
 		])
 
 		const checkedAt = now().toISOString()
@@ -141,11 +154,14 @@ export function createOverviewRoutes(options: OverviewRoutesOptions = {}) {
 			counts: {
 				articles,
 				activeMedia,
+				publishedMoments,
+				publishedNews,
 				openPullRequests,
 				pendingPublishes,
 				failedPublishes,
 			},
 			latestPublish,
+			backupState,
 			services,
 		})
 	})

@@ -32,6 +32,9 @@
       "preview_bucket_name": "fly-living-media-preview"
     }
   ],
+  "triggers": {
+    "crons": ["17 19 * * *"]
+  },
   "ratelimits": [
     {
       "name": "AUTH_RATE_LIMITER",

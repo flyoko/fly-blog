@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-export const mediaUploadPurposeSchema = z.enum(['article', 'music', 'profile'])
+export const mediaUploadPurposeSchema = z.enum(['article', 'moment', 'music', 'profile'])
 export const mediaKindSchema = z.enum(['image', 'audio'])
 export const mediaStatusSchema = z.enum(['active', 'trashed', 'deleted'])
 
