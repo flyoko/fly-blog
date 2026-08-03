@@ -109,7 +109,7 @@ describe('edge forwarding', () => {
 		expect(pagesUrl).toBe('https://fly-living.pages.dev/moments/11111111-1111-4111-8111-111111111111')
 	})
 
-	it('rewrites the exact dotted AI news route to its Pages directory index', async () => {
+	it('preserves the dotted AI news route for Pages canonical handling', async () => {
 		let forwarded: Request | undefined
 		vi.spyOn(globalThis, 'fetch').mockImplementation(async (request) => {
 			forwarded = (request instanceof Request ? request : new Request(request)).clone()
@@ -117,7 +117,7 @@ describe('edge forwarding', () => {
 		})
 		const response = await worker.fetch(new Request('https://flyovo.cc.cd/ai.news?from=nav'), env(service(() => new Response('api'))), {} as ExecutionContext)
 		expect(await response.text()).toBe('ai news')
-		expect(forwarded?.url).toBe('https://fly-living.pages.dev/ai.news/?from=nav')
+		expect(forwarded?.url).toBe('https://fly-living.pages.dev/ai.news?from=nav')
 	})
 
 	it('preserves a public request body and removes hop-by-hop headers', async () => {
