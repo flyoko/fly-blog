@@ -80,7 +80,7 @@ test.describe('cycle 2 AI news internal reading', () => {
 
 		await expect(page.getByRole('heading', { name: 'AI 阅闻' })).toBeVisible()
 		await expect(page.getByText('自动聚合运行中')).toBeVisible()
-		await expect(page.getByText('AI HOT 每 30 分钟 · 站长资讯每 60 分钟')).toBeVisible()
+		await expect(page.getByText('每 5 分钟检查 · AI HOT 最短 30 分钟 · 站长资讯最短 60 分钟')).toBeVisible()
 		await expect(page.getByRole('heading', { name: '今日日报' })).toBeVisible()
 
 		const internalTitle = page.getByRole('link', { name: 'AI HOT 站内阅读测试', exact: true })

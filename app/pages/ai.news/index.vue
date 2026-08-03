@@ -204,7 +204,7 @@ onMounted(load)
 			<div>
 				<strong>{{ degradedSources.length ? '部分来源暂不可用' : '自动聚合运行中' }}</strong>
 				<span>最近更新 {{ formatDateTime(latestSyncAt) }}</span>
-				<small>AI HOT 每 30 分钟 · 站长资讯每 60 分钟</small>
+				<small>每 5 分钟检查 · AI HOT 最短 30 分钟 · 站长资讯最短 60 分钟</small>
 			</div>
 		</div>
 	</header>

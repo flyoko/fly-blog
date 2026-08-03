@@ -284,12 +284,13 @@ pnpm --filter @fly-living/api-worker exec wrangler d1 migrations apply DB --remo
 
 来源由 `config/news/sources.json` 控制：
 
-- AI HOT 精选条目 JSON：每 30 分钟检查；
-- AI HOT 全文 Feed：每 30 分钟检查，只保存 Feed 明确提供的 `content:encoded`，其余条目保存摘要；
-- AI HOT 每日报告 JSON：每 30 分钟检查；
-- 在花 RSS：每 60 分钟检查，新增或变化条目尝试提取文章正文，失败时回退 RSS 摘要。
+- Worker 每 5 分钟检查一次是否有来源到期；
+- AI HOT 精选条目 JSON：最短每 30 分钟拉取；
+- AI HOT 全文 Feed：最短每 30 分钟拉取，只保存 Feed 明确提供的 `content:encoded`，其余条目保存摘要；
+- AI HOT 每日报告 JSON：最短每 30 分钟拉取；
+- 在花 RSS：最短每 60 分钟拉取，新增或变化条目尝试提取文章正文，失败时回退 RSS 摘要。
 
-Cloudflare Cron `*/30 * * * *` 触发阅闻检查，各来源还会根据 `next_sync_at` 执行自己的最短周期。请求保存并发送 ETag/Last-Modified，304 不重新解析或写入正文。后台手动同步会强制检查所有来源。
+Cloudflare Cron `*/5 * * * *` 每 5 分钟检查到期来源，各来源仍根据 `next_sync_at` 执行自己的最短周期。请求保存并发送 ETag/Last-Modified，304 不重新解析或写入正文。后台手动同步会强制检查所有来源。
 
 只有 `aihot.virxact.com` 和 `www.zaihua.news` 的条目生成 `/ai.news/read/:readerKey` 站内阅读地址。正文以清洗后的纯文本保存，不执行上游 HTML、脚本或 iframe；阅读页始终显示来源署名和原始链接。单个来源失败时更新状态但保留最近成功的 D1 快照。
 

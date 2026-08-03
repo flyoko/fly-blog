@@ -31,7 +31,7 @@ export interface ScheduledTaskServices {
 
 export function scheduledJobsFor(cron: string): ScheduledJob[] {
 	switch (cron) {
-		case '*/30 * * * *':
+		case '*/5 * * * *':
 			return ['news-sync']
 		case '17 19 * * *':
 			return ['moment-backup', 'news-sync']
