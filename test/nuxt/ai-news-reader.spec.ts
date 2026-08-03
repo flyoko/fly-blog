@@ -35,6 +35,14 @@ describe('ai 阅闻站内阅读界面', () => {
 		expect(page).not.toContain('<iframe')
 	})
 
+	it('avoids directory rewrite loops for dynamic routes', () => {
+		const redirects = read('public/_redirects')
+		expect(redirects).toContain('/admin/* /200 200')
+		expect(redirects).toContain('/moments/* /200 200')
+		expect(redirects).not.toContain('/admin/* /admin 200')
+		expect(redirects).not.toContain('/moments/* /moments 200')
+	})
+
 	it('rewrites internal reader deep links to the Nuxt app shell', () => {
 		const redirects = read('public/_redirects')
 		expect(redirects).toContain('/ai.news/read/* /200 200')
