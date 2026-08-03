@@ -101,5 +101,6 @@ describe('article editor UI boundaries', () => {
 		expect(editor).toContain('直接发布')
 		expect(editor).toContain('创建 PR')
 		expect(editor).toContain('插入媒体')
+		expect(editor).toContain('<h1 class="visually-hidden">')
 	})
 })

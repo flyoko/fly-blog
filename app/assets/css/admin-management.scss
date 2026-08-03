@@ -938,25 +938,26 @@
 .admin-status-pill {
 	flex: none;
 	padding: 0.28rem 0.5rem;
+	border: 1px solid var(--admin-border);
 	border-radius: 999px;
 	background: var(--admin-surface-soft);
 	font-size: 0.62rem;
-	color: var(--admin-muted);
+	color: var(--admin-text);
 }
 
 .admin-status-pill[data-tone="positive"] {
+	border-color: color-mix(in srgb, var(--admin-positive) 38%, var(--admin-border));
 	background: color-mix(in srgb, var(--admin-positive) 12%, transparent);
-	color: var(--admin-positive);
 }
 
 .admin-status-pill[data-tone="warning"] {
+	border-color: color-mix(in srgb, var(--admin-warning) 38%, var(--admin-border));
 	background: color-mix(in srgb, var(--admin-warning) 12%, transparent);
-	color: var(--admin-warning);
 }
 
 .admin-status-pill[data-tone="danger"] {
+	border-color: color-mix(in srgb, var(--admin-danger) 38%, var(--admin-border));
 	background: color-mix(in srgb, var(--admin-danger) 12%, transparent);
-	color: var(--admin-danger);
 }
 
 .admin-review-detail {

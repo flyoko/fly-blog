@@ -214,7 +214,7 @@ onBeforeUnmount(() => searchTimer && clearTimeout(searchTimer))
 				<Icon name="tabler:cloud-upload" />
 				{{ uploading ? '上传中…' : '上传媒体' }}
 			</button>
-			<input ref="fileInput" type="file" multiple :disabled="uploading" accept="image/png,image/jpeg,image/webp,image/gif,audio/mpeg,audio/ogg,audio/wav" @change="upload">
+			<input ref="fileInput" type="file" multiple :disabled="uploading" accept="image/png,image/jpeg,image/webp,image/gif,audio/mpeg,audio/ogg,audio/wav" aria-label="选择要上传的媒体文件" @change="upload">
 		</div>
 	</header>
 
@@ -233,8 +233,8 @@ onBeforeUnmount(() => searchTimer && clearTimeout(searchTimer))
 	</div>
 
 	<div class="admin-toolbar admin-toolbar-wrap">
-		<div class="admin-tab-list" role="tablist" aria-label="媒体状态">
-			<button v-for="item in statusTabs" :key="item.value" class="admin-tab" :class="{ 'is-active': status === item.value }" type="button" @click="status = item.value">
+		<div class="admin-tab-list" role="group" aria-label="媒体状态">
+			<button v-for="item in statusTabs" :key="item.value" class="admin-tab" :class="{ 'is-active': status === item.value }" type="button" :aria-pressed="status === item.value" @click="status = item.value">
 				{{ item.label }}
 			</button>
 		</div>

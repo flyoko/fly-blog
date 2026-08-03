@@ -2,9 +2,12 @@
 import type { AdminPublishRunDto } from '~/types/admin'
 import { publishStatusMeta } from '~/types/admin'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
 	run: AdminPublishRunDto
-}>()
+	showActions?: boolean
+}>(), {
+	showActions: true,
+})
 
 const meta = computed(() => publishStatusMeta(props.run.status ?? 'unknown'))
 </script>
@@ -18,7 +21,7 @@ const meta = computed(() => publishStatusMeta(props.run.status ?? 'unknown'))
 			<span>{{ run.kind === 'pull_request' ? `PR #${run.pullNumber || '—'}` : '直接发布' }} · {{ new Date(run.updatedAt).toLocaleString() }}</span>
 		</div>
 	</div>
-	<div class="admin-publish-status-actions">
+	<div v-if="showActions" class="admin-publish-status-actions">
 		<a v-if="run.pullRequestUrl" class="admin-button" :href="run.pullRequestUrl" target="_blank" rel="noopener">查看 PR</a>
 		<a v-if="run.deploymentUrl" class="admin-button" :href="run.deploymentUrl" target="_blank" rel="noopener">查看预览</a>
 	</div>

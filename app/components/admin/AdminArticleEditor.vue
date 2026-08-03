@@ -129,6 +129,9 @@ onBeforeUnmount(() => {
 
 <template>
 <div class="admin-editor-shell">
+	<h1 class="visually-hidden">
+		{{ isNew ? '新建文章' : `编辑文章：${documentModel.frontmatter.title || '未命名文章'}` }}
+	</h1>
 	<aside class="admin-editor-list">
 		<header>
 			<div>

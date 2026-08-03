@@ -1,11 +1,13 @@
 import type { AppEnvironment, Env } from '../../env'
 import type { ArticleRepositoryPort } from '../articles/article-service'
+import type { PullRequestStatusRepositoryPort } from '../publishing/publishing-service'
 import { Hono } from 'hono'
 import { success } from '../../lib/api-error'
 import { requireSession } from '../../middleware/session'
 import { MediaRepository } from '../../repositories/media-repository'
 import { PublishRepository } from '../../repositories/publish-repository'
 import { GitHubRepository } from '../articles/github-repository'
+import { reconcileActivePublishRuns } from '../publishing/publishing-service'
 
 export type ServiceName = 'github' | 'd1' | 'r2' | 'pages'
 
@@ -29,6 +31,7 @@ export type OverviewProbe = (context: OverviewProbeContext) => Promise<{
 
 export interface OverviewRoutesOptions {
 	articleRepositoryFactory?: (env: Env) => ArticleRepositoryPort
+	publishingRepositoryFactory?: (env: Env) => PullRequestStatusRepositoryPort
 	probes?: Partial<Record<ServiceName, OverviewProbe>>
 	timeoutMs?: number
 	now?: () => Date
@@ -102,6 +105,7 @@ function defaultProbes(fetcher: typeof fetch): Record<ServiceName, OverviewProbe
 export function createOverviewRoutes(options: OverviewRoutesOptions = {}) {
 	const routes = new Hono<AppEnvironment>()
 	const articleRepositoryFactory = options.articleRepositoryFactory ?? (env => new GitHubRepository(env))
+	const publishingRepositoryFactory = options.publishingRepositoryFactory ?? (env => new GitHubRepository(env))
 	const timeoutMs = options.timeoutMs ?? 2_000
 	const now = options.now ?? (() => new Date())
 	const probes = { ...defaultProbes(options.fetcher ?? fetch), ...options.probes }
@@ -112,6 +116,7 @@ export function createOverviewRoutes(options: OverviewRoutesOptions = {}) {
 		const articleRepository = articleRepositoryFactory(c.env)
 		const mediaRepository = new MediaRepository(c.env.DB)
 		const publishRepository = new PublishRepository(c.env.DB)
+		await reconcileActivePublishRuns(c.env.DB, publishingRepositoryFactory(c.env)).catch(() => undefined)
 		const [
 			articles,
 			activeMedia,

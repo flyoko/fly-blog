@@ -4,7 +4,7 @@
 	--admin-surface-soft: #EDF5F5;
 	--admin-border: rgb(23 61 64 / 12%);
 	--admin-text: #173D40;
-	--admin-muted: #6C8587;
+	--admin-muted: #526A6C;
 	--admin-accent: #138F91;
 	--admin-accent-strong: #087274;
 	--admin-accent-soft: rgb(19 143 145 / 12%);
@@ -611,7 +611,7 @@
 	color: var(--admin-accent-strong);
 }
 
-.admin-empty-state h1 {
+.admin-empty-state :is(h1, h2, h3) {
 	margin: 0.9rem 0 0;
 	font-family: "Noto Serif SC", serif;
 	font-size: clamp(1.5rem, 4vw, 2.2rem);

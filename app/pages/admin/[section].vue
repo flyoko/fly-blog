@@ -25,6 +25,7 @@ useSeoMeta({
 	:title="content.title"
 	:description="content.description"
 	:badge="`周期 ${content.cycle}`"
+	:heading-level="1"
 >
 	<NuxtLink class="admin-button" to="/admin">
 		<Icon name="tabler:arrow-left" />

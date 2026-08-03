@@ -136,7 +136,7 @@ onMounted(load)
 					type="button"
 					@click="inspect(run)"
 				>
-					<AdminPublishStatus :run="run" />
+					<AdminPublishStatus :run="run" :show-actions="false" />
 				</button>
 			</div>
 			<AdminEmptyState v-else icon="tabler:history-off" title="还没有发布记录" description="文章或配置发布后会显示在这里。" />

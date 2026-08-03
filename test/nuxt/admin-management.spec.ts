@@ -29,6 +29,7 @@ describe('admin management helpers', () => {
 		expect(publishStatusMeta('checks_pending')).toEqual({ label: '检查中', tone: 'warning' })
 		expect(publishStatusMeta('preview_ready')).toEqual({ label: '可审核', tone: 'positive' })
 		expect(publishStatusMeta('failed')).toEqual({ label: '失败', tone: 'danger' })
+		expect(publishStatusMeta('closed')).toEqual({ label: '已关闭', tone: 'neutral' })
 	})
 })
 
@@ -86,6 +87,9 @@ describe('admin management UI boundaries', () => {
 		expect(media).toContain('恢复媒体')
 		expect(media).toContain('永久删除')
 		expect(media).toContain('? \'DELETE\' : \'\'')
+		expect(media).toContain('role="group"')
+		expect(media).toContain(':aria-pressed="status === item.value"')
+		expect(media).toContain('aria-label="选择要上传的媒体文件"')
 	})
 
 	it('requires a path-bound RESTORE confirmation after moment backup preview', async () => {
@@ -113,11 +117,29 @@ describe('admin management UI boundaries', () => {
 		expect(reviews).toContain('file.patch')
 		expect(reviews).toContain('确认合并')
 		expect(reviews).toContain('verification-text="MERGE"')
+		expect(reviews).toContain(':show-actions="false"')
 	})
 
 	it('uses a reusable publish status component', async () => {
 		const component = await source('app/components/admin/AdminPublishStatus.vue')
 		expect(component).toContain('publishStatusMeta')
 		expect(component).toContain('deploymentUrl')
+		expect(component).toContain('showActions?: boolean')
+		expect(component).toContain('v-if="showActions"')
+	})
+
+	it('keeps nested empty states below the page heading and status text readable', async () => {
+		const emptyState = await source('app/components/admin/AdminEmptyState.vue')
+		const fallbackPage = await source('app/pages/admin/[section].vue')
+		const managementStyles = await source('app/assets/css/admin-management.scss')
+		const news = await source('app/pages/admin/ai-news.vue')
+
+		expect(emptyState).toContain('headingLevel?: 1 | 2 | 3')
+		expect(emptyState).toContain('headingLevel: 2')
+		expect(emptyState).toContain('<component :is="`h')
+		expect(emptyState).toContain('headingLevel')
+		expect(fallbackPage).toContain(':heading-level="1"')
+		expect(managementStyles).toContain('color: var(--admin-text)')
+		expect(news).toContain('color: var(--admin-accent-strong)')
 	})
 })
