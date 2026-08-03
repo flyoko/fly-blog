@@ -1,7 +1,9 @@
 <script setup lang="ts">
-const { slots } = inject<any>(Symbol.for('dxup:layout-slots')) || {}
-const weatherVisible = ref(false)
-const hasAside = computed(() => Boolean(slots?.aside) || weatherVisible.value)
+const appConfig = useAppConfig()
+const weatherEnabled = computed(() => appConfig.featureModules.some(module => module.id === 'weather' && module.enabled))
+const musicEnabled = computed(() => appConfig.featureModules.some(module => module.id === 'music' && module.enabled))
+const routeAsideVisible = ref(false)
+const hasAside = computed(() => routeAsideVisible.value || weatherEnabled.value)
 </script>
 
 <template>
@@ -15,12 +17,14 @@ const hasAside = computed(() => Boolean(slots?.aside) || weatherVisible.value)
 		<BlogFooter />
 	</main>
 	<BlogAside>
-		<LazyWidgetWeather @visibility-change="weatherVisible = $event" />
-		<slot name="aside" />
+		<LazyWidgetWeather v-if="weatherEnabled" />
+		<ClientOnly>
+			<BlogRouteAside @visibility-change="routeAsideVisible = $event" />
+		</ClientOnly>
 	</BlogAside>
 </div>
 <BlogPanel :has-aside="hasAside" />
-<LazyMusicGlobalPlayer />
+<LazyMusicGlobalPlayer v-if="musicEnabled" />
 <BikariyaModals />
 </template>
 

@@ -1,10 +1,12 @@
+import { skipHydrate } from 'pinia'
+
 export type LayoutState = 'none' | 'sidebar' | 'aside' | 'search' | 'lightbox'
 
 export const useLayoutStore = defineStore('layout', () => {
 	const router = useRouter()
 
-	const state = ref<LayoutState>('none')
-	const avoidTargets = ref<AvoidTarget[]>([])
+	const state = skipHydrate(ref<LayoutState>('none'))
+	const avoidTargets = skipHydrate(ref<AvoidTarget[]>([]))
 	let triggerElement: HTMLElement | null = null
 	let previousOverflow = ''
 

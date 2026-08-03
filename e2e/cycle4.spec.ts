@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { mockAuthenticatedAdmin } from './fixtures/admin-api'
+import { mockAdminApi, mockAuthenticatedAdmin } from './fixtures/admin-api'
 
 const publicRoutes = ['/', '/2026/welcome', '/me', '/moments', '/ai.news', '/link', '/archive']
 const adminRoutes = [
@@ -24,7 +24,7 @@ async function expectNoHorizontalOverflow(page: import('@playwright/test').Page)
 	expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth + 1)
 }
 
-test('disabled weather and music only run lightweight config probes', async ({ page }) => {
+test('disabled weather and music do not start their public runtimes', async ({ page }) => {
 	await page.addInitScript(() => {
 		const originalLoad = HTMLMediaElement.prototype.load
 		Object.defineProperty(window, '__mediaLoadCount', { configurable: true, writable: true, value: 0 })
@@ -50,11 +50,12 @@ test('disabled weather and music only run lightweight config probes', async ({ p
 		})
 	})
 	await page.goto('/')
-	await expect.poll(() => weatherRequests).toBe(1)
-	await expect.poll(() => musicRequests).toBe(1)
+	await page.waitForTimeout(250)
 	await expect(page.locator('.music-player')).toHaveCount(0)
 	await expect(page.locator('.weather-card')).toHaveCount(0)
 	await expect(page.locator('.weather-unavailable')).toHaveCount(0)
+	expect(weatherRequests).toBe(0)
+	expect(musicRequests).toBe(0)
 	const mediaLoads = await page.evaluate(() => Number((window as unknown as { __mediaLoadCount?: number }).__mediaLoadCount || 0))
 	expect(mediaLoads).toBe(0)
 })
@@ -72,9 +73,15 @@ test('sidebar search is a keyboard-operable button with visible focus', async ({
 	expect(focus).toBeGreaterThanOrEqual(2)
 	await search.press('Enter')
 	await expect(page.getByRole('searchbox')).toBeVisible()
+	await page.keyboard.press('Escape')
+	const dropdown = page.locator('.order-toggle .dropdown-trigger')
+	await expect(dropdown).toHaveCount(1)
+	expect(await dropdown.evaluate(element => element.tagName)).toBe('BUTTON')
+	await expect(page.locator('[aria-expanded]:not(button)')).toHaveCount(0)
 })
 
 test('reduced motion removes route movement and decorative animation', async ({ page }) => {
+	await mockAdminApi(page)
 	await page.emulateMedia({ reducedMotion: 'reduce' })
 	await page.goto('/')
 	const style = await page.locator('html').evaluate((element) => {
@@ -84,6 +91,9 @@ test('reduced motion removes route movement and decorative animation', async ({ 
 	expect(style.scrollBehavior).toBe('auto')
 	const headerAnimation = await page.locator('.header-title .split-char').first().evaluate(element => getComputedStyle(element).animationDuration)
 	expect(Number.parseFloat(headerAnimation)).toBeLessThanOrEqual(0.001)
+	await page.goto('/moments')
+	const momentAnimation = await page.locator('.moment-card').first().evaluate(element => getComputedStyle(element).animationName)
+	expect(momentAnimation).toBe('none')
 })
 
 test('overlay locking and focus restoration work with the keyboard', async ({ page, isMobile }) => {
@@ -146,6 +156,27 @@ test('core pages expose named controls, alt text, and a single main landmark', a
 		await page.goto(route)
 		await expect.poll(audit).toEqual({ unnamedButtons: 0, imagesWithoutAlt: 0, mainLandmarks: 1 })
 	}
+})
+
+test('public hydration completes without Vue mismatch errors', async ({ page, isMobile }) => {
+	test.skip(Boolean(isMobile), 'Hydration console audit runs once in the desktop project.')
+	const hydrationErrors: string[] = []
+	page.on('console', (message) => {
+		if (message.type() === 'error' && /hydration/iu.test(message.text()))
+			hydrationErrors.push(message.text())
+	})
+	for (const route of ['/', '/2026/welcome', '/me', '/link', '/archive']) {
+		await page.goto(route, { waitUntil: 'networkidle' })
+		await page.waitForTimeout(100)
+	}
+	expect(hydrationErrors).toEqual([])
+})
+
+test('Twikoo controls expose accessible names after third-party initialization', async ({ page, isMobile }) => {
+	test.skip(Boolean(isMobile), 'Third-party comment semantics run once in the desktop project.')
+	await page.goto('/2026/welcome', { waitUntil: 'networkidle' })
+	await expect(page.locator('#twikoo textarea')).toHaveAttribute('aria-label', '评论内容')
+	await expect(page.locator('#twikoo .__markdown')).toHaveAttribute('aria-label', /Markdown is supported/u)
 })
 
 test.describe('mobile overflow matrix', () => {

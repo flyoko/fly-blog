@@ -21,7 +21,7 @@
     "build": "nuxt build",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
-    "preview:e2e": "pnpm generate && HOST=127.0.0.1 PORT=3000 nuxt preview",
+    "preview:e2e": "NUXT_E2E=1 pnpm generate && HOST=127.0.0.1 PORT=3000 nuxt preview",
     "bump": "pnpx taze -w && rimraf node_modules pnpm-lock.yaml && pnpm dedupe",
     "lint": "eslint && stylelint '**/*.{vue,scss}'",
     "lint:fix": "eslint --fix && stylelint '**/*.{vue,scss}' --fix",

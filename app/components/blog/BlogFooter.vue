@@ -4,9 +4,9 @@ const appConfig = useAppConfig()
 
 <template>
 <footer class="blog-footer">
-	<nav class="footer-nav">
+	<nav class="footer-nav" aria-label="页脚导航">
 		<div v-for="(group, groupIndex) in appConfig.footer.nav" :key="groupIndex">
-			<hgroup class="text-creative" v-text="group.title" />
+			<h2 class="text-creative" v-text="group.title" />
 			<menu>
 				<li v-for="(item, itemIndex) in group.items" :key="itemIndex">
 					<UtilLink :to="item.url">
@@ -33,8 +33,9 @@ const appConfig = useAppConfig()
 		gap: 5vw clamp(2rem, 5%, 5vw);
 		padding-block: 3rem;
 
-		hgroup {
+		h2 {
 			margin: 0.5em;
+			font: inherit;
 		}
 
 		a {

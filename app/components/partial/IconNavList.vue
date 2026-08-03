@@ -7,23 +7,26 @@ defineProps<{
 </script>
 
 <template>
-<menu>
-	<UtilLink
-		v-for="{ text, icon, url } in list"
-		:key="text"
-		v-tip="text"
-		:to="url"
-		:aria-label="text"
-	>
-		<Icon :name="icon" />
-	</UtilLink>
-</menu>
+<ul class="icon-nav-list">
+	<li v-for="{ text, icon, url } in list" :key="text">
+		<UtilLink
+			v-tip="text"
+			:to="url"
+			:aria-label="text"
+		>
+			<Icon :name="icon" />
+		</UtilLink>
+	</li>
+</ul>
 </template>
 
 <style lang="scss" scoped>
-menu {
+.icon-nav-list {
 	display: flex;
 	justify-content: center;
+	margin: 0;
+	padding: 0;
+	list-style: none;
 
 	a {
 		padding: 0.5em;

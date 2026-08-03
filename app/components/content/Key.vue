@@ -24,7 +24,8 @@ const emit = defineEmits<{
 	press: []
 }>()
 
-const isMac = computed(() => /mac ?os/i.test(navigator?.userAgent))
+const mounted = useMounted()
+const isMac = computed(() => mounted.value && /mac ?os/i.test(navigator.userAgent))
 const useSymbol = computed(() => isMac.value ? props.icon !== false : props.icon)
 const keyJoiner = computed(() => useSymbol.value ? '' : '+')
 
@@ -38,7 +39,7 @@ const displayMap = {
 	'Control': 'Ctrl',
 	'Delete': 'Del',
 	'Escape': 'Esc',
-	'Meta': isMac.value ? 'Cmd' : 'Win',
+	'Meta': 'Win',
 }
 
 // @keep-sorted
@@ -50,7 +51,7 @@ const symbolMap = {
 	'Delete': '⌦',
 	'Enter': '↵',
 	'Escape': '⎋',
-	'Meta': isMac.value ? '⌘' : '⊞',
+	'Meta': '⊞',
 	'Shift': '⇧',
 	'Tab': '⇥',
 	'Win': '⊞',
@@ -59,6 +60,11 @@ const symbolMap = {
 function normalizeCodeDisplay(code?: string) {
 	if (!code)
 		return ''
+	if (code === 'Meta') {
+		if (useSymbol.value)
+			return isMac.value ? '⌘' : '⊞'
+		return isMac.value ? 'Cmd' : 'Win'
+	}
 	if (useSymbol.value && code in symbolMap)
 		return symbolMap[code as keyof typeof symbolMap]
 	if (code in displayMap)
@@ -131,11 +137,9 @@ useEventListener('blur', () => {
 </script>
 
 <template>
-<UtilHydrateSafe>
-	<kbd :class="{ active }" @click.stop="emit('press')">
-		<slot>{{ codeDisplay }}</slot>
-	</kbd>
-</UtilHydrateSafe>
+<kbd :class="{ active }" @click.stop="emit('press')">
+	<slot>{{ codeDisplay }}</slot>
+</kbd>
 </template>
 
 <style lang="scss" scoped>

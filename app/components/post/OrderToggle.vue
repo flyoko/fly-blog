@@ -34,11 +34,9 @@ function toggleDirection() {
 <div class="order-toggle" :style="{ '--secret-delay': secretDelay }">
 	<slot />
 
-	<ZDropdown trigger="focusin" tabindex="0">
-		<button :disabled="!categories">
-			<Icon :name="getCategoryIcon(category)" />
-			<span class="order-text">{{ category ?? '全部分类' }}</span>
-		</button>
+	<ZDropdown :disabled="!categories">
+		<Icon :name="getCategoryIcon(category)" />
+		<span class="order-text">{{ category ?? '全部分类' }}</span>
 
 		<template #content="{ hide }">
 			<button :class="{ active: !category }" @click="hide(), category = undefined">

@@ -124,6 +124,6 @@ li {
 .no-toc {
 	padding: 1em;
 	text-align: center;
-	color: var(--c-text-3);
+	color: var(--c-text-1);
 }
 </style>

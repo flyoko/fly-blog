@@ -1,5 +1,5 @@
 import { Temporal } from 'temporal-polyfill'
-import blogConfig from '~~/blog.config'
+import blogConfig from '../../blog.config'
 
 export function isSameUnit(date1: string, date2: string, unit: Temporal.DateUnit | Temporal.TimeUnit) {
 	try {
@@ -48,9 +48,16 @@ const timeIntervals = [
 	{ label: '秒', threshold: 1 },
 ]
 
-export function timeElapse(date: string | Temporal.PlainDateTime, maxDepth = 2) {
+export function timeElapse(
+	date: string | Temporal.PlainDateTime,
+	maxDepth = 2,
+	reference: string | Temporal.PlainDateTime = Temporal.Now.plainDateTimeISO(),
+) {
 	let timeString = ''
-	let secRemained = Temporal.Now.plainDateTimeISO().since(date, { largestUnit: 'second' }).seconds
+	const referenceDate = typeof reference === 'string'
+		? toZonedTemporal(reference).toPlainDateTime()
+		: reference
+	let secRemained = referenceDate.since(date, { largestUnit: 'second' }).seconds
 	for (const interval of timeIntervals) {
 		const count = Math.floor(secRemained / interval.threshold)
 		if (count <= 0)

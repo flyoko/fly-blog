@@ -66,7 +66,7 @@ const blogConfig = {
 	/** 向 <head> 中添加脚本 */
 	scripts: [
 		// Twikoo 评论系统
-		{ src: 'https://cdnjs.snrat.com/ajax/libs/twikoo/1.7.13/twikoo.min.js', defer: true },
+		{ src: 'https://cdnjs.snrat.com/ajax/libs/twikoo/1.7.13/twikoo.min.js', defer: true, crossorigin: 'anonymous' as const },
 	],
 
 	/** 自己部署的 Twikoo 服务 */

@@ -86,8 +86,8 @@ const appConfig = useAppConfig()
 }
 
 .header-subtitle {
-	opacity: 0.5;
 	font-size: 0.8em;
+	color: var(--c-text-2);
 }
 
 @keyframes vf-weight {

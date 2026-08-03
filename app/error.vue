@@ -8,10 +8,6 @@ defineProps<{
 
 <template>
 <NuxtLayout>
-	<template #aside>
-		<WidgetBlogLog />
-	</template>
-
 	<div class="app-error">
 		<ZError
 			:code="error.stack"

@@ -171,7 +171,7 @@ onMounted(() => load(true))
 }
 
 .moments-filter span {
-	color: var(--c-text-3);
+	color: var(--c-text-1);
 }
 
 .moments-filter input {
@@ -230,20 +230,7 @@ onMounted(() => load(true))
 
 @media (prefers-reduced-motion: reduce) {
 	.moments-list > :deep(.moment-card) {
-		animation: content-reveal var(--motion-slow) var(--motion-ease) both;
-	}
-
-	@for $index from 1 through 8 {
-		.moments-list > :deep(.moment-card:nth-child(#{$index})) {
-			animation-delay: #{($index - 1) * 35}ms;
-		}
-	}
-
-	@keyframes content-reveal {
-		from {
-			opacity: 0;
-			transform: translateY(0.65rem);
-		}
+		animation: none;
 	}
 
 	.moment-skeleton {

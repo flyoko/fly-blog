@@ -31,7 +31,11 @@ const showAllDate = isTimeDiffSignificant(props.date, props.updated)
 				icon="tabler:clock-edit"
 			/>
 
-			<span v-if="categories" :style="{ color: getCategoryColor(categories[0]) }">
+			<span
+				v-if="categories"
+				class="article-category"
+				:style="{ '--category-color': getCategoryColor(categories[0]) }"
+			>
 				<Icon :name="getCategoryIcon(categories[0])" />
 				{{ categories[0] }}
 			</span>
@@ -66,7 +70,7 @@ const showAllDate = isTimeDiffSignificant(props.date, props.updated)
 	flex-wrap: wrap;
 	gap: 0.5em clamp(1em, 5%, 1.5em);
 	font-size: 0.8em;
-	color: var(--c-text-2);
+	color: var(--c-text-1);
 
 	&:empty {
 		display: none;
@@ -84,7 +88,15 @@ const showAllDate = isTimeDiffSignificant(props.date, props.updated)
 
 .article-description {
 	font-size: 0.9em;
-	color: var(--c-text-2);
+	color: var(--c-text-1);
+}
+
+.article-category {
+	text-decoration-color: var(--category-color);
+	text-decoration-line: underline;
+	text-decoration-thickness: 0.12em;
+	color: var(--c-text-1);
+	text-underline-offset: 0.2em;
 }
 
 .article-cover {

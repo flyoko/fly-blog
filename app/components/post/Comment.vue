@@ -9,6 +9,7 @@ const popoverEl = useTemplateRef<TippyComponent>('popover')
 const popoverJumpTo = ref('')
 const popoverInputEl = useTemplateRef('popover-input')
 const showUndo = ref(false)
+let twikooObserver: MutationObserver | null = null
 
 const popoverBind = ref<TippyComponent['$props']>({})
 
@@ -52,18 +53,40 @@ function confirmOpen() {
 	window.open(popoverInputEl.value?.textContent, '_blank')
 }
 
-onMounted(() => {
+function enhanceTwikooAccessibility() {
+	const root = commentEl.value?.querySelector('#twikoo')
+	if (!root)
+		return
+	root.querySelectorAll<HTMLTextAreaElement>('textarea').forEach((textarea) => {
+		if (!textarea.getAttribute('aria-label') && !textarea.getAttribute('aria-labelledby'))
+			textarea.setAttribute('aria-label', '评论内容')
+	})
+	root.querySelectorAll<HTMLAnchorElement>('a[alt]').forEach((link) => {
+		if (!link.getAttribute('aria-label') && !link.textContent?.trim())
+			link.setAttribute('aria-label', link.getAttribute('alt') || '外部链接')
+	})
+}
+
+onMounted(async () => {
 	const envId = appConfig.twikoo?.envId
 	if (!envId)
 		return
 
-	window.twikoo?.init?.({
+	await window.twikoo?.init?.({
 		envId,
 		...(props.path ? { path: props.path } : {}),
 		// twikoo 会把挂载后的元素变为 #twikoo
 		el: '#twikoo',
 	})
+	enhanceTwikooAccessibility()
+	const root = commentEl.value?.querySelector('#twikoo')
+	if (root) {
+		twikooObserver = new MutationObserver(enhanceTwikooAccessibility)
+		twikooObserver.observe(root, { childList: true, subtree: true })
+	}
 })
+
+onBeforeUnmount(() => twikooObserver?.disconnect())
 </script>
 
 <template>
@@ -193,7 +216,7 @@ onMounted(() => {
 
 	.tk-extras, .tk-footer {
 		font-size: 0.7em;
-		color: var(--c-text-3);
+		color: var(--c-text-1);
 	}
 
 	.tk-replies:not(.tk-replies-expand) {

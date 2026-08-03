@@ -12,14 +12,14 @@ defineProps<ButtonProps>()
 </script>
 
 <template>
-<component :is="to ? UtilLink : 'button'" :to class="button" :class="{ primary }">
-	<div class="button-main">
+<component :is="to ? UtilLink : 'button'" :to :type="to ? undefined : 'button'" class="button" :class="{ primary }">
+	<span class="button-main">
 		<Icon v-if="icon" :name="icon" />
 		<slot>{{ text }}</slot>
-	</div>
-	<div v-if="desc" class="button-desc">
+	</span>
+	<span v-if="desc" class="button-desc">
 		{{ desc }}
-	</div>
+	</span>
 </component>
 </template>
 
@@ -70,6 +70,7 @@ defineProps<ButtonProps>()
 }
 
 .button-desc {
+	display: block;
 	font-size: 0.75em;
 	text-align: center;
 	color: var(--c-text-2);

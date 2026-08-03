@@ -10,10 +10,6 @@ const { category, categories, listCategorized } = useCategory(listSorted)
 </script>
 
 <template>
-<template #aside>
-	<WidgetBlogLog />
-</template>
-
 <div class="preview">
 	<div class="preview-header">
 		<h1>

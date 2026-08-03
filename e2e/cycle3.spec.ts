@@ -116,7 +116,7 @@ test.describe('cycle 3 desktop workflows', () => {
 
 	test('keeps weather and music usable while navigating between public pages', async ({ page }) => {
 		await mockPublicWeatherAndMusic(page)
-		await page.goto('/', { waitUntil: 'domcontentloaded' })
+		await page.goto('/__e2e__', { waitUntil: 'domcontentloaded' })
 		await expect(page.getByText('杭州 · 浙江 · 中国')).toBeVisible()
 		await expect(page.getByRole('link', { name: 'Open-Meteo' })).toBeVisible()
 		const player = page.getByRole('region', { name: '随心听播放器' })
@@ -149,7 +149,7 @@ test('cycle 3 admin pages remain usable on mobile', async ({ page, isMobile }) =
 test('cycle 3 public weather and player remain usable on mobile', async ({ page, isMobile }) => {
 	test.skip(!isMobile, 'Mobile coverage runs in the mobile project.')
 	await mockPublicWeatherAndMusic(page)
-	await page.goto('/', { waitUntil: 'domcontentloaded' })
+	await page.goto('/__e2e__', { waitUntil: 'domcontentloaded' })
 	await expect(page.getByText('杭州 · 浙江 · 中国')).toBeVisible()
 	await expect(page.getByRole('region', { name: '随心听播放器' })).toBeVisible()
 	const dimensions = await page.evaluate(() => ({ scrollWidth: document.documentElement.scrollWidth, clientWidth: document.documentElement.clientWidth }))
