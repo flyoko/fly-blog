@@ -1,7 +1,10 @@
 <script setup lang="ts">
+import { isModuleEnabled } from '#shared/admin/modules'
+
 const appConfig = useAppConfig()
 const layoutStore = useLayoutStore()
 const searchStore = useSearchStore()
+const searchEnabled = computed(() => isModuleEnabled(appConfig.featureModules, 'articles'))
 
 const { text } = useTextSelection()
 const debouncedSelection = refDebounced(text)
@@ -19,7 +22,7 @@ const debouncedSelection = refDebounced(text)
 	<BlogHeader class="sidebar-header" to="/" />
 
 	<nav class="sidebar-nav scrollcheck-y" aria-label="主导航">
-		<button class="search-btn sidebar-nav-item gradient-card" type="button" aria-label="搜索站内内容" @click="layoutStore.toggle('search')">
+		<button v-if="searchEnabled" class="search-btn sidebar-nav-item gradient-card" type="button" aria-label="搜索站内内容" @click="layoutStore.toggle('search')">
 			<Icon name="tabler:search" />
 			<span class="nav-text">{{ debouncedSelection || searchStore.word || '搜索' }}</span>
 			<Key class="keycut" code="K" cmd prevent @press="layoutStore.toggle('search')" />

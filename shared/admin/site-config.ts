@@ -95,6 +95,15 @@ export const modulesConfigSchema = z.array(z.object({
 		if (order !== index)
 			ctx.addIssue({ code: 'custom', path: [index, 'order'], message: 'Module orders must be continuous from zero' })
 	})
+	const articles = modules.find(module => module.id === 'articles')
+	const archiveIndex = modules.findIndex(module => module.id === 'archive')
+	if (archiveIndex >= 0 && modules[archiveIndex]!.enabled && !articles?.enabled) {
+		ctx.addIssue({
+			code: 'custom',
+			path: [archiveIndex, 'enabled'],
+			message: 'Archive module requires the articles module',
+		})
+	}
 })
 
 export const weatherConfigSchema = z.object({

@@ -1,5 +1,6 @@
 import type { Nav, NavItem } from './types/nav'
 import { Temporal } from 'temporal-polyfill'
+import { filterAndSortModuleItems, isModuleEnabled } from '#shared/admin/modules'
 import {
 	footerConfigSchema,
 	modulesConfigSchema,
@@ -12,10 +13,12 @@ import navigationRaw from '../config/site/navigation.json'
 import { version } from '../package.json'
 
 const footerConfig = footerConfigSchema.parse(footerRaw)
-const featureModules = modulesConfigSchema.parse(modulesRaw)
+const featureModules = modulesConfigSchema.parse(modulesRaw).toSorted((left, right) => left.order - right.order)
 const navigationConfig = navigationConfigSchema.parse(navigationRaw)
 
 function shouldShowFooterItem(id: string) {
+	if (id === 'atom')
+		return isModuleEnabled(featureModules, 'articles')
 	if (id === 'personal-github')
 		return footerConfig.showPersonalGitHub
 	if (id === 'theme-source')
@@ -32,11 +35,14 @@ function toNavItem(item: typeof navigationConfig[number]['items'][number]): NavI
 		: navItem
 }
 
-function toNav(groups: typeof navigationConfig): Nav {
-	return groups.map(group => ({
-		title: group.title,
-		items: group.items.filter(item => shouldShowFooterItem(item.id)).map(toNavItem),
-	})).filter(group => group.items.length > 0)
+function toNav(groups: typeof navigationConfig, applyModules = false): Nav {
+	return groups.map((group) => {
+		const visibleItems = group.items.filter(item => shouldShowFooterItem(item.id))
+		return {
+			title: group.title,
+			items: (applyModules ? filterAndSortModuleItems(visibleItems, featureModules) : visibleItems).map(toNavItem),
+		}
+	}).filter(group => group.items.length > 0)
 }
 
 // 图标查询：https://yesicon.app/tabler
@@ -86,7 +92,7 @@ export default defineAppConfig({
 		},
 	},
 
-	/** 后台可管理的模块状态，后续周期会接入公开页面。 */
+	/** 后台可管理的公开模块状态与导航顺序。 */
 	featureModules,
 
 	// @keep-sorted
@@ -117,7 +123,7 @@ export default defineAppConfig({
 	},
 
 	/** 左侧栏导航 */
-	nav: toNav(navigationConfig),
+	nav: toNav(navigationConfig, true),
 
 	pagination: {
 		perPage: 10,

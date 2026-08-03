@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import { orderBy } from 'es-toolkit/array'
+import { isModuleEnabled } from '#shared/admin/modules'
 
 const appConfig = useAppConfig()
+const articlesEnabled = isModuleEnabled(appConfig.featureModules, 'articles')
 useSeoMeta({
 	description: appConfig.description,
 	ogImage: appConfig.author.avatar,
 })
 
-const { data: listRaw } = await useAsyncData('posts:index', () => getArticleIndexOptions(), { default: () => [] })
+const { data: listRaw } = await useAsyncData('posts:index', async () => articlesEnabled ? await getArticleIndexOptions() : [], { default: () => [] })
 const { listSorted, isAscending, sortOrder } = useArticleSort(listRaw, { bindDirectionQuery: 'asc', bindOrderQuery: 'sort' })
 const { category, categories, listCategorized } = useCategory(listSorted, { bindQuery: 'category' })
 const { page, totalPages, listPaged } = usePagination(listCategorized, { bindQuery: 'page' })
@@ -37,7 +39,7 @@ const { data: previewCount } = useAsyncData(
 	</h1>
 	<BlogHeader class="mobile-only" to="/" />
 
-	<UtilHydrateSafe>
+	<UtilHydrateSafe v-if="articlesEnabled">
 		<PostSlide v-if="listRecommended.length && page === 1 && !category" :list="listRecommended" />
 
 		<div class="post-list">
@@ -69,6 +71,13 @@ const { data: previewCount } = useAsyncData(
 			<ZPagination v-model="page" sticky avoid :total-pages="totalPages" />
 		</div>
 	</UtilHydrateSafe>
+	<ZError
+		v-else
+		icon="line-md:document-delete-twotone"
+		title="文章模块已停用"
+	>
+		<p>可从导航访问其他已启用的公开模块。</p>
+	</ZError>
 </div>
 </template>
 

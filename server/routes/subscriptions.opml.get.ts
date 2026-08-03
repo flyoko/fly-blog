@@ -1,9 +1,13 @@
 import type { FeedEntry, FeedGroup } from '~/types/feed'
 import XmlBuilder from 'fast-xml-builder'
 import blogConfig, { myFeed } from '~~/blog.config'
+import modulesRaw from '~~/config/site/modules.json'
+import { isModuleEnabled } from '~~/shared/admin/modules'
+import { modulesConfigSchema } from '~~/shared/admin/site-config'
 import feeds from '~/feeds'
 
 const runtimeConfig = useRuntimeConfig()
+const linksEnabled = isModuleEnabled(modulesConfigSchema.parse(modulesRaw), 'links')
 
 const builder = new XmlBuilder({
 	attributeNamePrefix: '$',
@@ -27,10 +31,9 @@ function flattenGroups(groups: FeedGroup[]) {
 }
 
 export default defineEventHandler(async (_e) => {
-	const outlines = [
-		mapEntry(myFeed),
-		...flattenGroups(feeds),
-	]
+	const outlines = linksEnabled
+		? [mapEntry(myFeed), ...flattenGroups(feeds)]
+		: []
 
 	const opml = {
 		$version: '2.0',

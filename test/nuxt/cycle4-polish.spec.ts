@@ -30,7 +30,7 @@ describe('cycle 4 polish contracts', () => {
 
 	it('uses a semantic keyboard-operable sidebar search control', () => {
 		const sidebar = read('app/components/blog/BlogSidebar.vue')
-		expect(sidebar).toContain('<button class="search-btn')
+		expect(sidebar).toMatch(/<button[^>]*class="search-btn/u)
 		expect(sidebar).not.toContain('<div class="search-btn')
 	})
 

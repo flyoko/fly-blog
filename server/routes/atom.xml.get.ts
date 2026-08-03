@@ -4,10 +4,14 @@ import { pascalCase } from 'es-toolkit/string'
 import XmlBuilder from 'fast-xml-builder'
 import { Temporal } from 'temporal-polyfill'
 import blogConfig from '~~/blog.config'
+import modulesRaw from '~~/config/site/modules.json'
 import packageJson from '~~/package.json'
+import { isModuleEnabled } from '~~/shared/admin/modules'
+import { modulesConfigSchema } from '~~/shared/admin/site-config'
 import { toZonedTemporal } from '~~/shared/utils/time'
 
 const runtimeConfig = useRuntimeConfig()
+const articlesEnabled = isModuleEnabled(modulesConfigSchema.parse(modulesRaw), 'articles')
 
 const builder = new XmlBuilder({
 	attributeNamePrefix: '$',
@@ -42,11 +46,13 @@ function renderContent(post: ContentCollectionItem) {
 }
 
 export default defineEventHandler(async (event) => {
-	const posts = await queryCollection(event, 'content')
-		.where('stem', 'LIKE', 'posts/%')
-		.order('updated', 'DESC')
-		.limit(blogConfig.feed.limit)
-		.all()
+	const posts = articlesEnabled
+		? await queryCollection(event, 'content')
+				.where('stem', 'LIKE', 'posts/%')
+				.order('updated', 'DESC')
+				.limit(blogConfig.feed.limit)
+				.all()
+		: []
 
 	const entries = posts.map(post => ({
 		id: getUrl(post.path),

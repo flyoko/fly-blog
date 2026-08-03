@@ -1,12 +1,18 @@
 import type { AppEnvironment } from '../../env'
 import { Hono } from 'hono'
+import modulesRaw from '../../../../../config/site/modules.json'
+import { isModuleEnabled } from '../../../../../shared/admin/modules'
 import { deleteNewsRequestSchema, manualNewsRequestSchema } from '../../../../../shared/admin/news'
+import { modulesConfigSchema } from '../../../../../shared/admin/site-config'
 import { ApiError, success } from '../../lib/api-error'
 import { withIdempotency } from '../../lib/idempotency'
 import { publicCacheData } from '../../lib/public-cache'
 import { enforceRateLimit, requireCsrf, requireSession } from '../../middleware/session'
 import { AuditRepository } from '../../repositories/audit-repository'
 import { NewsService } from './service'
+
+const configuredModules = modulesConfigSchema.parse(modulesRaw)
+const configuredModuleEnabled = isModuleEnabled(configuredModules, 'ai-news')
 
 function positive(value: string | undefined, fallback: number, max: number) {
 	const parsed = value ? Number(value) : fallback
@@ -16,6 +22,11 @@ function positive(value: string | undefined, fallback: number, max: number) {
 }
 
 export const publicNewsRoutes = new Hono<AppEnvironment>()
+publicNewsRoutes.use('*', async (_c, next) => {
+	if (!configuredModuleEnabled)
+		throw new ApiError('NOT_FOUND', 404, 'AI news module is disabled')
+	await next()
+})
 publicNewsRoutes.get('/read/:readerKey', async (c) => {
 	const service = new NewsService(c.env)
 	const readerKey = c.req.param('readerKey')

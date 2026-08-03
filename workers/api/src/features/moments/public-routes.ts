@@ -1,11 +1,17 @@
 import type { AppEnvironment } from '../../env'
 import { Hono } from 'hono'
 import { deleteCookie } from 'hono/cookie'
+import modulesRaw from '../../../../../config/site/modules.json'
+import { isModuleEnabled } from '../../../../../shared/admin/modules'
+import { modulesConfigSchema } from '../../../../../shared/admin/site-config'
 import { ApiError, success } from '../../lib/api-error'
 import { publicCacheData } from '../../lib/public-cache'
 import { enforceRateLimit } from '../../middleware/session'
 import { MomentRepository } from '../../repositories/moment-repository'
 import { momentVisitor } from './visitor'
+
+const configuredModules = modulesConfigSchema.parse(modulesRaw)
+const configuredModuleEnabled = isModuleEnabled(configuredModules, 'moments')
 
 function positive(value: string | undefined, fallback: number, max: number) {
 	if (!value)
@@ -33,6 +39,11 @@ async function momentCacheVersion(db: D1Database): Promise<string> {
 }
 
 export const publicMomentRoutes = new Hono<AppEnvironment>()
+publicMomentRoutes.use('*', async (_c, next) => {
+	if (!configuredModuleEnabled)
+		throw new ApiError('NOT_FOUND', 404, 'Moments module is disabled')
+	await next()
+})
 
 publicMomentRoutes.get('/', async (c) => {
 	const page = positive(c.req.query('page'), 1, 1_000_000)

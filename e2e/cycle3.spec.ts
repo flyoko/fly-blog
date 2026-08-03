@@ -112,11 +112,14 @@ test.describe('cycle 3 desktop workflows', () => {
 		await page.goto('/admin/modules')
 		const weatherCard = page.locator('.module-card').filter({ hasText: '城市天气' })
 		await weatherCard.getByRole('checkbox').check()
-		await weatherCard.getByRole('button', { name: '上移模块' }).click()
+		await expect(weatherCard.getByText('固定位置')).toBeVisible()
+		const newsCard = page.locator('.module-card').filter({ hasText: 'AI 阅闻' })
+		await newsCard.getByRole('button', { name: '上移模块' }).click()
 		await page.getByRole('button', { name: '创建模块 PR' }).click()
 		await expect.poll(() => capture.configWrites.some(write => write.kind === 'modules')).toBe(true)
-		const modules = capture.configWrites.find(write => write.kind === 'modules')?.content as Array<{ order: number }>
+		const modules = capture.configWrites.find(write => write.kind === 'modules')?.content as Array<{ id: string, order: number }>
 		expect(modules.map(module => module.order)).toEqual(modules.map((_, index) => index))
+		expect(modules.findIndex(module => module.id === 'ai-news')).toBeLessThan(modules.findIndex(module => module.id === 'moments'))
 	})
 
 	test('keeps weather and music usable while navigating between public pages', async ({ page }) => {

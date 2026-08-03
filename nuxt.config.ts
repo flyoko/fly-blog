@@ -6,14 +6,20 @@ import { mapValues } from 'es-toolkit/object'
 import { pascalCase } from 'es-toolkit/string'
 import { Temporal } from 'temporal-polyfill'
 import blogConfig from './blog.config'
+import modulesRaw from './config/site/modules.json'
 import packageJson from './package.json'
 import redirectList from './redirects.json'
+import { disabledModulePathPrefixes, isModuleEnabled } from './shared/admin/modules'
+import { modulesConfigSchema } from './shared/admin/site-config'
 
 function pluginPath(path: string) {
 	return pathToFileURL(resolve(`./remark-plugins/${path}.ts`)).href
 }
 
 const cloudflareWebAnalyticsToken = env.NUXT_PUBLIC_CLOUDFLARE_WEB_ANALYTICS_TOKEN?.trim()
+const configuredModules = modulesConfigSchema.parse(modulesRaw)
+const articlesEnabled = isModuleEnabled(configuredModules, 'articles')
+const disabledModulePrerenderPaths = disabledModulePathPrefixes(configuredModules)
 
 // 此处配置无需修改
 export default defineNuxtConfig({
@@ -28,7 +34,7 @@ export default defineNuxtConfig({
 			],
 			link: [
 				{ rel: 'icon', href: blogConfig.favicon },
-				{ rel: 'alternate', type: 'application/atom+xml', href: '/atom.xml' },
+				...(articlesEnabled ? [{ rel: 'alternate', type: 'application/atom+xml', href: '/atom.xml' }] : []),
 				{ rel: 'preconnect', href: blogConfig.twikoo.preload },
 				{ rel: 'stylesheet', href: 'https://cdnjs.snrat.com/ajax/libs/KaTeX/0.16.44/katex.min.css', media: 'print', onload: 'this.media="all"' },
 				// "InterVariable", "Inter", "InterDisplay"
@@ -86,6 +92,7 @@ export default defineNuxtConfig({
 
 	nitro: {
 		prerender: {
+			ignore: disabledModulePrerenderPaths,
 			// 修复部分平台会在文章路径后添加 `/`，导致闪现 404 错误
 			// https://github.com/nuxt/content/issues/2378
 			autoSubfolderIndex: CLOUDFLARE_PAGES || GITHUB_ACTIONS || NETLIFY ? false : undefined,
