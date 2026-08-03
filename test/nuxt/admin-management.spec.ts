@@ -33,6 +33,26 @@ describe('admin management helpers', () => {
 })
 
 describe('admin management UI boundaries', () => {
+	it('lets the about editor upload, insert, and preview profile images', async () => {
+		const about = await source('app/pages/admin/about.vue')
+		const picker = await source('app/components/admin/AdminMediaPicker.vue')
+
+		expect(about).toContain('insertMarkdownImage')
+		expect(about).toContain('renderAdminMarkdown')
+		expect(about).toContain('插入图片')
+		expect(about).toContain('实时预览')
+		expect(about).toContain('upload-purpose="profile"')
+		expect(picker).toContain('uploadPurpose')
+		expect(picker).toContain('/api/admin/media')
+		expect(picker).toContain('上传图片')
+	})
+
+	it('uses the public station-news label instead of exposing the upstream brand', async () => {
+		const news = await source('app/pages/ai.news.vue')
+		expect(news).toContain('{ id: \'rss\', label: \'站长资讯\' }')
+		expect(news).not.toContain('在花资讯')
+	})
+
 	it('shows per-file partial upload results and trash restoration', async () => {
 		const media = await source('app/pages/admin/media.vue')
 		expect(media).toContain('部分文件上传失败')

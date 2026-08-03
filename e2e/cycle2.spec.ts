@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer'
 import { expect, test } from '@playwright/test'
 import { mockAdminApi, mockAuthenticatedAdmin } from './fixtures/admin-api'
 
@@ -21,9 +22,22 @@ test.describe('cycle 2 desktop workflows', () => {
 	test('admin publishes about markdown and creates controlled structure PRs', async ({ page }) => {
 		const capture = await mockAuthenticatedAdmin(page)
 		await page.goto('/admin/about')
-		await page.getByLabel('正文 Markdown').fill('Updated **about** body.')
+		await page.getByLabel('正文 Markdown').fill('Updated **about** body.\n\n')
+		await page.getByRole('button', { name: '插入图片' }).click()
+		await page.locator('input[type="file"]').setInputFiles({
+			name: 'profile.png',
+			mimeType: 'image/png',
+			buffer: Buffer.from('profile-image'),
+		})
+		await expect.poll(() => capture.mediaUploads).toBe(1)
+		await page.getByRole('button', { name: /sample\.webp/u }).click()
+		await expect(page.getByLabel('正文 Markdown')).toHaveValue(/!\[sample\.webp\]\(https:\/\/media\.example\/sample\.webp\)/u)
+		await expect(page.locator('.admin-preview-content img')).toHaveAttribute('src', 'https://media.example/sample.webp')
 		await page.getByRole('button', { name: '保存正文' }).click()
 		await expect.poll(() => capture.aboutWrites.length).toBe(1)
+		expect(capture.aboutWrites[0]).toMatchObject({
+			profile: { body: expect.stringContaining('![sample.webp](https://media.example/sample.webp)') },
+		})
 		await expect(page.getByText(/自述正文已直接提交/u)).toBeVisible()
 		await page.getByRole('button', { name: '创建时间线 PR' }).click()
 		await expect.poll(() => capture.configWrites.some(item => item.kind === 'aboutTimeline')).toBe(true)

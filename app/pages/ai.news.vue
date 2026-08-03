@@ -145,7 +145,7 @@ onMounted(load)
 				v-for="option in [
 					{ id: 'all', label: '全部' },
 					{ id: 'hot', label: 'AI HOT' },
-					{ id: 'rss', label: '在花资讯' },
+					{ id: 'rss', label: '站长资讯' },
 					{ id: 'manual', label: '手动精选' },
 				]"
 				:key="option.id"

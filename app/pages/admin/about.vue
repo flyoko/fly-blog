@@ -4,7 +4,10 @@ import type {
 	AboutProfile,
 	AboutTimeline,
 } from '#shared/admin/about'
+import type { MediaObjectDto } from '#shared/admin/media'
+import { insertMarkdownImage } from '~/composables/useAdminDraft'
 import { buildConfigPullRequest } from '~/types/admin'
+import { renderAdminMarkdown } from '~/utils/admin-markdown'
 
 interface AboutPayload {
 	profile: AboutProfile & { sha: string }
@@ -20,6 +23,12 @@ const success = ref('')
 const profile = reactive<AboutProfile>({ title: '', summary: '', body: '' })
 const timelineText = ref('[]')
 const linksText = ref('[]')
+const bodyTextarea = ref<HTMLTextAreaElement | null>(null)
+const mediaPickerOpen = ref(false)
+const previewError = ref<string | null>(null)
+const previewLoading = ref(false)
+const lastSuccessfulPreview = ref('')
+let previewTimer: ReturnType<typeof setTimeout> | undefined
 
 useSeoMeta({ title: '自述管理', robots: 'noindex, nofollow' })
 
@@ -72,6 +81,37 @@ async function saveProfile() {
 	}
 }
 
+function insertMedia(media: MediaObjectDto) {
+	const start = bodyTextarea.value?.selectionStart ?? profile.body.length
+	const end = bodyTextarea.value?.selectionEnd ?? start
+	const result = insertMarkdownImage(profile.body, start, end, media.originalName, media.url)
+	profile.body = result.body
+	nextTick(() => {
+		bodyTextarea.value?.focus()
+		bodyTextarea.value?.setSelectionRange(result.cursor, result.cursor)
+	})
+}
+
+function refreshPreview(body: string) {
+	try {
+		lastSuccessfulPreview.value = renderAdminMarkdown(body)
+		previewError.value = null
+	}
+	catch (cause) {
+		previewError.value = cause instanceof Error ? cause.message : 'Markdown 预览失败'
+	}
+	finally {
+		previewLoading.value = false
+	}
+}
+
+watch(() => profile.body, (body) => {
+	if (previewTimer)
+		clearTimeout(previewTimer)
+	previewLoading.value = true
+	previewTimer = setTimeout(refreshPreview, 300, body)
+}, { immediate: true })
+
 async function createStructurePr(kind: 'aboutTimeline' | 'aboutLinks') {
 	saving.value = true
 	error.value = ''
@@ -105,6 +145,10 @@ async function createStructurePr(kind: 'aboutTimeline' | 'aboutLinks') {
 }
 
 onMounted(load)
+onBeforeUnmount(() => {
+	if (previewTimer)
+		clearTimeout(previewTimer)
+})
 </script>
 
 <template>
@@ -129,15 +173,32 @@ onMounted(load)
 			<header class="admin-panel-header">
 				<div>
 					<h2>自述正文</h2>
-					<p>Markdown 内容，保存后直接提交 Git。</p>
+					<p>Markdown 内容，可上传图片并实时预览，保存后直接提交 Git。</p>
 				</div>
+				<button class="admin-button" type="button" @click="mediaPickerOpen = true">
+					<Icon name="tabler:photo-plus" />插入图片
+				</button>
 			</header>
 			<label class="admin-field"><span>标题</span><input v-model="profile.title" maxlength="120"></label>
 			<label class="admin-field"><span>摘要</span><textarea v-model="profile.summary" rows="3" maxlength="500" />
 			</label>
 			<label class="admin-field"><span>头像 URL（可选）</span><input v-model="profile.avatar" type="url" placeholder="https://..."></label>
-			<label class="admin-field"><span>正文 Markdown</span><textarea v-model="profile.body" rows="22" />
-			</label>
+			<div class="admin-about-editor-workspace">
+				<label class="admin-field admin-about-editor-pane">
+					<span>正文 Markdown</span>
+					<textarea ref="bodyTextarea" v-model="profile.body" rows="22" spellcheck="false" />
+				</label>
+				<div class="admin-about-editor-pane admin-editor-preview">
+					<div class="admin-preview-header">
+						<span>实时预览</span>
+						<small v-if="previewLoading">解析中…</small>
+					</div>
+					<p v-if="previewError" class="admin-error">
+						预览更新失败，已保留上一次成功结果：{{ previewError }}
+					</p>
+					<article v-if="lastSuccessfulPreview" class="admin-preview-content" v-html="lastSuccessfulPreview" />
+				</div>
+			</div>
 			<button
 				class="admin-button admin-button-primary"
 				type="button"
@@ -190,6 +251,13 @@ onMounted(load)
 			</section>
 		</div>
 	</div>
+	<AdminMediaPicker
+		:open="mediaPickerOpen"
+		kind="image"
+		upload-purpose="profile"
+		@close="mediaPickerOpen = false"
+		@select="insertMedia"
+	/>
 </section>
 </template>
 
@@ -210,6 +278,31 @@ onMounted(load)
 	gap: 1rem;
 }
 
+.admin-about-editor-workspace {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 0.8rem;
+}
+
+.admin-about-editor-pane {
+	min-width: 0;
+	min-height: 30rem;
+}
+
+.admin-field.admin-about-editor-pane textarea {
+	min-height: 30rem;
+	font-family: "JetBrains Mono", monospace;
+	resize: vertical;
+}
+
+.admin-about-editor-pane.admin-editor-preview {
+	max-height: 38rem;
+	padding: 0.75rem;
+	border: 1px solid var(--admin-border);
+	border-radius: 0.72rem;
+	background: var(--admin-surface-soft);
+}
+
 .admin-field textarea {
 	min-height: auto;
 }
@@ -217,6 +310,15 @@ onMounted(load)
 @media (max-width: 980px) {
 	.admin-about-grid {
 		grid-template-columns: 1fr;
+	}
+
+	.admin-about-editor-workspace {
+		grid-template-columns: 1fr;
+	}
+
+	.admin-about-editor-pane,
+	.admin-field.admin-about-editor-pane textarea {
+		min-height: 22rem;
 	}
 }
 </style>

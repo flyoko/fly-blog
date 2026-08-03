@@ -15,6 +15,7 @@ export interface AdminApiCapture {
 	momentWrites: Array<Record<string, unknown>>
 	aboutWrites: Array<Record<string, unknown>>
 	newsWrites: Array<Record<string, unknown>>
+	mediaUploads: number
 	logoutCount: number
 }
 
@@ -325,6 +326,7 @@ async function respond(route: Route, options: AdminApiMockOptions, capture: Admi
 	}
 
 	if (path === '/api/admin/media' && method === 'POST') {
+		capture.mediaUploads += 1
 		await route.fulfill(success(options.mediaPartialFailure
 			? [
 					{ ok: true, name: 'valid.webp', media: mediaItems()[0] },
@@ -391,7 +393,7 @@ async function respond(route: Route, options: AdminApiMockOptions, capture: Admi
 }
 
 export async function mockAdminApi(page: Page, options: AdminApiMockOptions = {}): Promise<AdminApiCapture> {
-	const capture: AdminApiCapture = { articleWrites: [], configWrites: [], momentWrites: [], aboutWrites: [], newsWrites: [], logoutCount: 0 }
+	const capture: AdminApiCapture = { articleWrites: [], configWrites: [], momentWrites: [], aboutWrites: [], newsWrites: [], mediaUploads: 0, logoutCount: 0 }
 	const state = { sessionCalls: 0 }
 	await page.route('**/api/**', route => respond(route, options, capture, state))
 	return capture
