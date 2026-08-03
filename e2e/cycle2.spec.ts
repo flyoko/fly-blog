@@ -36,8 +36,14 @@ test.describe('cycle 2 desktop workflows', () => {
 		await page.getByRole('button', { name: '保存正文' }).click()
 		await expect.poll(() => capture.aboutWrites.length).toBe(1)
 		expect(capture.aboutWrites[0]).toMatchObject({
-			profile: { body: expect.stringContaining('![sample.webp](https://media.example/sample.webp)') },
+			profile: {
+				body: expect.stringContaining('![sample.webp](https://media.example/sample.webp)'),
+				date: '2026-08-03',
+				sitemap: false,
+				customMeta: { preserved: true },
+			},
 		})
+		expect(capture.aboutWrites[0].profile).not.toHaveProperty('sha')
 		await expect(page.getByText(/自述正文已直接提交/u)).toBeVisible()
 		await page.getByRole('button', { name: '创建时间线 PR' }).click()
 		await expect.poll(() => capture.configWrites.some(item => item.kind === 'aboutTimeline')).toBe(true)

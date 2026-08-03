@@ -21,6 +21,7 @@ const saving = ref(false)
 const error = ref('')
 const success = ref('')
 const profile = reactive<AboutProfile>({ title: '', summary: '', body: '' })
+const profileExtras = ref<Record<string, unknown>>({})
 const timelineText = ref('[]')
 const linksText = ref('[]')
 const bodyTextarea = ref<HTMLTextAreaElement | null>(null)
@@ -37,6 +38,10 @@ async function load() {
 	error.value = ''
 	try {
 		data.value = await useAdminApi<AboutPayload>('/api/admin/about')
+		const editableKeys = new Set(['title', 'summary', 'body', 'avatar', 'updatedAt', 'sha'])
+		profileExtras.value = Object.fromEntries(
+			Object.entries(data.value.profile).filter(([key]) => !editableKeys.has(key)),
+		)
 		Object.assign(profile, {
 			title: data.value.profile.title,
 			summary: data.value.profile.summary,
@@ -65,7 +70,11 @@ async function saveProfile() {
 		await useAdminApi('/api/admin/about/profile', {
 			method: 'PUT',
 			body: {
-				profile: { ...profile, updatedAt: new Date().toISOString() },
+				profile: {
+					...profileExtras.value,
+					...profile,
+					updatedAt: new Date().toISOString(),
+				},
 				expectedSha: data.value.profile.sha,
 				idempotencyKey: `about-profile-${crypto.randomUUID()}`,
 			},
