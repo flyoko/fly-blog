@@ -54,7 +54,7 @@
         {
           "id": "theme-source",
           "icon": "simple-icons:nuxt",
-          "text": "主题来源: Clarity（生产合并验收）",
+          "text": "主题: Clarity",
           "url": "https://github.com/L33Z22L11/blog-v3"
         },
         {
