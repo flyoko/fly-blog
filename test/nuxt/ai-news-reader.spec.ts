@@ -5,7 +5,7 @@ const read = (path: string) => readFileSync(path, 'utf8')
 
 describe('ai 阅闻站内阅读界面', () => {
 	it('uses a compact searchable news workspace instead of the cancelled feature-card layout', () => {
-		const page = read('app/pages/ai.news.vue')
+		const page = read('app/pages/ai.news/index.vue')
 		expect(page).toContain('v-model="query"')
 		expect(page).toContain('搜索标题或摘要')
 		expect(page).toContain('option in filterOptions')
