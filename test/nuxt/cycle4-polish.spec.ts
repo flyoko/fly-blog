@@ -1,5 +1,6 @@
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
+import { timeElapse } from '../../shared/utils/time'
 
 const read = (path: string) => readFileSync(path, 'utf8')
 
@@ -14,16 +15,54 @@ describe('cycle 4 polish contracts', () => {
 		expect(css).toContain('forced-colors: active')
 	})
 
-	it('lazy loads weather and music and lets public APIs decide visibility', () => {
+	it('does not load weather or music runtimes when their modules are disabled', () => {
 		const layout = read('app/layouts/default.vue')
-		expect(layout).toContain('<LazyWidgetWeather @visibility-change="weatherVisible = $event" />')
-		expect(layout).toContain('<LazyMusicGlobalPlayer />')
-		expect(layout).toContain('Boolean(slots?.aside) || weatherVisible.value')
+		expect(layout).toContain('<LazyWidgetWeather v-if="weatherEnabled" />')
+		expect(layout).toContain('<LazyMusicGlobalPlayer v-if="musicEnabled" />')
+		expect(layout).toContain('routeAsideVisible.value || weatherEnabled.value')
+		expect(layout).toContain('<BlogRouteAside @visibility-change="routeAsideVisible = $event" />')
+		const nuxtConfig = read('nuxt.config.ts')
+		expect(nuxtConfig).toContain('env.NUXT_E2E !== \'1\'')
+		expect(nuxtConfig).toContain('file: resolve(\'./e2e/fixtures/modules-page.vue\')')
+		expect(existsSync('app/pages/__e2e__.vue')).toBe(false)
+		expect(existsSync('e2e/fixtures/modules-page.vue')).toBe(true)
 	})
 
 	it('uses a semantic keyboard-operable sidebar search control', () => {
 		const sidebar = read('app/components/blog/BlogSidebar.vue')
 		expect(sidebar).toContain('<button class="search-btn')
 		expect(sidebar).not.toContain('<div class="search-btn')
+	})
+
+	it('formats elapsed time against an explicit deterministic reference', () => {
+		expect(timeElapse('2026-08-02', 2, '2026-08-03T12:30:00+08:00[Asia/Shanghai]')).toBe('1天12小时')
+	})
+
+	it('keeps hydration-sensitive controls deterministic and semantic', () => {
+		const key = read('app/components/content/Key.vue')
+		const dropdown = read('app/components/partial/Dropdown.vue')
+		const order = read('app/components/post/OrderToggle.vue')
+		const moments = read('app/pages/moments/index.vue')
+		expect(key).toContain('const mounted = useMounted()')
+		expect(key).not.toContain('<UtilHydrateSafe>')
+		expect(dropdown).toContain('class="dropdown-trigger"')
+		expect(dropdown).toContain(':aria-expanded="open"')
+		expect(order).not.toContain('trigger="focusin"')
+		expect(moments).toMatch(/prefers-reduced-motion: reduce[\s\S]*?moment-card[\s\S]*?animation: none;/u)
+	})
+
+	it('repairs third-party comment semantics and keeps low-emphasis text readable', () => {
+		const comment = read('app/components/post/Comment.vue')
+		const toc = read('app/components/widget/Toc.vue')
+		const about = read('app/pages/me.vue')
+		const moments = read('app/pages/moments/index.vue')
+		const archive = read('app/pages/archive.vue')
+		expect(comment).toContain('textarea.setAttribute(\'aria-label\', \'评论内容\')')
+		expect(comment).toContain('link.setAttribute(\'aria-label\'')
+		expect(comment).toContain('new MutationObserver(enhanceTwikooAccessibility)')
+		expect(toc).toMatch(/\.no-toc[\s\S]*?color: var\(--c-text-1\)/u)
+		expect(about).toMatch(/\.about-timeline time[\s\S]*?color: var\(--c-text-1\)/u)
+		expect(moments).toMatch(/\.moments-filter span[\s\S]*?color: var\(--c-text-1\)/u)
+		expect(archive).toContain('<h1 class="visually-hidden">')
 	})
 })

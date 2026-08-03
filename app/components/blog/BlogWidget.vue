@@ -19,13 +19,15 @@ defineExpose({ body })
 	class="blog-widget"
 	:class="{ shrink, grayscale, dim }"
 >
-	<hgroup class="widget-header text-creative">
-		<slot name="title">
-			{{ title }}
-		</slot>
+	<header v-if="title || $slots.title || $slots.action" class="widget-header text-creative">
+		<h2 class="widget-title">
+			<slot name="title">
+				{{ title }}
+			</slot>
+		</h2>
 		<span v-if="$slots.action" class="seperator" />
 		<slot name="action" />
-	</hgroup>
+	</header>
 
 	<div
 		ref="widget-body"
@@ -61,13 +63,13 @@ defineExpose({ body })
 	}
 
 	&.dim {
-		opacity: 0.3;
-		transition: opacity 0.2s;
+		transition: filter 0.2s;
+		filter: saturate(0.85);
 
 		#blog-aside:hover &,
 		&:focus-within,
 		#blog-aside.show & {
-			opacity: 1;
+			filter: none;
 		}
 	}
 }
@@ -79,10 +81,6 @@ defineExpose({ body })
 	padding: 0.5rem;
 	color: var(--c-text-2);
 
-	&:empty {
-		display: none;
-	}
-
 	> .seperator {
 		flex-grow: 1;
 	}
@@ -93,6 +91,15 @@ defineExpose({ body })
 		&[href]:hover {
 			color: var(--c-primary);
 		}
+	}
+}
+
+.widget-title {
+	margin: 0;
+	font: inherit;
+
+	&:empty {
+		display: none;
 	}
 }
 

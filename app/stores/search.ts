@@ -1,3 +1,4 @@
+import { skipHydrate } from 'pinia'
 import { LazyPopoverSearch } from '#components'
 
 export const useSearchStore = defineStore('search', () => {
@@ -6,7 +7,7 @@ export const useSearchStore = defineStore('search', () => {
 	const modalStore = useModalStore()
 
 	const word = ref('')
-	const debouncedWord = refDebounced(word)
+	const debouncedWord = skipHydrate(refDebounced(word))
 
 	const {
 		open: _open,

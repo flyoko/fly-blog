@@ -203,11 +203,20 @@ export default defineNuxtConfig({
 
 	dxup: {
 		features: {
-			namedLayoutSlots: true,
+			namedLayoutSlots: false,
 		},
 	},
 
 	hooks: {
+		'pages:extend': (pages) => {
+			if (env.NUXT_E2E !== '1')
+				return
+			pages.push({
+				name: 'e2e-modules',
+				path: '/__e2e__',
+				file: resolve('./e2e/fixtures/modules-page.vue'),
+			})
+		},
 		'ready': () => {
 			console.info(`
 ================================

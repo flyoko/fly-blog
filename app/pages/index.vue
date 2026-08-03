@@ -31,46 +31,45 @@ const { data: previewCount } = useAsyncData(
 </script>
 
 <template>
-<template #aside>
-	<WidgetBlogStats />
-	<WidgetBlogTech />
-	<WidgetCommGroup />
-</template>
+<div class="home-page">
+	<h1 class="visually-hidden">
+		{{ appConfig.title }}
+	</h1>
+	<BlogHeader class="mobile-only" to="/" />
 
-<BlogHeader class="mobile-only" to="/" tag="h1" />
+	<UtilHydrateSafe>
+		<PostSlide v-if="listRecommended.length && page === 1 && !category" :list="listRecommended" />
 
-<UtilHydrateSafe>
-	<PostSlide v-if="listRecommended.length && page === 1 && !category" :list="listRecommended" />
+		<div class="post-list">
+			<PostOrderToggle
+				v-model:is-ascending="isAscending"
+				v-model:sort-order="sortOrder"
+				v-model:category="category"
+				:categories
+			>
+				<ZSecret>
+					<UtilLink v-if="previewCount" to="/preview" class="preview-entrance">
+						<Icon name="tabler:shield-lock" />
+						查看预览文章
+					</UtilLink>
+				</ZSecret>
+			</PostOrderToggle>
 
-	<div class="post-list">
-		<PostOrderToggle
-			v-model:is-ascending="isAscending"
-			v-model:sort-order="sortOrder"
-			v-model:category="category"
-			:categories
-		>
-			<ZSecret>
-				<UtilLink v-if="previewCount" to="/preview" class="preview-entrance">
-					<Icon name="tabler:shield-lock" />
-					查看预览文章
-				</UtilLink>
-			</ZSecret>
-		</PostOrderToggle>
+			<TransitionGroup tag="div" class="proper-height" name="float-in">
+				<PostArticle
+					v-for="article, index in listPaged"
+					:key="article.path"
+					v-bind="article"
+					:to="article.path"
+					:use-updated="sortOrder === 'updated'"
+					:style="getFixedDelay(index * 0.05)"
+				/>
+			</TransitionGroup>
 
-		<TransitionGroup tag="menu" class="proper-height" name="float-in">
-			<PostArticle
-				v-for="article, index in listPaged"
-				:key="article.path"
-				v-bind="article"
-				:to="article.path"
-				:use-updated="sortOrder === 'updated'"
-				:style="getFixedDelay(index * 0.05)"
-			/>
-		</TransitionGroup>
-
-		<ZPagination v-model="page" sticky avoid :total-pages="totalPages" />
-	</div>
-</UtilHydrateSafe>
+			<ZPagination v-model="page" sticky avoid :total-pages="totalPages" />
+		</div>
+	</UtilHydrateSafe>
+</div>
 </template>
 
 <style lang="scss" scoped>

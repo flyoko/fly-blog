@@ -7,12 +7,6 @@ const { data: post } = await useAsyncData(
 )
 
 const excerpt = computed(() => post.value?.description || '')
-const asideWidgetNames = computed<WidgetName[]>(() => {
-	if (!post.value)
-		return ['blog-log']
-	return (post.value.meta?.aside as WidgetName[] | undefined) ?? ['toc']
-})
-const { widgets } = useWidgets(asideWidgetNames)
 
 if (post.value) {
 	useSeoMeta({
@@ -30,11 +24,6 @@ else {
 </script>
 
 <template>
-<template #aside>
-	<!-- 更换页面时相同 key 的组件不会更新 -->
-	<component :is="widget.comp" v-for="widget in widgets" :key="widget.name" />
-</template>
-
 <template v-if="post">
 	<PostHeader v-bind="post" />
 	<PostExcerpt v-if="excerpt" :excerpt />

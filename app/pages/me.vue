@@ -177,7 +177,7 @@ useSeoMeta({
 
 .about-timeline time {
 	font-family: var(--font-monospace);
-	color: var(--c-text-3);
+	color: var(--c-text-1);
 }
 
 .about-timeline h3 {

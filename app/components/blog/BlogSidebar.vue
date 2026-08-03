@@ -18,7 +18,7 @@ const debouncedSelection = refDebounced(text)
 <aside id="blog-sidebar" :class="{ show: layoutStore.state === 'sidebar' }">
 	<BlogHeader class="sidebar-header" to="/" />
 
-	<nav class="sidebar-nav scrollcheck-y">
+	<nav class="sidebar-nav scrollcheck-y" aria-label="主导航">
 		<button class="search-btn sidebar-nav-item gradient-card" type="button" aria-label="搜索站内内容" @click="layoutStore.toggle('search')">
 			<Icon name="tabler:search" />
 			<span class="nav-text">{{ debouncedSelection || searchStore.word || '搜索' }}</span>

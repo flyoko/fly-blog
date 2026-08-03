@@ -2,7 +2,6 @@
 import type { ApiSuccess } from '#shared/admin/api'
 import type { PublicWeather } from '#shared/admin/weather'
 
-const emit = defineEmits<{ visibilityChange: [visible: boolean] }>()
 const appConfig = useAppConfig()
 const configuredEnabled = computed(() => appConfig.featureModules.some(module => module.id === 'weather' && module.enabled))
 const weather = ref<PublicWeather | null>(null)
@@ -13,8 +12,6 @@ const visible = computed(() => Boolean(
 	|| weather.value?.reason === 'temporarily_unavailable'
 	|| (configuredEnabled.value && (loading.value || error.value)),
 ))
-
-watch(visible, value => emit('visibilityChange', value), { immediate: true })
 
 async function load() {
 	loading.value = true
