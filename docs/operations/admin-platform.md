@@ -268,7 +268,7 @@ pnpm --filter @fly-living/api-worker exec wrangler d1 migrations apply DB --remo
 
 ### 瞬间备份与恢复
 
-瞬间备份 Cron：`17 19 * * *`（UTC，即北京时间次日 03:17）。半小时阅闻任务不会执行瞬间备份。每日备份任务会：
+瞬间备份 Cron：`17 19 * * *`（UTC，即北京时间次日 03:17）。阅闻到期检查任务不会执行瞬间备份。每日备份任务会：
 
 1. 导出确定性 JSON；
 2. 计算不包含 `exportedAt` 的数据校验和；
