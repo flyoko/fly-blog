@@ -7,23 +7,43 @@
       "type": "rss",
       "url": "https://www.zaihua.news/rss.xml",
       "enabled": true,
-      "priority": 0
+      "priority": 0,
+      "adapter": "zaihua-rss",
+      "intervalMinutes": 60,
+      "publishItems": true
     },
     {
-      "id": "ai-hot",
-      "title": "AI HOT 热点榜",
+      "id": "ai-hot-items",
+      "title": "AI HOT 精选",
       "type": "rest",
-      "url": "https://aihot.virxact.com/api/v1/hot-topics",
+      "url": "https://aihot.virxact.com/api/v1/items?mode=selected&window=24h&limit=30",
       "enabled": true,
-      "priority": 1
+      "priority": 1,
+      "adapter": "aihot-items",
+      "intervalMinutes": 30,
+      "publishItems": true
+    },
+    {
+      "id": "ai-hot-full",
+      "title": "AI HOT 全文",
+      "type": "rss",
+      "url": "https://aihot.virxact.com/feed/full.xml",
+      "enabled": true,
+      "priority": 2,
+      "adapter": "aihot-full",
+      "intervalMinutes": 30,
+      "publishItems": false
     },
     {
       "id": "ai-hot-daily",
-      "title": "每日早报",
+      "title": "AI HOT 日报",
       "type": "rest",
       "url": "https://aihot.virxact.com/api/v1/dailies/latest",
       "enabled": true,
-      "priority": 2
+      "priority": 3,
+      "adapter": "aihot-daily",
+      "intervalMinutes": 30,
+      "publishItems": false
     }
   ]
 }

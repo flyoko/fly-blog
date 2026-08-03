@@ -115,6 +115,13 @@ export const weatherConfigSchema = z.object({
 		ctx.addIssue({ code: 'custom', path: ['longitude'], message: 'Enabled weather requires longitude' })
 })
 
+export const newsSourceAdapterSchema = z.enum([
+	'zaihua-rss',
+	'aihot-items',
+	'aihot-full',
+	'aihot-daily',
+])
+
 const newsSourceSchema = z.object({
 	id: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/u),
 	title: z.string().min(1),
@@ -122,6 +129,9 @@ const newsSourceSchema = z.object({
 	url: z.url(),
 	enabled: z.boolean(),
 	priority: z.number().int().nonnegative(),
+	adapter: newsSourceAdapterSchema,
+	intervalMinutes: z.number().int().min(30).max(1_440),
+	publishItems: z.boolean(),
 })
 
 export const newsSourcesConfigSchema = z.object({

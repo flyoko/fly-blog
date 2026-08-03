@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { musicPlaylistSchema } from '../../shared/admin/music'
-import { modulesConfigSchema, weatherConfigSchema } from '../../shared/admin/site-config'
+import { newsItemSchema } from '../../shared/admin/news'
+import { modulesConfigSchema, newsSourcesConfigSchema, weatherConfigSchema } from '../../shared/admin/site-config'
 
 describe('cycle 3 contracts', () => {
 	it('requires a complete fixed city when weather is enabled', () => {
@@ -25,6 +26,39 @@ describe('cycle 3 contracts', () => {
 				{ id: 'a', title: 'B', audioUrl: 'https://media.example.com/b.mp3', enabled: true, order: 0 },
 			],
 		})).toThrow()
+	})
+
+
+	it('defines internal reader fields and source sync adapters', () => {
+		const item = newsItemSchema.parse({
+			id: 'ai-hot:cms1',
+			sourceId: 'ai-hot-items',
+			kind: 'hot',
+			title: '测试资讯',
+			summary: '摘要',
+			url: 'https://aihot.virxact.com/items/cms1',
+			originalUrl: 'https://example.com/article',
+			category: 'AI 模型',
+			rank: null,
+			publishedAt: '2026-08-03T00:00:00.000Z',
+			fetchedAt: '2026-08-03T00:30:00.000Z',
+			selected: true,
+			readerPath: null,
+			contentMode: null,
+		})
+		expect(item).toMatchObject({ readerPath: null, contentMode: null })
+
+		const config = newsSourcesConfigSchema.parse({
+			enabled: true,
+			sources: [
+				{ id: 'ai-hot-items', title: 'AI 精选', type: 'rest', url: 'https://aihot.virxact.com/api/v1/items', enabled: true, priority: 0, adapter: 'aihot-items', intervalMinutes: 30, publishItems: true },
+				{ id: 'station-news', title: '站长资讯', type: 'rss', url: 'https://www.zaihua.news/rss.xml', enabled: true, priority: 1, adapter: 'zaihua-rss', intervalMinutes: 60, publishItems: true },
+			],
+		})
+		expect(config.sources).toEqual(expect.arrayContaining([
+			expect.objectContaining({ adapter: 'aihot-items', intervalMinutes: 30, publishItems: true }),
+			expect.objectContaining({ adapter: 'zaihua-rss', intervalMinutes: 60, publishItems: true }),
+		]))
 	})
 
 	it('keeps module orders unique and complete', () => {
