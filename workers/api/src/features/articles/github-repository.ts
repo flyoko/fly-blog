@@ -167,8 +167,9 @@ export class GitHubRepository {
 		if (!input.expectedHeadSha || !input.message.trim() || input.files.length === 0)
 			throw new ApiError('VALIDATION_FAILED', 400, 'Commit input is incomplete')
 
-		const refPath = `/git/ref/heads/${encodeURIComponent(branch)}`
-		const ref = await this.request<{ object?: { sha?: string } }>(refPath)
+		const readRefPath = `/git/ref/heads/${encodeURIComponent(branch)}`
+		const updateRefPath = `/git/refs/heads/${encodeURIComponent(branch)}`
+		const ref = await this.request<{ object?: { sha?: string } }>(readRefPath)
 		const currentHead = ref.object?.sha
 		if (!currentHead)
 			throw new ApiError('UPSTREAM_FAILED', 502, 'GitHub returned an invalid branch reference')
@@ -212,7 +213,7 @@ export class GitHubRepository {
 		})
 		if (!createdCommit.sha)
 			throw new ApiError('UPSTREAM_FAILED', 502, 'GitHub did not return a commit SHA')
-		await this.request(refPath, {
+		await this.request(updateRefPath, {
 			method: 'PATCH',
 			body: JSON.stringify({ sha: createdCommit.sha, force: false }),
 		}, new Set([409, 422]))

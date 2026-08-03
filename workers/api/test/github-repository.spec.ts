@@ -114,6 +114,7 @@ describe('gitHubRepository atomic commits', () => {
 			{ path: 'content/posts/2026/hello.md', mode: '100644', type: 'blob', sha: 'blob-1' },
 			{ path: 'content/posts/2026/old.md', mode: '100644', type: 'blob', sha: null },
 		])
+		expect(requests[5]!.url).toContain('/git/refs/heads/setup%2Fpersonalize')
 		const updateBody = await requests[5]!.json() as Record<string, unknown>
 		expect(updateBody).toEqual({ sha: 'new-commit', force: false })
 	})
