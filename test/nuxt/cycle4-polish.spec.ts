@@ -15,12 +15,17 @@ describe('cycle 4 polish contracts', () => {
 		expect(css).toContain('forced-colors: active')
 	})
 
-	it('does not load weather or music runtimes when their modules are disabled', () => {
+	it('keeps weather and music runtimes module-aware while placing weather in the home aside', () => {
 		const layout = read('app/layouts/default.vue')
-		expect(layout).toContain('<LazyWidgetWeather v-if="weatherEnabled" />')
+		const routeAside = read('app/components/blog/RouteAside.vue')
+		const widgets = read('app/composables/useWidgets.ts')
+		const weather = read('app/components/widget/Weather.vue')
 		expect(layout).toContain('<LazyMusicGlobalPlayer v-if="musicEnabled" />')
-		expect(layout).toContain('routeAsideVisible.value || weatherEnabled.value')
 		expect(layout).toContain('<BlogRouteAside @visibility-change="routeAsideVisible = $event" />')
+		expect(routeAside).toContain('return [\'blog-stats\', \'weather\', \'comm-group\']')
+		expect(widgets).toContain('LazyWidgetWeather')
+		expect(weather).toContain('module.id === \'weather\' && module.enabled')
+		expect(weather).toContain('<BlogWidget v-if="visible" title="站长城市天气" card>')
 		const nuxtConfig = read('nuxt.config.ts')
 		expect(nuxtConfig).toContain('env.NUXT_E2E !== \'1\'')
 		expect(nuxtConfig).toContain('file: resolve(\'./e2e/fixtures/modules-page.vue\')')

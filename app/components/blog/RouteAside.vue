@@ -7,7 +7,7 @@ const route = useRoute()
 const { post } = useArticle()
 const widgetNames = computed<WidgetName[]>(() => {
 	if (route.path === '/')
-		return ['blog-stats', 'blog-tech', 'comm-group']
+		return ['blog-stats', 'weather', 'comm-group']
 	if (route.path === '/archive')
 		return ['blog-stats', 'blog-log']
 	if (route.path === '/preview')

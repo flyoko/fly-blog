@@ -17,6 +17,26 @@
 	--ld-bg-card: var(--c-bg-3);
 	--ld-bg-active: var(--c-primary-soft);
 	--ld-shadow: var(--c-bg-a50);
+	--c-atmosphere-base: hsl(225deg 31% 6%);
+	--c-atmosphere-panel: hsl(220deg 25% 10% / 72%);
+	--c-flow-blue: hsl(212deg 100% 67%);
+	--c-flow-cyan: hsl(184deg 92% 62%);
+	--c-flow-violet: hsl(258deg 92% 72%);
+	--c-flow-signal: hsl(184deg 100% 82% / 92%);
+	--c-flow-signal-alt: hsl(258deg 100% 86% / 78%);
+	--c-atmosphere-lens-blue: hsl(211deg 96% 60% / 18%);
+	--c-atmosphere-lens-violet: hsl(258deg 88% 68% / 13%);
+	--c-atmosphere-pointer: hsl(190deg 100% 72% / 16%);
+	--c-atmosphere-grain: hsl(210deg 30% 100% / 4%);
+	--c-atmosphere-vignette: hsl(228deg 42% 2% / 68%);
+	--c-surface-fill: hsl(222deg 20% 13% / 76%);
+	--c-surface-highlight: hsl(210deg 25% 100% / 10%);
+	--c-surface-line: hsl(210deg 28% 92% / 10%);
+	--c-surface-border: hsl(190deg 96% 72% / 42%);
+	--c-surface-glow: hsl(190deg 100% 68% / 18%);
+	--c-surface-sheen: hsl(210deg 100% 92% / 14%);
+	--c-surface-shadow: hsl(228deg 55% 2% / 38%);
+	--c-progress: hsl(190deg 94% 68%);
 }
 
 :root,
@@ -41,6 +61,26 @@
 	--ld-bg-card: var(--c-bg);
 	--ld-bg-active: var(--c-bg);
 	--ld-shadow: var(--c-bg-soft);
+	--c-atmosphere-base: hsl(218deg 31% 96%);
+	--c-atmosphere-panel: hsl(214deg 42% 99% / 56%);
+	--c-flow-blue: hsl(212deg 94% 55%);
+	--c-flow-cyan: hsl(184deg 82% 42%);
+	--c-flow-violet: hsl(257deg 86% 62%);
+	--c-flow-signal: hsl(190deg 88% 34% / 82%);
+	--c-flow-signal-alt: hsl(258deg 84% 56% / 68%);
+	--c-atmosphere-lens-blue: hsl(211deg 96% 60% / 16%);
+	--c-atmosphere-lens-violet: hsl(258deg 86% 66% / 11%);
+	--c-atmosphere-pointer: hsl(190deg 92% 46% / 12%);
+	--c-atmosphere-grain: hsl(216deg 40% 24% / 5%);
+	--c-atmosphere-vignette: hsl(220deg 24% 74% / 14%);
+	--c-surface-fill: hsl(0deg 0% 100% / 82%);
+	--c-surface-highlight: hsl(0deg 0% 100% / 92%);
+	--c-surface-line: hsl(220deg 30% 15% / 12%);
+	--c-surface-border: hsl(190deg 86% 42% / 38%);
+	--c-surface-glow: hsl(190deg 92% 48% / 13%);
+	--c-surface-sheen: hsl(210deg 100% 100% / 46%);
+	--c-surface-shadow: hsl(220deg 38% 28% / 16%);
+	--c-progress: hsl(190deg 86% 42%);
 	--c-success: #5A5;
 	--c-success-soft: #3F32;
 	--c-warning: #D85;

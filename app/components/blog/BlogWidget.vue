@@ -52,23 +52,25 @@ defineExpose({ body })
 	}
 
 	&.grayscale :where(.iconify, img) {
-		transition: filter 0.2s;
-		filter: grayscale(0.8);
+		transition: filter 0.24s;
+		filter: grayscale(0.35) saturate(0.8);
 
 		#blog-aside:hover &,
 		&:focus-within,
 		#blog-aside.show & {
-			filter: grayscale(0);
+			filter: grayscale(0) saturate(1);
 		}
 	}
 
 	&.dim {
-		transition: filter 0.2s;
+		opacity: 0.68;
+		transition: filter 0.2s, opacity 0.24s;
 		filter: saturate(0.85);
 
 		#blog-aside:hover &,
 		&:focus-within,
 		#blog-aside.show & {
+			opacity: 1;
 			filter: none;
 		}
 	}
@@ -78,7 +80,9 @@ defineExpose({ body })
 	display: flex;
 	align-items: center;
 	gap: 0.5rem;
-	padding: 0.5rem;
+	padding: 0.45rem 0.25rem 0.55rem;
+	font-size: 0.82em;
+	letter-spacing: 0.04em;
 	color: var(--c-text-2);
 
 	> .seperator {
@@ -129,13 +133,32 @@ defineExpose({ body })
 	}
 
 	&.widget-card {
-		padding: 0.5rem 0.8rem;
-		border-radius: 0.8rem;
-		background-color: var(--c-bg-2);
+		padding: 0.65rem 0.85rem;
+		border-radius: 0.75rem;
+		box-shadow:
+			0 10px 28px var(--c-surface-shadow),
+			inset 0 0 0 1px var(--c-surface-line),
+			inset 0 1px 0 var(--c-surface-highlight);
+		background-color: var(--c-surface-fill);
+		backdrop-filter: blur(14px) saturate(112%);
 
 		:deep(p) {
 			padding: 0.2em 0;
 		}
+	}
+}
+
+@media (prefers-reduced-transparency: reduce) {
+	.widget-body.widget-card {
+		background-color: var(--ld-bg-card);
+		backdrop-filter: none;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.blog-widget.dim,
+	.blog-widget.grayscale :where(.iconify, img) {
+		transition: none;
 	}
 }
 </style>

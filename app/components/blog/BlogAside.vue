@@ -35,14 +35,17 @@ const layoutStore = useLayoutStore()
 		max-height: 100dvh;
 		padding-bottom: calc(5rem + env(safe-area-inset-bottom));
 		transform: var(--transform-end-far);
-		transition: transform 0.2s;
+		transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1);
 
 		> :deep(.blog-widget) {
-			padding: 0.5rem;
-			border-radius: 1rem;
-			box-shadow: var(--box-shadow-1), var(--box-shadow-2);
-			background-color: var(--ld-bg-blur);
-			backdrop-filter: blur(0.5rem);
+			padding: 0.65rem;
+			border-radius: 0.75rem;
+			box-shadow:
+				0 14px 36px var(--c-surface-shadow),
+				inset 0 0 0 1px var(--c-surface-line),
+				inset 0 1px 0 var(--c-surface-highlight);
+			background-color: var(--c-surface-fill);
+			backdrop-filter: blur(16px) saturate(114%);
 		}
 
 		&.show {
@@ -52,6 +55,19 @@ const layoutStore = useLayoutStore()
 
 	&:empty {
 		display: none;
+	}
+}
+
+@media (prefers-reduced-transparency: reduce) {
+	#blog-aside > :deep(.blog-widget) {
+		background-color: var(--ld-bg-card);
+		backdrop-filter: none;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	#blog-aside {
+		transition: none;
 	}
 }
 </style>

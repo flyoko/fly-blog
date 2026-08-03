@@ -53,15 +53,15 @@ const showAllDate = isTimeDiffSignificant(props.date, props.updated)
 .article-card {
 	container-type: inline-size;
 	position: relative;
-	margin: 1em 0;
-	border-radius: 0.8em;
+	margin: 1.1em 0;
+	border-radius: 0.875rem;
 	color: var(--c-text);
-	animation: float-in 0.2s var(--delay) backwards;
+	animation: float-in 0.28s var(--delay) backwards;
 
 	> article {
 		display: grid;
-		gap: 0.5em;
-		padding: 1em;
+		gap: 0.55em;
+		padding: 1.05rem 1.15rem;
 	}
 }
 
@@ -82,13 +82,15 @@ const showAllDate = isTimeDiffSignificant(props.date, props.updated)
 }
 
 .article-title {
-	font-size: 1.2em;
+	font-size: 1.18em;
+	letter-spacing: -0.012em;
 	color: var(--c-text);
 }
 
 .article-description {
 	font-size: 0.9em;
-	color: var(--c-text-1);
+	line-height: 1.65;
+	color: var(--c-text-2);
 }
 
 .article-category {
@@ -97,6 +99,12 @@ const showAllDate = isTimeDiffSignificant(props.date, props.updated)
 	text-decoration-thickness: 0.12em;
 	color: var(--c-text-1);
 	text-underline-offset: 0.2em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.article-card {
+		animation: none;
+	}
 }
 
 .article-cover {

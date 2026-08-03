@@ -61,12 +61,17 @@ if (props.avoid) {
 <style lang="scss" scoped>
 .pagination {
 	display: flex;
-	max-width: calc(100vw);
-	margin: 1rem auto;
-	border: 1px solid var(--c-border);
-	border-radius: 0.5rem;
-	box-shadow: var(--box-shadow-1);
-	background-color: var(--ld-bg-card);
+	width: fit-content;
+	min-width: min(18rem, calc(100vw - 2rem));
+	max-width: calc(100vw - 2rem);
+	margin: 1.5rem auto;
+	border: 1px solid var(--c-surface-line);
+	border-radius: 0.75rem;
+	box-shadow:
+		0 12px 30px var(--c-surface-shadow),
+		inset 0 1px 0 var(--c-surface-highlight);
+	background-color: var(--c-surface-fill);
+	backdrop-filter: blur(14px) saturate(112%);
 	transition: max-width 0.2s var(--max-bezier-to-full);
 	font-variant-numeric: tabular-nums;
 
@@ -81,33 +86,53 @@ if (props.avoid) {
 	}
 
 	> .pagination-button {
+		width: 3rem;
 		border: none;
 		border-radius: 0;
 		box-shadow: none;
+		color: var(--c-text-2);
 
 		&:first-child {
 			margin-inline-end: auto;
-			border-radius: 0.5rem 0 0 0.5rem;
+			border-radius: 0.7rem 0 0 0.7rem;
 		}
 
 		&:last-child {
 			margin-inline-start: auto;
-			border-radius: 0 0.5rem 0.5rem 0;
+			border-radius: 0 0.7rem 0.7rem 0;
 		}
 	}
 
 	> .pagination-num {
-		width: 3em;
-		transition: background-color 0.2s;
+		width: 2.5rem;
+		height: 2.5rem;
+		margin-block: 0.25rem;
+		border-radius: 0.5rem;
+		transition: background-color 0.2s, color 0.2s;
 
-		&:hover { background-color: var(--c-border); }
+		&:hover { background-color: var(--c-bg-soft); }
 
 		&:disabled { pointer-events: none; }
 
 		&.active {
+			box-shadow: inset 0 0 0 1px var(--c-surface-border);
 			background-color: var(--c-primary-soft);
 			color: var(--c-primary);
 		}
+	}
+}
+
+@media (prefers-reduced-transparency: reduce) {
+	.pagination {
+		background-color: var(--ld-bg-card);
+		backdrop-filter: none;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.pagination,
+	.pagination > :where(.pagination-button, .pagination-num) {
+		transition: none;
 	}
 }
 </style>

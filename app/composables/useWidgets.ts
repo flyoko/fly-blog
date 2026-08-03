@@ -8,6 +8,7 @@ import {
 	LazyWidgetCommGroup,
 	LazyWidgetEmpty,
 	LazyWidgetToc,
+	LazyWidgetWeather,
 } from '#components'
 
 // @keep-sorted
@@ -18,6 +19,7 @@ const rawWidgets = {
 	LazyWidgetCommGroup,
 	LazyWidgetEmpty,
 	LazyWidgetToc,
+	LazyWidgetWeather,
 }
 
 type RawWidgetName = keyof typeof rawWidgets

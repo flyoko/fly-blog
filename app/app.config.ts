@@ -146,5 +146,9 @@ export default defineAppConfig({
 			icon: 'tabler:moon',
 			tip: '深色模式',
 		},
+		dynamic: {
+			icon: 'tabler:sparkles',
+			tip: '动态模式',
+		},
 	},
 })

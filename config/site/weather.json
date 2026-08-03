@@ -1,8 +1,8 @@
 {
-  "enabled": false,
+  "enabled": true,
   "provider": "open-meteo",
-  "city": "",
-  "latitude": null,
-  "longitude": null,
+  "city": "杭州",
+  "latitude": 30.2741,
+  "longitude": 120.1551,
   "timezone": "Asia/Shanghai"
 }

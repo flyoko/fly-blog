@@ -51,6 +51,118 @@
 	}
 }
 
+:where(.card, .gradient-card, .widget-card, .sidebar-nav-item, .pagination):focus-visible {
+	outline: 2px solid var(--c-primary);
+	outline-offset: 3px;
+}
+
+.dynamic :where(.card, .gradient-card, .widget-card, .sidebar-nav-item, .pagination) {
+	--surface-x: 50%;
+	--surface-y: 50%;
+	--surface-shift-x: 0px;
+	--surface-shift-y: 0px;
+	--surface-sheen-position: -35%;
+	--surface-glow-color: transparent;
+	--surface-sheen-color: transparent;
+	--surface-lift: 0px;
+
+	position: relative;
+	background-image:
+		radial-gradient(340px circle at var(--surface-x) var(--surface-y), var(--surface-glow-color), transparent 58%),
+		linear-gradient(108deg, transparent 36%, var(--surface-sheen-color) 49%, transparent 62%);
+	background-position: 0 0, var(--surface-sheen-position) 0;
+	background-repeat: no-repeat;
+	background-size: auto, 240% 100%;
+	transform: translate3d(var(--surface-shift-x), var(--surface-shift-y), 0);
+	transition:
+		background-color 0.24s,
+		background-position 0.16s ease-out,
+		border-color 0.24s,
+		box-shadow 0.24s,
+		scale 0.16s cubic-bezier(0.22, 1, 0.36, 1),
+		transform 0.14s cubic-bezier(0.22, 1, 0.36, 1);
+	will-change: transform;
+
+	&.is-pointer-active {
+		--surface-glow-color: var(--c-surface-glow);
+		--surface-sheen-color: var(--c-surface-sheen);
+	}
+
+	&.is-pressed {
+		scale: 0.982;
+	}
+}
+
+.dynamic .card {
+	border-radius: 0.75rem;
+	box-shadow:
+		0 14px 40px var(--c-surface-shadow),
+		inset 0 0 0 1px var(--c-surface-line),
+		inset 0 1px 0 var(--c-surface-highlight);
+	background-color: var(--c-surface-fill);
+	backdrop-filter: blur(18px) saturate(116%);
+	transform: translate3d(var(--surface-shift-x), calc(var(--surface-lift) + var(--surface-shift-y)), 0);
+
+	&.upraise:hover {
+		--surface-lift: -2px;
+
+		box-shadow:
+			0 18px 48px var(--c-surface-shadow),
+			inset 0 0 0 1px var(--c-surface-line),
+			inset 0 1px 0 var(--c-surface-highlight);
+		transform: translate3d(var(--surface-shift-x), calc(var(--surface-lift) + var(--surface-shift-y)), 0);
+	}
+
+	&.is-pointer-active {
+		box-shadow:
+			0 18px 48px var(--c-surface-shadow),
+			inset 0 0 0 1px var(--c-surface-border),
+			inset 0 1px 0 var(--c-surface-highlight);
+	}
+}
+
+.dynamic :where(.widget-card, .sidebar-nav-item, .pagination).is-pointer-active {
+	box-shadow:
+		0 12px 32px var(--c-surface-shadow),
+		inset 0 0 0 1px var(--c-surface-border),
+		inset 0 1px 0 var(--c-surface-highlight);
+}
+
+.dynamic .gradient-card {
+	border-radius: 0.625rem;
+
+	&::before {
+		border-width: 1px;
+		background:
+			linear-gradient(var(--c-bg-a80), var(--c-bg-a80)) padding-box,
+			radial-gradient(180px circle at var(--surface-x) var(--surface-y), var(--c-surface-border), var(--c-surface-line) 48%, transparent 76%) border-box;
+		transition: opacity 0.24s;
+	}
+}
+
+@media (pointer: fine) and (prefers-reduced-motion: no-preference) {
+	.dynamic :where(.card, .gradient-card, .widget-card, .sidebar-nav-item, .pagination):active {
+		scale: 0.982;
+	}
+}
+
+@media (prefers-reduced-transparency: reduce) {
+	.dynamic .card {
+		background-color: var(--ld-bg-card);
+		backdrop-filter: none;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.dynamic :where(.card, .gradient-card, .widget-card, .sidebar-nav-item, .pagination),
+	.dynamic .gradient-card::before {
+		--surface-shift-x: 0px;
+		--surface-shift-y: 0px;
+
+		transition: none;
+	}
+}
+
 .scrollbar-hidden.scrollbar-hidden {
 	--scrollbar-height: 0px;
 	--guessed-scrollbar-width: 0px;

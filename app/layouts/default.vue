@@ -1,12 +1,12 @@
 <script setup lang="ts">
 const appConfig = useAppConfig()
-const weatherEnabled = computed(() => appConfig.featureModules.some(module => module.id === 'weather' && module.enabled))
 const musicEnabled = computed(() => appConfig.featureModules.some(module => module.id === 'music' && module.enabled))
 const routeAsideVisible = ref(false)
-const hasAside = computed(() => routeAsideVisible.value || weatherEnabled.value)
+const hasAside = computed(() => routeAsideVisible.value)
 </script>
 
 <template>
+<BlogAtmosphere />
 <NuxtLoadingIndicator />
 <NuxtRouteAnnouncer :style="{ position: 'absolute' }" />
 <BlogSkipToContent />
@@ -17,7 +17,6 @@ const hasAside = computed(() => routeAsideVisible.value || weatherEnabled.value)
 		<BlogFooter />
 	</main>
 	<BlogAside>
-		<LazyWidgetWeather v-if="weatherEnabled" />
 		<ClientOnly>
 			<BlogRouteAside @visibility-change="routeAsideVisible = $event" />
 		</ClientOnly>
@@ -26,6 +25,7 @@ const hasAside = computed(() => routeAsideVisible.value || weatherEnabled.value)
 <BlogPanel :has-aside="hasAside" />
 <LazyMusicGlobalPlayer v-if="musicEnabled" />
 <BikariyaModals />
+<BlogSurfaceInteraction />
 </template>
 
 <!-- eslint-disable-next-line vue/enforce-style-attribute -->
@@ -34,7 +34,13 @@ const hasAside = computed(() => routeAsideVisible.value || weatherEnabled.value)
 	display: flex;
 	justify-content: center;
 	gap: 1rem;
+	position: relative;
 	min-width: 0;
+	isolation: isolate;
+
+	> :not(.blog-atmosphere, .reading-progress) {
+		z-index: 1;
+	}
 }
 
 #blog-sidebar, #blog-aside {

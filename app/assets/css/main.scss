@@ -155,6 +155,205 @@ img {
 	}
 }
 
+.blog-atmosphere {
+	--pointer-x: 50%;
+	--pointer-y: 26%;
+	--pointer-shift-x: 0px;
+	--pointer-shift-y: 0px;
+
+	contain: paint;
+	display: none;
+	position: fixed;
+	overflow: hidden;
+	inset: 0;
+	background:
+		linear-gradient(180deg, var(--c-atmosphere-panel), transparent 38%),
+		var(--c-atmosphere-base);
+	pointer-events: none;
+	z-index: 0;
+}
+
+.dynamic .blog-atmosphere {
+	display: block;
+}
+
+.atmosphere-lens,
+.atmosphere-pointer,
+.atmosphere-grain,
+.atmosphere-vignette {
+	position: absolute;
+	inset: 0;
+}
+
+.atmosphere-lens {
+	width: 54vmax;
+	height: 54vmax;
+	border-radius: 50%;
+	will-change: transform;
+	filter: blur(clamp(54px, 7vw, 108px));
+}
+
+.atmosphere-lens-a {
+	top: -27vmax;
+	left: -16vmax;
+	background: radial-gradient(circle, var(--c-atmosphere-lens-blue), transparent 68%);
+	animation: atmosphere-lens-a 16s cubic-bezier(0.45, 0, 0.2, 1) infinite;
+}
+
+.atmosphere-lens-b {
+	right: -20vmax;
+	bottom: -31vmax;
+	background: radial-gradient(circle, var(--c-atmosphere-lens-violet), transparent 67%);
+	animation: atmosphere-lens-b 19s cubic-bezier(0.45, 0, 0.2, 1) infinite;
+}
+
+.atmosphere-flow {
+	position: absolute;
+	overflow: visible;
+	inset: -5%;
+	width: 110%;
+	height: 110%;
+	transform: translate3d(var(--pointer-shift-x), var(--pointer-shift-y), 0) scale(1.025);
+	transform-origin: center;
+	transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+	will-change: transform;
+}
+
+.flow-ribbon {
+	transform-box: fill-box;
+	transform-origin: center;
+
+	> path {
+		fill: none;
+		vector-effect: non-scaling-stroke;
+	}
+}
+
+.flow-ribbon-primary {
+	animation: atmosphere-flow-drift 13s ease-in-out infinite alternate;
+}
+
+.flow-ribbon-secondary {
+	opacity: 0.62;
+	animation: atmosphere-flow-drift-reverse 17s ease-in-out infinite alternate;
+}
+
+.flow-halo {
+	opacity: 0.48;
+	stroke-width: 42px;
+	animation: atmosphere-flow-breathe 6.8s ease-in-out infinite;
+	filter: blur(20px);
+}
+
+.flow-thread {
+	opacity: 0.82;
+	stroke-width: 1.5px;
+	stroke-dasharray: 7 4;
+	animation: atmosphere-flow-travel 7.5s linear infinite;
+	filter: drop-shadow(0 0 5px var(--c-flow-cyan));
+}
+
+.flow-signal {
+	opacity: 0.96;
+	stroke-width: 4.5px;
+	stroke-linecap: round;
+	stroke-dasharray: 0.18 10.8;
+	animation: atmosphere-flow-travel 4.6s linear infinite;
+	filter: drop-shadow(0 0 7px var(--c-flow-cyan));
+}
+
+.flow-ribbon-secondary .flow-thread {
+	stroke-dasharray: 4.5 6.5;
+	animation-duration: 10.5s;
+	animation-name: atmosphere-flow-travel-reverse;
+}
+
+.flow-ribbon-secondary .flow-signal {
+	stroke-dasharray: 0.15 14;
+	animation-duration: 7.2s;
+	animation-name: atmosphere-flow-travel-reverse;
+	filter: drop-shadow(0 0 7px var(--c-flow-violet));
+}
+
+.atmosphere-pointer {
+	background: radial-gradient(circle 24rem at var(--pointer-x) var(--pointer-y), var(--c-atmosphere-pointer), transparent 72%);
+}
+
+.atmosphere-grain {
+	opacity: 0.78;
+	background-image: radial-gradient(circle, var(--c-atmosphere-grain) 0 0.65px, transparent 0.85px);
+	background-size: 24px 24px;
+	mask-image: linear-gradient(135deg, transparent 2%, #000 24%, #000 64%, transparent 94%);
+}
+
+.atmosphere-vignette {
+	background: radial-gradient(ellipse at center, transparent 47%, var(--c-atmosphere-vignette) 100%);
+}
+
+.blog-atmosphere.is-route-pulse .atmosphere-flow {
+	animation: atmosphere-route-pulse 0.52s ease-out;
+}
+
+.reading-progress {
+	position: fixed;
+	opacity: 0;
+	inset: 0 0 auto;
+	height: 2px;
+	box-shadow: 0 0 12px var(--c-progress);
+	background: var(--c-progress);
+	transform: scaleX(0);
+	transform-origin: var(--start) center;
+	pointer-events: none;
+	z-index: calc(var(--z-index-popover) + 1);
+}
+
+@supports (animation-timeline: scroll()) {
+	.reading-progress {
+		opacity: 0.9;
+		animation: reading-progress linear both;
+		animation-timeline: scroll(root block);
+	}
+}
+
+@media (max-width: $breakpoint-mobile) {
+	.atmosphere-flow {
+		inset: -15%;
+		width: 130%;
+		height: 130%;
+		transform: scale(1.08);
+	}
+
+	.flow-ribbon-secondary {
+		opacity: 0.34;
+	}
+
+	.flow-halo {
+		opacity: 0.4;
+		stroke-width: 30px;
+		filter: blur(15px);
+	}
+
+	.atmosphere-pointer {
+		display: none;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.atmosphere-lens,
+	.flow-ribbon,
+	.flow-halo,
+	.flow-thread,
+	.flow-signal,
+	.blog-atmosphere.is-route-pulse .atmosphere-flow {
+		animation: none;
+	}
+
+	.atmosphere-flow {
+		transform: none;
+		transition: none;
+	}
+}
+
 .tippy-box {
 	padding: 0.3em 0.6em;
 	border-radius: 0.5em;

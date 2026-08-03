@@ -23,33 +23,40 @@ const appConfig = useAppConfig()
 
 <style lang="scss" scoped>
 .blog-footer {
-	margin: 3rem 1rem;
-	font-size: 0.9em;
+	margin: 4rem 1rem 2rem;
+	padding-top: 1.25rem;
+	border-top: 1px solid var(--c-surface-line);
+	font-size: 0.88em;
 	color: var(--c-text-2);
 
 	.footer-nav {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 5vw clamp(2rem, 5%, 5vw);
-		padding-block: 3rem;
+		gap: 2rem clamp(2rem, 5%, 4rem);
+		padding-block: 1rem 2.25rem;
 
 		h2 {
-			margin: 0.5em;
+			margin: 0.4em 0.55em 0.7em;
 			font: inherit;
+			font-size: 0.78em;
+			letter-spacing: 0.06em;
+			color: var(--c-text-3);
 		}
 
 		a {
 			display: flex;
 			align-items: center;
-			gap: 0.3em;
+			gap: 0.4em;
 			width: fit-content;
-			padding: 0.3em 0.5em;
-			border-radius: 0.5em;
+			padding: 0.35em 0.55em;
+			border: 1px solid transparent;
+			border-radius: 0.5rem;
 			font-size: 0.9em;
-			transition: background-color 0.2s, color 0.1s;
+			transition: background-color 0.2s, border-color 0.2s, color 0.2s;
 
 			&:hover {
-				background-color: var(--c-bg-soft);
+				border-color: var(--c-surface-line);
+				background-color: var(--c-surface-fill);
 				color: var(--c-text);
 			}
 		}
@@ -57,6 +64,7 @@ const appConfig = useAppConfig()
 
 	p {
 		margin: 0.5em;
+		font-variant-numeric: tabular-nums;
 	}
 }
 </style>

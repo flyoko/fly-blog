@@ -4,6 +4,92 @@
 	--max-bezier-to-collapse: cubic-bezier(0, 0.5, 0.5, 1);
 }
 
+@keyframes atmosphere-lens-a {
+	0%, 100% {
+		transform: translate3d(-7%, -4%, 0) scale(0.94);
+	}
+
+	45% {
+		transform: translate3d(8%, 7%, 0) scale(1.08);
+	}
+
+	72% {
+		transform: translate3d(3%, -2%, 0) scale(1.02);
+	}
+}
+
+@keyframes atmosphere-lens-b {
+	0%, 100% {
+		transform: translate3d(8%, 6%, 0) scale(1.04);
+	}
+
+	52% {
+		transform: translate3d(-9%, -8%, 0) scale(0.92);
+	}
+}
+
+@keyframes atmosphere-flow-drift {
+	from {
+		transform: translate3d(-1.6%, 1.2%, 0) rotate(-0.35deg);
+	}
+
+	to {
+		transform: translate3d(1.8%, -1.4%, 0) rotate(0.4deg);
+	}
+}
+
+@keyframes atmosphere-flow-drift-reverse {
+	from {
+		transform: translate3d(1.2%, -1.5%, 0) rotate(0.3deg);
+	}
+
+	to {
+		transform: translate3d(-1.8%, 1.1%, 0) rotate(-0.45deg);
+	}
+}
+
+@keyframes atmosphere-flow-travel {
+	to {
+		stroke-dashoffset: -100;
+	}
+}
+
+@keyframes atmosphere-flow-travel-reverse {
+	to {
+		stroke-dashoffset: 100;
+	}
+}
+
+@keyframes atmosphere-flow-breathe {
+	0%, 100% {
+		opacity: 0.42;
+	}
+
+	50% {
+		opacity: 0.72;
+	}
+}
+
+@keyframes atmosphere-route-pulse {
+	0%, 100% {
+		filter: saturate(1) brightness(1);
+	}
+
+	45% {
+		filter: saturate(1.45) brightness(1.16);
+	}
+}
+
+@keyframes reading-progress {
+	from {
+		transform: scaleX(0);
+	}
+
+	to {
+		transform: scaleX(1);
+	}
+}
+
 @keyframes float-in {
 	0% {
 		opacity: 0;

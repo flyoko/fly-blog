@@ -63,7 +63,10 @@ const appConfig = useAppConfig()
 	&.circle {
 		width: 3em;
 		border-radius: 50%;
-		box-shadow: var(--box-shadow-1), var(--box-shadow-3);
+		box-shadow:
+			0 10px 24px var(--c-surface-shadow),
+			inset 0 0 0 1px var(--c-surface-line),
+			inset 0 1px 0 var(--c-surface-highlight);
 	}
 }
 
@@ -107,11 +110,11 @@ const appConfig = useAppConfig()
 	align-content: center;
 	justify-items: center;
 	position: absolute;
-	opacity: 0.2;
-	inset: 0;
-	font-size: 4rem;
-	transition: opacity 1s;
-	filter: blur(2px);
+	opacity: 0;
+	inset: -0.25rem -0.75rem;
+	font-size: 2.5rem;
+	transition: opacity 0.3s;
+	filter: grayscale(0.85) saturate(0.4) blur(1px);
 	pointer-events: none;
 	z-index: -2;
 
@@ -124,7 +127,7 @@ const appConfig = useAppConfig()
 
 .blog-header:hover {
 	.emoji-tail {
-		opacity: 0.5;
+		opacity: 0.14;
 	}
 
 	.split-char {

@@ -69,15 +69,16 @@ const debouncedSelection = refDebounced(text)
 		height: 100dvh;
 		max-width: 100%;
 		padding-bottom: env(safe-area-inset-bottom);
-		background-color: var(--ld-bg-blur);
-		backdrop-filter: blur(0.5rem);
+		box-shadow: inset -1px 0 0 var(--c-surface-line);
+		background-color: var(--c-surface-fill);
+		backdrop-filter: blur(18px) saturate(116%);
 		color: currentcolor;
 		transform: var(--transform-start-far);
-		transition: transform 0.2s;
+		transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1);
 		z-index: var(--z-index-popover);
 
 		&.show {
-			box-shadow: var(--box-shadow-1), var(--box-shadow-3);
+			box-shadow: 18px 0 48px var(--c-surface-shadow), inset -1px 0 0 var(--c-surface-line);
 			transform: none;
 		}
 	}
@@ -102,26 +103,30 @@ const debouncedSelection = refDebounced(text)
 .sidebar-nav-item {
 	display: flex;
 	align-items: center;
-	gap: 0.5em;
-	padding: 0.5em 1em;
-	border-radius: 0.5em;
-	transition: all 0.2s;
+	gap: 0.65em;
+	padding: 0.58em 0.85em;
+	border: 1px solid transparent;
+	border-radius: 0.625rem;
+	transition: background-color 0.2s, border-color 0.2s, box-shadow 0.2s, color 0.2s, transform 0.2s;
 
-	&:hover,
+	&:hover {
+		border-color: var(--c-surface-line);
+		box-shadow: inset 0 1px 0 var(--c-surface-highlight);
+		background-color: var(--c-surface-fill);
+		color: var(--c-text);
+		transform: translateX(1px);
+	}
+
 	&.router-link-active {
-		background-color: var(--c-bg-soft);
+		border-color: var(--c-surface-line);
+		border-inline-start-color: var(--c-primary);
+		box-shadow: inset 0 1px 0 var(--c-surface-highlight);
+		background-color: var(--c-primary-soft);
 		color: var(--c-text);
 	}
 
-	&.router-link-active::after {
-		content: "⦁";
-		width: 1em;
-		text-align: center;
-		color: var(--c-text-3);
-	}
-
 	> .iconify {
-		font-size: 1.5em;
+		font-size: 1.35em;
 	}
 
 	> .nav-text {
@@ -138,17 +143,19 @@ const debouncedSelection = refDebounced(text)
 }
 
 .search-btn {
-	opacity: 0.5;
 	margin: 1rem 0;
-	outline: 2px solid var(--c-border);
-	outline-offset: -2px;
+	border-color: var(--c-surface-line);
+	box-shadow: inset 0 1px 0 var(--c-surface-highlight);
+	background-color: var(--c-surface-fill);
+	color: var(--c-text-2);
 	cursor: text;
 	user-select: none;
 
 	&:hover {
-		opacity: 1;
-		outline-color: transparent;
-		background-color: transparent;
+		border-color: var(--c-surface-border);
+		background-color: var(--c-surface-fill);
+		color: var(--c-text);
+		transform: none;
 	}
 }
 
@@ -161,5 +168,19 @@ const debouncedSelection = refDebounced(text)
 	font-size: 0.8em;
 	text-align: center;
 	color: var(--c-text-2);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+	#blog-sidebar {
+		background-color: var(--ld-bg-card);
+		backdrop-filter: none;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	#blog-sidebar,
+	.sidebar-nav-item {
+		transition: none;
+	}
 }
 </style>
