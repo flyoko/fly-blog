@@ -249,7 +249,7 @@ onMounted(load)
 	</section>
 
 	<div class="news-layout">
-		<main class="news-feed card" aria-labelledby="news-feed-title">
+		<section class="news-feed card" aria-labelledby="news-feed-title">
 			<header class="news-feed-header">
 				<div>
 					<h2 id="news-feed-title">
@@ -323,7 +323,7 @@ onMounted(load)
 					清空搜索
 				</button>
 			</div>
-		</main>
+		</section>
 
 		<aside class="news-digest card" aria-labelledby="news-digest-title">
 			<header class="news-digest-header">
@@ -445,7 +445,7 @@ onMounted(load)
 	margin-top: 0.2rem;
 	font-size: 0.68rem;
 	line-height: 1.4;
-	color: var(--c-text-3);
+	color: var(--c-text-1);
 }
 
 .news-notices {
@@ -511,9 +511,10 @@ onMounted(load)
 }
 
 .news-filter button.active {
+	border: 1px solid var(--c-primary);
 	background: var(--c-primary-soft);
 	font-weight: 700;
-	color: var(--c-primary);
+	color: var(--c-text);
 }
 
 .news-search {
