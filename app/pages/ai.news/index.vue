@@ -240,7 +240,7 @@ onMounted(load)
 		</nav>
 		<label class="news-search">
 			<Icon name="tabler:search" aria-hidden="true" />
-			<span class="sr-only">搜索标题或摘要</span>
+			<span class="visually-hidden">搜索标题或摘要</span>
 			<input v-model="query" type="search" placeholder="搜索标题或摘要" autocomplete="off">
 			<button v-if="query" type="button" aria-label="清空搜索" @click="clearSearch">
 				<Icon name="tabler:x" aria-hidden="true" />
@@ -445,7 +445,7 @@ onMounted(load)
 	margin-top: 0.2rem;
 	font-size: 0.68rem;
 	line-height: 1.4;
-	color: var(--c-text-3);
+	color: var(--c-text-1);
 }
 
 .news-notices {
@@ -511,9 +511,10 @@ onMounted(load)
 }
 
 .news-filter button.active {
+	border: 1px solid var(--c-primary);
 	background: var(--c-primary-soft);
 	font-weight: 700;
-	color: var(--c-primary);
+	color: var(--c-text);
 }
 
 .news-search {
@@ -587,7 +588,7 @@ onMounted(load)
 .news-feed-header p {
 	margin-top: 0.22rem;
 	font-size: 0.7rem;
-	color: var(--c-text-3);
+	color: var(--c-text-1);
 }
 
 .news-feed-header > strong {
@@ -743,7 +744,7 @@ onMounted(load)
 
 .news-digest-header p {
 	font: 0.65rem var(--font-monospace);
-	color: var(--c-text-3);
+	color: var(--c-text-1);
 }
 
 .news-digest-header h2 {

@@ -71,4 +71,16 @@ describe('cycle 4 polish contracts', () => {
 		expect(moments).toMatch(/\.moments-filter span[\s\S]*?color: var\(--c-text-1\)/u)
 		expect(archive).toContain('<h1 class="visually-hidden">')
 	})
+
+	it('keeps AI news landmarks and status controls accessible', () => {
+		const news = read('app/pages/ai.news/index.vue')
+		expect(news).not.toContain('<main class="news-feed')
+		expect(news).toContain('<section class="news-feed')
+		expect(news).toContain('<span class="visually-hidden">搜索标题或摘要</span>')
+		expect(news).not.toContain('class="sr-only"')
+		expect(news).toMatch(/\.news-sync span,[\s\S]*?\.news-sync small[\s\S]*?color: var\(--c-text-1\)/u)
+		expect(news).toMatch(/\.news-filter button\.active[\s\S]*?border: 1px solid var\(--c-primary\)[\s\S]*?color: var\(--c-text\)/u)
+		expect(news).toMatch(/\.news-feed-header p[\s\S]*?color: var\(--c-text-1\)/u)
+		expect(news).toMatch(/\.news-digest-header p[\s\S]*?color: var\(--c-text-1\)/u)
+	})
 })
