@@ -21,12 +21,12 @@
   },
   {
     "id": "weather",
-    "enabled": false,
+    "enabled": true,
     "order": 4
   },
   {
     "id": "music",
-    "enabled": false,
+    "enabled": true,
     "order": 5
   },
   {
