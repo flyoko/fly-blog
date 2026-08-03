@@ -53,6 +53,18 @@ describe('admin management UI boundaries', () => {
 		expect(news).not.toContain('在花资讯')
 	})
 
+	it('uses the approved editorial layout for public AI news', async () => {
+		const news = await source('app/pages/ai.news.vue')
+
+		expect(news).toContain('class="news-editorial"')
+		expect(news).toContain('class="news-feature')
+		expect(news).toContain('class="news-digest')
+		expect(news).toContain('今日主线')
+		expect(news).toContain('今日摘要')
+		expect(news).toContain('继续阅读')
+		expect(news).not.toContain('news-radar')
+	})
+
 	it('shows per-file partial upload results and trash restoration', async () => {
 		const media = await source('app/pages/admin/media.vue')
 		expect(media).toContain('部分文件上传失败')
