@@ -1,0 +1,69 @@
+{
+  "showPersonalGitHub": true,
+  "showThemeSource": false,
+  "showSiteSource": false,
+  "iconNav": [
+    {
+      "id": "personal-home",
+      "icon": "tabler:home",
+      "text": "个人主页",
+      "url": "https://github.com/flyoko"
+    },
+    {
+      "id": "personal-github",
+      "icon": "tabler:brand-github",
+      "text": "GitHub: flyoko",
+      "url": "https://github.com/flyoko"
+    },
+    {
+      "id": "atom",
+      "icon": "tabler:rss",
+      "text": "Atom订阅",
+      "url": "/atom.xml"
+    }
+  ],
+  "nav": [
+    {
+      "id": "explore",
+      "title": "探索",
+      "items": [
+        {
+          "id": "atom",
+          "icon": "tabler:rss",
+          "text": "Atom订阅",
+          "url": "/atom.xml"
+        }
+      ]
+    },
+    {
+      "id": "social",
+      "title": "社交",
+      "items": [
+        {
+          "id": "personal-github",
+          "icon": "tabler:brand-github",
+          "text": "flyoko",
+          "url": "https://github.com/flyoko"
+        }
+      ]
+    },
+    {
+      "id": "information",
+      "title": "信息",
+      "items": [
+        {
+          "id": "theme-source",
+          "icon": "simple-icons:nuxt",
+          "text": "主题: Clarity",
+          "url": "https://github.com/L33Z22L11/blog-v3"
+        },
+        {
+          "id": "site-source",
+          "icon": "tabler:brand-github",
+          "text": "本站源码",
+          "url": "https://github.com/flyoko/fly-blog"
+        }
+      ]
+    }
+  ]
+}

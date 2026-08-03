@@ -1,7 +1,7 @@
 import { Temporal } from 'temporal-polyfill'
 import blogConfig from '~~/blog.config'
 
-export function isSameUnit(date1: string, date2: string, unit: Temporal.DateTimeUnit) {
+export function isSameUnit(date1: string, date2: string, unit: Temporal.DateUnit | Temporal.TimeUnit) {
 	try {
 		const p1 = toZonedTemporal(date1).toPlainDateTime()
 		const p2 = toZonedTemporal(date2).toPlainDateTime()

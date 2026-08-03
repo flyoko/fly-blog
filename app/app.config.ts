@@ -1,8 +1,43 @@
-import type { Nav, NavItem } from '~/types/nav'
-import { pascalCase } from 'es-toolkit/string'
+import type { Nav, NavItem } from './types/nav'
 import { Temporal } from 'temporal-polyfill'
-import blogConfig from '~~/blog.config'
-import { name, version } from '~~/package.json'
+import {
+	footerConfigSchema,
+	modulesConfigSchema,
+	navigationConfigSchema,
+} from '#shared/admin/site-config'
+import blogConfig from '../blog.config'
+import footerRaw from '../config/site/footer.json'
+import modulesRaw from '../config/site/modules.json'
+import navigationRaw from '../config/site/navigation.json'
+import { version } from '../package.json'
+
+const footerConfig = footerConfigSchema.parse(footerRaw)
+const featureModules = modulesConfigSchema.parse(modulesRaw)
+const navigationConfig = navigationConfigSchema.parse(navigationRaw)
+
+function shouldShowFooterItem(id: string) {
+	if (id === 'personal-github')
+		return footerConfig.showPersonalGitHub
+	if (id === 'theme-source')
+		return footerConfig.showThemeSource
+	if (id === 'site-source')
+		return footerConfig.showSiteSource
+	return true
+}
+
+function toNavItem(item: typeof navigationConfig[number]['items'][number]): NavItem {
+	const { id, ...navItem } = item
+	return id === 'theme-source'
+		? { ...navItem, text: `${navItem.text} ${version}` }
+		: navItem
+}
+
+function toNav(groups: typeof navigationConfig): Nav {
+	return groups.map(group => ({
+		title: group.title,
+		items: group.items.filter(item => shouldShowFooterItem(item.id)).map(toNavItem),
+	})).filter(group => group.items.length > 0)
+}
 
 // 图标查询：https://yesicon.app/tabler
 // 图标插件：https://marketplace.visualstudio.com/items?itemName=antfu.iconify
@@ -45,59 +80,32 @@ export default defineAppConfig({
 
 		stats: {
 			/** 归档页面每年标题对应的年龄 */
-			birthYear: 2003,
+			birthYear: 0,
 			/** blog-stats widget 的预置文本 */
-			wordCount: '约10万',
+			wordCount: '持续更新',
 		},
 	},
+
+	/** 后台可管理的模块状态，后续周期会接入公开页面。 */
+	featureModules,
 
 	// @keep-sorted
 	footer: {
 		/** 页脚版权信息，支持 <br> 换行等 HTML 标签 */
 		copyright: `© ${Temporal.Now.plainDateISO().year.toString()} ${blogConfig.author.name}`,
 		/** 侧边栏底部图标导航 */
-		iconNav: [
-			{ icon: 'tabler:home', text: '个人主页', url: blogConfig.author.homepage },
-			{ icon: 'ri:qq-line', text: '交流群: 169994096', url: 'https://jq.qq.com/?_wv=1027&k=lQfNSeEd' },
-			{ icon: 'tabler:brand-github', text: 'GitHub: L33Z22L11', url: 'https://github.com/L33Z22L11' },
-			{ icon: 'tabler:rss', text: 'Atom订阅', url: '/atom.xml' },
-			{ icon: 'ri:subway-line', text: '开往 - 博客下一站', url: 'https://www.travellings.cn/go.html' },
-		] satisfies NavItem[],
+		iconNav: footerConfig.iconNav.filter(item => shouldShowFooterItem(item.id)).map(toNavItem),
 		/** 页脚站点地图 */
-		nav: [
-			{
-				title: '探索',
-				items: [
-					{ icon: 'tabler:rss', text: 'Atom订阅', url: '/atom.xml' },
-					{ icon: 'ri:subway-line', text: '开往', url: 'https://www.travellings.cn/go.html' },
-				],
-			},
-			{
-				title: '社交',
-				items: [
-					{ icon: 'tabler:brand-github', text: 'L33Z22L11', url: 'https://github.com/L33Z22L11' },
-					{ icon: 'ri:qq-line', text: '群: 169994096', url: 'https://jq.qq.com/?_wv=1027&k=lQfNSeEd' },
-					{ icon: 'tabler:mail', text: blogConfig.author.email, url: `mailto:${blogConfig.author.email}` },
-				],
-			},
-			{
-				title: '信息',
-				items: [
-					{ icon: 'simple-icons:nuxt', text: `主题: ${pascalCase(name)} ${version}`, url: 'https://github.com/L33Z22L11/blog-v3' },
-					{ icon: 'tabler:color-swatch', text: '主题和组件文档', url: '/theme' },
-					{ icon: 'tabler:certificate', text: '陕ICP备2025082251号', url: 'https://beian.miit.gov.cn/' },
-				],
-			},
-		] satisfies Nav,
+		nav: toNav(footerConfig.nav),
 	},
 
 	/** 左侧栏顶部 Logo */
 	header: {
-		logo: 'https://weavatar.com/avatar/47c0f2e82b76d9b10eb3023df9e02e4e3fdbeaf5b74b842063f207971e7fbe7b?s=160',
+		logo: blogConfig.author.avatar,
 		/** 展示标题文本，否则展示纯 Logo */
 		showTitle: true,
 		subtitle: blogConfig.subtitle,
-		emojiTail: ['📄', '🦌', '🙌', '🐟', '🏖️'],
+		emojiTail: ['💻', '📚', '🚀'],
 	},
 
 	/** 友链页面 */
@@ -109,16 +117,7 @@ export default defineAppConfig({
 	},
 
 	/** 左侧栏导航 */
-	nav: [
-		{
-			title: '',
-			items: [
-				{ icon: 'tabler:files', text: '文章', url: '/' },
-				{ icon: 'tabler:link', text: '友链', url: '/link' },
-				{ icon: 'tabler:archive', text: '归档', url: '/archive' },
-			],
-		},
-	] satisfies Nav,
+	nav: toNav(navigationConfig),
 
 	pagination: {
 		perPage: 10,

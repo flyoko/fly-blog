@@ -1,0 +1,17 @@
+{
+  "name": "@fly-living/edge-worker",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "types": "wrangler types",
+    "typecheck": "wrangler types && tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "typescript": "catalog:framework",
+    "vitest": "catalog:testing",
+    "wrangler": "catalog:cloudflare"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "fly-living-edge",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-30",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "vars": {
+    "PAGES_ORIGIN": "https://fly-living.pages.dev"
+  },
+  "services": [
+    {
+      "binding": "API",
+      "service": "fly-living-api"
+    }
+  ]
+}

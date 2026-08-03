@@ -1,0 +1,29 @@
+{
+  "enabled": false,
+  "sources": [
+    {
+      "id": "station-news",
+      "title": "站长资讯",
+      "type": "rss",
+      "url": "https://www.zaihua.news/rss.xml",
+      "enabled": false,
+      "priority": 0
+    },
+    {
+      "id": "ai-hot",
+      "title": "AI HOT 热点榜",
+      "type": "rest",
+      "url": "https://aihot.virxact.com/api/v1/hot-topics",
+      "enabled": false,
+      "priority": 1
+    },
+    {
+      "id": "ai-hot-daily",
+      "title": "每日早报",
+      "type": "rest",
+      "url": "https://aihot.virxact.com/api/v1/dailies/latest",
+      "enabled": false,
+      "priority": 2
+    }
+  ]
+}

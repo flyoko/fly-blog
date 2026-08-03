@@ -1,0 +1,53 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "fly-living-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-30",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "workers_dev": false,
+  "vars": {
+    "PUBLIC_ORIGIN": "https://flyovo.cc.cd",
+    "PAGES_ORIGIN": "https://fly-living.pages.dev",
+    "MEDIA_ORIGIN": "https://media.flyovo.cc.cd",
+    "GITHUB_API_BASE_URL": "https://api.github.com",
+    "GITHUB_OAUTH_BASE_URL": "https://github.com",
+    "GITHUB_OWNER": "flyoko",
+    "GITHUB_REPO": "fly-blog",
+    "GITHUB_DEFAULT_BRANCH": "main",
+    "GITHUB_ALLOWED_LOGIN": "flyoko"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "fly-living-content",
+      "database_id": "b1e201e1-cfb7-4331-8ef6-027369a83525"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "MEDIA",
+      "bucket_name": "fly-living-media",
+      "preview_bucket_name": "fly-living-media-preview"
+    }
+  ],
+  "ratelimits": [
+    {
+      "name": "AUTH_RATE_LIMITER",
+      "namespace_id": "1001",
+      "simple": {
+        "limit": 20,
+        "period": 60
+      }
+    },
+    {
+      "name": "WRITE_RATE_LIMITER",
+      "namespace_id": "1002",
+      "simple": {
+        "limit": 60,
+        "period": 60
+      }
+    }
+  ]
+}

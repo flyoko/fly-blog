@@ -1,7 +1,10 @@
+import { getDomain, getMainDomain } from './link'
+
 /** 友链架构图标映射 */
 // @keep-sorted
 const archIcons = {
 	'Astro': 'simple-icons:astro',
+	'Cloudflare Pages': 'simple-icons:cloudflarepages',
 	'Cloudflare': 'simple-icons:cloudflare',
 	'Deno Deploy': 'simple-icons:deno',
 	'EdgeOne': 'simple-icons:cloudnativebuild', // 不准确

@@ -1,0 +1,26 @@
+[
+  {
+    "id": "main",
+    "title": "",
+    "items": [
+      {
+        "id": "articles",
+        "icon": "tabler:files",
+        "text": "文章",
+        "url": "/"
+      },
+      {
+        "id": "links",
+        "icon": "tabler:link",
+        "text": "友链",
+        "url": "/link"
+      },
+      {
+        "id": "archive",
+        "icon": "tabler:archive",
+        "text": "归档",
+        "url": "/archive"
+      }
+    ]
+  }
+]

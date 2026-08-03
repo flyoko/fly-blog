@@ -13,6 +13,8 @@ function pluginPath(path: string) {
 	return pathToFileURL(resolve(`./remark-plugins/${path}.ts`)).href
 }
 
+const cloudflareWebAnalyticsToken = env.NUXT_PUBLIC_CLOUDFLARE_WEB_ANALYTICS_TOKEN?.trim()
+
 // 此处配置无需修改
 export default defineNuxtConfig({
 	app: {
@@ -41,7 +43,16 @@ export default defineNuxtConfig({
 				separator: '|',
 			},
 			titleTemplate: `%s %separator ${blogConfig.title}`,
-			script: blogConfig.scripts,
+			script: [
+				...blogConfig.scripts,
+				...(cloudflareWebAnalyticsToken
+					? [{
+							'src': 'https://static.cloudflareinsights.com/beacon.min.js',
+							'data-cf-beacon': JSON.stringify({ token: cloudflareWebAnalyticsToken }),
+							'defer': true,
+						}]
+					: []),
+			],
 		},
 		rootAttrs: {
 			id: 'blog-root',
@@ -56,6 +67,8 @@ export default defineNuxtConfig({
 	],
 
 	css: [
+		'@/assets/css/admin-management.scss',
+		'@/assets/css/admin.scss',
 		'@/assets/css/animation.scss',
 		'@/assets/css/article.scss',
 		'@/assets/css/color.scss',
@@ -81,6 +94,8 @@ export default defineNuxtConfig({
 	// @keep-sorted
 	routeRules: {
 		...mapValues(redirectList, to => ({ redirect: { to, statusCode: 308 as const } })),
+		'/admin': { ssr: false },
+		'/admin/**': { ssr: false },
 		'/api/stats': { prerender: true, headers: { 'Content-Type': 'application/json' } },
 		'/atom.xml': { prerender: true, headers: { 'Content-Type': 'application/xml' } },
 		'/favicon.ico': { redirect: { to: blogConfig.favicon } },
@@ -108,6 +123,7 @@ export default defineNuxtConfig({
 			include: [
 				'../remark-plugins/**/*.ts',
 				'../scripts/**/*.ts',
+				'../shared/admin/**/*.ts',
 			],
 		},
 	},

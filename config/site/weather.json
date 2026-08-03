@@ -1,0 +1,8 @@
+{
+  "enabled": false,
+  "provider": "open-meteo",
+  "city": "",
+  "latitude": null,
+  "longitude": null,
+  "timezone": "Asia/Shanghai"
+}

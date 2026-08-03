@@ -12,6 +12,7 @@ const isInspect = computed(() => import.meta.dev && route.query.inspect !== unde
 const title = computed(() => props.title ?? props.sitenick ?? props.author)
 const domainTip = computed(() => getDomainType(getMainDomain(props.link, true)))
 const domainIcon = computed(() => getDomainIcon(props.link))
+const localizedDate = computed(() => Temporal.PlainDate.from(props.date).toLocaleString())
 
 function getInspectStyle(src: string): CSSProperties {
 	src = getMainDomain(src)
@@ -43,7 +44,7 @@ function getInspectStyle(src: string): CSSProperties {
 	>
 		<div class="avatar" :title="feed ? undefined : '无订阅源'">
 			<ClientOnly v-if="isInspect">
-				<span style="position: absolute; left: 100%; white-space: nowrap;" v-text="title" />
+				<span class="inspect-title" v-text="title" />
 				<NuxtImg :src="icon" :title="icon" :style="getInspectStyle(icon)" />
 				<NuxtImg :src="avatar" :title="avatar" :style="getInspectStyle(avatar)" />
 			</ClientOnly>
@@ -78,7 +79,7 @@ function getInspectStyle(src: string): CSSProperties {
 		</div>
 		<div class="desc-content">
 			<div class="date">
-				{{ Temporal.PlainDate.from(date).toLocaleString() }}
+				{{ localizedDate }}
 			</div>
 
 			<p>{{ error ?? desc }}</p>
@@ -115,6 +116,12 @@ function getInspectStyle(src: string): CSSProperties {
 	.avatar {
 		position: relative;
 		margin: 0 0.5em 0 0;
+
+		.inspect-title {
+			position: absolute;
+			left: 100%;
+			white-space: nowrap;
+		}
 
 		img {
 			display: block;

@@ -1,0 +1,31 @@
+[
+  {
+    "name": "未分类",
+    "icon": "tabler:circle-dashed"
+  },
+  {
+    "name": "技术",
+    "icon": "tabler:mouse",
+    "color": "#33aaff"
+  },
+  {
+    "name": "开发",
+    "icon": "tabler:code",
+    "color": "#7777ff"
+  },
+  {
+    "name": "安全",
+    "icon": "tabler:bug",
+    "color": "#ff7733"
+  },
+  {
+    "name": "杂谈",
+    "icon": "tabler:message",
+    "color": "#33bbaa"
+  },
+  {
+    "name": "生活",
+    "icon": "tabler:leaf",
+    "color": "#ff7777"
+  }
+]

@@ -23,6 +23,14 @@ logs
 .env.*
 !.env.example
 
+# Worker and test artifacts
+.dev.vars
+workers/**/.dev.vars
+workers/**/.wrangler
+playwright-report
+test-results
+coverage
+
 # Custom
 .vercel
 content/posts/test.md

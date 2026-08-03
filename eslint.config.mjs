@@ -1,7 +1,7 @@
 import antfu from '@antfu/eslint-config'
 
 export default antfu({
-	ignores: ['*.yaml'],
+	ignores: ['*.yaml', 'docs/superpowers/**', 'workers/**/.wrangler/**', 'workers/**/worker-configuration.d.ts', 'playwright-report/**', 'test-results/**', 'coverage/**'],
 	stylistic: {
 		indent: 'tab',
 	},
@@ -36,7 +36,6 @@ export default antfu({
 	rules: {
 		'antfu/consistent-list-newline': 'off',
 		'eqeqeq': 'off',
-		'jsonc/comma-dangle': ['warn', 'always'],
 		'no-irregular-whitespace': 'off',
 		'no-sequences': 'off',
 		'prefer-arrow-callback': 'off',

@@ -1,3 +1,5 @@
+import { queryCollection } from '@nuxt/content/server'
+
 interface StatsEntry {
 	posts: number
 	words: number

@@ -1,4 +1,5 @@
 import type { ContentCollectionItem } from '@nuxt/content'
+import { queryCollection } from '@nuxt/content/server'
 import { pascalCase } from 'es-toolkit/string'
 import XmlBuilder from 'fast-xml-builder'
 import { Temporal } from 'temporal-polyfill'

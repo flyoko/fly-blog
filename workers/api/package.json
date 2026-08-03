@@ -1,0 +1,26 @@
+{
+  "name": "@fly-living/api-worker",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "types": "wrangler types",
+    "typecheck": "wrangler types && tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "gray-matter": "catalog:worker",
+    "hono": "catalog:worker",
+    "jose": "catalog:worker",
+    "p-limit": "catalog:util",
+    "yaml": "catalog:worker",
+    "zod": "catalog:content"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "catalog:cloudflare",
+    "typescript": "catalog:framework",
+    "vitest": "catalog:testing",
+    "wrangler": "catalog:cloudflare"
+  }
+}
