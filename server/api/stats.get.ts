@@ -36,6 +36,10 @@ export default defineEventHandler(async (event) => {
 	}
 
 	for (const post of posts) {
+		// JSON 配置（如歌单）也位于 content 目录，但不具备文章阅读统计。
+		if (!post.readingTime)
+			continue
+
 		// 重复路径检测
 		if (existedPath.has(post.path))
 			console.warn('文章存在重复路径', post.path)

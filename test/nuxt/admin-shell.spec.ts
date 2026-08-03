@@ -44,10 +44,8 @@ describe('admin shell contracts', () => {
 		expect(serviceStatusMeta('down')).toEqual({ label: '暂不可用', tone: 'danger' })
 	})
 
-	it('keeps only later-cycle unavailable sections as placeholders', () => {
-		expect(Object.keys(adminUnavailableSections)).toEqual(['music', 'modules'])
-		expect(adminUnavailableSections.music).toMatchObject({ title: '随心听', cycle: 3 })
-		expect(adminUnavailableSections.modules).toMatchObject({ title: '模块管理', cycle: 3 })
+	it('removes all placeholders after cycle 3 modules are implemented', () => {
+		expect(Object.keys(adminUnavailableSections)).toEqual([])
 	})
 
 	it('keeps login copy user-facing and GitHub-specific', async () => {

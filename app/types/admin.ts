@@ -1,13 +1,14 @@
 import type { AdminSessionDto } from '#shared/admin/auth'
 import type { ConfigPullRequestRequest } from '#shared/admin/publishing'
 
-export type AdminConfigKind = 'categories' | 'navigation' | 'footer' | 'modules' | 'aboutTimeline' | 'aboutLinks'
+export type AdminConfigKind = 'categories' | 'navigation' | 'footer' | 'modules' | 'weather' | 'aboutTimeline' | 'aboutLinks'
 
 const configLabels: Record<AdminConfigKind, string> = {
 	categories: '分类配置',
 	navigation: '导航配置',
 	footer: '页脚配置',
 	modules: '模块配置',
+	weather: '天气配置',
 	aboutTimeline: '自述时间线',
 	aboutLinks: '自述链接',
 }
@@ -59,12 +60,9 @@ export const adminNavigation: AdminNavigationItem[] = [
 	{ label: '站点设置', to: '/admin/settings', icon: 'tabler:settings' },
 ]
 
-export const adminUnavailableSections = {
-	music: { title: '随心听', cycle: 3, description: '歌单与播放器管理将在周期 3 接入。' },
-	modules: { title: '模块管理', cycle: 3, description: '统一模块开关与排序将在周期 3 接入。' },
-} as const
+export const adminUnavailableSections: Record<string, { title: string, cycle: number, description: string }> = {}
 
-export type AdminUnavailableSection = keyof typeof adminUnavailableSections
+export type AdminUnavailableSection = string
 
 export interface AdminServiceHealth {
 	service: 'github' | 'd1' | 'r2' | 'pages'

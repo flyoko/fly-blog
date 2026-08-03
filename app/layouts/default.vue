@@ -13,10 +13,12 @@ const { slots } = inject<any>(Symbol.for('dxup:layout-slots')) || {}
 		<BlogFooter />
 	</main>
 	<BlogAside>
+		<WidgetWeather />
 		<slot name="aside" />
 	</BlogAside>
 </div>
 <BlogPanel :has-aside="slots?.aside" />
+<MusicGlobalPlayer />
 <BikariyaModals />
 </template>
 

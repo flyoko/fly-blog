@@ -296,3 +296,53 @@ Worker 只保存标题、摘要、排名、来源和原文链接，不镜像全�
 - 瞬间：从最近 Git 快照执行预检和恢复；
 - 阅闻：停止 Cron 或将来源 `enabled` 设为 false，保留 D1 最后快照；
 - 数据迁移：新增表不需要破坏性回滚，禁用相关模块即可。
+
+## 十四、周期 3：天气、随心听与模块管理
+
+### 天气数据与隐私
+
+- 公开天气仅使用 `config/site/weather.json` 中由站长选择的固定城市；前台不调用浏览器定位，也不保存访客坐标。
+- 城市搜索通过登录后的 `/api/admin/weather/search` 请求 Open-Meteo Geocoding API。
+- 公开 `/api/weather` 由 Edge Worker 精确转发到 API Worker，不允许被 Pages 的 `/api/stats` 路由规则覆盖。
+- 正常结果在 `weather_snapshots` 保存 30 分钟；上游失败时最多使用 24 小时内最后成功数据，并标记 `stale=true`。
+- 超过 24 小时没有可用快照时返回明确的 `temporarily_unavailable`，不得伪造温度。
+- 天气响应和卡片保留 Open-Meteo 来源署名。
+
+周期 3 新增 D1 migration：
+
+```text
+workers/api/migrations/0006_weather.sql
+```
+
+该迁移只新增 `weather_snapshots` 表与索引。Worker Production 必须在部署 API/Edge Worker 前应用远程迁移。
+
+### 天气配置发布
+
+天气城市、经纬度、时区和启用状态属于高影响配置，后台只能生成 `config/site/weather.json` 的受控 PR。预览、检查和合并保护与其他站点配置相同。天气配置变化会触发 Workers Production，因为 Worker 在构建时读取固定城市配置。
+
+初始安全状态为 `enabled=false`；在正式启用前先通过后台城市搜索选择结果，再检查 PR Preview 中的显示名称、时区和移动端布局。
+
+### 随心听歌单
+
+- 歌单源文件：`content/playlists/default.json`；
+- 音频和封面：优先通过媒体库写入 R2，并使用正式同源媒体 URL；
+- 只允许公开 `http/https` URL，拒绝环回、私网、链路本地和受保护临时流地址；
+- 后台保存使用当前文件 SHA 做冲突检测，并创建只包含歌单文件的直接 Commit；
+- 全局播放器不强制自动播放，路由切换时保持队列和状态；
+- 当前歌曲、进度、音量、播放模式和展开状态只存浏览器本地；
+- 单曲失败时最多遍历歌单一次，全部失败后停止，不无限重试。
+
+上线前确认音频由站长拥有、获授权或可合法公开播放。系统不提供第三方流媒体抓取能力。
+
+### 模块管理
+
+`/admin/modules` 管理 `config/site/modules.json` 的启停和顺序。保存前顺序被归一化为连续唯一值，并通过受控 PR 发布。天气和音乐默认关闭，因此部署周期 3 代码不会自动向公开页面展示空天气卡或空播放器。
+
+### 周期 3 回滚
+
+- 天气异常：先在模块配置中关闭天气，或回滚天气配置 PR；D1 快照可保留，不影响其他内容。
+- Open-Meteo 故障：保持最近成功快照，超过 24 小时自动显示不可用状态；不需要删除数据。
+- 播放器异常：关闭 `music` 模块即可立即从下一次 Pages 构建中隐藏播放器，歌单和 R2 文件保持不变。
+- 歌单内容错误：Revert 对应直接 Commit；不要强推 `main`。
+- Edge 路由异常：回滚 Edge Worker 到上一个已验证版本，并检查 `/api/weather` 与 `/api/health`。
+- D1 migration 为前向新增，不执行破坏性 down migration。

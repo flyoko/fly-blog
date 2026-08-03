@@ -1,5 +1,5 @@
 const apiPrefixes = ['/api/auth/', '/api/admin/', '/api/moments/', '/api/news/', '/media/']
-const apiExact = new Set(['/api/health', '/api/moments', '/api/news'])
+const apiExact = new Set(['/api/health', '/api/moments', '/api/news', '/api/weather'])
 
 const hopByHopHeaders = new Set([
 	'connection',

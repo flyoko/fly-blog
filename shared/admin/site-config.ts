@@ -85,10 +85,19 @@ export const modulesConfigSchema = z.array(z.object({
 export const weatherConfigSchema = z.object({
 	enabled: z.boolean(),
 	provider: z.literal('open-meteo'),
-	city: z.string(),
+	city: z.string().max(160),
 	latitude: z.number().min(-90).max(90).nullable(),
 	longitude: z.number().min(-180).max(180).nullable(),
-	timezone: z.string().min(1),
+	timezone: z.string().min(1).max(120),
+}).superRefine((config, ctx) => {
+	if (!config.enabled)
+		return
+	if (!config.city.trim())
+		ctx.addIssue({ code: 'custom', path: ['city'], message: 'Enabled weather requires a city' })
+	if (config.latitude === null)
+		ctx.addIssue({ code: 'custom', path: ['latitude'], message: 'Enabled weather requires latitude' })
+	if (config.longitude === null)
+		ctx.addIssue({ code: 'custom', path: ['longitude'], message: 'Enabled weather requires longitude' })
 })
 
 const newsSourceSchema = z.object({

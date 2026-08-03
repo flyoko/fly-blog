@@ -15,6 +15,7 @@ export interface AdminApiCapture {
 	momentWrites: Array<Record<string, unknown>>
 	aboutWrites: Array<Record<string, unknown>>
 	newsWrites: Array<Record<string, unknown>>
+	musicWrites: Array<Record<string, unknown>>
 	mediaUploads: number
 	logoutCount: number
 }
@@ -116,7 +117,25 @@ function newsPayload() {
 	}
 }
 
-function mediaItems() {
+function mediaItems(kind: 'image' | 'audio' = 'image') {
+	if (kind === 'audio') {
+		return [{
+			id: 'media-audio-1',
+			key: 'music/sample.mp3',
+			trashKey: null,
+			url: 'https://flyovo.cc.cd/media/music/sample.mp3',
+			originalName: 'sample.mp3',
+			mime: 'audio/mpeg',
+			size: 2048,
+			kind: 'audio',
+			status: 'active',
+			referenceCount: 0,
+			createdAt: '2026-08-03T00:00:00.000Z',
+			updatedAt: '2026-08-03T00:00:00.000Z',
+			trashedAt: null,
+			deletedAt: null,
+		}]
+	}
 	return [{
 		id: 'media-1',
 		key: 'articles/2026/sample.webp',
@@ -289,6 +308,33 @@ async function respond(route: Route, options: AdminApiMockOptions, capture: Admi
 		return
 	}
 
+	if (path === '/api/admin/weather/search' && method === 'GET') {
+		await route.fulfill(success({ items: [{
+			id: '30.2741:120.1551:Asia/Shanghai',
+			name: '杭州',
+			country: '中国',
+			admin1: '浙江',
+			latitude: 30.2741,
+			longitude: 120.1551,
+			timezone: 'Asia/Shanghai',
+		}] }))
+		return
+	}
+
+	if (path === '/api/admin/music/playlist' && method === 'GET') {
+		await route.fulfill(success({
+			sha: 'playlist-sha',
+			playlist: { title: '随心听', description: '测试歌单', tracks: [] },
+		}))
+		return
+	}
+
+	if (path === '/api/admin/music/playlist' && method === 'PUT') {
+		capture.musicWrites.push(request.postDataJSON())
+		await route.fulfill(success({ publishRunId: 'music-run', commitSha: 'music-commit' }))
+		return
+	}
+
 	if (path === '/api/admin/articles' && method === 'GET') {
 		await route.fulfill(success({ items: [articleSummary()], total: 1, page: 1, pageSize: 20 }))
 		return
@@ -321,7 +367,7 @@ async function respond(route: Route, options: AdminApiMockOptions, capture: Admi
 	}
 
 	if (path === '/api/admin/media' && method === 'GET') {
-		await route.fulfill(success({ items: mediaItems(), total: 1, page: 1, pageSize: 40 }))
+		await route.fulfill(success({ items: mediaItems(url.searchParams.get('type') === 'audio' ? 'audio' : 'image'), total: 1, page: 1, pageSize: 40 }))
 		return
 	}
 
@@ -393,7 +439,7 @@ async function respond(route: Route, options: AdminApiMockOptions, capture: Admi
 }
 
 export async function mockAdminApi(page: Page, options: AdminApiMockOptions = {}): Promise<AdminApiCapture> {
-	const capture: AdminApiCapture = { articleWrites: [], configWrites: [], momentWrites: [], aboutWrites: [], newsWrites: [], mediaUploads: 0, logoutCount: 0 }
+	const capture: AdminApiCapture = { articleWrites: [], configWrites: [], momentWrites: [], aboutWrites: [], newsWrites: [], musicWrites: [], mediaUploads: 0, logoutCount: 0 }
 	const state = { sessionCalls: 0 }
 	await page.route('**/api/**', route => respond(route, options, capture, state))
 	return capture
