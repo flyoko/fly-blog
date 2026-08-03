@@ -11,6 +11,7 @@ import { momentBackupRoutes } from './features/moment-backups/routes'
 import { MomentBackupService } from './features/moment-backups/service'
 import { publicMomentRoutes } from './features/moments/public-routes'
 import { adminMomentRoutes } from './features/moments/routes'
+import { publicMusicRoutes } from './features/music/public-routes'
 import { musicRoutes } from './features/music/routes'
 import { adminNewsRoutes, publicNewsRoutes } from './features/news/routes'
 import { NewsService } from './features/news/service'
@@ -35,6 +36,7 @@ app.route('/api/auth', authRoutes)
 app.route('/api/health', healthRoutes)
 app.route('/api/admin/media', mediaRoutes)
 app.route('/api/admin/music', musicRoutes)
+app.route('/api/music', publicMusicRoutes)
 app.route('/api/admin/moments', adminMomentRoutes)
 app.route('/api/admin/moment-backups', momentBackupRoutes)
 app.route('/api/moments', publicMomentRoutes)

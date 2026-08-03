@@ -1,12 +1,50 @@
 import { z } from 'zod'
 import { publicHttpUrlSchema } from '../utils/public-url'
 
+const temporaryStreamParams = new Set([
+	'auth',
+	'auth_key',
+	'expires',
+	'hdnts',
+	'hmac',
+	'key-pair-id',
+	'policy',
+	'sig',
+	'signature',
+	'token',
+	'wssecret',
+	'wstime',
+	'x-amz-credential',
+	'x-amz-expires',
+	'x-amz-signature',
+	'x-goog-credential',
+	'x-goog-expires',
+	'x-goog-signature',
+])
+
+function isStablePublicAudioUrl(value: string): boolean {
+	try {
+		const url = new URL(value)
+		if (/\.(?:m3u8|mpd)$/iu.test(url.pathname))
+			return false
+		return ![...url.searchParams.keys()].some(key => temporaryStreamParams.has(key.toLowerCase()))
+	}
+	catch {
+		return false
+	}
+}
+
+export const publicAudioUrlSchema = publicHttpUrlSchema.refine(
+	isStablePublicAudioUrl,
+	'Protected or temporary streaming URLs are not allowed',
+)
+
 export const musicTrackSchema = z.object({
 	id: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/u),
 	title: z.string().min(1).max(160),
 	artist: z.string().max(160).nullable().optional(),
 	source: z.string().max(240).nullable().optional(),
-	audioUrl: publicHttpUrlSchema,
+	audioUrl: publicAudioUrlSchema,
 	coverUrl: publicHttpUrlSchema.nullable().optional(),
 	duration: z.number().int().nonnegative().nullable().optional(),
 	enabled: z.boolean(),
@@ -36,5 +74,26 @@ export const musicPlaylistPublishSchema = z.object({
 	idempotencyKey: z.string().min(8).max(128),
 })
 
+export const publicMusicTrackSchema = z.object({
+	id: z.string(),
+	title: z.string(),
+	artist: z.string().nullable().optional(),
+	source: z.string().nullable().optional(),
+	audioUrl: publicAudioUrlSchema,
+	coverUrl: publicHttpUrlSchema.nullable().optional(),
+	duration: z.number().int().nonnegative().nullable().optional(),
+	enabled: z.literal(true),
+	order: z.number().int().nonnegative(),
+})
+
+export const publicMusicPlaylistSchema = z.object({
+	enabled: z.boolean(),
+	title: z.string().min(1).max(160),
+	description: z.string().max(1000),
+	tracks: z.array(publicMusicTrackSchema).max(200),
+})
+
 export type MusicTrack = z.infer<typeof musicTrackSchema>
 export type MusicPlaylist = z.infer<typeof musicPlaylistSchema>
+export type PublicMusicTrack = z.infer<typeof publicMusicTrackSchema>
+export type PublicMusicPlaylist = z.infer<typeof publicMusicPlaylistSchema>
