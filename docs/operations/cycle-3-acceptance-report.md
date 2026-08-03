@@ -2,7 +2,7 @@
 
 - 日期：2026-08-03
 - 范围：天气、随心听、模块管理与站点设置
-- 当前结论：本地实现与全量自动化全部通过；等待私有 `main` 推送后的 Quality、Pages Production、Workers Production 与正式环境回归
+- 当前结论：**36 项全部通过，周期 3 已推送并完成生产部署与回归**
 
 ## 自动化证据
 
@@ -58,15 +58,16 @@
 | C3-AC-33 | Pass | 41 + 86 + 21 tests |
 | C3-AC-34 | Pass | 天气、歌单、模块、移动端 E2E |
 | C3-AC-35 | Pass | 周期 1/2 全套 E2E 与 42 路由静态生成 |
-| C3-AC-36 | Pending | 等待推送、生产流水线和正式环境回归后更新 |
+| C3-AC-36 | Pass | `ea542e0` 已推送私有 `main`；Quality `30814531410`、Pages Production `30814532227`、Workers Production `30814531382` 全部成功 |
 
-## 生产验收待办
+## 生产验收证据
 
-1. 将周期 3 Commit 非强制快进到私有 `main`。
-2. 确认 Quality、Pages Production、Workers Production 全部成功。
-3. 确认 migration `0006_weather.sql` 已在远程 D1 应用。
-4. 验证 `/api/weather` 返回 200 和 `reason=disabled` 的安全默认状态。
-5. 验证未登录访问天气搜索、歌单管理返回 401。
-6. 浏览器检查 `/admin/music`、`/admin/modules`、天气设置在桌面和移动端可用。
-7. 回归正式域名、Pages 备用域名、文章、自述、瞬间、AI 阅闻、RSS、API health 和 Twikoo。
-8. 确认无探针歌单、天气快照、媒体、PR 或分支残留。
+- 生产提交：`ea542e0c85d257f8235b92c6c855b4779de1c7b9`。
+- GitHub Actions：Quality `30814531410`、Pages Production `30814532227`、Workers Production `30814531382`，结论均为 `success`。
+- 远程 D1：migration 已全部应用；`weather_snapshots` 表存在；安全默认状态下记录数为 `0`。
+- 公开天气：`/api/weather` 返回 200，`available=false`、`reason=disabled`，未伪造天气数据。
+- 权限边界：未登录天气搜索与歌单管理均返回 401、`UNAUTHENTICATED`，并包含 request ID。
+- 正式回归：正式首页、备用 Pages、自述、瞬间、AI 阅闻、后台音乐/模块/设置、归档、友链、Atom、欢迎文章、API Health 和 Twikoo 均返回 200。
+- 管理后台桌面：复用真实 GitHub 会话打开随心听、模块管理和天气设置；新入口、表单和操作按钮可见，无 console/page/network error。
+- 管理后台移动端：390px 宽度打开随心听、模块管理和天气设置，无页面级横向溢出，无 console/page/network error。
+- 清理状态：天气快照 `0`；未创建探针歌单、媒体、配置 PR 或测试分支；配置仍保持天气/音乐默认关闭。
