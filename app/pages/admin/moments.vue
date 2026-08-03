@@ -46,6 +46,7 @@ interface MomentBackupStatus {
 const backup = ref<MomentBackupStatus | null>(null)
 const backupPath = ref('')
 const backupPreview = ref<{
+	path: string
 	momentCount: number
 	mediaCount: number
 	missingMediaIds: string[]
@@ -251,13 +252,18 @@ async function runBackup() {
 async function previewBackup() {
 	if (!backupPath.value)
 		return
+	const path = backupPath.value
 	backupWorking.value = true
 	error.value = ''
 	try {
-		backupPreview.value = await useAdminApi(
+		const preview = await useAdminApi<Omit<NonNullable<typeof backupPreview.value>, 'path'>>(
 			'/api/admin/moment-backups/preview',
-			{ method: 'POST', body: { path: backupPath.value } },
+			{ method: 'POST', body: { path } },
 		)
+		if (backupPath.value === path) {
+			backupPreview.value = { ...preview, path }
+			restoreConfirmation.value = ''
+		}
 	}
 	catch (cause) {
 		error.value = cause instanceof Error ? cause.message : '备份预检失败'
@@ -270,6 +276,7 @@ async function previewBackup() {
 async function restoreBackup() {
 	if (
 		!backupPreview.value?.canRestore
+		|| backupPreview.value.path !== backupPath.value
 		|| restoreConfirmation.value !== 'RESTORE'
 	) {
 		error.value = '请输入 RESTORE 确认恢复。'
@@ -300,6 +307,11 @@ watch([statusFilter, query], () => {
 	if (timer)
 		clearTimeout(timer)
 	timer = setTimeout(load, 250)
+})
+watch(backupPath, (path) => {
+	if (backupPreview.value?.path !== path)
+		backupPreview.value = null
+	restoreConfirmation.value = ''
 })
 onMounted(() => Promise.all([load(), loadBackup()]))
 onBeforeUnmount(() => timer && clearTimeout(timer))
@@ -504,10 +516,19 @@ onBeforeUnmount(() => timer && clearTimeout(timer))
 			>
 				恢复预检
 			</button>
+			<label v-if="backupPreview?.canRestore" class="admin-field admin-backup-confirmation">
+				<span>恢复确认</span>
+				<input
+					v-model.trim="restoreConfirmation"
+					type="text"
+					autocomplete="off"
+					placeholder="RESTORE"
+				>
+			</label>
 			<button
 				class="admin-button admin-button-danger"
 				type="button"
-				:disabled="backupWorking || !backupPreview?.canRestore"
+				:disabled="backupWorking || !backupPreview?.canRestore || backupPreview.path !== backupPath || restoreConfirmation !== 'RESTORE'"
 				@click="restoreBackup"
 			>
 				确认恢复

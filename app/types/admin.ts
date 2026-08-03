@@ -38,6 +38,8 @@ export function publishStatusMeta(status: string) {
 		return { label: '已发布', tone: 'positive' as const }
 	if (status === 'conflict')
 		return { label: '存在冲突', tone: 'danger' as const }
+	if (status === 'closed')
+		return { label: '已关闭', tone: 'neutral' as const }
 	return { label: '处理中', tone: 'neutral' as const }
 }
 

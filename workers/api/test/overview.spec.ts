@@ -1,4 +1,5 @@
 import type { D1Migration } from '@cloudflare/vitest-pool-workers'
+import type { PullRequestDto } from '../../../shared/admin/publishing'
 import type { AppEnvironment, Env } from '../src/env'
 import type { ArticleRepositoryPort } from '../src/features/articles/article-service'
 import type { OverviewProbe } from '../src/features/overview/routes'
@@ -20,7 +21,11 @@ const testEnv = env as typeof env & {
 }
 
 class FakeArticleRepository implements ArticleRepositoryPort {
-	constructor(private readonly articleCount: number) {}
+	constructor(
+		private readonly articleCount: number,
+		private readonly pullRequestState: PullRequestDto['state'] = 'open',
+		private readonly pullRequestMerged = false,
+	) {}
 
 	async listFiles(prefix: string, _ref: string) {
 		return Array.from({ length: this.articleCount }, (_, index) => ({
@@ -35,6 +40,20 @@ class FakeArticleRepository implements ArticleRepositoryPort {
 
 	async getBranchHead(_branch: string) {
 		return 'head-sha'
+	}
+
+	async getPullRequest(number: number): Promise<PullRequestDto> {
+		return {
+			number,
+			url: `https://github.test/pr/${number}`,
+			title: `PR ${number}`,
+			state: this.pullRequestState,
+			headSha: 'head-sha',
+			headBranch: 'admin/test',
+			baseBranch: 'main',
+			mergeable: this.pullRequestState === 'open',
+			merged: this.pullRequestMerged,
+		}
 	}
 
 	async createAtomicCommit(_input: {
@@ -95,13 +114,21 @@ function healthyProbe(service: 'github' | 'd1' | 'r2' | 'pages'): OverviewProbe 
 
 function createApp(input: {
 	articleCount?: number
+	pullRequestState?: PullRequestDto['state']
+	pullRequestMerged?: boolean
 	probes?: Partial<Record<'github' | 'd1' | 'r2' | 'pages', OverviewProbe>>
 	timeoutMs?: number
 }) {
+	const repository = new FakeArticleRepository(
+		input.articleCount ?? 0,
+		input.pullRequestState,
+		input.pullRequestMerged,
+	)
 	const app = new Hono<AppEnvironment>()
 	app.use('*', contextMiddleware)
 	app.route('/api/admin/overview', createOverviewRoutes({
-		articleRepositoryFactory: () => new FakeArticleRepository(input.articleCount ?? 0),
+		articleRepositoryFactory: () => repository,
+		publishingRepositoryFactory: () => repository,
 		probes: {
 			github: healthyProbe('github'),
 			d1: healthyProbe('d1'),
@@ -245,6 +272,28 @@ describe('overview counts and health', () => {
 				latestPublish: null,
 			},
 		})
+	})
+
+	it('reconciles closed pull requests before counting pending work', async () => {
+		await testEnv.DB.prepare(`
+			INSERT INTO publish_runs (
+				id, kind, status, repository_ref, pull_number, created_at, updated_at
+			) VALUES ('closed-pr', 'pull_request', 'checks_pending', 'admin/test', 8, ?, ?)
+		`).bind('2026-08-03T00:00:00.000Z', '2026-08-03T00:00:00.000Z').run()
+
+		const response = await overview(createApp({ pullRequestState: 'closed' }))
+		expect(await response.json()).toMatchObject({
+			data: {
+				counts: {
+					openPullRequests: 0,
+					pendingPublishes: 0,
+				},
+				latestPublish: { id: 'closed-pr', status: 'closed' },
+			},
+		})
+		expect(await testEnv.DB.prepare('SELECT status FROM publish_runs WHERE id = ?')
+			.bind('closed-pr')
+			.first<{ status: string }>()).toEqual({ status: 'closed' })
 	})
 
 	it('bounds a hanging upstream probe without failing other probes', async () => {

@@ -12,9 +12,14 @@ async function mockPublicWeatherAndMusic(page: Page) {
 			})
 		}
 		HTMLMediaElement.prototype.play = async function play() {
-			this.dispatchEvent(new Event('play'))
-			this.currentTime += 1
-			this.dispatchEvent(new Event('timeupdate'))
+			await new Promise<void>((resolve) => {
+				setTimeout(() => {
+					this.dispatchEvent(new Event('play'))
+					this.currentTime += 1
+					this.dispatchEvent(new Event('timeupdate'))
+					resolve()
+				}, 0)
+			})
 		}
 		HTMLMediaElement.prototype.pause = function pause() {
 			this.dispatchEvent(new Event('pause'))

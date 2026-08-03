@@ -66,6 +66,65 @@ test.describe('admin desktop workflows', () => {
 		await expect(page.getByText(/invalid\.exe/u)).toBeVisible()
 	})
 
+	test('media lifecycle supports trash, restore, and guarded permanent deletion', async ({ page }) => {
+		const capture = await mockAuthenticatedAdmin(page)
+		await page.goto('/admin/media')
+
+		await page.getByRole('button', { name: '移入回收站' }).click()
+		const trashDialog = page.getByRole('dialog', { name: '移入回收站' })
+		await expect(trashDialog).toBeVisible()
+		await trashDialog.getByRole('button', { name: '移入回收站' }).click()
+		await expect.poll(() => capture.mediaActions).toContainEqual({
+			method: 'DELETE',
+			path: '/api/admin/media/media-1',
+		})
+
+		await page.getByRole('button', { name: '回收站', exact: true }).click()
+		await page.getByRole('button', { name: '恢复媒体' }).click()
+		await expect.poll(() => capture.mediaActions).toContainEqual({
+			method: 'POST',
+			path: '/api/admin/media/media-1/restore',
+		})
+
+		await page.getByRole('button', { name: '永久删除' }).click()
+		const deleteDialog = page.getByRole('dialog', { name: '永久删除媒体' })
+		await deleteDialog.getByPlaceholder('DELETE').fill('DELETE')
+		await deleteDialog.getByRole('button', { name: '永久删除' }).click()
+		await expect.poll(() => capture.mediaActions).toContainEqual({
+			method: 'DELETE',
+			path: '/api/admin/media/media-1/permanent',
+		})
+	})
+
+	test('moment withdrawal and backup restore require a fresh path-bound preview', async ({ page }) => {
+		const capture = await mockAuthenticatedAdmin(page)
+		await page.goto('/admin/moments')
+
+		await page.getByRole('button', { name: /A deterministic Cycle 2 moment/u }).click()
+		await page.getByRole('button', { name: '撤回' }).click()
+		await expect.poll(() => capture.momentWrites.length).toBe(1)
+		expect(capture.momentWrites[0]).toMatchObject({ expectedVersion: 2 })
+		await expect(page.getByText('瞬间已撤回。')).toBeVisible()
+
+		const pathInput = page.getByLabel('快照仓库路径')
+		await page.getByRole('button', { name: '恢复预检' }).click()
+		await expect(page.getByLabel('恢复确认')).toBeVisible()
+
+		const replacementPath = 'backups/moments/2026/08/2026-08-04.json'
+		await pathInput.fill(replacementPath)
+		await expect(page.getByLabel('恢复确认')).not.toBeVisible()
+		await expect(page.getByRole('button', { name: '确认恢复' })).toBeDisabled()
+
+		await page.getByRole('button', { name: '恢复预检' }).click()
+		await page.getByLabel('恢复确认').fill('RESTORE')
+		await page.getByRole('button', { name: '确认恢复' }).click()
+		await expect(page.getByText('瞬间快照已恢复。')).toBeVisible()
+		await expect.poll(() => capture.momentBackupWrites).toContainEqual({
+			path: '/api/admin/moment-backups/restore',
+			body: { path: replacementPath, confirmation: 'RESTORE' },
+		})
+	})
+
 	test('article conflict preserves the local draft and exposes recovery choices', async ({ page }) => {
 		await mockAuthenticatedAdmin(page, { articleConflict: true })
 		await page.goto(`/admin/articles/${articleId}`)

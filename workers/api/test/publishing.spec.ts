@@ -30,6 +30,7 @@ class FakePublishingRepository implements PublishingRepositoryPort {
 	commitCounter = 0
 	pullCounter = 0
 	mergeCalls = 0
+	pullReadFailure = false
 	branches = new Map<string, string>()
 	committedPaths: string[] = []
 	pulls = new Map<number, PullRequestDto>()
@@ -113,6 +114,8 @@ class FakePublishingRepository implements PublishingRepositoryPort {
 	}
 
 	async getPullRequest(number: number) {
+		if (this.pullReadFailure)
+			throw new ApiError('UPSTREAM_FAILED', 502, 'GitHub unavailable')
 		const pull = this.pulls.get(number)
 		if (!pull)
 			throw new ApiError('NOT_FOUND', 404, 'missing PR')
@@ -313,6 +316,40 @@ describe('pull request status and merge guard', () => {
 		}, runtimeEnv())
 		expect(await merge.json()).toMatchObject({ ok: true, data: { merged: false, reason: 'checks_failed' } })
 		expect(repository.mergeCalls).toBe(0)
+	})
+
+	it('reconciles a closed pull request in list and detail responses', async () => {
+		const repository = new FakePublishingRepository()
+		const run = await createRun(repository)
+		const pull = repository.pulls.get(run.pullRequestNumber)!
+		pull.state = 'closed'
+		pull.mergeable = false
+
+		const service = new PublishingService(runtimeEnv(), repository)
+		const list = await service.listRuns(1, 30)
+		expect(list.items[0]).toMatchObject({
+			id: run.publishRunId,
+			status: 'closed',
+		})
+		const detail = await service.getPullRequestDetail(run.pullRequestNumber)
+		expect(detail).toMatchObject({
+			run: { status: 'closed' },
+			canMerge: false,
+			reason: 'pull_request_closed',
+		})
+		expect(await testEnv.DB.prepare('SELECT status FROM publish_runs WHERE id = ?')
+			.bind(run.publishRunId)
+			.first<{ status: string }>()).toEqual({ status: 'closed' })
+	})
+
+	it('keeps the run list available when GitHub status refresh fails', async () => {
+		const repository = new FakePublishingRepository()
+		const run = await createRun(repository)
+		repository.pullReadFailure = true
+
+		await expect(new PublishingService(runtimeEnv(), repository).listRuns(1, 30)).resolves.toMatchObject({
+			items: [{ id: run.publishRunId, status: 'checks_pending' }],
+		})
 	})
 
 	it('blocks merge when a PR contains an extra file', async () => {

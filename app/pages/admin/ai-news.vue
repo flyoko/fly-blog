@@ -287,7 +287,7 @@ onMounted(load)
 
 .admin-news-item span {
 	font-size: 0.68rem;
-	color: var(--admin-accent);
+	color: var(--admin-accent-strong);
 }
 
 .admin-news-item small {

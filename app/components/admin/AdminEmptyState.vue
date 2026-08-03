@@ -4,9 +4,11 @@ withDefaults(defineProps<{
 	title: string
 	description: string
 	badge?: string
+	headingLevel?: 1 | 2 | 3
 }>(), {
 	icon: 'tabler:sparkles',
 	badge: '',
+	headingLevel: 2,
 })
 </script>
 
@@ -16,7 +18,9 @@ withDefaults(defineProps<{
 		<Icon :name="icon" />
 	</div>
 	<span v-if="badge" class="admin-badge">{{ badge }}</span>
-	<h1>{{ title }}</h1>
+	<component :is="`h${headingLevel}`">
+		{{ title }}
+	</component>
 	<p>{{ description }}</p>
 	<slot />
 </section>

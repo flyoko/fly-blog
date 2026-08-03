@@ -55,6 +55,21 @@ describe('admin shell contracts', () => {
 		expect(login).not.toContain('OAuth client')
 	})
 
+	it('redirects Pages admin entry points to the canonical authenticated origin', async () => {
+		const redirects = (await source('public/_redirects'))
+			.split('\n')
+			.map(line => line.trim())
+			.filter(line => line && !line.startsWith('#'))
+
+		expect(redirects.slice(0, 2)).toEqual([
+			'/admin https://flyovo.cc.cd/admin 302',
+			'/admin/* https://flyovo.cc.cd/admin/:splat 302',
+		])
+		expect(redirects).not.toContain('/admin/* /200 200')
+		expect(redirects).toContain('/moments/* /200 200')
+		expect(redirects).toContain('/ai.news/read/* /200 200')
+	})
+
 	it('supports dark mode and reduced motion in the admin stylesheet', async () => {
 		const stylesheet = await source('app/assets/css/admin.scss')
 		expect(stylesheet).toContain('.dark-mode')

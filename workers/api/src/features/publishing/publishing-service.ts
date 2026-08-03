@@ -55,6 +55,10 @@ export interface PublishingRepositoryPort extends ArticleRepositoryPort {
 	mergePullRequest: (number: number, expectedHeadSha: string) => Promise<{ merged: boolean, sha?: string }>
 }
 
+export interface PullRequestStatusRepositoryPort {
+	getPullRequest: (number: number) => Promise<PullRequestDto>
+}
+
 export interface PullRequestPublishResult {
 	publishRunId: string
 	resourcePath: string
@@ -87,6 +91,53 @@ export type MergeBlockReason
 		| 'not_mergeable'
 		| 'pull_request_closed'
 		| 'merge_rejected'
+
+const activePullRequestStatuses = new Set(['created', 'commit_created', 'checks_pending', 'preview_ready'])
+
+async function reconcilePublishRun(
+	publishRepository: PublishRepository,
+	repository: PullRequestStatusRepositoryPort,
+	run: PublishRunRow,
+	pullRequest?: PullRequestDto,
+): Promise<PublishRunRow> {
+	if (
+		run.kind !== 'pull_request'
+		|| !run.pullNumber
+		|| !activePullRequestStatuses.has(run.status)
+	) {
+		return run
+	}
+
+	const current = pullRequest ?? await repository.getPullRequest(run.pullNumber)
+	const status = current.merged
+		? 'merged'
+		: current.state === 'closed'
+			? 'closed'
+			: null
+	if (!status || status === run.status)
+		return run
+
+	const updatedAt = new Date().toISOString()
+	await publishRepository.updateRun(run.id, { status, updatedAt })
+	return { ...run, status, updatedAt }
+}
+
+export async function reconcileActivePublishRuns(
+	db: D1Database,
+	repository: PullRequestStatusRepositoryPort,
+	pageSize = 30,
+): Promise<PublishRunRow[]> {
+	const publishRepository = new PublishRepository(db)
+	const result = await publishRepository.listRuns(1, Math.min(30, Math.max(1, pageSize)))
+	return Promise.all(result.items.map(async (run) => {
+		try {
+			return await reconcilePublishRun(publishRepository, repository, run)
+		}
+		catch {
+			return run
+		}
+	}))
+}
 
 function asApiError(error: unknown): ApiError {
 	return error instanceof ApiError
@@ -249,7 +300,15 @@ export class PublishingService {
 		const normalizedPage = Math.max(1, Math.trunc(page))
 		const normalizedPageSize = Math.min(30, Math.max(1, Math.trunc(pageSize)))
 		const result = await this.publishRepository.listRuns(normalizedPage, normalizedPageSize)
-		return { page: normalizedPage, pageSize: normalizedPageSize, ...result }
+		const items = await Promise.all(result.items.map(async (run) => {
+			try {
+				return await reconcilePublishRun(this.publishRepository, this.repository, run)
+			}
+			catch {
+				return run
+			}
+		}))
+		return { page: normalizedPage, pageSize: normalizedPageSize, ...result, items }
 	}
 
 	async getPullRequestDetail(number: number): Promise<PullRequestDetail> {
@@ -261,15 +320,26 @@ export class PublishingService {
 			this.publishRepository.findByPullNumber(number),
 		])
 		const reason = blockReason(pullRequest, files, checks, deployment, run, this.env.GITHUB_DEFAULT_BRANCH)
-		if (!reason && run && run.status !== 'merged') {
+		let reconciledRun = run
+		if (run && reason === 'pull_request_closed') {
+			reconciledRun = await reconcilePublishRun(this.publishRepository, this.repository, run, pullRequest)
+		}
+		else if (!reason && run && run.status !== 'merged') {
+			const updatedAt = new Date().toISOString()
 			await this.publishRepository.updateRun(run.id, {
 				status: 'preview_ready',
 				deploymentUrl: deployment?.url ?? null,
-				updatedAt: new Date().toISOString(),
+				updatedAt,
 			})
+			reconciledRun = {
+				...run,
+				status: 'preview_ready',
+				deploymentUrl: deployment?.url ?? null,
+				updatedAt,
+			}
 		}
 		return {
-			run,
+			run: reconciledRun,
 			pullRequest,
 			files,
 			checks,
