@@ -237,7 +237,8 @@ GitHub Deployment 的 `sha` 是 PR Head Commit，但 REST API 的 `ref` 过滤�
 周期 2 新增：
 
 - `0003_moments.sql`：`moments`、`moment_media`、`moment_likes`、`moment_backup_state`、`sync_runs`；
-- `0004_news.sql`：`news_items`、`news_briefings`、`news_sync_state`。
+- `0004_news.sql`：`news_items`、`news_briefings`、`news_sync_state`；
+- `0007_news_reader.sql`：阅闻站内阅读正文、阅读键以及条件同步状态。
 
 生产部署前执行：
 
@@ -257,7 +258,7 @@ pnpm --filter @fly-living/api-worker exec wrangler d1 migrations apply DB --remo
 
 ### 公开缓存
 
-`/api/moments*` 与 `/api/news` 使用 Workers Cache API。缓存键包含：
+`/api/moments*`、`/api/news` 与 `/api/news/read/:readerKey` 使用 Workers Cache API。缓存键包含：
 
 - 原始筛选参数；
 - 瞬间/点赞或阅闻/来源状态的数据版本；
@@ -267,7 +268,7 @@ pnpm --filter @fly-living/api-worker exec wrangler d1 migrations apply DB --remo
 
 ### 瞬间备份与恢复
 
-Cron：`17 19 * * *`（UTC，即北京时间次日 03:17）。每次运行：
+瞬间备份 Cron：`17 19 * * *`（UTC，即北京时间次日 03:17）。半小时阅闻任务不会执行瞬间备份。每日备份任务会：
 
 1. 导出确定性 JSON；
 2. 计算不包含 `exportedAt` 的数据校验和；
@@ -283,11 +284,14 @@ Cron：`17 19 * * *`（UTC，即北京时间次日 03:17）。每次运行：
 
 来源由 `config/news/sources.json` 控制：
 
-- AI HOT 热点 JSON；
-- AI HOT 每日报告 JSON；
-- 在花 RSS。
+- AI HOT 精选条目 JSON：每 30 分钟检查；
+- AI HOT 全文 Feed：每 30 分钟检查，只保存 Feed 明确提供的 `content:encoded`，其余条目保存摘要；
+- AI HOT 每日报告 JSON：每 30 分钟检查；
+- 在花 RSS：每 60 分钟检查，新增或变化条目尝试提取文章正文，失败时回退 RSS 摘要。
 
-Worker 只保存标题、摘要、排名、来源和原文链接，不镜像全文。单个来源失败时更新状态但保留最近成功的 D1 快照。后台可手动同步和添加低风险精选卡片。
+Cloudflare Cron `*/30 * * * *` 触发阅闻检查，各来源还会根据 `next_sync_at` 执行自己的最短周期。请求保存并发送 ETag/Last-Modified，304 不重新解析或写入正文。后台手动同步会强制检查所有来源。
+
+只有 `aihot.virxact.com` 和 `www.zaihua.news` 的条目生成 `/ai.news/read/:readerKey` 站内阅读地址。正文以清洗后的纯文本保存，不执行上游 HTML、脚本或 iframe；阅读页始终显示来源署名和原始链接。单个来源失败时更新状态但保留最近成功的 D1 快照。
 
 ### 生产回滚
 
