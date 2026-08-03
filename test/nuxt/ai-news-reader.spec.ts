@@ -42,9 +42,10 @@ describe('ai 阅闻站内阅读界面', () => {
 
 	it('avoids directory rewrite loops for dynamic routes', () => {
 		const redirects = read('public/_redirects')
-		expect(redirects).toContain('/admin/* /200 200')
+		expect(redirects).toContain('/admin https://flyovo.cc.cd/admin 302')
+		expect(redirects).toContain('/admin/* https://flyovo.cc.cd/admin/:splat 302')
 		expect(redirects).toContain('/moments/* /200 200')
-		expect(redirects).not.toContain('/admin/* /admin 200')
+		expect(redirects).not.toContain('/admin/* /200 200')
 		expect(redirects).not.toContain('/moments/* /moments 200')
 	})
 

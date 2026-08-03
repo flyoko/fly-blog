@@ -13,9 +13,11 @@ export interface AdminApiCapture {
 	articleWrites: Array<Record<string, unknown>>
 	configWrites: Array<Record<string, unknown>>
 	momentWrites: Array<Record<string, unknown>>
+	momentBackupWrites: Array<{ path: string, body: Record<string, unknown> | null }>
 	aboutWrites: Array<Record<string, unknown>>
 	newsWrites: Array<Record<string, unknown>>
 	musicWrites: Array<Record<string, unknown>>
+	mediaActions: Array<{ method: string, path: string }>
 	mediaUploads: number
 	logoutCount: number
 }
@@ -187,40 +189,40 @@ function newsDocument(readerKey: string) {
 	}
 }
 
-function mediaItems(kind: 'image' | 'audio' = 'image') {
+function mediaItems(kind: 'image' | 'audio' = 'image', status: 'active' | 'trashed' | 'deleted' = 'active') {
 	if (kind === 'audio') {
 		return [{
 			id: 'media-audio-1',
 			key: 'music/sample.mp3',
-			trashKey: null,
+			trashKey: status === 'trashed' ? 'trash/music/sample.mp3' : null,
 			url: 'https://flyovo.cc.cd/media/music/sample.mp3',
 			originalName: 'sample.mp3',
 			mime: 'audio/mpeg',
 			size: 2048,
 			kind: 'audio',
-			status: 'active',
+			status,
 			referenceCount: 0,
 			createdAt: '2026-08-03T00:00:00.000Z',
 			updatedAt: '2026-08-03T00:00:00.000Z',
-			trashedAt: null,
-			deletedAt: null,
+			trashedAt: status === 'trashed' ? '2026-08-03T01:00:00.000Z' : null,
+			deletedAt: status === 'deleted' ? '2026-08-03T02:00:00.000Z' : null,
 		}]
 	}
 	return [{
 		id: 'media-1',
 		key: 'articles/2026/sample.webp',
-		trashKey: null,
+		trashKey: status === 'trashed' ? 'trash/articles/2026/sample.webp' : null,
 		url: 'https://media.example/sample.webp',
 		originalName: 'sample.webp',
 		mime: 'image/webp',
 		size: 1024,
 		kind: 'image',
-		status: 'active',
+		status,
 		referenceCount: 1,
 		createdAt: '2026-08-03T00:00:00.000Z',
 		updatedAt: '2026-08-03T00:00:00.000Z',
-		trashedAt: null,
-		deletedAt: null,
+		trashedAt: status === 'trashed' ? '2026-08-03T01:00:00.000Z' : null,
+		deletedAt: status === 'deleted' ? '2026-08-03T02:00:00.000Z' : null,
 	}]
 }
 
@@ -316,16 +318,19 @@ async function respond(route: Route, options: AdminApiMockOptions, capture: Admi
 	}
 
 	if (path === '/api/admin/moment-backups/run' && method === 'POST') {
+		capture.momentBackupWrites.push({ path, body: request.postDataJSON() })
 		await route.fulfill(success({ changed: false, path: 'backups/moments/2026/08/2026-08-03.json' }))
 		return
 	}
 
 	if (path === '/api/admin/moment-backups/preview' && method === 'POST') {
+		capture.momentBackupWrites.push({ path, body: request.postDataJSON() })
 		await route.fulfill(success({ momentCount: 1, mediaCount: 0, missingMediaIds: [], canRestore: true, checksum: 'a'.repeat(64) }))
 		return
 	}
 
 	if (path === '/api/admin/moment-backups/restore' && method === 'POST') {
+		capture.momentBackupWrites.push({ path, body: request.postDataJSON() })
 		await route.fulfill(success({ restored: 1 }))
 		return
 	}
@@ -447,7 +452,16 @@ async function respond(route: Route, options: AdminApiMockOptions, capture: Admi
 	}
 
 	if (path === '/api/admin/media' && method === 'GET') {
-		await route.fulfill(success({ items: mediaItems(url.searchParams.get('type') === 'audio' ? 'audio' : 'image'), total: 1, page: 1, pageSize: 40 }))
+		const status = url.searchParams.get('status')
+		await route.fulfill(success({
+			items: mediaItems(
+				url.searchParams.get('type') === 'audio' ? 'audio' : 'image',
+				status === 'trashed' || status === 'deleted' ? status : 'active',
+			),
+			total: 1,
+			page: 1,
+			pageSize: 40,
+		}))
 		return
 	}
 
@@ -463,6 +477,7 @@ async function respond(route: Route, options: AdminApiMockOptions, capture: Admi
 	}
 
 	if (path.startsWith('/api/admin/media/') && ['POST', 'DELETE'].includes(method)) {
+		capture.mediaActions.push({ method, path })
 		await route.fulfill(success({ updated: true }))
 		return
 	}
@@ -519,7 +534,18 @@ async function respond(route: Route, options: AdminApiMockOptions, capture: Admi
 }
 
 export async function mockAdminApi(page: Page, options: AdminApiMockOptions = {}): Promise<AdminApiCapture> {
-	const capture: AdminApiCapture = { articleWrites: [], configWrites: [], momentWrites: [], aboutWrites: [], newsWrites: [], musicWrites: [], mediaUploads: 0, logoutCount: 0 }
+	const capture: AdminApiCapture = {
+		articleWrites: [],
+		configWrites: [],
+		momentWrites: [],
+		momentBackupWrites: [],
+		aboutWrites: [],
+		newsWrites: [],
+		musicWrites: [],
+		mediaActions: [],
+		mediaUploads: 0,
+		logoutCount: 0,
+	}
 	const state = { sessionCalls: 0 }
 	await page.route('**/api/**', route => respond(route, options, capture, state))
 	return capture

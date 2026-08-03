@@ -75,6 +75,15 @@ describe('admin management UI boundaries', () => {
 		expect(media).toContain('? \'DELETE\' : \'\'')
 	})
 
+	it('requires a path-bound RESTORE confirmation after moment backup preview', async () => {
+		const moments = await source('app/pages/admin/moments.vue')
+		expect(moments).toContain('v-model.trim="restoreConfirmation"')
+		expect(moments).toContain('backupPreview.value = { ...preview, path }')
+		expect(moments).toContain('backupPreview.value.path !== backupPath.value')
+		expect(moments).toContain('restoreConfirmation.value !== \'RESTORE\'')
+		expect(moments).toContain('watch(backupPath')
+	})
+
 	it('submits settings through the controlled configuration PR endpoint', async () => {
 		const settings = await source('app/pages/admin/settings.vue')
 		expect(settings).toContain('/api/admin/publishing/pull-requests')
