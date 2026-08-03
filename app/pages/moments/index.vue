@@ -184,6 +184,23 @@ onMounted(() => load(true))
 	gap: 1rem;
 }
 
+.moments-list > :deep(.moment-card) {
+	animation: content-reveal var(--motion-slow) var(--motion-ease) both;
+}
+
+@for $index from 1 through 8 {
+	.moments-list > :deep(.moment-card:nth-child(#{$index})) {
+		animation-delay: #{($index - 1) * 35}ms;
+	}
+}
+
+@keyframes content-reveal {
+	from {
+		opacity: 0;
+		transform: translateY(0.65rem);
+	}
+}
+
 .moment-skeleton {
 	min-height: 12rem;
 	animation: moment-pulse 1.2s infinite alternate;
@@ -212,6 +229,23 @@ onMounted(() => load(true))
 }
 
 @media (prefers-reduced-motion: reduce) {
+	.moments-list > :deep(.moment-card) {
+		animation: content-reveal var(--motion-slow) var(--motion-ease) both;
+	}
+
+	@for $index from 1 through 8 {
+		.moments-list > :deep(.moment-card:nth-child(#{$index})) {
+			animation-delay: #{($index - 1) * 35}ms;
+		}
+	}
+
+	@keyframes content-reveal {
+		from {
+			opacity: 0;
+			transform: translateY(0.65rem);
+		}
+	}
+
 	.moment-skeleton {
 		animation: none;
 	}

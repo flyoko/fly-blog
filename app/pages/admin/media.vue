@@ -261,7 +261,7 @@ onBeforeUnmount(() => searchTimer && clearTimeout(searchTimer))
 	</div>
 	<div v-else-if="items.length" class="admin-media-grid">
 		<article v-for="media in items" :key="media.id" class="admin-media-library-card">
-			<img v-if="media.kind === 'image'" :src="media.url" :alt="media.originalName">
+			<img v-if="media.kind === 'image'" :src="media.url" :alt="media.originalName" loading="lazy" decoding="async">
 			<div v-else class="admin-media-card-audio">
 				<Icon name="tabler:music" />
 			</div>

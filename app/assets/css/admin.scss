@@ -855,3 +855,19 @@
 		scroll-behavior: auto;
 	}
 }
+
+
+.admin-skip-link {
+	position: fixed;
+	inset-inline-start: 1rem;
+	top: -5rem;
+	padding: 0.7rem 1rem;
+	border-radius: 0.75rem;
+	background: var(--admin-accent);
+	color: #FFF;
+	z-index: calc(var(--admin-z-overlay) + 2);
+
+	&:focus-visible {
+		top: 1rem;
+	}
+}

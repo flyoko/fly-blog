@@ -1,0 +1,127 @@
+/* stylelint-disable declaration-no-important */
+:root {
+	--motion-fast: 140ms;
+	--motion-base: 200ms;
+	--motion-slow: 260ms;
+	--motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
+	--focus-ring: 0 0 0 3px color-mix(in srgb, var(--c-primary) 32%, transparent);
+	--interactive-radius: 0.7rem;
+	--touch-target: 2.75rem;
+}
+
+html {
+	overscroll-behavior-y: none;
+}
+
+body {
+	min-width: 320px;
+}
+
+:where(a, button, input, textarea, select, summary, [tabindex]):focus-visible {
+	box-shadow: var(--focus-ring);
+	outline: 2px solid var(--c-primary);
+	outline-offset: 3px;
+}
+
+:where(button, [role="button"], input[type="button"], input[type="submit"], input[type="reset"]) {
+	touch-action: manipulation;
+}
+
+.page-enter-active,
+.page-leave-active {
+	transition:
+		opacity var(--motion-base) var(--motion-ease),
+		transform var(--motion-base) var(--motion-ease);
+}
+
+.page-enter-from {
+	opacity: 0;
+	transform: translateY(0.5rem);
+}
+
+.page-leave-to {
+	opacity: 0;
+	transform: translateY(-0.25rem);
+}
+
+:where(.card, .admin-panel, .moment-card, .news-card) {
+	transition:
+		transform var(--motion-fast) var(--motion-ease),
+		box-shadow var(--motion-fast) var(--motion-ease),
+		border-color var(--motion-fast) var(--motion-ease),
+		background-color var(--motion-fast) var(--motion-ease);
+}
+
+@media (hover: hover) and (pointer: fine) {
+	:where(a.card, button.card, .card.upraise, .admin-panel[data-interactive="true"], .moment-card, .news-card):hover {
+		transform: translateY(-2px);
+	}
+}
+
+@media (hover: none) {
+	:where(.card.upraise, .moment-card, .news-card):hover,
+	.moment-gallery a:hover img {
+		transform: none;
+	}
+}
+
+:where(pre, table, .scrollcheck-x, .admin-table-wrap) {
+	max-width: 100%;
+}
+
+:where(img, video, iframe, canvas, svg) {
+	max-width: 100%;
+}
+
+@media (max-width: 480px) {
+	:root {
+		--touch-target: 2.75rem;
+	}
+
+	:where(button, .sidebar-nav-item, .admin-button, .admin-icon-button) {
+		min-height: var(--touch-target);
+	}
+
+	:where(.admin-heading-actions, .admin-inline-field) {
+		flex-wrap: wrap;
+	}
+
+	:where(.admin-dialog, .admin-modal-card) {
+		overflow-y: auto;
+		max-height: calc(100dvh - 1.5rem);
+	}
+}
+
+@media (forced-colors: active) {
+	:where(a, button, input, textarea, select, summary, [tabindex]):focus-visible {
+		box-shadow: none;
+		outline: 3px solid Highlight;
+	}
+
+	:where(.card, .admin-panel, .music-player) {
+		border: 1px solid CanvasText;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	html {
+		scroll-behavior: auto;
+	}
+
+	*,
+	*::before,
+	*::after {
+		transition-duration: 0.001ms !important;
+		transition-delay: 0s !important;
+		animation-delay: 0s !important;
+		animation-duration: 0.001ms !important;
+		animation-iteration-count: 1 !important;
+		scroll-behavior: auto !important;
+	}
+
+	.page-enter-from,
+	.page-leave-to,
+	:where(.card, .admin-panel, .moment-card, .news-card):hover {
+		transform: none;
+	}
+}

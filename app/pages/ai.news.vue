@@ -407,6 +407,23 @@ onMounted(load)
 	color: var(--c-primary);
 }
 
+.news-grid > .news-card {
+	animation: content-reveal var(--motion-slow) var(--motion-ease) both;
+}
+
+@for $index from 1 through 8 {
+	.news-grid > .news-card:nth-child(#{$index}) {
+		animation-delay: #{($index - 1) * 35}ms;
+	}
+}
+
+@keyframes content-reveal {
+	from {
+		opacity: 0;
+		transform: translateY(0.65rem);
+	}
+}
+
 .news-skeleton {
 	min-height: 13rem;
 	animation: pulse 1.2s infinite alternate;

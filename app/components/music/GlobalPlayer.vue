@@ -26,7 +26,7 @@ function formatTime(value: number) {
 <section v-if="moduleEnabled && store.hasTracks" class="music-player" :class="{ 'is-expanded': store.expanded, 'is-playing': store.playing }" aria-label="随心听播放器">
 	<div v-if="store.expanded" class="music-player-expanded">
 		<div class="music-cover-large">
-			<img v-if="store.currentTrack?.coverUrl" :src="store.currentTrack.coverUrl" :alt="`${store.currentTrack.title} 封面`">
+			<img v-if="store.currentTrack?.coverUrl" :src="store.currentTrack.coverUrl" :alt="`${store.currentTrack.title} 封面`" decoding="async">
 			<Icon v-else name="tabler:vinyl" />
 		</div>
 		<div class="music-track-details">
@@ -38,7 +38,7 @@ function formatTime(value: number) {
 
 	<div class="music-player-main">
 		<button class="music-cover" type="button" aria-label="展开或收起播放器" @click="store.toggleExpanded">
-			<img v-if="store.currentTrack?.coverUrl" :src="store.currentTrack.coverUrl" alt="">
+			<img v-if="store.currentTrack?.coverUrl" :src="store.currentTrack.coverUrl" alt="" decoding="async">
 			<Icon v-else name="tabler:vinyl" />
 		</button>
 		<div class="music-player-copy">
@@ -274,9 +274,18 @@ function formatTime(value: number) {
 
 @media (max-width: 520px) {
 	.music-player {
+		overflow-y: auto;
 		inset-inline: 0.6rem;
-		bottom: 4.8rem;
+		bottom: max(4.8rem, calc(env(safe-area-inset-bottom) + 4.2rem));
 		width: auto;
+		max-height: min(34rem, calc(100dvh - 6rem));
+	}
+
+	.music-controls button,
+	.music-player-tools button,
+	.music-cover {
+		min-width: 2.75rem;
+		min-height: 2.75rem;
 	}
 }
 </style>

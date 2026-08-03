@@ -1,5 +1,5 @@
 <template>
 <NuxtLayout>
-	<NuxtPage />
+	<NuxtPage :transition="{ name: 'page' }" />
 </NuxtLayout>
 </template>

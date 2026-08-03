@@ -19,11 +19,11 @@ const debouncedSelection = refDebounced(text)
 	<BlogHeader class="sidebar-header" to="/" />
 
 	<nav class="sidebar-nav scrollcheck-y">
-		<div class="search-btn sidebar-nav-item gradient-card" @click="layoutStore.toggle('search')">
+		<button class="search-btn sidebar-nav-item gradient-card" type="button" aria-label="搜索站内内容" @click="layoutStore.toggle('search')">
 			<Icon name="tabler:search" />
 			<span class="nav-text">{{ debouncedSelection || searchStore.word || '搜索' }}</span>
 			<Key class="keycut" code="K" cmd prevent @press="layoutStore.toggle('search')" />
-		</div>
+		</button>
 
 		<template v-for="(group, groupIndex) in appConfig.nav" :key="groupIndex">
 			<h3 v-if="group.title">
@@ -62,8 +62,10 @@ const debouncedSelection = refDebounced(text)
 	@media (max-width: $breakpoint-mobile) {
 		position: fixed;
 		inset-inline-start: 0;
-		width: 320px;
+		width: min(320px, 100vw);
+		height: 100dvh;
 		max-width: 100%;
+		padding-bottom: env(safe-area-inset-bottom);
 		background-color: var(--ld-bg-blur);
 		backdrop-filter: blur(0.5rem);
 		color: currentcolor;

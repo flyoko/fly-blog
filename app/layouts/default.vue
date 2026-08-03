@@ -1,5 +1,9 @@
 <script setup lang="ts">
 const { slots } = inject<any>(Symbol.for('dxup:layout-slots')) || {}
+const appConfig = useAppConfig()
+const weatherEnabled = computed(() => appConfig.featureModules.some(module => module.id === 'weather' && module.enabled))
+const musicEnabled = computed(() => appConfig.featureModules.some(module => module.id === 'music' && module.enabled))
+const hasAside = computed(() => Boolean(slots?.aside) || weatherEnabled.value)
 </script>
 
 <template>
@@ -13,12 +17,12 @@ const { slots } = inject<any>(Symbol.for('dxup:layout-slots')) || {}
 		<BlogFooter />
 	</main>
 	<BlogAside>
-		<WidgetWeather />
+		<LazyWidgetWeather v-if="weatherEnabled" />
 		<slot name="aside" />
 	</BlogAside>
 </div>
-<BlogPanel :has-aside="slots?.aside" />
-<MusicGlobalPlayer />
+<BlogPanel :has-aside="hasAside" />
+<LazyMusicGlobalPlayer v-if="musicEnabled" />
 <BikariyaModals />
 </template>
 

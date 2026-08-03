@@ -15,7 +15,7 @@ describe('cycle 3 UI contracts', () => {
 		const layout = read('app/layouts/default.vue')
 		const player = read('app/components/music/GlobalPlayer.vue')
 		const store = read('app/stores/music.ts')
-		expect(layout).toContain('<MusicGlobalPlayer />')
+		expect(layout).toContain('<LazyMusicGlobalPlayer v-if="musicEnabled" />')
 		expect(player).toContain('播放进度')
 		expect(player).toContain('prefers-reduced-motion')
 		expect(store).toContain('localStorage.setItem(storageKey')

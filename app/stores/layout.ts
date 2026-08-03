@@ -5,12 +5,29 @@ export const useLayoutStore = defineStore('layout', () => {
 
 	const state = ref<LayoutState>('none')
 	const avoidTargets = ref<AvoidTarget[]>([])
+	let triggerElement: HTMLElement | null = null
+	let previousOverflow = ''
 
-	const close = () => state.value = 'none'
+	const restoreFocus = () => {
+		if (!import.meta.client)
+			return
+		const target = triggerElement
+		triggerElement = null
+		requestAnimationFrame(() => target?.focus())
+	}
+
+	const close = () => {
+		if (state.value === 'none')
+			return
+		state.value = 'none'
+		restoreFocus()
+	}
 
 	const toggle = (key: LayoutState) => {
 		if (state.value === key)
 			return close()
+		if (import.meta.client && document.activeElement instanceof HTMLElement)
+			triggerElement = document.activeElement
 		state.value = key
 	}
 
@@ -21,8 +38,25 @@ export const useLayoutStore = defineStore('layout', () => {
 		}
 	})
 
+	watch(state, (value, previous) => {
+		if (!import.meta.client)
+			return
+		if (previous === 'none' && value !== 'none') {
+			previousOverflow = document.body.style.overflow
+			document.body.style.overflow = 'hidden'
+		}
+		else if (previous !== 'none' && value === 'none') {
+			document.body.style.overflow = previousOverflow
+		}
+	})
+
 	router.beforeEach(() => {
 		close()
+	})
+
+	onScopeDispose(() => {
+		if (import.meta.client)
+			document.body.style.overflow = previousOverflow
 	})
 
 	return {

@@ -14,10 +14,11 @@ watch(() => route.fullPath, () => {
 		<slot />
 	</div>
 	<div v-else class="admin-shell">
+		<a class="admin-skip-link" href="#admin-main-content">跳转到主要内容</a>
 		<AdminSidebar :open="sidebarOpen" @close="sidebarOpen = false" />
 		<div class="admin-main">
 			<AdminTopbar @menu="sidebarOpen = true" />
-			<main class="admin-content">
+			<main id="admin-main-content" class="admin-content" tabindex="-1">
 				<slot />
 			</main>
 		</div>

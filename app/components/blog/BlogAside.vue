@@ -11,7 +11,7 @@ const layoutStore = useLayoutStore()
 
 <!-- 不能用 Transition 实现弹出收起动画，因为宽屏状态始终显示 -->
 <!-- 如果为空数组则隐藏 -->
-<aside id="blog-aside" :class="{ show: layoutStore.state === 'aside' }">
+<aside id="blog-aside" :class="{ show: layoutStore.state === 'aside' }" aria-label="补充信息">
 	<slot />
 </aside>
 </template>
@@ -29,14 +29,13 @@ const layoutStore = useLayoutStore()
 		position: fixed;
 		inset-inline-end: 0;
 		top: 0;
-		width: 320px;
-		height: auto;
+		width: min(320px, 100vw);
+		height: 100dvh;
 		max-width: 100%;
-		max-height: 100%;
+		max-height: 100dvh;
+		padding-bottom: calc(5rem + env(safe-area-inset-bottom));
 		transform: var(--transform-end-far);
 		transition: transform 0.2s;
-
-		// TODO 留 padding-bottom 避让 BlogPanel
 
 		> :deep(.blog-widget) {
 			padding: 0.5rem;

@@ -45,6 +45,7 @@ function isActive(to: string) {
 				alt=""
 				width="36"
 				height="36"
+				decoding="async"
 			>
 			<div v-else class="admin-profile-fallback" aria-hidden="true">
 				f

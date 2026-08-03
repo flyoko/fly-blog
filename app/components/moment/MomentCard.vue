@@ -43,7 +43,7 @@ const formatted = computed(() =>
 			target="_blank"
 			rel="noopener noreferrer"
 		>
-			<img :src="media.url" :alt="media.alt || '瞬间图片'" loading="lazy">
+			<img :src="media.url" :alt="media.alt || '瞬间图片'" loading="lazy" decoding="async" fetchpriority="low">
 		</a>
 	</div>
 	<div v-if="moment.music" class="moment-music">

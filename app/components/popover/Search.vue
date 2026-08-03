@@ -88,7 +88,7 @@ function openActiveItem() {
 
 <template>
 <Transition name="float-in">
-	<div v-if="open" class="blog-search">
+	<div v-if="open" class="blog-search" role="dialog" aria-modal="true" aria-label="站内搜索">
 		<form class="input" @submit.prevent>
 			<Icon v-show="false" name="line-md:loading-alt-loop" />
 			<Icon :name="status === 'pending' ? 'line-md:loading-alt-loop' : 'tabler:search'" />
@@ -126,7 +126,7 @@ function openActiveItem() {
 				/>
 			</menu>
 
-			<div v-if="result.length" class="tip" @click="searchInput?.focus()">
+			<div v-if="result.length" class="tip">
 				<Key code="ArrowUp" prevent @press="updateActiveIndex(activeIndex - 1, true)" />
 				<Key code="ArrowDown" prevent @press="updateActiveIndex(activeIndex + 1, true)" />
 				切换&emsp;

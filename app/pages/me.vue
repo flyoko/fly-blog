@@ -38,6 +38,7 @@ useSeoMeta({
 			alt="fly 的头像"
 			width="128"
 			height="128"
+			decoding="async"
 		>
 	</header>
 

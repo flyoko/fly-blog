@@ -173,7 +173,7 @@ function choose(media: MediaObjectDto) {
 					type="button"
 					@click="choose(media)"
 				>
-					<img v-if="media.kind === 'image'" :src="media.url" :alt="media.originalName">
+					<img v-if="media.kind === 'image'" :src="media.url" :alt="media.originalName" loading="lazy" decoding="async">
 					<div v-else class="admin-media-card-audio">
 						<Icon name="tabler:music" />
 					</div>

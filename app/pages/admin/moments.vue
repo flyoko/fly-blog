@@ -369,7 +369,7 @@ onBeforeUnmount(() => timer && clearTimeout(timer))
 				description="从右侧编辑器创建第一条瞬间。"
 			/>
 		</aside>
-		<main class="admin-panel admin-moment-editor">
+		<section class="admin-panel admin-moment-editor">
 			<header class="admin-panel-header">
 				<div>
 					<h2>{{ selected ? "编辑瞬间" : "新建瞬间" }}</h2>
@@ -417,7 +417,7 @@ onBeforeUnmount(() => timer && clearTimeout(timer))
 					:disabled="
 						!form.mediaIds.includes(item.id) && form.mediaIds.length >= 9
 					"
-				><img :src="item.url" :alt="item.originalName"><span>{{
+				><img :src="item.url" :alt="item.originalName" loading="lazy" decoding="async"><span>{{
 					item.originalName
 				}}</span></label>
 			</fieldset>
@@ -460,7 +460,7 @@ onBeforeUnmount(() => timer && clearTimeout(timer))
 					恢复草稿
 				</button>
 			</footer>
-		</main>
+		</section>
 	</div>
 
 	<section class="admin-panel admin-moment-backup">

@@ -346,3 +346,49 @@ workers/api/migrations/0006_weather.sql
 - 歌单内容错误：Revert 对应直接 Commit；不要强推 `main`。
 - Edge 路由异常：回滚 Edge Worker 到上一个已验证版本，并检查 `/api/weather` 与 `/api/health`。
 - D1 migration 为前向新增，不执行破坏性 down migration。
+
+## 十五、周期 4：视觉、动效、响应式、可访问性与性能
+
+### 全局交互规范
+
+- 公开博客与后台共享 `app/assets/css/polish.scss` 中的动效、焦点、触控与高对比令牌。
+- 页面切换使用 200ms 淡入与小幅垂直位移；交互卡片只在支持 hover 的精细指针设备上轻微上浮。
+- `prefers-reduced-motion: reduce` 会关闭页面位移、顺序显现、唱片旋转、加载脉冲和非必要平滑滚动，功能与状态反馈保持可用。
+- `forced-colors` 下保留系统高亮焦点和边框。
+
+### 键盘与覆盖层
+
+- 公开站和后台均提供跳至主内容入口。
+- 站内搜索使用语义化 button 和 dialog；打开侧栏/搜索时锁定背景滚动，关闭后恢复触发控件焦点。
+- 可见按钮必须拥有文本或 `aria-label`；图片必须有 `alt`；每个核心页面只保留一个 `main` 地标。
+- 后台瞬间编辑器已从嵌套 `main` 调整为 `section`。
+
+### 移动端
+
+- 侧栏和右侧栏使用 `100dvh`、安全区 padding 与 `min(320px, 100vw)`，避免窄屏溢出。
+- 播放器避让底部控制区和 `safe-area-inset-bottom`，展开态限制最大高度并允许内部滚动。
+- 主要按钮与播放器控件按约 44px 触控目标设计。
+
+### 性能边界
+
+周期 4 构建证据：
+
+- 最大 JS chunk：707,370 B；主要包含 Nuxt/Vue、Zod、内容渲染与动态路由映射，不是周期 4 单独新增页面代码。
+- SQLite 主线程相关 chunk：199,765 B；Worker：196,867 B。
+- 入口 CSS：57,998 B。
+- 全局播放器 CSS 独立 chunk：3,751 B。
+- 首页 HTML 不包含 `/api/weather`、`.music-player` 或天气/音乐运行时标记。
+- 天气和播放器组件只在对应模块启用时通过 `Lazy*` 组件加载；禁用状态不请求天气 API、不创建 Audio 实例。
+
+最大框架 chunk 与 Nuxt Content、Shiki/Zod 和应用路由动态映射绑定。周期 4 不采用高风险的手工 vendor 拆分，以避免破坏 Content SQLite、搜索与静态预渲染；后续升级 Nuxt Content 时重新测量。
+
+### 非阻断构建警告
+
+以下为已记录的第三方或历史警告，不影响本轮验收：
+
+- 自定义图标文件名规范化提示；
+- `@dxup/nuxt`、`unplugin-yaml` 等插件 sourcemap 提示；
+- `nuxt-schema-org` 的第三方导出提示；
+- Rollup 对 VueUse PURE 注释位置的提示；
+- 大于 500 kB 的框架/内容运行时 chunk 提示；
+- `config/site/footer.json` 保持历史无行尾换行的 Lint warning。
