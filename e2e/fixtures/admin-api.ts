@@ -336,7 +336,19 @@ async function respond(route: Route, options: AdminApiMockOptions, capture: Admi
 	}
 
 	if (path === '/api/admin/about' && method === 'GET') {
-		await route.fulfill(success({ profile: { title: '关于我', summary: 'summary', body: 'Hello', sha: 'about-sha' }, timeline: { items: [], sha: 'timeline-sha' }, links: { items: [], sha: 'links-sha' } }))
+		await route.fulfill(success({
+			profile: {
+				title: '关于我',
+				summary: 'summary',
+				body: 'Hello',
+				date: '2026-08-03',
+				sitemap: false,
+				customMeta: { preserved: true },
+				sha: 'about-sha',
+			},
+			timeline: { items: [], sha: 'timeline-sha' },
+			links: { items: [], sha: 'links-sha' },
+		}))
 		return
 	}
 
