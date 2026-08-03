@@ -5,6 +5,7 @@ import { ApiError, success } from '../../lib/api-error'
 import { withIdempotency } from '../../lib/idempotency'
 import { enforceRateLimit, requireCsrf, requireSession } from '../../middleware/session'
 import { AuditRepository } from '../../repositories/audit-repository'
+import { MediaRepository } from '../../repositories/media-repository'
 import { PublishRepository } from '../../repositories/publish-repository'
 import { GitHubRepository } from '../articles/github-repository'
 
@@ -63,6 +64,7 @@ export function createMusicRoutes(options: MusicRoutesOptions = {}) {
 					const current = await repository.getFile(playlistPath, c.env.GITHUB_DEFAULT_BRANCH)
 					if (current.sha !== parsed.data.expectedSha)
 						throw new ApiError('CONFLICT', 409, 'Music playlist changed since it was loaded')
+					const serialized = `${JSON.stringify(parsed.data.playlist, null, 2)}\n`
 					const publishRepository = new PublishRepository(c.env.DB)
 					const publishRunId = crypto.randomUUID()
 					const createdAt = new Date().toISOString()
@@ -80,11 +82,19 @@ export function createMusicRoutes(options: MusicRoutesOptions = {}) {
 							branch: c.env.GITHUB_DEFAULT_BRANCH,
 							expectedHeadSha: head,
 							message: '更新随心听歌单',
-							files: [{ path: playlistPath, content: `${JSON.stringify(parsed.data.playlist, null, 2)}\n` }],
+							files: [{ path: playlistPath, content: serialized }],
 						})
 						await publishRepository.updateRun(publishRunId, {
-							status: 'checks_pending',
+							status: 'commit_created',
 							commitSha: result.commitSha,
+							updatedAt: new Date().toISOString(),
+						})
+						const mediaRepository = new MediaRepository(c.env.DB)
+						const mediaUrls = parsed.data.playlist.tracks.flatMap(track => [track.audioUrl, track.coverUrl].filter((url): url is string => Boolean(url)))
+						const mediaIds = await mediaRepository.findIdsByPublicUrls(mediaUrls)
+						await mediaRepository.replaceReferences(mediaIds, playlistPath, result.commitSha, new Date().toISOString())
+						await publishRepository.updateRun(publishRunId, {
+							status: 'checks_pending',
 							updatedAt: new Date().toISOString(),
 						})
 						await new AuditRepository(c.env.DB).writeAudit({

@@ -1,19 +1,23 @@
 <script setup lang="ts">
+import type { ApiSuccess } from '#shared/admin/api'
 import type { PublicWeather } from '#shared/admin/weather'
 
 const appConfig = useAppConfig()
-const moduleEnabled = computed(() => appConfig.featureModules.some(module => module.id === 'weather' && module.enabled))
+const configuredEnabled = computed(() => appConfig.featureModules.some(module => module.id === 'weather' && module.enabled))
 const weather = ref<PublicWeather | null>(null)
 const loading = ref(false)
 const error = ref(false)
+const visible = computed(() => Boolean(
+	(weather.value?.available)
+	|| weather.value?.reason === 'temporarily_unavailable'
+	|| (configuredEnabled.value && (loading.value || error.value)),
+))
 
 async function load() {
-	if (!moduleEnabled.value)
-		return
 	loading.value = true
 	error.value = false
 	try {
-		weather.value = await $fetch<PublicWeather>('/api/weather')
+		weather.value = (await $fetch<ApiSuccess<PublicWeather>>('/api/weather')).data
 	}
 	catch {
 		error.value = true
@@ -27,7 +31,7 @@ onMounted(load)
 </script>
 
 <template>
-<BlogWidget v-if="moduleEnabled" title="站长城市天气" card>
+<BlogWidget v-if="visible" title="站长城市天气" card>
 	<div v-if="loading" class="weather-skeleton" aria-label="正在加载天气" />
 	<div v-else-if="weather?.available" class="weather-card" :class="weather.isDay ? 'is-day' : 'is-night'">
 		<div class="weather-current">
@@ -47,7 +51,7 @@ onMounted(load)
 			<a :href="weather.sourceUrl" target="_blank" rel="noopener noreferrer">{{ weather.sourceName }}</a>
 		</footer>
 	</div>
-	<div v-else-if="weather && weather.reason !== 'disabled'" class="weather-unavailable">
+	<div v-else-if="weather?.reason === 'temporarily_unavailable'" class="weather-unavailable">
 		<Icon name="tabler:cloud-off" />
 		<span>{{ weather.message }}</span>
 	</div>

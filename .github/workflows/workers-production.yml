@@ -6,8 +6,10 @@ on:
     paths:
       - 'workers/**'
       - 'shared/**'
+      - config/site/modules.json
       - config/site/weather.json
       - config/news/sources.json
+      - content/playlists/default.json
       - .github/workflows/workers-production.yml
   workflow_dispatch:
 
