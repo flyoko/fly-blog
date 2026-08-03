@@ -85,7 +85,7 @@ const worker = {
 			}
 
 			const pagesUrl = new URL(env.PAGES_ORIGIN)
-			pagesUrl.pathname = incomingUrl.pathname === '/ai.news' ? '/ai.news/' : incomingUrl.pathname
+			pagesUrl.pathname = incomingUrl.pathname
 			pagesUrl.search = incomingUrl.search
 			return await fetch(await forwardedRequest(request, pagesUrl))
 		}
