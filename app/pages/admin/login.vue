@@ -23,7 +23,7 @@ function login() {
 		<div class="admin-login-visual">
 			<span class="admin-hero-eyebrow">fly living</span>
 			<h2>把技术、生活与此刻，安静地写下来。</h2>
-			<p>文章、瞬间、阅闻与音乐，将在同一个个人创作空间里被整理、发布和回顾。</p>
+			<p>文章、瞬间、AI 阅闻与音乐，将在同一个个人创作空间里被整理、发布和回顾。</p>
 		</div>
 		<div class="admin-login-form">
 			<span class="admin-badge">仅限站长</span>

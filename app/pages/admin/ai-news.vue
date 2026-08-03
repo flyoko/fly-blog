@@ -18,6 +18,8 @@ const loading = ref(true)
 const working = ref(false)
 const error = ref('')
 const success = ref('')
+const pendingDelete = ref<NewsItemDto | null>(null)
+const deleting = ref(false)
 const form = reactive({
 	title: '',
 	summary: '',
@@ -33,7 +35,7 @@ async function load() {
 		data.value = await useAdminApi<NewsAdminData>('/api/admin/news')
 	}
 	catch (cause) {
-		error.value = cause instanceof Error ? cause.message : '阅闻数据加载失败'
+		error.value = cause instanceof Error ? cause.message : 'AI 阅闻数据加载失败'
 	}
 	finally {
 		loading.value = false
@@ -56,6 +58,40 @@ async function sync() {
 		working.value = false
 	}
 }
+function itemHref(item: NewsItemDto) {
+	return item.readerPath || item.originalUrl || item.url
+}
+
+function requestDelete(item: NewsItemDto) {
+	pendingDelete.value = item
+}
+
+async function confirmDelete() {
+	const item = pendingDelete.value
+	if (!item)
+		return
+	deleting.value = true
+	error.value = ''
+	success.value = ''
+	try {
+		await useAdminApi<void>('/api/admin/news/items', {
+			method: 'DELETE',
+			body: { id: item.id },
+		})
+		pendingDelete.value = null
+		success.value = item.kind === 'manual'
+			? `已删除手动精选“${item.title}”。`
+			: `已删除“${item.title}”。自动来源后续同步时也不会重新展示该条目。`
+		await load()
+	}
+	catch (cause) {
+		error.value = cause instanceof Error ? cause.message : 'AI 阅闻条目删除失败'
+	}
+	finally {
+		deleting.value = false
+	}
+}
+
 async function addManual() {
 	working.value = true
 	error.value = ''
@@ -90,7 +126,7 @@ onMounted(load)
 		<div>
 			<span class="admin-badge">CRON · D1 · SOURCES</span>
 			<h1>AI 阅闻</h1>
-			<p>聚合 AI HOT 和在花 RSS，也可添加低风险手动精选。</p>
+			<p>聚合站长资讯与 AI 精选，也可添加手动精选。</p>
 		</div>
 		<div class="admin-heading-actions">
 			<a class="admin-button" href="/ai.news" target="_blank" rel="noopener"><Icon name="tabler:external-link" />查看页面</a><button
@@ -114,7 +150,7 @@ onMounted(load)
 			<header class="admin-panel-header">
 				<div>
 					<h2>手动精选</h2>
-					<p>只保存摘要与原文链接，不镜像全文。</p>
+					<p>保存摘要与原文链接，并生成站内摘要阅读页。</p>
 				</div>
 			</header>
 			<label class="admin-field"><span>标题</span><input v-model="form.title" maxlength="500"></label><label class="admin-field"><span>摘要</span><textarea v-model="form.summary" rows="5" maxlength="5000" /></label><label class="admin-field"><span>原文链接</span><input
@@ -172,17 +208,44 @@ onMounted(load)
 			/>
 		</div>
 		<div v-else class="admin-content-list">
-			<a
+			<article
 				v-for="item in data?.items"
 				:key="item.id"
 				class="admin-news-item"
-				:href="item.url"
-				target="_blank"
-				rel="noopener noreferrer"
-			><span>{{ item.category || item.kind }}</span><strong>{{ item.title }}</strong><small>{{ item.sourceId }} ·
-				{{ item.publishedAt || item.fetchedAt }}</small></a>
+			>
+				<a
+					class="admin-news-item-link"
+					:href="itemHref(item)"
+					target="_blank"
+					rel="noopener noreferrer"
+				>
+					<span>{{ item.category || item.kind }}</span><strong>{{ item.title }}</strong><small>{{ item.sourceId }} ·
+						{{ item.publishedAt || item.fetchedAt }}</small>
+				</a>
+				<button
+					class="admin-button admin-button-danger"
+					type="button"
+					:disabled="deleting"
+					:aria-label="`删除 ${item.title}`"
+					@click="requestDelete(item)"
+				>
+					<Icon name="tabler:trash" />删除
+				</button>
+			</article>
 		</div>
 	</section>
+
+	<AdminConfirmDialog
+		:open="Boolean(pendingDelete)"
+		title="删除 AI 阅闻条目"
+		:description="pendingDelete ? (pendingDelete.kind === 'manual' ? `“${pendingDelete.title}”将从公开列表中永久删除。` : `“${pendingDelete.title}”将从公开列表中删除，自动同步不会再次展示它。`) : ''"
+		confirm-label="删除条目"
+		verification-text="DELETE"
+		:busy="deleting"
+		danger
+		@close="pendingDelete = null"
+		@confirm="confirmDelete"
+	/>
 </section>
 </template>
 
@@ -205,12 +268,21 @@ onMounted(load)
 
 .admin-news-item {
 	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	align-items: center;
+	gap: 0.7rem;
+	padding: 0.55rem;
+	border: 1px solid var(--admin-border);
+	border-radius: 0.8rem;
+}
+
+.admin-news-item-link {
+	display: grid;
 	grid-template-columns: 7rem minmax(0, 1fr) auto;
 	align-items: center;
 	gap: 0.7rem;
-	padding: 0.8rem;
-	border: 1px solid var(--admin-border);
-	border-radius: 0.8rem;
+	min-width: 0;
+	padding: 0.25rem;
 }
 
 .admin-news-item span {
@@ -227,8 +299,13 @@ onMounted(load)
 		grid-template-columns: 1fr;
 	}
 
-	.admin-news-item {
+	.admin-news-item,
+	.admin-news-item-link {
 		grid-template-columns: 1fr;
+	}
+
+	.admin-news-item .admin-button {
+		width: 100%;
 	}
 }
 </style>

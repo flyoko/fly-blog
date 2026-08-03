@@ -151,7 +151,7 @@ function metadataString(metadata: Record<string, unknown>, key: string): string 
 }
 
 function readableSourceName(preferred: string | null, originalUrl: string | null, fallback: string): string {
-	if (preferred && preferred !== 'AI HOT' && preferred !== '在花')
+	if (preferred && !['AI HOT', '在花', '原文来源'].includes(preferred))
 		return preferred.slice(0, 160)
 	if (originalUrl) {
 		try {
@@ -321,7 +321,10 @@ export class NewsService {
 			INSERT INTO news_items (
 				id, source_id, kind, title, summary, url, original_url, category, rank,
 				published_at, fetched_at, selected, metadata_json, updated_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CASE
+				WHEN EXISTS (SELECT 1 FROM news_exclusions WHERE item_id = ?) THEN 0
+				ELSE ?
+			END, ?, ?)
 			ON CONFLICT(id) DO UPDATE SET
 				source_id = excluded.source_id,
 				kind = excluded.kind,
@@ -348,6 +351,7 @@ export class NewsService {
 			item.rank,
 			item.publishedAt,
 			item.fetchedAt,
+			item.id,
 			item.selected ? 1 : 0,
 			JSON.stringify(item.metadata),
 			item.fetchedAt,
@@ -859,7 +863,10 @@ export class NewsService {
 		`).bind(readerKey).first<DocumentRow>()
 		if (!row)
 			return null
-		if (!isAiHotReaderUrl(row.document_source_url) && !isZaihuaReaderUrl(row.document_source_url))
+		const readableSource = row.kind === 'manual'
+			? externalPublicUrl(row.document_source_url)
+			: isAiHotReaderUrl(row.document_source_url) || isZaihuaReaderUrl(row.document_source_url)
+		if (!readableSource)
 			return null
 		const metadata = safeMetadata(row.metadata_json)
 		const originalUrl = externalPublicUrl(row.document_original_url)
@@ -887,15 +894,20 @@ export class NewsService {
 
 	async listVersion(): Promise<string> {
 		const row = await this.env.DB.prepare(`
-			SELECT MAX(version) AS version FROM (
-				SELECT MAX(updated_at) AS version FROM news_items
-				UNION ALL
-				SELECT MAX(updated_at) AS version FROM news_sync_state
-				UNION ALL
-				SELECT MAX(updated_at) AS version FROM news_documents
-			)
-		`).first<{ version: string | null }>()
-		return row?.version || 'empty'
+			SELECT
+				(SELECT MAX(version) FROM (
+					SELECT MAX(updated_at) AS version FROM news_items
+					UNION ALL
+					SELECT MAX(updated_at) AS version FROM news_sync_state
+					UNION ALL
+					SELECT MAX(updated_at) AS version FROM news_documents
+					UNION ALL
+					SELECT MAX(created_at) AS version FROM news_exclusions
+				)) AS version,
+				(SELECT COUNT(*) FROM news_items WHERE selected = 1) AS selected_count,
+				(SELECT COUNT(*) FROM news_exclusions) AS excluded_count
+		`).first<{ version: string | null, selected_count: number, excluded_count: number }>()
+		return `${row?.version || 'empty'}:${row?.selected_count || 0}:${row?.excluded_count || 0}`
 	}
 
 	async documentVersion(readerKey: string): Promise<string> {
@@ -912,11 +924,13 @@ export class NewsService {
 		category?: string
 		publishedAt?: string
 	}): Promise<NewsItemDto> {
-		const safeUrl = publicUrl(input.url)
+		const safeUrl = externalPublicUrl(input.url)
 		if (!safeUrl)
-			throw new Error('Only public HTTP(S) news links are allowed')
+			throw new Error('Only direct public HTTP(S) news links are allowed')
 		const now = new Date().toISOString()
 		const id = `manual:${crypto.randomUUID()}`
+		const sourceName = readableSourceName(null, safeUrl, '原文来源')
+		const bodyText = input.summary?.trim() || '这条手动精选暂未填写摘要，请通过原始来源阅读完整内容。'
 		await this.upsertItem({
 			id,
 			sourceId: 'manual',
@@ -930,15 +944,49 @@ export class NewsService {
 			publishedAt: input.publishedAt || now,
 			fetchedAt: now,
 			selected: true,
-			metadata: { manual: true },
+			metadata: { manual: true, sourceName },
+		})
+		await this.upsertDocument({
+			itemId: id,
+			sourceId: 'manual',
+			sourceUrl: safeUrl,
+			originalUrl: safeUrl,
+			title: input.title,
+			bodyText,
+			contentMode: 'summary',
+			attributionName: sourceName,
+			attributionUrl: safeUrl,
+			publishedAt: input.publishedAt || now,
+			fetchedAt: now,
 		})
 		const row = await this.env.DB.prepare(`
-			SELECT n.*, NULL AS reader_key, NULL AS content_mode
-			FROM news_items n WHERE n.id = ?
+			SELECT n.*, d.reader_key, d.content_mode
+			FROM news_items n
+			LEFT JOIN news_documents d ON d.item_id = n.id
+			WHERE n.id = ?
 		`).bind(id).first<NewsRow>()
 		if (!row)
 			throw new Error('Manual news card was not persisted')
 		return this.dto(row)
+	}
+
+	async deleteItem(id: string): Promise<{ id: string, title: string, kind: NewsItemDto['kind'] } | null> {
+		const item = await this.env.DB.prepare('SELECT id, title, kind FROM news_items WHERE id = ?')
+			.bind(id)
+			.first<{ id: string, title: string, kind: NewsItemDto['kind'] }>()
+		if (!item)
+			return null
+		const now = new Date().toISOString()
+		await this.env.DB.batch([
+			this.env.DB.prepare(`
+				INSERT INTO news_exclusions (item_id, created_at)
+				VALUES (?, ?)
+				ON CONFLICT(item_id) DO UPDATE SET created_at = excluded.created_at
+			`).bind(id, now),
+			this.env.DB.prepare('DELETE FROM news_documents WHERE item_id = ?').bind(id),
+			this.env.DB.prepare('DELETE FROM news_items WHERE id = ?').bind(id),
+		])
+		return item
 	}
 
 	async sync(options: { force?: boolean, sourceId?: string } = {}): Promise<NewsSyncResult> {

@@ -17,7 +17,12 @@ const paragraphs = computed(() =>
 const sourceLabel = computed(() => {
 	if (!newsDocument.value)
 		return ''
-	return newsDocument.value.item.kind === 'rss' ? '站长资讯' : 'AI 精选'
+	return {
+		hot: 'AI 精选',
+		daily: 'AI 日报',
+		rss: '站长资讯',
+		manual: '手动精选',
+	}[newsDocument.value.item.kind]
 })
 
 const publishedAt = computed(() =>
@@ -84,7 +89,7 @@ onMounted(load)
 
 <template>
 <div class="mobile-only">
-	<BlogHeader to="/ai.news" suffix="阅闻详情" tag="h1" />
+	<BlogHeader to="/ai.news" suffix="AI 阅闻详情" tag="h1" />
 </div>
 <section class="reader-page">
 	<NuxtLink class="reader-back" to="/ai.news">

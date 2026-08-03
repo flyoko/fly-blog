@@ -25,6 +25,7 @@ beforeAll(async () => applyD1Migrations(testEnv.DB, testEnv.TEST_MIGRATIONS))
 beforeEach(async () => {
 	await testEnv.DB.batch([
 		testEnv.DB.prepare('DELETE FROM news_documents'),
+		testEnv.DB.prepare('DELETE FROM news_exclusions'),
 		testEnv.DB.prepare('DELETE FROM news_items'),
 		testEnv.DB.prepare('DELETE FROM news_briefings'),
 		testEnv.DB.prepare('DELETE FROM news_sync_state'),
@@ -32,12 +33,24 @@ beforeEach(async () => {
 })
 
 describe('news service', () => {
-	it('keeps manual cards in the public snapshot', async () => {
+	it('creates internal reading for manual cards and deletes them permanently', async () => {
 		const service = new NewsService(runtimeEnv())
-		await service.addManual({ title: 'A useful link', summary: 'summary', url: 'https://example.com/article', category: '精选' })
-		const data = await service.list()
-		expect(data.total).toBe(1)
-		expect(data.items[0]).toMatchObject({ kind: 'manual', title: 'A useful link', selected: true })
+		const item = await service.addManual({ title: 'A useful link', summary: 'summary', url: 'https://example.com/article', category: '精选' })
+		expect(item).toMatchObject({ kind: 'manual', title: 'A useful link', selected: true, contentMode: 'summary' })
+		expect(item.readerPath).toMatch(/^\/ai\.news\/read\/[a-f0-9]{32}$/u)
+		const document = await service.read(item.readerPath!.split('/').at(-1)!)
+		expect(document).toMatchObject({
+			bodyText: 'summary',
+			contentMode: 'summary',
+			attribution: { name: 'example.com', url: 'https://example.com/article' },
+			originalUrl: 'https://example.com/article',
+		})
+
+		expect(await service.deleteItem(item.id)).toMatchObject({ id: item.id, kind: 'manual' })
+		expect((await service.list()).total).toBe(0)
+		expect(await service.read(item.readerPath!.split('/').at(-1)!)).toBeNull()
+		expect(await testEnv.DB.prepare('SELECT COUNT(*) AS count FROM news_exclusions WHERE item_id = ?').bind(item.id).first()).toEqual({ count: 1 })
+		await expect(service.addManual({ title: '中间站链接', url: 'https://www.zaihua.news/article/1/' })).rejects.toThrow('Only direct public HTTP(S) news links are allowed')
 	})
 
 	it('drops non-public links returned by upstream feeds', async () => {
@@ -194,6 +207,43 @@ describe('news service', () => {
 			expect(checked.sources.every(source => source.status === 'success')).toBe(true)
 			expect(fetchSpy.mock.calls.some(([, init]) => new Headers(init?.headers).has('if-none-match'))).toBe(true)
 			expect((await service.list()).items).toHaveLength(2)
+		}
+		finally {
+			vi.restoreAllMocks()
+		}
+	})
+
+	it('keeps deleted automated items excluded after later source syncs', async () => {
+		vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+			const url = typeof input === 'string' ? input : input instanceof Request ? input.url : input.toString()
+			if (url.endsWith('/rss.xml'))
+				return new Response('<rss><channel></channel></rss>', { status: 200 })
+			if (url.includes('/api/v1/items')) {
+				return Response.json({ items: [{
+					id: 'excluded-item',
+					title: '稍后仍在上游的数据',
+					summary: '摘要',
+					links: { aihot: 'https://aihot.virxact.com/items/excluded-item', original: 'https://example.com/excluded' },
+					selected: true,
+				}] })
+			}
+			if (url === 'https://aihot.virxact.com/items/excluded-item')
+				return new Response('<div class="m-detail-html"><p>正文</p></div>', { status: 200 })
+			if (url.endsWith('/feed/full.xml'))
+				return new Response('<rss><channel></channel></rss>', { status: 200 })
+			return Response.json({ report: null })
+		})
+		try {
+			const service = new NewsService(runtimeEnv())
+			await service.sync({ force: true })
+			const item = (await service.list()).items[0]!
+			expect(item.id).toBe('ai-hot:excluded-item')
+			await service.deleteItem(item.id)
+			expect((await service.list()).total).toBe(0)
+
+			await service.sync({ force: true })
+			expect((await service.list()).total).toBe(0)
+			expect(await testEnv.DB.prepare('SELECT selected FROM news_items WHERE id = ?').bind(item.id).first()).toEqual({ selected: 0 })
 		}
 		finally {
 			vi.restoreAllMocks()

@@ -43,6 +43,10 @@ export const manualNewsRequestSchema = z.object({
 	idempotencyKey: z.string().min(8).max(128),
 })
 
+export const deleteNewsRequestSchema = z.object({
+	id: z.string().min(1).max(2_000),
+})
+
 export type NewsContentMode = z.infer<typeof newsContentModeSchema>
 export type NewsItemDto = z.infer<typeof newsItemSchema>
 export type NewsDocumentDto = z.infer<typeof newsDocumentSchema>

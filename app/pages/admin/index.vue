@@ -26,7 +26,7 @@ const greeting = computed(() => {
 const stats = computed(() => [
 	{ label: '文章', value: overview.value?.counts.articles ?? null, icon: 'tabler:file-text', note: '仓库内容' },
 	{ label: '瞬间', value: overview.value?.counts.publishedMoments ?? null, icon: 'tabler:sparkles', note: 'D1 已发布' },
-	{ label: '阅闻', value: overview.value?.counts.publishedNews ?? null, icon: 'tabler:news', note: '公开候选池' },
+	{ label: 'AI 阅闻', value: overview.value?.counts.publishedNews ?? null, icon: 'tabler:news', note: '公开候选池' },
 	{ label: '媒体', value: overview.value?.counts.activeMedia ?? null, icon: 'tabler:photo', note: 'R2 活跃对象' },
 	{ label: '待审核', value: overview.value?.counts.openPullRequests ?? null, icon: 'tabler:git-pull-request', note: '开放的变更' },
 	{ label: '发布中', value: overview.value?.counts.pendingPublishes ?? null, icon: 'tabler:loader-2', note: '构建与检查' },
@@ -74,7 +74,7 @@ onMounted(refresh)
 				</NuxtLink>
 				<NuxtLink class="admin-button admin-button-ghost" to="/admin/ai-news">
 					<Icon name="tabler:news" />
-					整理阅闻
+					整理 AI 阅闻
 				</NuxtLink>
 			</div>
 		</div>

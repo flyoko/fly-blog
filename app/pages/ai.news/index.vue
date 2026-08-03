@@ -50,8 +50,8 @@ type NewsFilter = 'all' | 'hot' | 'rss' | 'manual'
 
 const filterOptions: Array<{ id: NewsFilter, label: string }> = [
 	{ id: 'all', label: '全部' },
-	{ id: 'hot', label: 'AI 精选' },
 	{ id: 'rss', label: '站长资讯' },
+	{ id: 'hot', label: 'AI 精选' },
 	{ id: 'manual', label: '手动精选' },
 ]
 
@@ -189,7 +189,7 @@ async function load() {
 		data.value = await $fetch<{ data: NewsPayload }>('/api/news').then(result => result.data)
 	}
 	catch (cause) {
-		error.value = cause instanceof Error ? cause.message : '阅闻加载失败'
+		error.value = cause instanceof Error ? cause.message : 'AI 阅闻加载失败'
 	}
 	finally {
 		loading.value = false
@@ -239,7 +239,7 @@ onMounted(load)
 		</div>
 	</div>
 
-	<section class="news-controls card" aria-label="阅闻筛选与搜索">
+	<section class="news-controls card" aria-label="AI 阅闻筛选与搜索">
 		<nav class="news-filter" aria-label="来源筛选">
 			<button
 				v-for="option in filterOptions"

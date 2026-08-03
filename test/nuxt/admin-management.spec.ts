@@ -53,6 +53,19 @@ describe('admin management UI boundaries', () => {
 		expect(news).not.toContain('在花资讯')
 	})
 
+	it('orders station news before AI selections and supports deleting admin items', async () => {
+		const news = await source('app/pages/ai.news/index.vue')
+		const admin = await source('app/pages/admin/ai-news.vue')
+		const navigation = await source('config/site/navigation.json')
+
+		expect(news.indexOf('{ id: \'rss\', label: \'站长资讯\' }')).toBeLessThan(news.indexOf('{ id: \'hot\', label: \'AI 精选\' }'))
+		expect(admin).toContain('method: \'DELETE\'')
+		expect(admin).toContain('/api/admin/news/items')
+		expect(admin).toContain('item.readerPath || item.originalUrl || item.url')
+		expect(admin).toContain('删除 AI 阅闻条目')
+		expect(navigation).toContain('"text": "AI 阅闻"')
+	})
+
 	it('uses the approved compact internal-reading layout for public AI news', async () => {
 		const news = await source('app/pages/ai.news/index.vue')
 
