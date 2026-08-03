@@ -14,6 +14,7 @@ export default defineConfig({
 		command: 'pnpm preview:e2e',
 		url: 'http://127.0.0.1:3000',
 		reuseExistingServer: false,
+		timeout: 180_000,
 	},
 	projects: [
 		{ name: 'desktop-chromium', use: { ...devices['Desktop Chrome'] } },

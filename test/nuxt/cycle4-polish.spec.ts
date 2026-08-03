@@ -14,11 +14,11 @@ describe('cycle 4 polish contracts', () => {
 		expect(css).toContain('forced-colors: active')
 	})
 
-	it('lazy loads weather and music only when their modules are enabled', () => {
+	it('lazy loads weather and music and lets public APIs decide visibility', () => {
 		const layout = read('app/layouts/default.vue')
-		expect(layout).toContain('<LazyWidgetWeather v-if="weatherEnabled" />')
-		expect(layout).toContain('<LazyMusicGlobalPlayer v-if="musicEnabled" />')
-		expect(layout).toContain('Boolean(slots?.aside) || weatherEnabled.value')
+		expect(layout).toContain('<LazyWidgetWeather @visibility-change="weatherVisible = $event" />')
+		expect(layout).toContain('<LazyMusicGlobalPlayer />')
+		expect(layout).toContain('Boolean(slots?.aside) || weatherVisible.value')
 	})
 
 	it('uses a semantic keyboard-operable sidebar search control', () => {

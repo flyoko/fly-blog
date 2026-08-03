@@ -24,16 +24,39 @@ async function expectNoHorizontalOverflow(page: import('@playwright/test').Page)
 	expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth + 1)
 }
 
-test('disabled weather and music do not start their public runtimes', async ({ page }) => {
+test('disabled weather and music only run lightweight config probes', async ({ page }) => {
+	await page.addInitScript(() => {
+		const originalLoad = HTMLMediaElement.prototype.load
+		Object.defineProperty(window, '__mediaLoadCount', { configurable: true, writable: true, value: 0 })
+		HTMLMediaElement.prototype.load = function load() {
+			Object.assign(window, { __mediaLoadCount: Number((window as unknown as { __mediaLoadCount?: number }).__mediaLoadCount || 0) + 1 })
+			return originalLoad.call(this)
+		}
+	})
 	let weatherRequests = 0
+	let musicRequests = 0
 	await page.route('**/api/weather', async (route) => {
 		weatherRequests++
-		await route.fulfill({ status: 500, body: 'unexpected weather request' })
+		await route.fulfill({
+			contentType: 'application/json',
+			body: JSON.stringify({ ok: true, data: { available: false, reason: 'disabled', city: null, fetchedAt: null, message: 'disabled', sourceName: 'Open-Meteo', sourceUrl: 'https://open-meteo.com/' } }),
+		})
+	})
+	await page.route('**/api/music/playlist', async (route) => {
+		musicRequests++
+		await route.fulfill({
+			contentType: 'application/json',
+			body: JSON.stringify({ ok: true, data: { enabled: false, title: '随心听', description: '', tracks: [] } }),
+		})
 	})
 	await page.goto('/')
+	await expect.poll(() => weatherRequests).toBe(1)
+	await expect.poll(() => musicRequests).toBe(1)
 	await expect(page.locator('.music-player')).toHaveCount(0)
 	await expect(page.locator('.weather-card')).toHaveCount(0)
-	expect(weatherRequests).toBe(0)
+	await expect(page.locator('.weather-unavailable')).toHaveCount(0)
+	const mediaLoads = await page.evaluate(() => Number((window as unknown as { __mediaLoadCount?: number }).__mediaLoadCount || 0))
+	expect(mediaLoads).toBe(0)
 })
 
 test('sidebar search is a keyboard-operable button with visible focus', async ({ page, isMobile }) => {

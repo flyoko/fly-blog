@@ -15,7 +15,7 @@ describe('cycle 3 UI contracts', () => {
 		const layout = read('app/layouts/default.vue')
 		const player = read('app/components/music/GlobalPlayer.vue')
 		const store = read('app/stores/music.ts')
-		expect(layout).toContain('<LazyMusicGlobalPlayer v-if="musicEnabled" />')
+		expect(layout).toContain('<LazyMusicGlobalPlayer />')
 		expect(player).toContain('/api/music/playlist')
 		expect(player).toContain('response.data.tracks')
 		expect(player).not.toContain('content/playlists/default.json')

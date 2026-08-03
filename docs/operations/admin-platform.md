@@ -378,7 +378,7 @@ workers/api/migrations/0006_weather.sql
 - 入口 CSS：57,998 B。
 - 全局播放器 CSS 独立 chunk：3,751 B。
 - 首页 HTML 不包含 `/api/weather`、`.music-player` 或天气/音乐运行时标记。
-- 天气和播放器组件只在对应模块启用时通过 `Lazy*` 组件加载；禁用状态不请求天气 API、不创建 Audio 实例。
+- 天气和播放器组件通过 `Lazy*` 组件加载，并各执行一次可缓存的同源配置探针；禁用状态由公开 API 直接返回 `disabled`，不会调用 Open-Meteo 上游、不会创建 Audio 实例，也不会渲染天气卡或播放器。
 
 最大框架 chunk 与 Nuxt Content、Shiki/Zod 和应用路由动态映射绑定。周期 4 不采用高风险的手工 vendor 拆分，以避免破坏 Content SQLite、搜索与静态预渲染；后续升级 Nuxt Content 时重新测量。
 
