@@ -7,6 +7,8 @@ export const editableConfigKindSchema = z.enum([
 	'modules',
 	'weather',
 	'newsSources',
+	'aboutTimeline',
+	'aboutLinks',
 ])
 
 export const configPullRequestSchema = z.object({

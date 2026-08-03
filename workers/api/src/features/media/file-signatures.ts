@@ -60,6 +60,11 @@ export function buildMediaKey(input: {
 	}
 	if (input.purpose === 'profile')
 		return `public/profile/${input.id}.${extension}`
+	if (input.purpose === 'moment') {
+		const year = input.now.getUTCFullYear()
+		const month = String(input.now.getUTCMonth() + 1).padStart(2, '0')
+		return `public/moments/${year}/${month}/${input.id}.${extension}`
+	}
 	const folder = audioExtensions.has(extension) ? 'audio' : 'covers'
 	return `public/music/${folder}/${input.id}.${extension}`
 }

@@ -12,8 +12,13 @@ export interface AdminApiMockOptions {
 export interface AdminApiCapture {
 	articleWrites: Array<Record<string, unknown>>
 	configWrites: Array<Record<string, unknown>>
+	momentWrites: Array<Record<string, unknown>>
+	aboutWrites: Array<Record<string, unknown>>
+	newsWrites: Array<Record<string, unknown>>
 	logoutCount: number
 }
+
+const momentId = '11111111-1111-4111-8111-111111111111'
 
 const articlePath = 'content/posts/2026/cycle-1-test.md'
 const articleId = encodeArticleId(articlePath)
@@ -67,6 +72,46 @@ function articleDocument() {
 			draft: false,
 			customField: { preserved: true },
 		},
+	}
+}
+
+function momentItem() {
+	return {
+		id: momentId,
+		content: 'A deterministic Cycle 2 moment.',
+		status: 'published',
+		tags: ['生活'],
+		city: 'Shanghai',
+		music: null,
+		media: [],
+		likeCount: 2,
+		liked: false,
+		version: 2,
+		publishedAt: '2026-08-03T08:00:00.000Z',
+		createdAt: '2026-08-03T07:00:00.000Z',
+		updatedAt: '2026-08-03T08:00:00.000Z',
+	}
+}
+
+function newsPayload() {
+	return {
+		items: [{
+			id: 'ai-hot:1',
+			sourceId: 'ai-hot-topics',
+			kind: 'hot',
+			title: 'AI HOT test item',
+			summary: null,
+			url: 'https://example.com/hot',
+			originalUrl: 'https://example.com/original',
+			category: 'AI 热点',
+			rank: 1,
+			publishedAt: '2026-08-03T08:00:00.000Z',
+			fetchedAt: '2026-08-03T08:05:00.000Z',
+			selected: true,
+		}],
+		total: 1,
+		briefing: { date: '2026-08-03', title: 'AI 日报 · 2026-08-03', lead: 'Daily lead', content_json: '[]', source_url: 'https://aihot.example/daily', generated_at: '2026-08-03T08:00:00.000Z' },
+		sources: [{ source_id: 'ai-hot-topics', status: 'success', item_count: 1, last_success_at: '2026-08-03T08:05:00.000Z', last_error: null }],
 	}
 }
 
@@ -139,7 +184,8 @@ async function respond(route: Route, options: AdminApiMockOptions, capture: Admi
 		await route.fulfill(options.overviewFailure
 			? failure('UPSTREAM_UNAVAILABLE', 'GitHub is temporarily unavailable', 503)
 			: success({
-					counts: { articles: 12, activeMedia: 8, openPullRequests: 1, pendingPublishes: 0, failedPublishes: 0 },
+					counts: { articles: 12, activeMedia: 8, publishedMoments: 1, publishedNews: 1, openPullRequests: 1, pendingPublishes: 0, failedPublishes: 0 },
+					backupState: null,
 					latestPublish: publishRun(),
 					services: [
 						{ service: 'github', status: 'ok', checkedAt: '2026-08-03T00:00:00.000Z' },
@@ -148,6 +194,97 @@ async function respond(route: Route, options: AdminApiMockOptions, capture: Admi
 						{ service: 'pages', status: 'ok', checkedAt: '2026-08-03T00:00:00.000Z' },
 					],
 				}))
+		return
+	}
+
+	if (path === '/api/admin/moments' && method === 'GET') {
+		await route.fulfill(success({ items: [momentItem()], total: 1, page: 1, pageSize: 50 }))
+		return
+	}
+
+	if (path === '/api/admin/moments' && method === 'POST') {
+		capture.momentWrites.push(request.postDataJSON())
+		await route.fulfill(success({ ...momentItem(), id: '22222222-2222-4222-8222-222222222222', status: 'draft', version: 1 }, 201))
+		return
+	}
+
+	if (path.startsWith('/api/admin/moments/') && method === 'PUT') {
+		capture.momentWrites.push(request.postDataJSON())
+		await route.fulfill(success({ ...momentItem(), content: 'Updated moment', version: 3 }))
+		return
+	}
+
+	if (/^\/api\/admin\/moments\/[^/]+\/(?:publish|withdraw|restore)$/u.test(path) && method === 'POST') {
+		capture.momentWrites.push(request.postDataJSON())
+		await route.fulfill(success({ ...momentItem(), status: path.endsWith('withdraw') ? 'withdrawn' : path.endsWith('restore') ? 'draft' : 'published', version: 3 }))
+		return
+	}
+
+	if (path === '/api/admin/moment-backups' && method === 'GET') {
+		await route.fulfill(success({ state: { last_success_at: '2026-08-03T08:00:00.000Z', last_backup_path: 'backups/moments/2026/08/2026-08-03.json', last_error: null }, runs: [] }))
+		return
+	}
+
+	if (path === '/api/admin/moment-backups/run' && method === 'POST') {
+		await route.fulfill(success({ changed: false, path: 'backups/moments/2026/08/2026-08-03.json' }))
+		return
+	}
+
+	if (path === '/api/admin/moment-backups/preview' && method === 'POST') {
+		await route.fulfill(success({ momentCount: 1, mediaCount: 0, missingMediaIds: [], canRestore: true, checksum: 'a'.repeat(64) }))
+		return
+	}
+
+	if (path === '/api/admin/moment-backups/restore' && method === 'POST') {
+		await route.fulfill(success({ restored: 1 }))
+		return
+	}
+
+	if (path === '/api/admin/about' && method === 'GET') {
+		await route.fulfill(success({ profile: { title: '关于我', summary: 'summary', body: 'Hello', sha: 'about-sha' }, timeline: { items: [], sha: 'timeline-sha' }, links: { items: [], sha: 'links-sha' } }))
+		return
+	}
+
+	if (path === '/api/admin/about/profile' && method === 'PUT') {
+		capture.aboutWrites.push(request.postDataJSON())
+		await route.fulfill(success({ publishRunId: 'about-run', commitSha: 'about-commit' }))
+		return
+	}
+
+	if (path === '/api/admin/news' && method === 'GET') {
+		await route.fulfill(success(newsPayload()))
+		return
+	}
+
+	if (path === '/api/admin/news/sync' && method === 'POST') {
+		capture.newsWrites.push({ action: 'sync' })
+		await route.fulfill(success({ syncedAt: '2026-08-03T08:06:00.000Z', sources: [] }))
+		return
+	}
+
+	if (path === '/api/admin/news/manual' && method === 'POST') {
+		capture.newsWrites.push(request.postDataJSON())
+		await route.fulfill(success(newsPayload().items[0], 201))
+		return
+	}
+
+	if (path === '/api/moments' && method === 'GET') {
+		await route.fulfill(success({ items: [momentItem()], total: 1, page: 1, pageSize: 12 }))
+		return
+	}
+
+	if (path === `/api/moments/${momentId}` && method === 'GET') {
+		await route.fulfill(success(momentItem()))
+		return
+	}
+
+	if (path === `/api/moments/${momentId}/likes` && ['POST', 'DELETE'].includes(method)) {
+		await route.fulfill(success({ liked: method === 'POST', likeCount: method === 'POST' ? 3 : 2 }))
+		return
+	}
+
+	if (path === '/api/news' && method === 'GET') {
+		await route.fulfill(success(newsPayload()))
 		return
 	}
 
@@ -254,7 +391,7 @@ async function respond(route: Route, options: AdminApiMockOptions, capture: Admi
 }
 
 export async function mockAdminApi(page: Page, options: AdminApiMockOptions = {}): Promise<AdminApiCapture> {
-	const capture: AdminApiCapture = { articleWrites: [], configWrites: [], logoutCount: 0 }
+	const capture: AdminApiCapture = { articleWrites: [], configWrites: [], momentWrites: [], aboutWrites: [], newsWrites: [], logoutCount: 0 }
 	const state = { sessionCalls: 0 }
 	await page.route('**/api/**', route => respond(route, options, capture, state))
 	return capture

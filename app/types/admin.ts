@@ -1,13 +1,15 @@
 import type { AdminSessionDto } from '#shared/admin/auth'
 import type { ConfigPullRequestRequest } from '#shared/admin/publishing'
 
-export type AdminConfigKind = 'categories' | 'navigation' | 'footer' | 'modules'
+export type AdminConfigKind = 'categories' | 'navigation' | 'footer' | 'modules' | 'aboutTimeline' | 'aboutLinks'
 
 const configLabels: Record<AdminConfigKind, string> = {
 	categories: '分类配置',
 	navigation: '导航配置',
 	footer: '页脚配置',
 	modules: '模块配置',
+	aboutTimeline: '自述时间线',
+	aboutLinks: '自述链接',
 }
 
 export function buildConfigPullRequest(
@@ -58,15 +60,8 @@ export const adminNavigation: AdminNavigationItem[] = [
 ]
 
 export const adminUnavailableSections = {
-	'articles': { title: '文章', cycle: 1, description: '文章编辑器将在下一步接入。' },
-	'moments': { title: '瞬间', cycle: 2, description: '瞬间发布与互动将在周期 2 接入。' },
-	'ai-news': { title: 'AI 阅闻', cycle: 2, description: '站长资讯与 AI 热点将在周期 2 接入。' },
-	'about': { title: '自述', cycle: 2, description: '自述模块化编辑将在周期 2 接入。' },
-	'media': { title: '媒体库', cycle: 1, description: '媒体管理界面将在下一步接入。' },
-	'music': { title: '随心听', cycle: 2, description: '歌单与播放器管理将在周期 2 接入。' },
-	'modules': { title: '模块管理', cycle: 1, description: '模块配置将在发布审核页面接入。' },
-	'reviews': { title: '发布与审核', cycle: 1, description: '发布记录与 Pull Request 审核将在下一步接入。' },
-	'settings': { title: '站点设置', cycle: 1, description: '高影响配置将通过 Pull Request 安全发布。' },
+	music: { title: '随心听', cycle: 3, description: '歌单与播放器管理将在周期 3 接入。' },
+	modules: { title: '模块管理', cycle: 3, description: '统一模块开关与排序将在周期 3 接入。' },
 } as const
 
 export type AdminUnavailableSection = keyof typeof adminUnavailableSections
@@ -99,11 +94,14 @@ export interface AdminOverviewDto {
 	counts: {
 		articles: number | null
 		activeMedia: number | null
+		publishedMoments: number | null
+		publishedNews: number | null
 		openPullRequests: number | null
 		pendingPublishes: number | null
 		failedPublishes: number | null
 	}
 	latestPublish: AdminPublishRunDto | null
+	backupState: { last_success_at?: string | null, last_backup_path?: string | null, last_error?: string | null } | null
 	services: AdminServiceHealth[]
 }
 

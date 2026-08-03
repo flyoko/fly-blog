@@ -1,5 +1,5 @@
-const apiPrefixes = ['/api/auth/', '/api/admin/', '/media/']
-const apiExact = new Set(['/api/health'])
+const apiPrefixes = ['/api/auth/', '/api/admin/', '/api/moments/', '/api/news/', '/media/']
+const apiExact = new Set(['/api/health', '/api/moments', '/api/news'])
 
 const hopByHopHeaders = new Set([
 	'connection',
@@ -35,6 +35,21 @@ async function forwardedRequest(request: Request, targetUrl: URL): Promise<Reque
 	return new Request(targetUrl, init)
 }
 
+function momentDetailId(pathname: string): string | null {
+	const match = pathname.match(/^\/moments\/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\/?$/iu)
+	return match?.[1] ?? null
+}
+
+function momentNotFound(): Response {
+	return new Response('<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>瞬间不存在</title></head><body><main><h1>404</h1><p>这条瞬间不存在或尚未公开。</p><a href="/moments">返回瞬间</a></main></body></html>', {
+		status: 404,
+		headers: {
+			'cache-control': 'no-store',
+			'content-type': 'text/html; charset=utf-8',
+		},
+	})
+}
+
 function upstreamUnavailable(): Response {
 	return Response.json({
 		ok: false,
@@ -56,8 +71,21 @@ const worker = {
 				return await env.API.fetch(await forwardedRequest(request, incomingUrl))
 			}
 
+			const detailId = request.method === 'GET' || request.method === 'HEAD'
+				? momentDetailId(incomingUrl.pathname)
+				: null
+			if (detailId) {
+				const apiUrl = new URL(incomingUrl)
+				apiUrl.pathname = `/api/moments/${detailId}`
+				const probe = await env.API.fetch(await forwardedRequest(new Request(request, { method: 'GET' }), apiUrl))
+				if (probe.status === 404)
+					return momentNotFound()
+				if (!probe.ok)
+					return probe
+			}
+
 			const pagesUrl = new URL(env.PAGES_ORIGIN)
-			pagesUrl.pathname = incomingUrl.pathname
+			pagesUrl.pathname = incomingUrl.pathname === '/ai.news' ? '/ai.news/' : incomingUrl.pathname
 			pagesUrl.search = incomingUrl.search
 			return await fetch(await forwardedRequest(request, pagesUrl))
 		}

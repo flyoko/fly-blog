@@ -6,17 +6,17 @@
   },
   {
     "id": "about",
-    "enabled": false,
+    "enabled": true,
     "order": 1
   },
   {
     "id": "moments",
-    "enabled": false,
+    "enabled": true,
     "order": 2
   },
   {
     "id": "ai-news",
-    "enabled": false,
+    "enabled": true,
     "order": 3
   },
   {

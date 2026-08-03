@@ -229,3 +229,70 @@ GitHub Deployment 的 `sha` 是 PR Head Commit，但 REST API 的 `ref` 过滤�
 - Check Runs 全部成功；
 - Deployment 通过 PR Head Branch 查询到，状态为 success 且包含非生产预览 URL；
 - 满足全部条件后 `canMerge` 才为 true。
+
+## 十三、周期 2：自述、瞬间与 AI 阅闻
+
+### D1 迁移
+
+周期 2 新增：
+
+- `0003_moments.sql`：`moments`、`moment_media`、`moment_likes`、`moment_backup_state`、`sync_runs`；
+- `0004_news.sql`：`news_items`、`news_briefings`、`news_sync_state`。
+
+生产部署前执行：
+
+```bash
+pnpm --filter @fly-living/api-worker exec wrangler d1 migrations apply DB --remote
+```
+
+迁移只新增表和索引，不修改 Twikoo 数据库，也不删除周期 1 表。
+
+### 匿名点赞
+
+- Cookie：`fly_moment_visitor`，`HttpOnly`、`Secure`、`SameSite=Lax`、一年有效期；
+- Worker 只保存 `HMAC-SHA256(cookie, VISITOR_HMAC_KEY)`；
+- D1 唯一键 `(moment_id, visitor_hash)` 防止重复点赞；
+- 不保存明文 IP、Cookie 或浏览器指纹；
+- `VISITOR_HMAC_KEY` 必须通过 Cloudflare Worker Secret 配置，不能写入仓库。
+
+### 公开缓存
+
+`/api/moments*` 与 `/api/news` 使用 Workers Cache API。缓存键包含：
+
+- 原始筛选参数；
+- 瞬间/点赞或阅闻/来源状态的数据版本；
+- 带访客 Cookie 或 Authorization 的请求自动绕过共享缓存。
+
+因此写入后数据版本变化会自然切换缓存键，无需枚举清理所有筛选组合。响应头 `X-Fly-Cache` 可用于确认 `MISS`、`HIT` 或 `BYPASS`。
+
+### 瞬间备份与恢复
+
+Cron：`17 19 * * *`（UTC，即北京时间次日 03:17）。每次运行：
+
+1. 导出确定性 JSON；
+2. 计算不包含 `exportedAt` 的数据校验和；
+3. 无变化时不创建 Commit；
+4. 有变化时写入 `backups/moments/YYYY/MM/YYYY-MM-DD.json`；
+5. 更新 `moment_backup_state` 与 `sync_runs`。
+
+`backups/**` 被 Pages/Quality 的 push 工作流忽略，备份 Commit 不触发站点重建。
+
+恢复必须先调用预检，验证路径、schemaVersion、SHA-256 校验和以及所有 R2 媒体引用。后台要求输入 `RESTORE`，恢复在 D1 batch 事务中替换瞬间和媒体关系；点赞不从快照恢复。
+
+### AI 阅闻
+
+来源由 `config/news/sources.json` 控制：
+
+- AI HOT 热点 JSON；
+- AI HOT 每日报告 JSON；
+- 在花 RSS。
+
+Worker 只保存标题、摘要、排名、来源和原文链接，不镜像全文。单个来源失败时更新状态但保留最近成功的 D1 快照。后台可手动同步和添加低风险精选卡片。
+
+### 生产回滚
+
+- API/Edge：回滚到上一个 Cloudflare Worker Version；
+- Pages：回滚到上一个成功部署；
+- 瞬间：从最近 Git 快照执行预检和恢复；
+- 阅闻：停止 Cron 或将来源 `enabled` 设为 false，保留 D1 最后快照；
+- 数据迁移：新增表不需要破坏性回滚，禁用相关模块即可。

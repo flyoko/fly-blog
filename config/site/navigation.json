@@ -10,6 +10,24 @@
         "url": "/"
       },
       {
+        "id": "moments",
+        "icon": "tabler:sparkles",
+        "text": "瞬间",
+        "url": "/moments"
+      },
+      {
+        "id": "ai-news",
+        "icon": "tabler:news",
+        "text": "阅闻",
+        "url": "/ai.news"
+      },
+      {
+        "id": "about",
+        "icon": "tabler:user-circle",
+        "text": "自述",
+        "url": "/me"
+      },
+      {
         "id": "links",
         "icon": "tabler:link",
         "text": "友链",

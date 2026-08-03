@@ -1,6 +1,7 @@
 <script setup lang="tsx">
 import type { TippyComponent } from 'vue-tippy'
 
+const props = defineProps<{ path?: string }>()
 const appConfig = useAppConfig()
 
 const commentEl = useTemplateRef('comment')
@@ -58,6 +59,7 @@ onMounted(() => {
 
 	window.twikoo?.init?.({
 		envId,
+		...(props.path ? { path: props.path } : {}),
 		// twikoo 会把挂载后的元素变为 #twikoo
 		el: '#twikoo',
 	})

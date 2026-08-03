@@ -94,11 +94,13 @@ export default defineNuxtConfig({
 	// @keep-sorted
 	routeRules: {
 		...mapValues(redirectList, to => ({ redirect: { to, statusCode: 308 as const } })),
+		'/about/profile': { redirect: '/me' },
 		'/admin': { ssr: false },
 		'/admin/**': { ssr: false },
 		'/api/stats': { prerender: true, headers: { 'Content-Type': 'application/json' } },
 		'/atom.xml': { prerender: true, headers: { 'Content-Type': 'application/xml' } },
 		'/favicon.ico': { redirect: { to: blogConfig.favicon } },
+		'/moments/**': { ssr: false },
 		'/subscriptions.opml': { prerender: true, headers: { 'Content-Type': 'application/xml' } },
 	},
 

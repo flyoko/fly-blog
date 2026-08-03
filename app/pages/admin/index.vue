@@ -25,6 +25,8 @@ const greeting = computed(() => {
 
 const stats = computed(() => [
 	{ label: '文章', value: overview.value?.counts.articles ?? null, icon: 'tabler:file-text', note: '仓库内容' },
+	{ label: '瞬间', value: overview.value?.counts.publishedMoments ?? null, icon: 'tabler:sparkles', note: 'D1 已发布' },
+	{ label: '阅闻', value: overview.value?.counts.publishedNews ?? null, icon: 'tabler:news', note: '公开候选池' },
 	{ label: '媒体', value: overview.value?.counts.activeMedia ?? null, icon: 'tabler:photo', note: 'R2 活跃对象' },
 	{ label: '待审核', value: overview.value?.counts.openPullRequests ?? null, icon: 'tabler:git-pull-request', note: '开放的变更' },
 	{ label: '发布中', value: overview.value?.counts.pendingPublishes ?? null, icon: 'tabler:loader-2', note: '构建与检查' },
@@ -86,7 +88,7 @@ onMounted(refresh)
 	</p>
 
 	<div v-if="loading" class="admin-grid admin-grid-stats">
-		<div v-for="index in 5" :key="index" class="admin-skeleton" />
+		<div v-for="index in 7" :key="index" class="admin-skeleton" />
 	</div>
 	<div v-else class="admin-grid admin-grid-stats">
 		<AdminStatusCard

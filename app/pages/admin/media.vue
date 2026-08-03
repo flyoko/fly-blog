@@ -16,7 +16,7 @@ const error = ref<string | null>(null)
 const query = ref('')
 const status = ref<'active' | 'trashed' | 'deleted'>('active')
 const type = ref<'' | 'image' | 'audio'>('')
-const uploadPurpose = ref<'article' | 'profile' | 'music'>('article')
+const uploadPurpose = ref<'article' | 'moment' | 'profile' | 'music'>('article')
 const uploadResults = ref<UploadResult[]>([])
 const fileInput = ref<HTMLInputElement | null>(null)
 const pendingAction = ref<{
@@ -194,6 +194,9 @@ onBeforeUnmount(() => searchTimer && clearTimeout(searchTimer))
 			<select v-model="uploadPurpose" aria-label="上传用途">
 				<option value="article">
 					文章图片
+				</option>
+				<option value="moment">
+					瞬间图片
 				</option>
 				<option value="profile">
 					个人资料

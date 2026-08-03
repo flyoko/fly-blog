@@ -182,9 +182,11 @@ export class MediaRepository {
 	}
 
 	async countReferences(id: string): Promise<number> {
-		const row = await this.db.prepare('SELECT COUNT(*) AS count FROM media_references WHERE media_id = ?')
-			.bind(id)
-			.first<{ count: number }>()
+		const row = await this.db.prepare(`
+			SELECT
+				(SELECT COUNT(*) FROM media_references WHERE media_id = ?) +
+				(SELECT COUNT(*) FROM moment_media WHERE media_id = ?) AS count
+		`).bind(id, id).first<{ count: number }>()
 		return row?.count ?? 0
 	}
 

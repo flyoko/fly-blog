@@ -21,6 +21,7 @@ export interface Env {
 	GITHUB_ALLOWED_LOGIN: string
 	GITHUB_ALLOWED_USER_ID: string
 	SESSION_ENCRYPTION_KEY: string
+	VISITOR_HMAC_KEY?: string
 }
 
 export interface Variables {

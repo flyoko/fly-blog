@@ -9,6 +9,7 @@ import type {
 import type { Env } from '../../env'
 import type { PublishRunRow } from '../../repositories/publish-repository'
 import type { ArticleActor, ArticleRepositoryPort } from '../articles/article-service'
+import { aboutLinksSchema, aboutTimelineSchema } from '../../../../../shared/admin/about'
 import {
 	categoriesConfigSchema,
 	footerConfigSchema,
@@ -38,6 +39,8 @@ const editableConfigFiles = {
 	modules: { path: 'config/site/modules.json', schema: modulesConfigSchema },
 	weather: { path: 'config/site/weather.json', schema: weatherConfigSchema },
 	newsSources: { path: 'config/news/sources.json', schema: newsSourcesConfigSchema },
+	aboutTimeline: { path: 'config/about/timeline.json', schema: aboutTimelineSchema },
+	aboutLinks: { path: 'config/about/links.json', schema: aboutLinksSchema },
 } as const
 
 export type EditableConfigKind = keyof typeof editableConfigFiles
