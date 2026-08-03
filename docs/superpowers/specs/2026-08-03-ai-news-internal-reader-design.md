@@ -25,8 +25,8 @@
 5. AI HOT 使用公开 `feed/full.xml`：存在 `content:encoded` 时显示允许再分发的全文，否则显示 Feed 摘要。
 6. 在花先读取 RSS，再只对新增或内容变化的条目请求文章页，提取 `msg-prose` 正文；提取失败时回退 RSS 摘要。
 7. 站内正文以清洗后的纯文本段落保存，不执行上游 HTML、脚本、样式、iframe、表单或事件属性。
-8. Worker 每 30 分钟触发新闻任务；AI HOT 最短 30 分钟，在花最短 60 分钟。请求携带 ETag 或 Last-Modified，304 时不解析、不写库。
-9. 原有瞬间备份仍只在每日 `17 19 * * *` 触发，不因新闻半小时任务增加备份频率。
+8. Worker 每 5 分钟检查一次到期来源；AI HOT 最短 30 分钟，在花最短 60 分钟。请求携带 ETag 或 Last-Modified，304 时不解析、不写库。
+9. 原有瞬间备份仍只在每日 `17 19 * * *` 触发，不因新闻到期检查任务增加备份频率。
 10. 管理后台保留手动同步能力，并显示每个来源的状态、条目数、最近成功时间和错误。
 
 ## 3. 用户体验
@@ -130,13 +130,13 @@ Wrangler triggers 调整为：
 
 ```json
 {
-  "crons": ["*/30 * * * *", "17 19 * * *"]
+  "crons": ["*/5 * * * *", "17 19 * * *"]
 }
 ```
 
 `scheduled(controller, env, ctx)` 按 `controller.cron` 分流：
 
-- `*/30 * * * *`：只执行 `NewsService.syncDueSources()`。
+- `*/5 * * * *`：只执行 `NewsService.syncDueSources()`，未到最短间隔的来源直接跳过。
 - `17 19 * * *`：执行 `MomentBackupService.backup()`，并允许顺带执行一次新闻同步。
 
 来源最短周期：

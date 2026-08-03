@@ -253,7 +253,7 @@ git commit -m "feat: 提供阅闻站内阅读公开接口"
 - [ ] **Step 1: 写失败的调度测试**
 
 ```ts
-await runScheduledTask('*/30 * * * *', env)
+await runScheduledTask('*/5 * * * *', env)
 expect(newsSync).toHaveBeenCalledOnce()
 expect(momentBackup).not.toHaveBeenCalled()
 ```
@@ -262,7 +262,7 @@ expect(momentBackup).not.toHaveBeenCalled()
 
 - [ ] **Step 2: 实现分流并增加触发器**
 
-`*/30 * * * *` 只同步新闻；`17 19 * * *` 执行备份和新闻同步。未知 cron 只记录并安全返回。
+`*/5 * * * *` 只检查并同步到期新闻来源；`17 19 * * *` 执行备份和新闻同步。未知 cron 只记录并安全返回。
 
 - [ ] **Step 3: 运行调度测试**
 

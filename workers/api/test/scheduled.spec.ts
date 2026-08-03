@@ -3,10 +3,10 @@ import { describe, expect, it, vi } from 'vitest'
 import { runScheduledTask, scheduledJobsFor } from '../src/index'
 
 describe('scheduled task routing', () => {
-	it('runs only news sync on the half-hour schedule', async () => {
+	it('runs only news sync on the five-minute due-source check', async () => {
 		const syncNews = vi.fn().mockResolvedValue(undefined)
 		const backupMoments = vi.fn().mockResolvedValue(undefined)
-		await runScheduledTask('*/30 * * * *', {} as Env, { syncNews, backupMoments })
+		await runScheduledTask('*/5 * * * *', {} as Env, { syncNews, backupMoments })
 		expect(syncNews).toHaveBeenCalledOnce()
 		expect(backupMoments).not.toHaveBeenCalled()
 	})
