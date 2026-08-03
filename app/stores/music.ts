@@ -1,6 +1,10 @@
 import type { MusicTrack } from '#shared/admin/music'
-
-export type MusicPlaybackMode = 'sequence' | 'shuffle'
+import type { MusicPlaybackMode } from '~/utils/music-playback'
+import {
+	nextPlayableTrackIndex,
+	nextTrackIndex,
+	normalizePlayableTracks,
+} from '~/utils/music-playback'
 
 interface StoredMusicState {
 	trackId?: string
@@ -27,7 +31,7 @@ export const useMusicStore = defineStore('music', () => {
 	const error = ref<string | null>(null)
 	const audio = shallowRef<HTMLAudioElement | null>(null)
 	let initialized = false
-	let consecutiveErrors = 0
+	const failedTrackIds = new Set<string>()
 	let lastPersistedSecond = -1
 
 	const currentTrack = computed(() => tracks.value[currentIndex.value] ?? null)
@@ -55,7 +59,12 @@ export const useMusicStore = defineStore('music', () => {
 			mode: mode.value,
 			expanded: expanded.value,
 		}
-		localStorage.setItem(storageKey, JSON.stringify(state))
+		try {
+			localStorage.setItem(storageKey, JSON.stringify(state))
+		}
+		catch {
+			// Storage can be unavailable in privacy modes; playback must continue.
+		}
 	}
 
 	function applyAudioPreferences() {
@@ -84,7 +93,7 @@ export const useMusicStore = defineStore('music', () => {
 			playing.value = true
 			loading.value = false
 			error.value = null
-			consecutiveErrors = 0
+			failedTrackIds.clear()
 		})
 		element.addEventListener('pause', () => {
 			playing.value = false
@@ -109,15 +118,12 @@ export const useMusicStore = defineStore('music', () => {
 	}
 
 	function pickNextIndex(direction: 1 | -1): number {
-		if (tracks.value.length <= 1)
-			return 0
-		if (mode.value === 'shuffle' && direction === 1) {
-			let candidate = currentIndex.value
-			while (candidate === currentIndex.value)
-				candidate = Math.floor(Math.random() * tracks.value.length)
-			return candidate
-		}
-		return (currentIndex.value + direction + tracks.value.length) % tracks.value.length
+		return nextTrackIndex({
+			currentIndex: currentIndex.value,
+			length: tracks.value.length,
+			direction,
+			mode: mode.value,
+		})
 	}
 
 	function loadCurrent(restoreProgress = 0) {
@@ -144,9 +150,7 @@ export const useMusicStore = defineStore('music', () => {
 	}
 
 	function initialize(input: MusicTrack[]) {
-		const nextTracks = input
-			.filter(track => track.enabled)
-			.toSorted((left, right) => left.order - right.order)
+		const nextTracks = normalizePlayableTracks(input)
 		const signature = nextTracks.map(track => `${track.id}:${track.audioUrl}:${track.order}`).join('|')
 		const currentSignature = tracks.value.map(track => `${track.id}:${track.audioUrl}:${track.order}`).join('|')
 		if (initialized && signature === currentSignature)
@@ -164,14 +168,17 @@ export const useMusicStore = defineStore('music', () => {
 			loadCurrent(typeof stored.progress === 'number' ? stored.progress : 0)
 	}
 
-	async function play() {
+	async function play(resetFailures = true) {
 		if (!hasTracks.value)
 			return
 		attachAudio()
 		if (!audio.value)
 			return
+		if (resetFailures)
+			failedTrackIds.clear()
 		loading.value = true
-		error.value = null
+		if (resetFailures)
+			error.value = null
 		try {
 			await audio.value.play()
 		}
@@ -193,18 +200,20 @@ export const useMusicStore = defineStore('music', () => {
 			await play()
 	}
 
-	async function changeTrack(index: number, autoplay: boolean) {
+	async function changeTrack(index: number, autoplay: boolean, resetFailures = true) {
 		if (!tracks.value.length)
 			return
+		if (resetFailures)
+			failedTrackIds.clear()
 		const normalized = (index + tracks.value.length) % tracks.value.length
 		currentIndex.value = normalized
 		loadCurrent(0)
 		if (autoplay)
-			await play()
+			await play(resetFailures)
 	}
 
-	async function next(autoplay = playing.value) {
-		await changeTrack(pickNextIndex(1), autoplay)
+	async function next(autoplay = playing.value, resetFailures = true) {
+		await changeTrack(pickNextIndex(1), autoplay, resetFailures)
 	}
 
 	async function previous() {
@@ -218,13 +227,22 @@ export const useMusicStore = defineStore('music', () => {
 	async function handleTrackError() {
 		loading.value = false
 		playing.value = false
-		consecutiveErrors += 1
-		if (consecutiveErrors >= tracks.value.length) {
+		if (currentTrack.value)
+			failedTrackIds.add(currentTrack.value.id)
+		const nextIndex = nextPlayableTrackIndex({
+			tracks: tracks.value,
+			currentIndex: currentIndex.value,
+			failedTrackIds,
+			mode: mode.value,
+		})
+		if (nextIndex === null) {
+			audio.value?.pause()
 			error.value = '当前歌单暂时都无法播放，请检查音频链接后重试。'
 			return
 		}
+		await changeTrack(nextIndex, false, false)
 		error.value = '当前音频加载失败，正在尝试下一首。'
-		await next(true)
+		await play(false)
 	}
 
 	function seek(value: number) {

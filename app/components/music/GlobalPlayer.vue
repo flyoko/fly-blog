@@ -1,16 +1,20 @@
 <script setup lang="ts">
-import playlistRaw from '~~/content/playlists/default.json'
-import { musicPlaylistSchema } from '#shared/admin/music'
+import type { ApiSuccess } from '#shared/admin/api'
+import type { PublicMusicPlaylist } from '#shared/admin/music'
 
-const appConfig = useAppConfig()
 const store = useMusicStore()
-const moduleEnabled = computed(() => appConfig.featureModules.some(module => module.id === 'music' && module.enabled))
-const playlist = musicPlaylistSchema.safeParse(playlistRaw)
-const tracks = playlist.success ? playlist.data.tracks : []
+const moduleEnabled = ref(false)
 
-onMounted(() => {
-	if (moduleEnabled.value)
-		store.initialize(tracks)
+onMounted(async () => {
+	try {
+		const response = await $fetch<ApiSuccess<PublicMusicPlaylist>>('/api/music/playlist')
+		moduleEnabled.value = response.data.enabled
+		if (response.data.enabled)
+			store.initialize(response.data.tracks)
+	}
+	catch {
+		moduleEnabled.value = false
+	}
 })
 
 function formatTime(value: number) {

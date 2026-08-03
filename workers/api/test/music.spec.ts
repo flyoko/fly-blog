@@ -4,6 +4,7 @@ import type { MusicRepositoryPort } from '../src/features/music/routes'
 import { applyD1Migrations, env } from 'cloudflare:test'
 import { Hono } from 'hono'
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { createPublicMusicRoutes } from '../src/features/music/public-routes'
 import { createMusicRoutes } from '../src/features/music/routes'
 import { failure, normalizeError } from '../src/lib/api-error'
 import { sha256Base64Url } from '../src/lib/crypto'
@@ -81,6 +82,14 @@ function createApp(repository: FakeMusicRepository) {
 	return app
 }
 
+function createPublicApp(enabled: boolean) {
+	const app = new Hono<AppEnvironment>()
+	app.use('*', contextMiddleware)
+	app.route('/api/music', createPublicMusicRoutes({ enabled, playlist }))
+	app.onError((error, c) => failure(c, normalizeError(error)))
+	return app
+}
+
 function headers() {
 	return {
 		'cookie': 'fly_admin_session=music-session',
@@ -96,6 +105,8 @@ beforeEach(async () => {
 		testEnv.DB.prepare('DELETE FROM publish_runs'),
 		testEnv.DB.prepare('DELETE FROM idempotency_keys'),
 		testEnv.DB.prepare('DELETE FROM audit_logs'),
+		testEnv.DB.prepare('DELETE FROM media_references'),
+		testEnv.DB.prepare('DELETE FROM media_objects'),
 		testEnv.DB.prepare('DELETE FROM admin_sessions'),
 	])
 	await testEnv.DB.prepare(`
@@ -129,6 +140,51 @@ describe('music playlist routes', () => {
 		expect(repository.commits).toHaveLength(1)
 		expect(repository.commits[0]).toMatchObject({ branch: 'main', files: [{ path: 'content/playlists/default.json' }] })
 		expect(repository.commits[0]!.files[0]!.content).toContain('sample-track')
+	})
+
+	it('publishes only enabled tracks when the public module is enabled', async () => {
+		const playlistWithPrivateMetadata = structuredClone(playlist)
+		Object.assign(playlistWithPrivateMetadata.tracks[0]!, { internalNote: 'must not be public' })
+		const app = new Hono<AppEnvironment>()
+		app.use('*', contextMiddleware)
+		app.route('/api/music', createPublicMusicRoutes({ enabled: true, playlist: playlistWithPrivateMetadata }))
+		app.onError((error, c) => failure(c, normalizeError(error)))
+		const response = await app.request('https://blog.example.test/api/music/playlist', {}, runtimeEnv())
+		expect(response.status).toBe(200)
+		const body = await response.json() as { data: { tracks: Array<Record<string, unknown>> } }
+		expect(body).toMatchObject({
+			ok: true,
+			data: { enabled: true, title: '随心听', tracks: [{ id: 'sample-track' }] },
+		})
+		expect(body.data.tracks[0]).not.toHaveProperty('internalNote')
+
+		const disabled = await createPublicApp(false).request('https://blog.example.test/api/music/playlist', {}, runtimeEnv())
+		expect(await disabled.json()).toMatchObject({ ok: true, data: { enabled: false, tracks: [] } })
+	})
+
+	it('records R2 references for audio and cover URLs after commit', async () => {
+		const mediaUrl = 'https://media.example.com/music/sample.mp3'
+		await testEnv.DB.prepare(`
+			INSERT INTO media_objects (
+				id, object_key, original_name, purpose, mime_type, size_bytes,
+				sha256, status, public_url, created_at
+			) VALUES ('music-media', 'music/sample.mp3', 'sample.mp3', 'music', 'audio/mpeg', 2048,
+				'sha', 'active', ?, '2026-08-03T00:00:00.000Z')
+		`).bind(mediaUrl).run()
+		const repository = new FakeMusicRepository()
+		const app = createApp(repository)
+		const referenced = structuredClone(playlist)
+		referenced.tracks[0]!.audioUrl = mediaUrl
+		const response = await app.request('https://blog.example.test/api/admin/music/playlist', {
+			method: 'PUT',
+			headers: headers(),
+			body: JSON.stringify({ playlist: referenced, expectedSha: 'playlist-sha', idempotencyKey: 'music-reference-one' }),
+		}, { ...runtimeEnv(), MEDIA_ORIGIN: 'https://media.example.com' })
+		expect(response.status).toBe(200)
+		const row = await testEnv.DB.prepare('SELECT media_id, repository_path, repository_sha FROM media_references WHERE media_id = ?')
+			.bind('music-media')
+			.first<{ media_id: string, repository_path: string, repository_sha: string }>()
+		expect(row).toEqual({ media_id: 'music-media', repository_path: 'content/playlists/default.json', repository_sha: 'music-commit' })
 	})
 
 	it('rejects stale SHAs and unsafe audio URLs before committing', async () => {

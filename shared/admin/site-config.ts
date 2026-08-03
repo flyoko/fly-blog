@@ -1,5 +1,15 @@
 import { z } from 'zod'
 
+function isValidTimeZone(value: string): boolean {
+	try {
+		new Intl.DateTimeFormat('en-US', { timeZone: value }).format(new Date(0))
+		return true
+	}
+	catch {
+		return false
+	}
+}
+
 function addDuplicateIssues<T>(
 	values: T[],
 	getKey: (value: T) => string | number,
@@ -80,6 +90,11 @@ export const modulesConfigSchema = z.array(z.object({
 })).length(allowedModuleIds.length).superRefine((modules, ctx) => {
 	addDuplicateIssues(modules, module => module.id, ctx, 'module id')
 	addDuplicateIssues(modules, module => module.order, ctx, 'module order')
+	const orders = modules.map(module => module.order).sort((left, right) => left - right)
+	orders.forEach((order, index) => {
+		if (order !== index)
+			ctx.addIssue({ code: 'custom', path: [index, 'order'], message: 'Module orders must be continuous from zero' })
+	})
 })
 
 export const weatherConfigSchema = z.object({
@@ -88,7 +103,7 @@ export const weatherConfigSchema = z.object({
 	city: z.string().max(160),
 	latitude: z.number().min(-90).max(90).nullable(),
 	longitude: z.number().min(-180).max(180).nullable(),
-	timezone: z.string().min(1).max(120),
+	timezone: z.string().min(1).max(120).refine(isValidTimeZone, 'Timezone must be a valid IANA timezone'),
 }).superRefine((config, ctx) => {
 	if (!config.enabled)
 		return

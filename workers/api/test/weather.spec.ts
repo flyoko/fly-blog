@@ -1,9 +1,14 @@
 import type { D1Migration } from '@cloudflare/vitest-pool-workers'
 import type { WeatherConfig } from '../../../shared/admin/site-config'
-import type { Env } from '../src/env'
+import type { PublicWeather } from '../../../shared/admin/weather'
+import type { AppEnvironment, Env } from '../src/env'
 import { applyD1Migrations, env } from 'cloudflare:test'
+import { Hono } from 'hono'
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { createPublicWeatherRoutes } from '../src/features/weather/routes'
 import { WeatherService } from '../src/features/weather/service'
+import { failure, normalizeError } from '../src/lib/api-error'
+import { contextMiddleware } from '../src/middleware/context'
 
 const testEnv = env as typeof env & { DB: D1Database, TEST_MIGRATIONS: D1Migration[] }
 const config: WeatherConfig = {
@@ -21,6 +26,18 @@ const forecast = {
 
 function runtimeEnv(): Env {
 	return { ...testEnv } as unknown as Env
+}
+
+function publicApp(input: { moduleEnabled: boolean, current: () => Promise<PublicWeather> }) {
+	const app = new Hono<AppEnvironment>()
+	app.use('*', contextMiddleware)
+	app.route('/api/weather', createPublicWeatherRoutes({
+		moduleEnabled: input.moduleEnabled,
+		configVersion: `test-${crypto.randomUUID()}`,
+		serviceFactory: () => ({ current: input.current }),
+	}))
+	app.onError((error, c) => failure(c, normalizeError(error)))
+	return app
 }
 
 beforeAll(async () => applyD1Migrations(testEnv.DB, testEnv.TEST_MIGRATIONS))
@@ -79,4 +96,37 @@ describe('weather service', () => {
 		}])
 		await expect(service.search(' ')).rejects.toMatchObject({ code: 'VALIDATION_FAILED' })
 	})
+
+	it('wraps public weather consistently and never extends HTTP staleness beyond the 30 minute cache', async () => {
+		const payload = await new WeatherService(runtimeEnv(), async () => Response.json(forecast), () => new Date('2026-08-03T12:00:00.000Z'), config).current()
+		const response = await publicApp({ moduleEnabled: true, current: async () => payload })
+			.request('https://blog.example.test/api/weather', {}, runtimeEnv())
+		expect(await response.json()).toMatchObject({ ok: true, data: { available: true, city: config.city } })
+		expect(response.headers.get('cache-control')).toBe('public, max-age=1800')
+	})
+
+	it('does not expose weather when the public module is disabled', async () => {
+		let calls = 0
+		const response = await publicApp({
+			moduleEnabled: false,
+			current: async () => {
+				calls++
+				return payloadForDisabledTest()
+			},
+		}).request('https://blog.example.test/api/weather', {}, runtimeEnv())
+		expect(await response.json()).toMatchObject({ ok: true, data: { available: false, reason: 'disabled' } })
+		expect(calls).toBe(0)
+	})
 })
+
+function payloadForDisabledTest(): PublicWeather {
+	return {
+		available: false,
+		reason: 'temporarily_unavailable',
+		city: null,
+		fetchedAt: null,
+		message: 'unused',
+		sourceName: 'Open-Meteo',
+		sourceUrl: 'https://open-meteo.com/',
+	}
+}
