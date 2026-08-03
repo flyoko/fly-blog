@@ -33,4 +33,9 @@ describe('ai 阅闻站内阅读界面', () => {
 		expect(page).not.toContain('v-html')
 		expect(page).not.toContain('<iframe')
 	})
+
+	it('rewrites internal reader deep links to the Nuxt app shell', () => {
+		const redirects = read('public/_redirects')
+		expect(redirects).toContain('/ai.news/read/* /ai.news 200')
+	})
 })
