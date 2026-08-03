@@ -44,6 +44,12 @@
           "icon": "tabler:brand-github",
           "text": "flyoko",
           "url": "https://github.com/flyoko"
+        },
+        {
+          "id": "qq-email",
+          "icon": "tabler:mail",
+          "text": "QQ 邮箱",
+          "url": "mailto:2960257447@qq.com"
         }
       ]
     },
