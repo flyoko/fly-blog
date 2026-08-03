@@ -21,6 +21,8 @@ export interface AdminApiCapture {
 }
 
 const momentId = '11111111-1111-4111-8111-111111111111'
+const aiHotReaderKey = 'c'.repeat(32)
+const zaihuaReaderKey = 'd'.repeat(32)
 
 const articlePath = 'content/posts/2026/cycle-1-test.md'
 const articleId = encodeArticleId(articlePath)
@@ -97,23 +99,91 @@ function momentItem() {
 
 function newsPayload() {
 	return {
-		items: [{
-			id: 'ai-hot:1',
-			sourceId: 'ai-hot-topics',
-			kind: 'hot',
-			title: 'AI HOT test item',
-			summary: null,
-			url: 'https://example.com/hot',
-			originalUrl: 'https://example.com/original',
-			category: 'AI 热点',
-			rank: 1,
-			publishedAt: '2026-08-03T08:00:00.000Z',
-			fetchedAt: '2026-08-03T08:05:00.000Z',
-			selected: true,
-		}],
-		total: 1,
-		briefing: { date: '2026-08-03', title: 'AI 日报 · 2026-08-03', lead: 'Daily lead', content_json: '[]', source_url: 'https://aihot.example/daily', generated_at: '2026-08-03T08:00:00.000Z' },
-		sources: [{ source_id: 'ai-hot-topics', status: 'success', item_count: 1, last_success_at: '2026-08-03T08:05:00.000Z', last_error: null }],
+		items: [
+			{
+				id: 'ai-hot:1',
+				sourceId: 'ai-hot-items',
+				kind: 'hot',
+				title: 'AI HOT 站内阅读测试',
+				summary: '这条 AI HOT 内容应当直接在博客内打开。',
+				url: 'https://aihot.virxact.com/items/test',
+				originalUrl: 'https://example.com/original',
+				category: 'AI 模型',
+				rank: null,
+				publishedAt: '2026-08-03T08:00:00.000Z',
+				fetchedAt: '2026-08-03T08:05:00.000Z',
+				selected: true,
+				readerPath: `/ai.news/read/${aiHotReaderKey}`,
+				contentMode: 'full',
+			},
+			{
+				id: 'station-news:https://www.zaihua.news/article/1/',
+				sourceId: 'station-news',
+				kind: 'rss',
+				title: '站长资讯站内阅读测试',
+				summary: '这条在花资讯也应当直接在博客内打开。',
+				url: 'https://www.zaihua.news/article/1/',
+				originalUrl: 'https://www.zaihua.news/article/1/',
+				category: '站长资讯',
+				rank: null,
+				publishedAt: '2026-08-03T07:30:00.000Z',
+				fetchedAt: '2026-08-03T08:05:00.000Z',
+				selected: true,
+				readerPath: `/ai.news/read/${zaihuaReaderKey}`,
+				contentMode: 'full',
+			},
+			{
+				id: 'manual:external',
+				sourceId: 'manual',
+				kind: 'manual',
+				title: '外部精选测试',
+				summary: '不在白名单中的来源继续外部打开。',
+				url: 'https://example.com/manual-news',
+				originalUrl: 'https://example.com/manual-news',
+				category: '手动精选',
+				rank: null,
+				publishedAt: '2026-08-03T07:00:00.000Z',
+				fetchedAt: '2026-08-03T08:05:00.000Z',
+				selected: true,
+				readerPath: null,
+				contentMode: null,
+			},
+		],
+		total: 3,
+		briefing: {
+			date: '2026-08-03',
+			title: 'AI 日报 · 2026-08-03',
+			lead: '今日重点聚焦模型发布与开发工具。',
+			content_json: JSON.stringify([{ label: '产品发布', items: [{ title: '模型能力继续提升', summary: '关注推理、编码和工具调用。' }] }]),
+			source_url: 'https://aihot.virxact.com/daily/2026-08-03',
+			generated_at: '2026-08-03T08:00:00.000Z',
+		},
+		sources: [
+			{ source_id: 'ai-hot-items', status: 'success', item_count: 1, last_success_at: '2026-08-03T08:05:00.000Z', last_error: null, next_sync_at: '2026-08-03T08:35:00.000Z' },
+			{ source_id: 'ai-hot-full', status: 'success', item_count: 1, last_success_at: '2026-08-03T08:05:00.000Z', last_error: null, next_sync_at: '2026-08-03T08:35:00.000Z' },
+			{ source_id: 'ai-hot-daily', status: 'success', item_count: 1, last_success_at: '2026-08-03T08:05:00.000Z', last_error: null, next_sync_at: '2026-08-03T08:35:00.000Z' },
+			{ source_id: 'station-news', status: 'success', item_count: 1, last_success_at: '2026-08-03T08:05:00.000Z', last_error: null, next_sync_at: '2026-08-03T09:05:00.000Z' },
+		],
+	}
+}
+
+function newsDocument(readerKey: string) {
+	const zaihua = readerKey === zaihuaReaderKey
+	const item = newsPayload().items[zaihua ? 1 : 0]
+	return {
+		item,
+		readerKey,
+		bodyText: zaihua
+			? '站长正文第一段。\n\n站长正文第二段。'
+			: 'AI HOT 正文第一段。\n\nAI HOT 正文第二段。',
+		contentMode: 'full',
+		attribution: {
+			name: zaihua ? '在花' : 'AI HOT',
+			url: zaihua ? 'https://www.zaihua.news/' : 'https://aihot.virxact.com/items/test',
+		},
+		sourceUrl: item.url,
+		originalUrl: item.originalUrl,
+		fetchedAt: item.fetchedAt,
 	}
 }
 
@@ -305,6 +375,16 @@ async function respond(route: Route, options: AdminApiMockOptions, capture: Admi
 
 	if (path === '/api/news' && method === 'GET') {
 		await route.fulfill(success(newsPayload()))
+		return
+	}
+
+	if (path.startsWith('/api/news/read/') && method === 'GET') {
+		const readerKey = path.split('/').at(-1) || ''
+		if (![aiHotReaderKey, zaihuaReaderKey].includes(readerKey)) {
+			await route.fulfill(failure('NOT_FOUND', 'News document not found', 404))
+			return
+		}
+		await route.fulfill(success(newsDocument(readerKey)))
 		return
 	}
 

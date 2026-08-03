@@ -67,21 +67,41 @@ test.describe('cycle 2 desktop workflows', () => {
 		await expect(page).toHaveURL(/\/moments\/11111111-1111-4111-8111-111111111111/u)
 		await expect(page.getByText('A deterministic Cycle 2 moment.')).toBeVisible()
 	})
+})
 
-	test('AI news renders the briefing, source attribution, and original link', async ({ page }) => {
+test.describe('cycle 2 AI news internal reading', () => {
+	test('searches compact news and opens whitelisted content inside the blog', async ({ page }) => {
 		await mockAdminApi(page)
 		await page.goto('/moments')
 		await page.evaluate(() => {
 			window.history.pushState({}, '', '/ai.news')
 			window.dispatchEvent(new PopStateEvent('popstate'))
 		})
+
 		await expect(page.getByRole('heading', { name: 'AI 阅闻' })).toBeVisible()
-		await expect(page.getByText('今日主线')).toBeVisible()
-		await expect(page.getByRole('heading', { name: '今日摘要' })).toBeVisible()
-		await expect(page.getByText('AI 日报 · 2026-08-03')).toBeVisible()
-		await expect(page.getByRole('link', { name: 'AI HOT test item' })).toHaveAttribute('href', 'https://example.com/hot')
-		await expect(page.getByRole('link', { name: 'AI HOT 原始日报' })).toHaveAttribute('href', 'https://aihot.example/daily')
-		await expect(page.getByRole('button', { name: '站长资讯' })).toBeVisible()
-		await expect(page.getByRole('link', { name: '原文' })).toHaveAttribute('href', 'https://example.com/original')
+		await expect(page.getByText('自动聚合运行中')).toBeVisible()
+		await expect(page.getByText('AI HOT 每 30 分钟 · 站长资讯每 60 分钟')).toBeVisible()
+		await expect(page.getByRole('heading', { name: '今日日报' })).toBeVisible()
+
+		const internalTitle = page.getByRole('link', { name: 'AI HOT 站内阅读测试', exact: true })
+		await expect(internalTitle).toHaveAttribute('href', `/ai.news/read/${'c'.repeat(32)}`)
+		await expect(page.getByRole('link', { name: '外部精选测试', exact: true })).toHaveAttribute('href', 'https://example.com/manual-news')
+		await expect(page.getByRole('link', { name: '外部精选测试', exact: true })).toHaveAttribute('target', '_blank')
+
+		const search = page.getByPlaceholder('搜索标题或摘要')
+		await search.fill('站长资讯站内')
+		await expect(page.getByRole('link', { name: '站长资讯站内阅读测试', exact: true })).toBeVisible()
+		await expect(internalTitle).toBeHidden()
+		await page.getByRole('button', { name: '清空搜索' }).click()
+
+		await internalTitle.click()
+		await expect(page).toHaveURL(new RegExp(`/ai\\.news/read/${'c'.repeat(32)}$`, 'u'))
+		await expect(page.getByRole('heading', { name: 'AI HOT 站内阅读测试' })).toBeVisible()
+		await expect(page.getByText('AI HOT 正文第一段。')).toBeVisible()
+		await expect(page.getByText('AI HOT 正文第二段。')).toBeVisible()
+		await expect(page.getByText('以下内容由来源公开提供并允许在聚合阅读中展示')).toBeVisible()
+		await expect(page.getByRole('link', { name: '查看原始来源' })).toHaveAttribute('href', 'https://example.com/original')
+		await page.getByRole('link', { name: '返回 AI 阅闻' }).click()
+		await expect(page).toHaveURL(/\/ai\.news\/?$/u)
 	})
 })
