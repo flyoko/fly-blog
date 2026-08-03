@@ -103,7 +103,7 @@ export class GitHubRepository {
 		private readonly env: Env,
 		options: { fetcher?: Fetcher, tokenProvider?: TokenProvider } = {},
 	) {
-		this.fetcher = options.fetcher ?? fetch
+		this.fetcher = options.fetcher ?? globalThis.fetch.bind(globalThis)
 		this.tokenProvider = options.tokenProvider ?? getInstallationToken
 	}
 

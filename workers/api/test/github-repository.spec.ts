@@ -34,6 +34,24 @@ function createRepository(responses: Array<Response | ((request: Request) => Res
 }
 
 describe('gitHubRepository reads', () => {
+	it('binds the default Workers fetch implementation to globalThis', async () => {
+		const fetcher = vi.fn(function (this: unknown) {
+			expect(this).toBe(globalThis)
+			return Promise.resolve(json({ object: { sha: 'head-sha' } }))
+		})
+		vi.stubGlobal('fetch', fetcher)
+		try {
+			const repository = new GitHubRepository(createEnv(), {
+				tokenProvider: async () => ({ token: 'installation-token', expiresAt: '2099-01-01T00:00:00.000Z' }),
+			})
+			await expect(repository.getBranchHead('main')).resolves.toBe('head-sha')
+			expect(fetcher).toHaveBeenCalledOnce()
+		}
+		finally {
+			vi.unstubAllGlobals()
+		}
+	})
+
 	it('lists blob files under a prefix using installation-token headers', async () => {
 		const { repository, requests } = createRepository([
 			json({
