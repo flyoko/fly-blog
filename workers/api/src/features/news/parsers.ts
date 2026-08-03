@@ -231,6 +231,20 @@ export function htmlToReadableText(input: string): string {
 		.slice(0, MAX_BODY_LENGTH)
 }
 
+export function cleanAiHotBodyText(value: string): string {
+	return value
+		.split(/\n{2,}/u)
+		.map(paragraph => paragraph.replace(/\s+/gu, ' ').trim())
+		.filter(Boolean)
+		.filter((paragraph) => {
+			return !/^🔗?\s*阅读原文(?:\s*[↗→])?$/u.test(paragraph)
+				&& !/^via\s+AI\s+HOT[\s\S]*aihot\.virxact\.com\/items\//iu.test(paragraph)
+				&& !/^(?:——?\s*)?本文由\s*AI\s+HOT\s*聚合整理[\s\S]*aihot\.virxact\.com\/items\//iu.test(paragraph)
+		})
+		.join('\n\n')
+		.slice(0, MAX_BODY_LENGTH)
+}
+
 export function parseRssFeed(xml: string, limit = 50): ParsedRssEntry[] {
 	return [...xml.matchAll(/<item\b[^>]*>([\s\S]*?)<\/item>/giu)]
 		.slice(0, limit)
@@ -280,12 +294,13 @@ export function parseAiHotFullFeed(xml: string): ParsedAiHotFeedEntry[] {
 	return parseRssFeed(xml).map((entry) => {
 		const upstreamId = entry.guid || entry.link.split('/').filter(Boolean).at(-1) || ''
 		const fullText = entry.contentEncodedHtml
-			? htmlToReadableText(entry.contentEncodedHtml)
+			? cleanAiHotBodyText(htmlToReadableText(entry.contentEncodedHtml))
 			: ''
+		const summaryText = cleanAiHotBodyText(entry.descriptionText)
 		return {
 			upstreamId,
 			title: entry.title,
-			bodyText: fullText || entry.descriptionText,
+			bodyText: fullText || summaryText,
 			contentMode: fullText ? 'full' as const : 'summary' as const,
 			sourceUrl: entry.link,
 			originalUrl: firstExternalHref(entry.descriptionHtml),
@@ -338,7 +353,7 @@ export function parseAiHotDaily(payload: unknown): ParsedAiHotDailyReport | null
 
 export function extractAiHotArticle(html: string): { bodyText: string } | null {
 	const bodyHtml = divInnerHtmlByClass(html, 'm-detail-html')
-	const bodyText = htmlToReadableText(bodyHtml)
+	const bodyText = cleanAiHotBodyText(htmlToReadableText(bodyHtml))
 	return bodyText ? { bodyText } : null
 }
 
