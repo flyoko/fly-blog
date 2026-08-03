@@ -51,6 +51,12 @@ describe('cycle 4 polish contracts', () => {
 		expect(moments).toMatch(/prefers-reduced-motion: reduce[\s\S]*?moment-card[\s\S]*?animation: none;/u)
 	})
 
+	it('keeps the AI news feed inside the layout main landmark', () => {
+		const aiNews = read('app/pages/ai.news/index.vue')
+		expect(aiNews).toContain('<section class=\"news-feed card\"')
+		expect(aiNews).not.toContain('<main class=\"news-feed card\"')
+	})
+
 	it('repairs third-party comment semantics and keeps low-emphasis text readable', () => {
 		const comment = read('app/components/post/Comment.vue')
 		const toc = read('app/components/widget/Toc.vue')

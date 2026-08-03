@@ -249,7 +249,7 @@ onMounted(load)
 	</section>
 
 	<div class="news-layout">
-		<main class="news-feed card" aria-labelledby="news-feed-title">
+		<section class="news-feed card" aria-labelledby="news-feed-title">
 			<header class="news-feed-header">
 				<div>
 					<h2 id="news-feed-title">
@@ -323,7 +323,7 @@ onMounted(load)
 					清空搜索
 				</button>
 			</div>
-		</main>
+		</section>
 
 		<aside class="news-digest card" aria-labelledby="news-digest-title">
 			<header class="news-digest-header">
