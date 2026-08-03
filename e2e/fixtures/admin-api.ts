@@ -19,6 +19,7 @@ export interface AdminApiCapture {
 	musicWrites: Array<Record<string, unknown>>
 	mediaActions: Array<{ method: string, path: string }>
 	mediaUploads: number
+	mediaUploadBodies: string[]
 	logoutCount: number
 }
 
@@ -479,12 +480,16 @@ async function respond(route: Route, options: AdminApiMockOptions, capture: Admi
 
 	if (path === '/api/admin/media' && method === 'POST') {
 		capture.mediaUploads += 1
+		const body = request.postData() ?? ''
+		capture.mediaUploadBodies.push(body)
+		const uploadedName = /filename="([^"]+)"/u.exec(body)?.[1] ?? 'valid.webp'
+		const musicUpload = body.includes('name="purpose"') && body.includes('music')
 		await route.fulfill(success(options.mediaPartialFailure
 			? [
 					{ ok: true, name: 'valid.webp', media: mediaItems()[0] },
 					{ ok: false, name: 'invalid.exe', error: { code: 'UNSUPPORTED_MEDIA_TYPE', message: 'Unsupported media type' } },
 				]
-			: [{ ok: true, name: 'valid.webp', media: mediaItems()[0] }]))
+			: [{ ok: true, name: uploadedName, media: mediaItems(musicUpload ? 'audio' : 'image')[0] }]))
 		return
 	}
 
@@ -592,6 +597,7 @@ export async function mockAdminApi(page: Page, options: AdminApiMockOptions = {}
 		musicWrites: [],
 		mediaActions: [],
 		mediaUploads: 0,
+		mediaUploadBodies: [],
 		logoutCount: 0,
 	}
 	const state = { sessionCalls: 0 }

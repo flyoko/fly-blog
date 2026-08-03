@@ -186,6 +186,9 @@ catalogs:
     '@vueuse/router':
       specifier: ^14.3.0
       version: 14.3.0
+    '@xhacker/qmcwasm':
+      specifier: 1.0.0
+      version: 1.0.0
     es-toolkit:
       specifier: ^1.48.1
       version: 1.48.1
@@ -288,6 +291,9 @@ importers:
       '@vueuse/router':
         specifier: catalog:util
         version: 14.3.0(vue-router@5.1.0(@vue/compiler-sfc@3.5.40)(pinia@3.0.4(typescript@6.0.3)(vue@3.5.38(typescript@6.0.3)))(vite@7.3.5(@types/node@26.0.0)(jiti@2.7.0)(lightningcss@1.32.0)(sass-embedded@1.100.0)(sass@1.100.0)(terser@5.48.0)(yaml@2.9.0))(vue@3.5.38(typescript@6.0.3)))(vue@3.5.38(typescript@6.0.3))
+      '@xhacker/qmcwasm':
+        specifier: catalog:util
+        version: 1.0.0
       abcjs:
         specifier: catalog:content
         version: 6.6.3
@@ -3995,6 +4001,9 @@ packages:
 
   '@webcontainer/env@1.1.1':
     resolution: {integrity: sha512-6aN99yL695Hi9SuIk1oC88l9o0gmxL1nGWWQ/kNy81HigJ0FoaoTXpytCj6ItzgyCEwA9kF1wixsTuv5cjsgng==}
+
+  '@xhacker/qmcwasm@1.0.0':
+    resolution: {integrity: sha512-oE6isNLmCDqIvxJV9KyDVlIzMISQzTj8o1ePWtQ+DhfXLI0hel/DwOIQ3icCikWnfwA/5SDs2hYw5BvrxdJ63g==}
 
   '@zinkawaii/stylelint-config@0.4.1':
     resolution: {integrity: sha512-hcb978+FAfBQaZ6CxVaDmnGmOkMyeZBzA92sPZEn//yDjpscThV60EVGhVvdnWH3ejjsSXaV9zZZuyio632Y0w==}
@@ -12055,6 +12064,8 @@ snapshots:
       vue: 3.5.38(typescript@6.0.3)
 
   '@webcontainer/env@1.1.1': {}
+
+  '@xhacker/qmcwasm@1.0.0': {}
 
   '@zinkawaii/stylelint-config@0.4.1(postcss-html@1.8.1)(postcss@8.5.15)(stylelint@17.13.0(typescript@6.0.3))':
     dependencies:

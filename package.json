@@ -35,7 +35,9 @@
     "test:e2e": "playwright test",
     "check:links": "unrun scripts/check-generated-links.ts",
     "check:secrets": "unrun scripts/verify-no-secrets.ts",
-    "verify": "pnpm lint && pnpm typecheck && pnpm test:unit && pnpm test:workers && pnpm generate && pnpm check:links && pnpm check:secrets"
+    "verify": "pnpm lint && pnpm typecheck && pnpm test:unit && pnpm test:workers && pnpm generate && pnpm check:smoke && pnpm check:links && pnpm check:secrets",
+    "verify:qmc-samples": "unrun scripts/verify-qmc-samples.ts",
+    "check:smoke": "unrun scripts/check-generated-smoke.ts"
   },
   "dependencies": {
     "@bikariya/image-viewer": "catalog:ui",
@@ -53,6 +55,7 @@
     "@vueuse/core": "catalog:util",
     "@vueuse/nuxt": "catalog:util",
     "@vueuse/router": "catalog:util",
+    "@xhacker/qmcwasm": "catalog:util",
     "abcjs": "catalog:content",
     "ci-info": "catalog:framework",
     "embla-carousel-autoplay": "catalog:ui",

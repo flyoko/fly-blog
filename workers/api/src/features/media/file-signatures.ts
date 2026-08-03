@@ -8,7 +8,7 @@ export interface DetectedMedia {
 	kind: MediaKind
 }
 
-const audioExtensions = new Set(['mp3', 'ogg', 'wav'])
+const audioExtensions = new Set(['mp3', 'ogg', 'wav', 'flac', 'm4a'])
 
 function hasPrefix(bytes: Uint8Array, prefix: number[]) {
 	return prefix.every((value, index) => bytes[index] === value)
@@ -16,6 +16,20 @@ function hasPrefix(bytes: Uint8Array, prefix: number[]) {
 
 function ascii(bytes: Uint8Array, start: number, length: number) {
 	return String.fromCharCode(...bytes.slice(start, start + length))
+}
+
+const allowedM4aBrands = new Set(['M4A ', 'M4B ', 'mp41', 'mp42', 'isom'])
+
+function hasM4aBrand(bytes: Uint8Array) {
+	if (bytes.length < 12 || ascii(bytes, 4, 4) !== 'ftyp')
+		return false
+	if (allowedM4aBrands.has(ascii(bytes, 8, 4)))
+		return true
+	for (let offset = 16; offset + 4 <= Math.min(bytes.length, 64); offset += 4) {
+		if (allowedM4aBrands.has(ascii(bytes, offset, 4)))
+			return true
+	}
+	return false
 }
 
 export function detectAllowedMedia(bytes: Uint8Array): DetectedMedia | null {
@@ -35,8 +49,12 @@ export function detectAllowedMedia(bytes: Uint8Array): DetectedMedia | null {
 	}
 	if (bytes.length >= 4 && ascii(bytes, 0, 4) === 'OggS')
 		return { extension: 'ogg', mime: 'audio/ogg', kind: 'audio' }
+	if (bytes.length >= 4 && ascii(bytes, 0, 4) === 'fLaC')
+		return { extension: 'flac', mime: 'audio/flac', kind: 'audio' }
 	if (bytes.length >= 12 && ascii(bytes, 0, 4) === 'RIFF' && ascii(bytes, 8, 4) === 'WAVE')
 		return { extension: 'wav', mime: 'audio/wav', kind: 'audio' }
+	if (hasM4aBrand(bytes))
+		return { extension: 'm4a', mime: 'audio/mp4', kind: 'audio' }
 	return null
 }
 

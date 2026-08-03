@@ -80,6 +80,10 @@ const signatures = {
 	mp3: new TextEncoder().encode('ID3\u0004\u0000\u0000'),
 	ogg: new TextEncoder().encode('OggS\u0000'),
 	wav: new Uint8Array([0x52, 0x49, 0x46, 0x46, 0x04, 0x00, 0x00, 0x00, 0x57, 0x41, 0x56, 0x45]),
+	flac: new TextEncoder().encode('fLaC\u0000'),
+	m4a: new Uint8Array([0, 0, 0, 24, 0x66, 0x74, 0x79, 0x70, 0x4D, 0x34, 0x41, 0x20, 0, 0, 0, 0, 0x69, 0x73, 0x6F, 0x6D]),
+	invalidM4a: new Uint8Array([0, 0, 0, 24, 0x66, 0x74, 0x79, 0x70, 0x61, 0x76, 0x63, 0x31, 0, 0, 0, 0]),
+	qmcLike: new TextEncoder().encode('encrypted-musicex'),
 }
 
 async function clearBucket(bucket: R2Bucket) {
@@ -116,12 +120,16 @@ describe('file signatures and keys', () => {
 		['mp3', signatures.mp3, { extension: 'mp3', mime: 'audio/mpeg', kind: 'audio' }],
 		['ogg', signatures.ogg, { extension: 'ogg', mime: 'audio/ogg', kind: 'audio' }],
 		['wav', signatures.wav, { extension: 'wav', mime: 'audio/wav', kind: 'audio' }],
+		['flac', signatures.flac, { extension: 'flac', mime: 'audio/flac', kind: 'audio' }],
+		['m4a', signatures.m4a, { extension: 'm4a', mime: 'audio/mp4', kind: 'audio' }],
 	])('detects %s from bytes', (_name, bytes, expected) => {
 		expect(detectAllowedMedia(bytes)).toEqual(expected)
 	})
 
 	it('rejects unknown bytes and exposes strict size limits', () => {
 		expect(detectAllowedMedia(new Uint8Array([1, 2, 3, 4]))).toBeNull()
+		expect(detectAllowedMedia(signatures.invalidM4a)).toBeNull()
+		expect(detectAllowedMedia(signatures.qmcLike)).toBeNull()
 		expect(maxBytesFor('image')).toBe(20 * 1024 * 1024)
 		expect(maxBytesFor('audio')).toBe(80 * 1024 * 1024)
 	})
@@ -156,10 +164,36 @@ describe('file signatures and keys', () => {
 			.toBe('public/articles/2026/08/media-id.png')
 		expect(buildMediaKey({ purpose: 'music', extension: 'mp3', now, id: 'audio-id' }))
 			.toBe('public/music/audio/audio-id.mp3')
+		expect(buildMediaKey({ purpose: 'music', extension: 'flac', now, id: 'flac-id' }))
+			.toBe('public/music/audio/flac-id.flac')
+		expect(buildMediaKey({ purpose: 'music', extension: 'm4a', now, id: 'm4a-id' }))
+			.toBe('public/music/audio/m4a-id.m4a')
 		expect(buildMediaKey({ purpose: 'music', extension: 'webp', now, id: 'cover-id' }))
 			.toBe('public/music/covers/cover-id.webp')
 		expect(buildMediaKey({ purpose: 'profile', extension: 'jpg', now, id: 'avatar-id' }))
 			.toBe('public/profile/avatar-id.jpg')
+	})
+})
+
+describe('audio upload preflight', () => {
+	it('accepts standard FLAC and M4A only for the music library', async () => {
+		const prepared = await prepareUploadedFiles([
+			new File([signatures.flac], 'track.mflac', { type: 'application/octet-stream' }),
+			new File([signatures.m4a], 'track.bin', { type: 'video/mp4' }),
+		], 'music')
+		expect(prepared).toHaveLength(2)
+		await expect(prepareUploadedFiles([new File([signatures.flac], 'track.flac')], 'article'))
+			.rejects
+			.toMatchObject({ code: 'VALIDATION_FAILED' })
+	})
+
+	it('rejects raw QMC-like and invalid M4A files regardless of names and MIME', async () => {
+		await expect(prepareUploadedFiles([
+			new File([signatures.qmcLike], 'spoofed.flac', { type: 'audio/flac' }),
+		], 'music')).rejects.toMatchObject({ code: 'VALIDATION_FAILED' })
+		await expect(prepareUploadedFiles([
+			new File([signatures.invalidM4a], 'spoofed.m4a', { type: 'audio/mp4' }),
+		], 'music')).rejects.toMatchObject({ code: 'VALIDATION_FAILED' })
 	})
 })
 

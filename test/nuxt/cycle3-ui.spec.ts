@@ -35,3 +35,34 @@ describe('cycle 3 UI contracts', () => {
 		expect(widget).toContain('weather.sourceName')
 	})
 })
+
+describe('qMCv2 music import UI contracts', () => {
+	it('routes both music upload entrypoints through local preparation before FormData upload', () => {
+		const picker = read('app/components/admin/AdminMediaPicker.vue')
+		const media = read('app/pages/admin/media.vue')
+		for (const source of [picker, media]) {
+			expect(source).toContain('useMusicImport()')
+			expect(source).toContain('musicAudioAccept')
+			expect(source).toContain('prepareFiles(files)')
+			expect(source).toContain('form.append(\'files\', prepared.file)')
+			expect(source).toContain('cancelMusicImport')
+			expect(source).toContain('admin-music-import-progress')
+			expect(source).toContain('本人拥有、已获授权或可合法公开播放')
+		}
+	})
+
+	it('exposes an in-memory MusicEx MMKV and JSON key workflow at both music upload entrypoints', () => {
+		const picker = read('app/components/admin/AdminMediaPicker.vue')
+		const media = read('app/pages/admin/media.vue')
+		for (const source of [picker, media]) {
+			expect(source).toContain('loadKeyFile')
+			expect(source).toContain('clearMediaKeys')
+			expect(source).toContain('keyCount')
+			expect(source).toContain('导入 QQ 音乐密钥文件')
+			expect(source).toContain('MMKVStreamEncryptId')
+			expect(source).toContain('filenameEkeyMap')
+			expect(source).toContain('仅保留在当前页面内存')
+			expect(source).toContain('移除本机密钥')
+		}
+	})
+})

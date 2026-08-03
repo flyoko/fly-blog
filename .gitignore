@@ -34,3 +34,24 @@ coverage
 # Custom
 .vercel
 content/posts/test.md
+
+# Local encrypted/decrypted music test artifacts
+*.mflac
+*.mflac0
+*.mgg
+*.mgg0
+*.mgg1
+*.mggl
+*.qmc0
+*.qmc2
+*.qmc3
+*.qmc4
+*.qmc6
+*.qmc8
+*.qmcflac
+*.qmcogg
+qqmusic-qmc-keys*.json
+MMKVStreamEncryptId
+filenameEkeyMap
+*.mmkv
+.qmc-output/

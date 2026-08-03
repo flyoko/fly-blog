@@ -84,6 +84,7 @@ catalogs:
     embla-carousel-wheel-gestures: ^8.1.0
     vue-tippy: ^6.7.1
   util:
+    '@xhacker/qmcwasm': 1.0.0
     '@clack/prompts': ^1.6.0
     '@pinia/nuxt': ^0.11.3
     '@vueuse/core': ^14.3.0

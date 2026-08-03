@@ -33,5 +33,6 @@ jobs:
       - run: pnpm test:unit
       - run: pnpm test:workers
       - run: pnpm generate
+      - run: pnpm check:smoke
       - run: pnpm check:links
       - run: pnpm check:secrets

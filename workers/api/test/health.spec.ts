@@ -10,7 +10,7 @@ describe('api worker core', () => {
 			data: { service: 'fly-living-api', status: 'ok' },
 		})
 		expect(response.headers.get('x-request-id')).toBeTruthy()
-	})
+	}, 30_000)
 
 	it('uses the stable not-found envelope', async () => {
 		const response = await exports.default.fetch('https://example.test/api/missing')

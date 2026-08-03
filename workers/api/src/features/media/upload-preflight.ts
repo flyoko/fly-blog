@@ -5,7 +5,7 @@ import { detectAllowedMedia, maxBytesFor } from './file-signatures'
 
 export const maxMediaFilesPerUpload = 20
 export const maxMediaBatchBytes = 100 * 1024 * 1024
-const signatureBytes = 16
+const signatureBytes = 64
 
 export async function prepareUploadedFiles(
 	files: File[],

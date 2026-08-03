@@ -7,6 +7,58 @@ import {
 	mockAuthenticatedAdmin,
 } from './fixtures/admin-api'
 
+const sampleQmcEkey = 'WkZKNldETndOVnJqRUpaQjFvNlFqa1FWMlpiSFN3LzJFYjAwcTErNHo5U1ZXWT0='
+
+function writeUtf16Le(buffer: Buffer, offset: number, value: string, maxBytes: number) {
+	for (let index = 0; index < value.length && index * 2 < maxBytes; index++)
+		buffer.writeUInt16LE(value.charCodeAt(index), offset + index * 2)
+}
+
+function musicExBuffer(mediaFileName = 'F0M0000HJUZs40wWgK.mflac') {
+	const audioBytes = 64
+	const tagBytes = 0xC0
+	const buffer = Buffer.alloc(audioBytes + tagBytes)
+	buffer.fill(0x39, 0, audioBytes)
+	buffer.writeUInt32LE(705944328, audioBytes)
+	writeUtf16Le(buffer, audioBytes + 0x0C, '000HJUZs40wWgK', 60)
+	writeUtf16Le(buffer, audioBytes + 0x48, mediaFileName, 100)
+	buffer.writeUInt32LE(tagBytes, buffer.length - 16)
+	buffer.writeUInt32LE(1, buffer.length - 12)
+	buffer.write('musicex\0', buffer.length - 8, 'binary')
+	return buffer
+}
+
+function encodeVarint(value: number) {
+	const bytes: number[] = []
+	let remaining = value
+	do {
+		let byte = remaining & 0x7F
+		remaining = Math.floor(remaining / 128)
+		if (remaining)
+			byte |= 0x80
+		bytes.push(byte)
+	} while (remaining)
+	return Buffer.from(bytes)
+}
+
+function encodeMmkvString(value: string) {
+	const bytes = Buffer.from(value, 'utf8')
+	return Buffer.concat([encodeVarint(bytes.length), bytes])
+}
+
+function qmcMmkvBuffer(name: string, ekey: string) {
+	const value = encodeMmkvString(ekey)
+	const body = Buffer.concat([
+		Buffer.from([0]),
+		encodeMmkvString(`/qqmusic/${name}`),
+		encodeVarint(value.length),
+		value,
+	])
+	const header = Buffer.alloc(4)
+	header.writeUInt32LE(body.length)
+	return Buffer.concat([header, body])
+}
+
 async function tabTo(page: Page, target: Locator, maxTabs = 60) {
 	// Nuxt 页面切换完成后，异步数据可能仍在用骨架屏替换最终控件。
 	// 先等待目标进入最终可见状态，避免在焦点顺序尚未稳定时消耗 Tab。
@@ -64,6 +116,181 @@ test.describe('admin desktop workflows', () => {
 		await expect(page.getByText('已成功上传 1 个文件。')).toBeVisible()
 		await expect(page.getByText('部分文件上传失败')).toBeVisible()
 		await expect(page.getByText(/invalid\.exe/u)).toBeVisible()
+	})
+
+	test('music upload keeps QMCv2 input local and uploads only standard audio', async ({ page }) => {
+		const capture = await mockAuthenticatedAdmin(page)
+		await page.goto('/admin/media')
+		await page.getByLabel('上传用途').selectOption('music')
+		const input = page.locator('input[type="file"][multiple]')
+
+		await input.setInputFiles({
+			name: 'plain.mp3',
+			mimeType: 'application/octet-stream',
+			buffer: Buffer.from([0x49, 0x44, 0x33, 0x04, 0, 0, 0, 0]),
+		})
+		await expect.poll(() => capture.mediaUploads).toBe(1)
+		expect(capture.mediaUploadBodies[0]).toContain('plain.mp3')
+		await expect(page.getByText('已成功上传 1 个文件。')).toBeVisible()
+
+		await input.setInputFiles({
+			name: 'synthetic.mgg',
+			mimeType: 'application/octet-stream',
+			buffer: Buffer.from('synthetic-invalid-input'),
+		})
+		await expect(page.getByText('解密结果不是可识别的标准音频，未上传该文件。')).toBeVisible({ timeout: 15_000 })
+		expect(capture.mediaUploads).toBe(1)
+		expect(capture.mediaUploadBodies.join('\n')).not.toContain('synthetic.mgg')
+		await expect(page.getByText(/本人拥有、已获授权或可合法公开播放/u)).toBeVisible()
+
+		await input.setInputFiles([
+			{
+				name: 'unsupported.ncm',
+				mimeType: 'application/octet-stream',
+				buffer: Buffer.from('unsupported'),
+			},
+			{
+				name: 'plain.ogg',
+				mimeType: 'application/octet-stream',
+				buffer: Buffer.from('OggS\u0000standard'),
+			},
+		])
+		await expect.poll(() => capture.mediaUploads).toBe(2)
+		expect(capture.mediaUploadBodies.at(-1)).toContain('plain.ogg')
+		expect(capture.mediaUploadBodies.at(-1)).not.toContain('unsupported.ncm')
+		await expect(page.getByText('部分文件上传失败')).toBeVisible()
+		await expect(page.getByText(/unsupported\.ncm/u)).toBeVisible()
+	})
+
+	test('music upload converts QMC in a Worker before upload', async ({ page }) => {
+		await page.addInitScript(() => {
+			class SuccessfulQmcWorker {
+				onmessage: ((event: MessageEvent) => void) | null = null
+				onerror: ((event: ErrorEvent) => void) | null = null
+
+				postMessage(message: { id: string }) {
+					window.setTimeout(() => {
+						this.onmessage?.(new MessageEvent('message', {
+							data: { type: 'stage', id: message.id, stage: 'decrypting' },
+						}))
+					}, 50)
+					window.setTimeout(() => {
+						this.onmessage?.(new MessageEvent('message', {
+							data: { type: 'progress', id: message.id, processedBytes: 1, totalBytes: 2 },
+						}))
+					}, 100)
+					window.setTimeout(() => {
+						const bytes = new TextEncoder().encode('OggS\u0000converted')
+						this.onmessage?.(new MessageEvent('message', {
+							data: { type: 'success', id: message.id, buffer: bytes.buffer, songId: null, usedMediaKey: false },
+						}))
+					}, 400)
+				}
+
+				terminate() {}
+			}
+			Object.defineProperty(window, 'Worker', {
+				configurable: true,
+				writable: true,
+				value: SuccessfulQmcWorker,
+			})
+		})
+		const capture = await mockAuthenticatedAdmin(page)
+		await page.goto('/admin/media')
+		await page.getByLabel('上传用途').selectOption('music')
+		await page.locator('input[type="file"][multiple]').setInputFiles({
+			name: 'convertible.mgg',
+			mimeType: 'application/octet-stream',
+			buffer: Buffer.from('encrypted-input'),
+		})
+		await expect(page.getByText('正在本地解密', { exact: true })).toBeVisible()
+		await expect(page.locator('.admin-music-import-progress progress')).toHaveAttribute('value', '50')
+		await expect.poll(() => capture.mediaUploads).toBe(1)
+		expect(capture.mediaUploadBodies[0]).toContain('convertible.ogg')
+		expect(capture.mediaUploadBodies[0]).not.toContain('convertible.mgg')
+		await expect(page.getByText('convertible.mgg → convertible.ogg')).toBeVisible()
+	})
+
+	test('MusicEx import reads a raw MMKV key file in memory and never uploads it or the media key', async ({ page }) => {
+		await page.addInitScript(() => {
+			class SuccessfulMusicExWorker {
+				onmessage: ((event: MessageEvent) => void) | null = null
+				onerror: ((event: ErrorEvent) => void) | null = null
+
+				postMessage(message: { id: string, mediaKeys?: Array<[string, string]> }) {
+					const mediaKey = message.mediaKeys?.find(([name]) => name === 'F0M0000HJUZs40wWgK.mflac')?.[1] ?? null
+					Object.assign(window, { __musicExMediaKey: mediaKey })
+					window.setTimeout(() => {
+						this.onmessage?.(new MessageEvent('message', {
+							data: { type: 'stage', id: message.id, stage: 'decrypting' },
+						}))
+						const bytes = new TextEncoder().encode('fLaCconverted')
+						this.onmessage?.(new MessageEvent('message', {
+							data: { type: 'success', id: message.id, buffer: bytes.buffer, songId: null, usedMediaKey: true },
+						}))
+					}, 100)
+				}
+
+				terminate() {}
+			}
+			Object.defineProperty(window, 'Worker', {
+				configurable: true,
+				writable: true,
+				value: SuccessfulMusicExWorker,
+			})
+		})
+		const capture = await mockAuthenticatedAdmin(page)
+		await page.goto('/admin/media')
+		await page.getByLabel('上传用途').selectOption('music')
+		await page.getByRole('button', { name: '导入 QQ 音乐密钥文件' }).click()
+		await page.locator('input[type="file"]:not([multiple])').setInputFiles({
+			name: 'MMKVStreamEncryptId',
+			mimeType: 'application/octet-stream',
+			buffer: qmcMmkvBuffer('F0M0000HJUZs40wWgK.mflac', sampleQmcEkey),
+		})
+		await expect(page.getByRole('status').filter({ hasText: '已加载 1 条本机媒体密钥，仅保留在当前页面内存。' })).toBeVisible()
+
+		await page.locator('input[type="file"][multiple]').setInputFiles({
+			name: 'musicex.mflac',
+			mimeType: 'application/octet-stream',
+			buffer: musicExBuffer(),
+		})
+		await expect.poll(() => capture.mediaUploads).toBe(1)
+		expect(capture.mediaUploadBodies[0]).toContain('musicex.flac')
+		expect(capture.mediaUploadBodies[0]).not.toContain('MMKVStreamEncryptId')
+		expect(capture.mediaUploadBodies[0]).not.toContain(sampleQmcEkey)
+		expect(await page.evaluate(() => (window as typeof window & { __musicExMediaKey?: string }).__musicExMediaKey)).toBe(sampleQmcEkey)
+
+		await page.getByRole('button', { name: '移除本机密钥' }).click()
+		await expect(page.getByText(/尚未加载本机密钥/u)).toBeVisible()
+	})
+
+	test('cancelling QMC conversion stops the batch before upload', async ({ page }) => {
+		await page.addInitScript(() => {
+			class PendingQmcWorker {
+				onmessage: ((event: MessageEvent) => void) | null = null
+				onerror: ((event: ErrorEvent) => void) | null = null
+
+				postMessage() {}
+				terminate() {}
+			}
+			Object.defineProperty(window, 'Worker', {
+				configurable: true,
+				writable: true,
+				value: PendingQmcWorker,
+			})
+		})
+		const capture = await mockAuthenticatedAdmin(page)
+		await page.goto('/admin/media')
+		await page.getByLabel('上传用途').selectOption('music')
+		await page.locator('input[type="file"][multiple]').setInputFiles({
+			name: 'pending.mgg',
+			mimeType: 'application/octet-stream',
+			buffer: Buffer.from('pending-input'),
+		})
+		await page.getByRole('button', { name: '取消本次处理' }).click()
+		await expect(page.getByText('已取消本次音乐文件处理。')).toBeVisible()
+		expect(capture.mediaUploads).toBe(0)
 	})
 
 	test('media lifecycle supports trash, restore, and guarded permanent deletion', async ({ page }) => {
