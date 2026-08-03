@@ -35,6 +35,7 @@ class FakePublishingRepository implements PublishingRepositoryPort {
 	pulls = new Map<number, PullRequestDto>()
 	checks: CheckSummaryDto = { status: 'pending', total: 1, successful: 0, failed: 0, pending: 1 }
 	deployment: DeploymentDto | null = null
+	deploymentRefs: string[] = []
 	files = new Map<string, { sha: string, content: string }>([
 		['config/taxonomy/categories.json', { sha: 'category-sha', content: JSON.stringify(categoryConfig) }],
 		['content/posts/2026/existing.md', {
@@ -126,7 +127,8 @@ class FakePublishingRepository implements PublishingRepositoryPort {
 		return this.checks
 	}
 
-	async getDeployment() {
+	async getDeployment(ref: string) {
+		this.deploymentRefs.push(ref)
 		return this.deployment
 	}
 
@@ -435,6 +437,7 @@ describe('pull request status and merge guard', () => {
 			login: 'flyoko',
 			requestId: 'request-3',
 		})).resolves.toEqual({ merged: false, reason: 'preview_missing' })
+		expect(repository.deploymentRefs.at(-1)).toBe(run.branch)
 
 		repository.deployment = {
 			id: 'deployment-1',

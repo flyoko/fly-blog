@@ -217,3 +217,15 @@ Cloudflare API Token 仅授予目标账号中的 Workers Scripts、Workers KV/Bi
 - R2 错误：检查 bucket binding `MEDIA`、对象签名、大小限制、对象键是否位于 `public/`，以及 Edge 是否把 `/media/*` 转发到 API Worker；生产桶的 `r2.dev` 应保持关闭。
 - PR 无法合并：检查 Head SHA、GitHub checks、Pages Deployment 和预览状态；不得绕过服务端校验。
 - 正式域名 502：先检查 API Worker 是否存在，再检查 Edge Service Binding 和 Pages origin。
+
+## 十二、PR 预览识别约束
+
+GitHub Deployment 的 `sha` 是 PR Head Commit，但 REST API 的 `ref` 过滤参数按分支引用匹配。后台审核页读取检查时使用 Head SHA，读取 Pages Preview Deployment 时必须使用 PR Head Branch；否则检查可成功但预览会被误判为缺失，合并保护会保持阻断。
+
+生产验收应同时确认：
+
+- Head SHA 与 D1 发布记录一致；
+- PR 只包含记录中的白名单文件；
+- Check Runs 全部成功；
+- Deployment 通过 PR Head Branch 查询到，状态为 success 且包含非生产预览 URL；
+- 满足全部条件后 `canMerge` 才为 true。

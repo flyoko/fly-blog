@@ -254,7 +254,7 @@ export class PublishingService {
 		const [files, checks, deployment, run] = await Promise.all([
 			this.repository.getPullRequestFiles(number),
 			this.repository.getChecks(pullRequest.headSha),
-			this.repository.getDeployment(pullRequest.headSha),
+			this.repository.getDeployment(pullRequest.headBranch),
 			this.publishRepository.findByPullNumber(number),
 		])
 		const reason = blockReason(pullRequest, files, checks, deployment, run, this.env.GITHUB_DEFAULT_BRANCH)
