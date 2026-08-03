@@ -8,12 +8,13 @@
 flyovo.cc.cd
   └─ fly-living-edge
        ├─ /api/auth/*、/api/admin/*、/api/health → fly-living-api（Service Binding）
+       ├─ /media/public/* → fly-living-api → 私有 R2
        └─ 其他请求 → fly-living.pages.dev
 
 fly-living-api
   ├─ GitHub App / GitHub OAuth
   ├─ D1: fly-living-content
-  └─ R2: fly-living-media
+  └─ R2: fly-living-media（关闭 r2.dev，仅经同源媒体路由读取）
 ```
 
 静态前端继续通过 Cloudflare Pages Direct Upload 发布。文章和配置存入 GitHub 私有仓库；后台会话、审计、发布记录和媒体索引存入独立 D1；媒体对象存入 R2。
@@ -84,7 +85,7 @@ pnpm --filter @fly-living/api-worker exec wrangler r2 bucket create fly-living-m
 pnpm --filter @fly-living/api-worker exec wrangler r2 bucket create fly-living-media-preview
 ```
 
-在 Cloudflare Dashboard 中为生产桶绑定 `media.flyovo.cc.cd` 自定义域名，并等待证书状态变为 Active。生产环境的 `MEDIA_ORIGIN` 使用该 HTTPS 域名。
+当前 `cc.cd` 根域不在本 Cloudflare 账号的 Zone 中，因此生产环境采用等价的私有同源方案：关闭生产桶的 `r2.dev`，由 Edge Worker 把 `/media/public/*` 转发给 API Worker，再从 R2 读取对象。生产环境的 `MEDIA_ORIGIN` 使用 `https://flyovo.cc.cd/media`。以后取得对应 Zone/DNS 管理权后，可把该变量切换到独立媒体子域，无需迁移对象键。
 
 ### 3. Service Binding
 
@@ -96,7 +97,7 @@ pnpm --filter @fly-living/api-worker exec wrangler r2 bucket create fly-living-m
 
 - `PUBLIC_ORIGIN=https://flyovo.cc.cd`
 - `PAGES_ORIGIN=https://fly-living.pages.dev`
-- `MEDIA_ORIGIN=https://media.flyovo.cc.cd`
+- `MEDIA_ORIGIN=https://flyovo.cc.cd/media`
 - `GITHUB_OWNER=flyoko`
 - `GITHUB_REPO=fly-blog`
 - `GITHUB_DEFAULT_BRANCH=main`
@@ -162,7 +163,7 @@ Cloudflare API Token 仅授予目标账号中的 Workers Scripts、Workers KV/Bi
 - `quality.yml`：所有分支的静态检查与测试；
 - `pages-preview.yml`：同仓库 PR 的 Pages 预览及 GitHub Deployment URL；
 - `pages-production.yml`：`main` 的 Pages Direct Upload；
-- `workers-production.yml`：D1 migration → API Worker → API 远程预览健康检查 → Edge Worker → 同源健康检查。
+- `workers-production.yml`：D1 migration → API Worker → Edge Worker → 同源健康检查。API Worker 不开放 `workers.dev`，只通过 Edge Service Binding 对外，因此健康检查固定走正式同源入口。
 
 ## 九、日常发布顺序
 
@@ -213,6 +214,6 @@ Cloudflare API Token 仅授予目标账号中的 Workers Scripts、Workers KV/Bi
 - CSRF 错误：检查 `fly_admin_csrf` Cookie 与 `x-csrf-token` 请求头是否同源一致。
 - GitHub 401/403：检查 App installation、仓库权限、Private Key 和 Installation ID。
 - D1 错误：检查 migration 状态、binding 名 `DB` 和远程数据库 ID。
-- R2 错误：检查 bucket binding `MEDIA`、对象签名、大小限制和自定义域名。
+- R2 错误：检查 bucket binding `MEDIA`、对象签名、大小限制、对象键是否位于 `public/`，以及 Edge 是否把 `/media/*` 转发到 API Worker；生产桶的 `r2.dev` 应保持关闭。
 - PR 无法合并：检查 Head SHA、GitHub checks、Pages Deployment 和预览状态；不得绕过服务端校验。
 - 正式域名 502：先检查 API Worker 是否存在，再检查 Edge Service Binding 和 Pages origin。

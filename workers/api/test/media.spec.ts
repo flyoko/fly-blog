@@ -266,6 +266,39 @@ describe('media service', () => {
 	})
 })
 
+describe('public media routes', () => {
+	it('serves public R2 objects from the same-origin media path', async () => {
+		const key = 'public/articles/2026/08/public-route.png'
+		await testEnv.MEDIA.put(key, signatures.png, {
+			httpMetadata: { contentType: 'image/png' },
+		})
+		const response = await app.request(`https://blog.example.test/media/${key}`, {}, mediaEnv())
+		expect(response.status).toBe(200)
+		expect(response.headers.get('content-type')).toBe('image/png')
+		expect(response.headers.get('cache-control')).toContain('immutable')
+		expect(response.headers.get('accept-ranges')).toBe('bytes')
+		expect(new Uint8Array(await response.arrayBuffer())).toEqual(signatures.png)
+	})
+
+	it('supports byte ranges and rejects private or invalid object paths', async () => {
+		const key = 'public/music/audio/range.mp3'
+		await testEnv.MEDIA.put(key, signatures.mp3, {
+			httpMetadata: { contentType: 'audio/mpeg' },
+		})
+		const range = await app.request(`https://blog.example.test/media/${key}`, {
+			headers: { range: 'bytes=0-2' },
+		}, mediaEnv())
+		expect(range.status).toBe(206)
+		expect(range.headers.get('content-range')).toBe(`bytes 0-2/${signatures.mp3.byteLength}`)
+		expect(new Uint8Array(await range.arrayBuffer())).toEqual(signatures.mp3.slice(0, 3))
+
+		const privatePath = await app.request('https://blog.example.test/media/trash/private.png', {}, mediaEnv())
+		expect(privatePath.status).toBe(404)
+		const traversal = await app.request('https://blog.example.test/media/public/../trash/private.png', {}, mediaEnv())
+		expect(traversal.status).toBe(404)
+	})
+})
+
 describe('media routes', () => {
 	it('publishes multipart results once for a duplicate idempotency key and lists them', async () => {
 		await createAdminSession()

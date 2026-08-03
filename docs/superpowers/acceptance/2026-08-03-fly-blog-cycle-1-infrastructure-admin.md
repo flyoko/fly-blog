@@ -37,7 +37,7 @@
 
 **给定** R2 已开通，
 **当** 查看 Cloudflare 资源，
-**那么** 存在 `fly-living-media` 存储桶，并完成 Worker 绑定；生产媒体通过 `media.flyovo.cc.cd` 访问，不依赖公开的 `r2.dev` 地址。
+**那么** 存在 `fly-living-media` 存储桶，并完成 Worker 绑定；生产媒体通过正式域名的 `/media/public/*` 同源入口由 API Worker 从私有 R2 读取，生产桶关闭公开 `r2.dev` 地址。
 
 ### AC-05 API Worker 隔离
 

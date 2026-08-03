@@ -43,21 +43,6 @@ jobs:
         run: pnpm --filter @fly-living/api-worker exec wrangler d1 migrations apply DB --remote
       - name: Deploy API Worker
         run: pnpm --filter @fly-living/api-worker exec wrangler deploy
-      - name: Check API Worker through a remote preview
-        shell: bash
-        run: |
-          set -euo pipefail
-          pnpm --filter @fly-living/api-worker exec wrangler dev --remote --port 8788 > /tmp/fly-living-api-preview.log 2>&1 &
-          preview_pid=$!
-          trap 'kill "$preview_pid" 2>/dev/null || true' EXIT
-          for attempt in {1..30}; do
-            if curl --fail --silent --show-error http://127.0.0.1:8788/api/health > /tmp/fly-living-api-health.json; then
-              exit 0
-            fi
-            sleep 2
-          done
-          cat /tmp/fly-living-api-preview.log
-          exit 1
       - name: Deploy edge Worker
         run: pnpm --filter @fly-living/edge-worker exec wrangler deploy
       - name: Verify same-origin health

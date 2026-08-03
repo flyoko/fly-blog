@@ -4,6 +4,7 @@ import { GitHubRepository } from './features/articles/github-repository'
 import { createArticleRoutes } from './features/articles/routes'
 import { authRoutes } from './features/auth/routes'
 import { healthRoutes } from './features/health/routes'
+import { publicMediaRoutes } from './features/media/public-routes'
 import { mediaRoutes } from './features/media/routes'
 import { overviewRoutes } from './features/overview/routes'
 import { PublishingService } from './features/publishing/publishing-service'
@@ -23,6 +24,7 @@ app.route('/api/admin/publishing', publishingRoutes)
 app.route('/api/auth', authRoutes)
 app.route('/api/health', healthRoutes)
 app.route('/api/admin/media', mediaRoutes)
+app.route('/media', publicMediaRoutes)
 app.notFound(c => failure(c, new ApiError('NOT_FOUND', 404, 'Route not found')))
 app.onError((error, c) => failure(c, normalizeError(error)))
 

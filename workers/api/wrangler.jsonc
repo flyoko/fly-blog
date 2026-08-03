@@ -10,7 +10,7 @@
   "vars": {
     "PUBLIC_ORIGIN": "https://flyovo.cc.cd",
     "PAGES_ORIGIN": "https://fly-living.pages.dev",
-    "MEDIA_ORIGIN": "https://media.flyovo.cc.cd",
+    "MEDIA_ORIGIN": "https://flyovo.cc.cd/media",
     "GITHUB_API_BASE_URL": "https://api.github.com",
     "GITHUB_OAUTH_BASE_URL": "https://github.com",
     "GITHUB_OWNER": "flyoko",

@@ -20,6 +20,7 @@ describe('route selection', () => {
 		'/api/admin/articles',
 		'/api/admin/media/1',
 		'/api/health',
+		'/media/public/articles/2026/08/image.png',
 	])('routes %s to the API service', (path) => {
 		expect(shouldUseApi(path)).toBe(true)
 	})
