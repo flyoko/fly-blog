@@ -1,13 +1,25 @@
 import type { D1Migration } from '@cloudflare/vitest-pool-workers'
-import type { Env } from '../src/env'
+import type { AppEnvironment, Env } from '../src/env'
 import { applyD1Migrations, env } from 'cloudflare:test'
+import { Hono } from 'hono'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { extractZaihuaArticle, htmlToReadableText, parseAiHotFullFeed, parseAiHotItems, parseRssFeed } from '../src/features/news/parsers'
+import { publicNewsRoutes } from '../src/features/news/routes'
 import { NewsService } from '../src/features/news/service'
+import { failure, normalizeError } from '../src/lib/api-error'
+import { contextMiddleware } from '../src/middleware/context'
 
 const testEnv = env as typeof env & { DB: D1Database, TEST_MIGRATIONS: D1Migration[] }
 function runtimeEnv(): Env {
 	return { ...testEnv } as unknown as Env
+}
+
+function publicApp() {
+	const app = new Hono<AppEnvironment>()
+	app.use('*', contextMiddleware)
+	app.route('/api/news', publicNewsRoutes)
+	app.onError((error, c) => failure(c, normalizeError(error)))
+	return app
 }
 beforeAll(async () => applyD1Migrations(testEnv.DB, testEnv.TEST_MIGRATIONS))
 beforeEach(async () => {
@@ -205,6 +217,79 @@ describe('news service', () => {
 		finally {
 			vi.restoreAllMocks()
 		}
+	})
+})
+
+describe('news public routes', () => {
+	it('serves and caches an internal document by reader key', async () => {
+		const readerKey = 'a'.repeat(32)
+		const now = '2026-08-03T12:00:00.000Z'
+		await testEnv.DB.batch([
+			testEnv.DB.prepare(`
+				INSERT INTO news_items (
+					id, source_id, kind, title, summary, url, original_url, category, rank,
+					published_at, fetched_at, selected, metadata_json, updated_at
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, '{}', ?)
+			`).bind(
+				'ai-hot:route-test',
+				'ai-hot-items',
+				'hot',
+				'详情接口测试',
+				'详情摘要',
+				'https://aihot.virxact.com/items/route-test',
+				'https://example.com/original',
+				'AI 模型',
+				null,
+				now,
+				now,
+				now,
+			),
+			testEnv.DB.prepare(`
+				INSERT INTO news_documents (
+					item_id, reader_key, source_id, source_url, original_url, title, body_text,
+					content_mode, attribution_name, attribution_url, published_at, content_hash,
+					fetched_at, updated_at
+				) VALUES (?, ?, ?, ?, ?, ?, ?, 'full', 'AI HOT', ?, ?, 'hash', ?, ?)
+			`).bind(
+				'ai-hot:route-test',
+				readerKey,
+				'ai-hot-items',
+				'https://aihot.virxact.com/items/route-test',
+				'https://example.com/original',
+				'详情接口测试',
+				'正文第一段。\n\n正文第二段。',
+				'https://aihot.virxact.com/items/route-test',
+				now,
+				now,
+				now,
+			),
+		])
+
+		const url = `https://blog.example.test/api/news/read/${readerKey}`
+		const first = await publicApp().request(url, {}, runtimeEnv())
+		expect(first.status).toBe(200)
+		expect(first.headers.get('x-fly-cache')).toBe('MISS')
+		expect(first.headers.get('cache-control')).toContain('max-age=300')
+		expect(await first.json()).toMatchObject({
+			ok: true,
+			data: {
+				readerKey,
+				bodyText: '正文第一段。\n\n正文第二段。',
+				contentMode: 'full',
+			},
+		})
+
+		const cached = await publicApp().request(url, {}, runtimeEnv())
+		expect(cached.headers.get('x-fly-cache')).toBe('HIT')
+	})
+
+	it('returns 404 for unknown or invalid reader keys instead of proxying a URL', async () => {
+		const unknown = await publicApp().request(`https://blog.example.test/api/news/read/${'b'.repeat(32)}?url=https://www.zaihua.news/`, {}, runtimeEnv())
+		expect(unknown.status).toBe(404)
+		expect(await unknown.json()).toMatchObject({ ok: false, error: { code: 'NOT_FOUND' } })
+
+		const invalid = await publicApp().request('https://blog.example.test/api/news/read/invalid-reader-key', {}, runtimeEnv())
+		expect(invalid.status).toBe(404)
 	})
 })
 

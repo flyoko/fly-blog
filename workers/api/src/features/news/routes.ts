@@ -16,16 +16,23 @@ function positive(value: string | undefined, fallback: number, max: number) {
 }
 
 export const publicNewsRoutes = new Hono<AppEnvironment>()
+publicNewsRoutes.get('/read/:readerKey', async (c) => {
+	const service = new NewsService(c.env)
+	const readerKey = c.req.param('readerKey')
+	const cached = await publicCacheData(c, await service.documentVersion(readerKey), async () => {
+		const document = await service.read(readerKey)
+		if (!document)
+			throw new ApiError('NOT_FOUND', 404, 'News document not found')
+		return document
+	}, 300)
+	c.header('Cache-Control', 'public, max-age=300, stale-while-revalidate=1800')
+	c.header('X-Fly-Cache', cached.status)
+	return success(c, cached.data)
+})
+
 publicNewsRoutes.get('/', async (c) => {
-	const versionRow = await c.env.DB.prepare(`
-		SELECT
-			COALESCE((SELECT MAX(fetched_at) FROM news_items), '') AS item_version,
-			COALESCE((SELECT COUNT(*) FROM news_items WHERE selected = 1), 0) AS item_count,
-			COALESCE((SELECT MAX(fetched_at) FROM news_briefings), '') AS briefing_version,
-			COALESCE((SELECT MAX(updated_at) FROM news_sync_state), '') AS state_version
-	`).first<{ item_version: string, item_count: number, briefing_version: string, state_version: string }>()
-	const version = `${versionRow?.item_version || ''}:${versionRow?.item_count || 0}:${versionRow?.briefing_version || ''}:${versionRow?.state_version || ''}`
-	const cached = await publicCacheData(c, version, () => new NewsService(c.env).list(
+	const service = new NewsService(c.env)
+	const cached = await publicCacheData(c, await service.listVersion(), () => service.list(
 		positive(c.req.query('page'), 1, 1_000_000),
 		positive(c.req.query('pageSize'), 30, 50),
 	), 120)
@@ -39,7 +46,7 @@ adminNewsRoutes.use('*', requireSession)
 adminNewsRoutes.get('/', async c => success(c, await new NewsService(c.env).list(1, 50)))
 adminNewsRoutes.post('/sync', requireCsrf, async (c) => {
 	const session = c.get('session')!
-	return enforceRateLimit(c.env.WRITE_RATE_LIMITER, `${session.sessionId}:news-sync`, async () => success(c, await new NewsService(c.env).sync()))
+	return enforceRateLimit(c.env.WRITE_RATE_LIMITER, `${session.sessionId}:news-sync`, async () => success(c, await new NewsService(c.env).sync({ force: true })))
 })
 adminNewsRoutes.post('/manual', requireCsrf, async (c) => {
 	const session = c.get('session')!
