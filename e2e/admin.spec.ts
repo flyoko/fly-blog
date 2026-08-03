@@ -34,7 +34,7 @@ test.describe('admin desktop workflows', () => {
 		await page.goto('/admin')
 		await expect(page.getByRole('heading', { name: /(早上好|下午好|晚上好|夜深了)，flyoko/u })).toBeVisible()
 		await page.getByRole('link', { name: '文章', exact: true }).click()
-		await page.getByRole('link', { name: '新建文章' }).click()
+		await page.getByRole('link', { name: '新建文章', exact: true }).click()
 		await page.getByLabel('标题').fill('Cycle 1 test article')
 		await page.getByLabel('Markdown 正文').fill('# Test\n\nPublished through the admin.')
 		await page.getByRole('button', { name: '直接发布' }).click()
