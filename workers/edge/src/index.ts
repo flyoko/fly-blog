@@ -16,6 +16,13 @@ export function shouldUseApi(pathname: string): boolean {
 	return apiExact.has(pathname) || apiPrefixes.some(prefix => pathname.startsWith(prefix))
 }
 
+export function shouldUseSpaShell(pathname: string): boolean {
+	return pathname === '/admin'
+		|| pathname.startsWith('/admin/')
+		|| pathname.startsWith('/moments/')
+		|| pathname.startsWith('/ai.news/read/')
+}
+
 function forwardedHeaders(request: Request): Headers {
 	const headers = new Headers(request.headers)
 	for (const name of hopByHopHeaders)
@@ -85,8 +92,10 @@ const worker = {
 			}
 
 			const pagesUrl = new URL(env.PAGES_ORIGIN)
-			pagesUrl.pathname = incomingUrl.pathname
-			pagesUrl.search = incomingUrl.search
+			const useSpaShell = (request.method === 'GET' || request.method === 'HEAD')
+				&& shouldUseSpaShell(incomingUrl.pathname)
+			pagesUrl.pathname = useSpaShell ? '/200' : incomingUrl.pathname
+			pagesUrl.search = useSpaShell ? '' : incomingUrl.search
 			return await fetch(await forwardedRequest(request, pagesUrl))
 		}
 		catch {

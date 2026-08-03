@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import worker, { shouldUseApi } from '../src/index'
+import worker, { shouldUseApi, shouldUseSpaShell } from '../src/index'
 
 function service(fetcher: (request: Request) => Promise<Response> | Response): Fetcher {
 	return { fetch: fetcher } as Fetcher
@@ -32,6 +32,21 @@ describe('route selection', () => {
 
 	it.each(['/api/stats', '/api/health/details', '/', '/archive'])('keeps %s on Pages', (path) => {
 		expect(shouldUseApi(path)).toBe(false)
+	})
+
+	it.each([
+		'/admin',
+		'/admin/',
+		'/admin/articles',
+		'/moments/',
+		'/moments/11111111-1111-4111-8111-111111111111',
+		'/ai.news/read/document-key',
+	])('uses the SPA shell for %s', (path) => {
+		expect(shouldUseSpaShell(path)).toBe(true)
+	})
+
+	it.each(['/', '/archive', '/moments', '/ai.news'])('keeps the concrete page for %s', (path) => {
+		expect(shouldUseSpaShell(path)).toBe(false)
 	})
 })
 
@@ -108,7 +123,25 @@ describe('edge forwarding', () => {
 		)
 		expect(await response.text()).toBe('moment shell')
 		expect(apiUrl).toBe('https://flyovo.cc.cd/api/moments/11111111-1111-4111-8111-111111111111')
-		expect(pagesUrl).toBe('https://fly-living.pages.dev/moments/11111111-1111-4111-8111-111111111111')
+		expect(pagesUrl).toBe('https://fly-living.pages.dev/200')
+	})
+
+	it('serves dynamic admin and reader routes from the SPA shell without returning a redirect', async () => {
+		const requests: string[] = []
+		vi.spyOn(globalThis, 'fetch').mockImplementation(async (request) => {
+			requests.push((request instanceof Request ? request : new Request(request)).url)
+			return new Response('spa shell', { status: 200 })
+		})
+		const runtimeEnv = env(service(() => new Response('api')))
+		const admin = await worker.fetch(new Request('https://flyovo.cc.cd/admin/articles?draft=true'), runtimeEnv, {} as ExecutionContext)
+		const reader = await worker.fetch(new Request('https://flyovo.cc.cd/ai.news/read/document-key'), runtimeEnv, {} as ExecutionContext)
+
+		expect(admin.status).toBe(200)
+		expect(reader.status).toBe(200)
+		expect(requests).toEqual([
+			'https://fly-living.pages.dev/200',
+			'https://fly-living.pages.dev/200',
+		])
 	})
 
 	it('preserves the dotted AI news route for Pages canonical handling', async () => {
