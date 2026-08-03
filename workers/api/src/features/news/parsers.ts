@@ -108,9 +108,14 @@ function numberOrNull(value: unknown): number | null {
 	return typeof value === 'number' && Number.isFinite(value) ? value : null
 }
 
+function attributeValue(tag: string, attribute: string): string {
+	const escaped = escapeRegExp(attribute)
+	return tag.match(new RegExp(`${escaped}\\s*=\\s*(['"])([^'"]*)\\1`, 'iu'))?.[2] || ''
+}
+
 function firstExternalHref(html: string): string | null {
-	for (const match of html.matchAll(/<a\b[^>]*href=(['"])(.*?)\1[^>]*>/giu)) {
-		const href = decodeEntities(match[2] || '').trim()
+	for (const match of html.matchAll(/<a(?:\s[^>]*)?>/giu)) {
+		const href = decodeEntities(attributeValue(match[0], 'href')).trim()
 		try {
 			const url = new URL(href)
 			if (url.protocol.startsWith('http') && url.hostname !== 'aihot.virxact.com')
@@ -124,12 +129,12 @@ function firstExternalHref(html: string): string | null {
 }
 
 function metaContent(html: string, attribute: 'name' | 'property', expected: string): string {
-	for (const match of html.matchAll(/<meta\b[^>]*>/giu)) {
+	for (const match of html.matchAll(/<meta(?:\s[^>]*)?>/giu)) {
 		const tag = match[0]
-		const key = tag.match(new RegExp(`${attribute}=(['"])(.*?)\\1`, 'iu'))?.[2]
-		if (key?.toLowerCase() !== expected.toLowerCase())
+		const key = attributeValue(tag, attribute)
+		if (key.toLowerCase() !== expected.toLowerCase())
 			continue
-		return decodeEntities(tag.match(/content=(['"])(.*?)\1/iu)?.[2] || '').trim()
+		return decodeEntities(attributeValue(tag, 'content')).trim()
 	}
 	return ''
 }
@@ -139,7 +144,7 @@ export function htmlToReadableText(input: string): string {
 	for (const tag of REMOVED_TAGS)
 		html = html.replace(new RegExp(`<${tag}\\b[^>]*>[\\s\\S]*?<\\/${tag}>`, 'giu'), '')
 	html = html.replace(/<!--[\s\S]*?-->/gu, '')
-	html = html.replace(/<br\b[^>]*\/?\s*>/giu, '\n\n')
+	html = html.replace(/<br(?:\s[^>]*)?>/giu, '\n\n')
 	for (const tag of BLOCK_TAGS) {
 		html = html
 			.replace(new RegExp(`<${tag}\\b[^>]*>`, 'giu'), tag === 'li' ? '\n' : '')
@@ -261,10 +266,20 @@ export function parseAiHotDaily(payload: unknown): ParsedAiHotDailyReport | null
 }
 
 export function extractZaihuaArticle(html: string): { title: string, bodyText: string } | null {
-	const bodyMatch = html.match(/<div\b[^>]*class=(['"])[^'"]*\bmsg-prose\b[^'"]*\1[^>]*>([\s\S]*?)<\/div>/iu)
-	if (!bodyMatch?.[2])
+	let bodyHtml = ''
+	for (const match of html.matchAll(/<div(?:\s[^>]*)?>/giu)) {
+		const className = attributeValue(match[0], 'class')
+		if (!className.split(/\s+/u).includes('msg-prose'))
+			continue
+		const contentStart = (match.index || 0) + match[0].length
+		const contentEnd = html.indexOf('</div>', contentStart)
+		if (contentEnd > contentStart)
+			bodyHtml = html.slice(contentStart, contentEnd)
+		break
+	}
+	if (!bodyHtml)
 		return null
-	const bodyText = htmlToReadableText(bodyMatch[2])
+	const bodyText = htmlToReadableText(bodyHtml)
 	if (!bodyText)
 		return null
 	const title = (

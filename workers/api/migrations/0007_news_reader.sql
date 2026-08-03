@@ -1,3 +1,6 @@
+ALTER TABLE news_items ADD COLUMN updated_at TEXT;
+UPDATE news_items SET updated_at = fetched_at WHERE updated_at IS NULL;
+
 CREATE TABLE IF NOT EXISTS news_documents (
   item_id TEXT PRIMARY KEY,
   reader_key TEXT NOT NULL UNIQUE,

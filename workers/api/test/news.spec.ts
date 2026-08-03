@@ -12,6 +12,7 @@ function runtimeEnv(): Env {
 beforeAll(async () => applyD1Migrations(testEnv.DB, testEnv.TEST_MIGRATIONS))
 beforeEach(async () => {
 	await testEnv.DB.batch([
+		testEnv.DB.prepare('DELETE FROM news_documents'),
 		testEnv.DB.prepare('DELETE FROM news_items'),
 		testEnv.DB.prepare('DELETE FROM news_briefings'),
 		testEnv.DB.prepare('DELETE FROM news_sync_state'),
@@ -66,8 +67,146 @@ describe('news service', () => {
 			vi.restoreAllMocks()
 		}
 	})
-})
 
+	it('stores internal reader snapshots and upgrades AI HOT summaries to allowed full text', async () => {
+		const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+			const url = typeof input === 'string' ? input : input instanceof Request ? input.url : input.toString()
+			const headers = new Headers(init?.headers)
+			if (headers.get('if-none-match'))
+				return new Response(null, { status: 304, headers: { etag: headers.get('if-none-match')! } })
+			if (url.endsWith('/rss.xml')) {
+				return new Response(`
+					<rss><channel><item>
+						<title>RSS 中的截断标题…</title>
+						<link>https://www.zaihua.news/article/100/</link>
+						<guid>https://www.zaihua.news/article/100/</guid>
+						<description><![CDATA[<p>站长资讯摘要</p>]]></description>
+						<pubDate>Mon, 03 Aug 2026 12:22:56 GMT</pubDate>
+					</item></channel></rss>
+				`, { status: 200, headers: { 'etag': '"zaihua-v1"', 'last-modified': 'Mon, 03 Aug 2026 12:30:00 GMT' } })
+			}
+			if (url === 'https://www.zaihua.news/article/100/') {
+				return new Response(`
+					<meta property="og:title" content="完整的站长资讯标题">
+					<div class="msg-prose text-[18px]"><p>站长正文第一段。</p><p>站长正文第二段。</p></div>
+				`, { status: 200 })
+			}
+			if (url.includes('/api/v1/items')) {
+				return Response.json({ items: [{
+					id: 'cms-reader',
+					title: 'AI HOT 站内阅读测试',
+					summary: 'AI HOT 摘要',
+					source: { name: '官方博客' },
+					links: { aihot: 'https://aihot.virxact.com/items/cms-reader', original: 'https://example.com/original' },
+					publishedAt: '2026-08-03T13:00:00.000Z',
+					category: 'ai-models',
+					selected: true,
+				}] }, { headers: { etag: '"items-v1"' } })
+			}
+			if (url.endsWith('/feed/full.xml')) {
+				return new Response(`
+					<rss xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><item>
+						<title>AI HOT 站内阅读测试</title>
+						<link>https://aihot.virxact.com/items/cms-reader</link>
+						<guid>cms-reader</guid>
+						<description><![CDATA[<p>AI HOT 摘要</p><p><a href="https://example.com/original">阅读原文</a></p>]]></description>
+						<content:encoded><![CDATA[<p>允许转载的正文第一段。</p><p>允许转载的正文第二段。</p>]]></content:encoded>
+					</item></channel></rss>
+				`, { status: 200, headers: { etag: '"full-v1"' } })
+			}
+			return Response.json({ report: {
+				date: '2026-08-03',
+				generatedAt: '2026-08-03T00:00:04.358Z',
+				links: { aihot: 'https://aihot.virxact.com/daily/2026-08-03' },
+				sections: [],
+			} }, { headers: { etag: '"daily-v1"' } })
+		})
+		try {
+			const service = new NewsService(runtimeEnv())
+			const first = await service.sync({ force: true })
+			expect(first.sources.every(source => source.status === 'success')).toBe(true)
+
+			const data = await service.list()
+			expect(data.items).toHaveLength(2)
+			const hot = data.items.find(item => item.id === 'ai-hot:cms-reader')!
+			const rss = data.items.find(item => item.sourceId === 'station-news')!
+			expect(hot).toMatchObject({ contentMode: 'full', originalUrl: 'https://example.com/original' })
+			expect(rss).toMatchObject({ title: '完整的站长资讯标题', contentMode: 'full' })
+			expect(hot.readerPath).toMatch(/^\/ai\.news\/read\/[a-f0-9]{32}$/u)
+			expect(rss.readerPath).toMatch(/^\/ai\.news\/read\/[a-f0-9]{32}$/u)
+
+			const hotDocument = await service.read(hot.readerPath!.split('/').at(-1)!)
+			expect(hotDocument).toMatchObject({
+				bodyText: '允许转载的正文第一段。\n\n允许转载的正文第二段。',
+				contentMode: 'full',
+				attribution: { name: 'AI HOT', url: 'https://aihot.virxact.com/items/cms-reader' },
+			})
+
+			fetchSpy.mockClear()
+			const skipped = await service.sync()
+			expect(skipped.sources.every(source => source.status === 'skipped')).toBe(true)
+			expect(fetchSpy).not.toHaveBeenCalled()
+
+			const checked = await service.sync({ force: true })
+			expect(checked.sources.every(source => source.status === 'success')).toBe(true)
+			expect(fetchSpy.mock.calls.some(([, init]) => new Headers(init?.headers).has('if-none-match'))).toBe(true)
+			expect((await service.list()).items).toHaveLength(2)
+		}
+		finally {
+			vi.restoreAllMocks()
+		}
+	})
+
+	it('respects Retry-After without checking a source faster than its minimum interval', async () => {
+		vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, {
+			status: 429,
+			headers: { 'retry-after': '3600' },
+		}))
+		try {
+			const startedAt = Date.now()
+			const result = await new NewsService(runtimeEnv()).syncSource('ai-hot-items')
+			expect(result.sources[0]).toMatchObject({ status: 'failed', itemCount: 0 })
+			expect(Date.parse(result.sources[0]!.nextSyncAt!) - startedAt).toBeGreaterThanOrEqual(3_590_000)
+			const state = await testEnv.DB.prepare('SELECT * FROM news_sync_state WHERE source_id = ?')
+				.bind('ai-hot-items')
+				.first<{ status: string, last_error: string }>()
+			expect(state).toMatchObject({ status: 'failed', last_error: 'AI HOT 精选 请求过于频繁' })
+		}
+		finally {
+			vi.restoreAllMocks()
+		}
+	})
+
+	it('falls back to the RSS summary when a Zaihua article cannot be extracted', async () => {
+		vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+			const url = typeof input === 'string' ? input : input instanceof Request ? input.url : input.toString()
+			if (url.endsWith('/rss.xml')) {
+				return new Response(`<rss><channel><item>
+					<title>摘要条目</title><link>https://www.zaihua.news/article/101/</link>
+					<description><![CDATA[<p>可安全展示的 RSS 摘要。</p>]]></description>
+				</item></channel></rss>`, { status: 200 })
+			}
+			if (url === 'https://www.zaihua.news/article/101/')
+				return new Response('<article><p>未知结构</p></article>', { status: 200 })
+			if (url.includes('/api/v1/items'))
+				return Response.json({ items: [] })
+			if (url.endsWith('/feed/full.xml'))
+				return new Response('<rss><channel></channel></rss>', { status: 200 })
+			return Response.json({ report: null })
+		})
+		try {
+			const service = new NewsService(runtimeEnv())
+			await service.sync({ force: true })
+			const item = (await service.list()).items[0]
+			expect(item).toMatchObject({ contentMode: 'summary' })
+			const document = await service.read(item.readerPath!.split('/').at(-1)!)
+			expect(document).toMatchObject({ bodyText: '可安全展示的 RSS 摘要。', contentMode: 'summary' })
+		}
+		finally {
+			vi.restoreAllMocks()
+		}
+	})
+})
 
 describe('news source parsers', () => {
 	it('converts untrusted HTML into readable plain text', () => {

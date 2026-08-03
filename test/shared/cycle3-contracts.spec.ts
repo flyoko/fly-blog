@@ -28,7 +28,6 @@ describe('cycle 3 contracts', () => {
 		})).toThrow()
 	})
 
-
 	it('defines internal reader fields and source sync adapters', () => {
 		const item = newsItemSchema.parse({
 			id: 'ai-hot:cms1',
