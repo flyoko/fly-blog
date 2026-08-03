@@ -48,5 +48,4 @@ describe('about profile codec', () => {
 			customMeta: { preserved: true },
 		})
 	})
-
 })
