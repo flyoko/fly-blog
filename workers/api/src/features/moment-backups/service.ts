@@ -47,10 +47,34 @@ export class MomentBackupService {
 		if (state?.last_checksum === snapshot.checksum) {
 			return { changed: false as const, checksum: snapshot.checksum, commitSha: state.last_commit_sha, path: state.last_backup_path }
 		}
+		const leaseOwner = crypto.randomUUID()
+		const leaseNow = new Date()
+		const leaseAcquiredAt = leaseNow.toISOString()
+		const leaseExpiresAt = new Date(leaseNow.getTime() + 10 * 60 * 1000).toISOString()
+		const claim = await this.env.DB.prepare(`
+			INSERT INTO moment_backup_state (singleton, last_error, updated_at, lease_owner, lease_expires_at)
+			VALUES (1, NULL, ?, ?, ?)
+			ON CONFLICT(singleton) DO UPDATE SET
+				lease_owner = excluded.lease_owner,
+				lease_expires_at = excluded.lease_expires_at,
+				updated_at = excluded.updated_at
+			WHERE moment_backup_state.lease_expires_at IS NULL OR moment_backup_state.lease_expires_at <= ?
+		`).bind(leaseAcquiredAt, leaseOwner, leaseExpiresAt, leaseAcquiredAt).run()
+		if ((claim.meta.changes ?? 0) !== 1)
+			return { changed: false as const, checksum: snapshot.checksum, commitSha: state?.last_commit_sha ?? null, path: state?.last_backup_path ?? null }
+		const claimedState = await this.env.DB.prepare('SELECT last_checksum, last_commit_sha, last_backup_path FROM moment_backup_state WHERE singleton = 1').first<{
+			last_checksum: string | null
+			last_commit_sha: string | null
+			last_backup_path: string | null
+		}>()
+		if (claimedState?.last_checksum === snapshot.checksum) {
+			await this.releaseLease(leaseOwner)
+			return { changed: false as const, checksum: snapshot.checksum, commitSha: claimedState.last_commit_sha, path: claimedState.last_backup_path }
+		}
 		const path = datePath(at)
 		const runId = crypto.randomUUID()
-		await this.createRun(runId, 'moment_backup', 'created', snapshot.checksum, snapshot.moments.length, at.toISOString())
 		try {
+			await this.createRun(runId, 'moment_backup', 'created', snapshot.checksum, snapshot.moments.length, at.toISOString())
 			const head = await this.github.getBranchHead(this.env.GITHUB_DEFAULT_BRANCH)
 			const commit = await this.github.createAtomicCommit({
 				branch: this.env.GITHUB_DEFAULT_BRANCH,
@@ -74,6 +98,7 @@ export class MomentBackupService {
 						last_error = NULL,
 						updated_at = excluded.updated_at
 				`).bind(snapshot.lastChangedAt, snapshot.checksum, commit.commitSha, path, now, now),
+				this.env.DB.prepare('UPDATE moment_backup_state SET lease_owner = NULL, lease_expires_at = NULL WHERE singleton = 1 AND lease_owner = ?').bind(leaseOwner),
 				this.env.DB.prepare('UPDATE sync_runs SET status = \'success\', target_ref = ?, updated_at = ? WHERE id = ?')
 					.bind(commit.commitSha, now, runId),
 			])
@@ -89,6 +114,7 @@ export class MomentBackupService {
 					VALUES (1, ?, ?)
 					ON CONFLICT(singleton) DO UPDATE SET last_error = excluded.last_error, updated_at = excluded.updated_at
 				`).bind(message, now),
+				this.env.DB.prepare('UPDATE moment_backup_state SET lease_owner = NULL, lease_expires_at = NULL WHERE singleton = 1 AND lease_owner = ?').bind(leaseOwner),
 			])
 			throw error
 		}
@@ -141,8 +167,16 @@ export class MomentBackupService {
 			INSERT INTO sync_runs (id, kind, status, source_ref, checksum, item_count, created_at, updated_at)
 			VALUES (?, 'moment_restore', 'success', ?, ?, ?, ?, ?)
 		`).bind(runId, path, snapshot.checksum, snapshot.moments.length, now, now))
+		statements.push(this.env.DB.prepare(`
+			INSERT INTO moment_public_cache_state (singleton, version, updated_at) VALUES (1, 1, ?)
+			ON CONFLICT(singleton) DO UPDATE SET version = version + 1, updated_at = excluded.updated_at
+		`).bind(now))
 		await this.env.DB.batch(statements)
 		return { restored: snapshot.moments.length, checksum: snapshot.checksum, path, runId }
+	}
+
+	private async releaseLease(owner: string) {
+		await this.env.DB.prepare('UPDATE moment_backup_state SET lease_owner = NULL, lease_expires_at = NULL WHERE singleton = 1 AND lease_owner = ?').bind(owner).run()
 	}
 
 	private async readSnapshot(path: string): Promise<MomentBackupSnapshot> {

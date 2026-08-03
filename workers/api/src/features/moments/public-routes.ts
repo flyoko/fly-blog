@@ -24,11 +24,12 @@ function assertSameOrigin(c: Parameters<import('hono').Handler<AppEnvironment>>[
 async function momentCacheVersion(db: D1Database): Promise<string> {
 	const row = await db.prepare(`
 		SELECT
+			COALESCE((SELECT version FROM moment_public_cache_state WHERE singleton = 1), 0) AS public_version,
 			COALESCE((SELECT MAX(updated_at) FROM moments), '') AS moment_version,
 			COALESCE((SELECT COUNT(*) FROM moment_likes), 0) AS like_count,
 			COALESCE((SELECT MAX(created_at) FROM moment_likes), '') AS like_version
-	`).first<{ moment_version: string, like_count: number, like_version: string }>()
-	return `${row?.moment_version || ''}:${row?.like_count || 0}:${row?.like_version || ''}`
+	`).first<{ public_version: number, moment_version: string, like_count: number, like_version: string }>()
+	return `${row?.public_version || 0}:${row?.moment_version || ''}:${row?.like_count || 0}:${row?.like_version || ''}`
 }
 
 export const publicMomentRoutes = new Hono<AppEnvironment>()

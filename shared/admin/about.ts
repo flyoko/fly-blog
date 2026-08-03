@@ -1,15 +1,11 @@
 import { z } from 'zod'
-
-const safeHttpUrl = z.string().url().refine((value) => {
-	const protocol = new URL(value).protocol
-	return protocol === 'https:' || protocol === 'http:'
-}, 'Only HTTP(S) links are allowed')
+import { publicHttpUrlSchema } from '../utils/public-url'
 
 export const aboutProfileSchema = z.object({
 	title: z.string().min(1).max(120),
 	summary: z.string().max(500),
 	body: z.string().max(50_000),
-	avatar: safeHttpUrl.optional(),
+	avatar: publicHttpUrlSchema.optional(),
 	updatedAt: z.string().datetime().optional(),
 }).strict()
 
@@ -18,13 +14,13 @@ export const aboutTimelineSchema = z.array(z.object({
 	date: z.string().min(4).max(32),
 	title: z.string().min(1).max(160),
 	description: z.string().max(1000).optional(),
-	link: safeHttpUrl.optional(),
+	link: publicHttpUrlSchema.optional(),
 }).strict()).max(200)
 
 export const aboutLinksSchema = z.array(z.object({
 	id: z.string().min(1).max(80),
 	label: z.string().min(1).max(80),
-	url: safeHttpUrl,
+	url: publicHttpUrlSchema,
 	icon: z.string().min(1).max(120).optional(),
 }).strict()).max(50)
 

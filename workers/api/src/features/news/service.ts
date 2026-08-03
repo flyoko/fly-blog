@@ -3,6 +3,7 @@ import type { NewsSourcesConfig } from '../../../../../shared/admin/site-config'
 import type { Env } from '../../env'
 import sourcesRaw from '../../../../../config/news/sources.json'
 import { newsSourcesConfigSchema } from '../../../../../shared/admin/site-config'
+import { isPublicHttpUrl } from '../../../../../shared/utils/public-url'
 import { ApiError } from '../../lib/api-error'
 
 interface NewsRow {
@@ -26,6 +27,11 @@ function text(value: unknown): string {
 	return typeof value === 'string' ? value.trim() : ''
 }
 
+function publicUrl(value: unknown): string {
+	const candidate = text(value)
+	return isPublicHttpUrl(candidate) ? candidate : ''
+}
+
 function xmlDecode(value: string): string {
 	return value
 		.replaceAll('<![CDATA[', '')
@@ -43,7 +49,7 @@ function rssItems(xml: string, sourceId: string, fetchedAt: string): NewsItemDto
 	return [...xml.matchAll(/<item>([\s\S]*?)<\/item>/gu)].slice(0, 30).map((match) => {
 		const block = match[1] || ''
 		const field = (name: string) => xmlDecode(block.match(new RegExp(`<${name}[^>]*>([\\s\\S]*?)<\\/${name}>`, 'u'))?.[1] || '')
-		const url = field('link')
+		const url = publicUrl(field('link'))
 		const published = new Date(field('pubDate'))
 		return {
 			id: `${sourceId}:${url || field('guid')}`,
@@ -59,7 +65,7 @@ function rssItems(xml: string, sourceId: string, fetchedAt: string): NewsItemDto
 			fetchedAt,
 			selected: true,
 		}
-	}).filter(item => item.title && item.url.startsWith('http'))
+	}).filter(item => item.title && item.url)
 }
 
 function hotItems(payload: unknown, sourceId: string, fetchedAt: string): NewsItemDto[] {
@@ -67,7 +73,8 @@ function hotItems(payload: unknown, sourceId: string, fetchedAt: string): NewsIt
 	return items.slice(0, 30).map((raw, index) => {
 		const item = raw as Record<string, unknown>
 		const links = (item.links || {}) as Record<string, unknown>
-		const url = text(links.aihot) || text(links.original)
+		const originalUrl = publicUrl(links.original)
+		const url = publicUrl(links.aihot) || originalUrl
 		return {
 			id: `${sourceId}:${text(item.id) || url}`,
 			sourceId,
@@ -75,7 +82,7 @@ function hotItems(payload: unknown, sourceId: string, fetchedAt: string): NewsIt
 			title: text(item.title).slice(0, 500),
 			summary: null,
 			url,
-			originalUrl: text(links.original) || null,
+			originalUrl: originalUrl || null,
 			category: 'AI 热点',
 			rank: Number.isInteger(item.rank) ? Number(item.rank) : index + 1,
 			publishedAt: text(item.latestAt) || null,
@@ -95,7 +102,7 @@ function daily(payload: unknown, fetchedAt: string) {
 		title: `AI 日报 · ${text(report.date)}`,
 		lead: text(report.lead) || null,
 		content: report.sections || [],
-		sourceUrl: text(links.aihot),
+		sourceUrl: publicUrl(links.aihot),
 		generatedAt: text(report.generatedAt) || fetchedAt,
 		fetchedAt,
 	}
