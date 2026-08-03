@@ -7,7 +7,7 @@ export const aboutProfileSchema = z.object({
 	body: z.string().max(50_000),
 	avatar: publicHttpUrlSchema.optional(),
 	updatedAt: z.string().datetime().optional(),
-}).strict()
+}).passthrough()
 
 export const aboutTimelineSchema = z.array(z.object({
 	id: z.string().min(1).max(80),
