@@ -12,7 +12,7 @@ import {
 } from '../../middleware/session'
 import { GitHubRepository } from '../articles/github-repository'
 import {
-
+	isEditableConfigKind,
 	PublishingService,
 } from './publishing-service'
 
@@ -41,6 +41,14 @@ export function createPublishingRoutes(options: PublishingRoutesOptions = {}) {
 	const repositoryFactory = options.repositoryFactory ?? (env => new GitHubRepository(env))
 
 	routes.use('*', requireSession)
+
+	routes.get('/configs/:kind', async (c) => {
+		const kind = c.req.param('kind')
+		if (!isEditableConfigKind(kind))
+			throw new ApiError('VALIDATION_FAILED', 400, 'Config kind is invalid')
+		const data = await new PublishingService(c.env, repositoryFactory(c.env)).getConfig(kind)
+		return success(c, data)
+	})
 
 	routes.get('/runs', async (c) => {
 		const data = await new PublishingService(c.env, repositoryFactory(c.env)).listRuns(

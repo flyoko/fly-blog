@@ -494,6 +494,42 @@ async function respond(route: Route, options: AdminApiMockOptions, capture: Admi
 		return
 	}
 
+	if (path === '/api/admin/publishing/configs/modules' && method === 'GET') {
+		await route.fulfill(success({
+			kind: 'modules',
+			path: 'config/site/modules.json',
+			sha: 'module-config-main-sha',
+			content: [
+				{ id: 'articles', enabled: true, order: 0 },
+				{ id: 'ai-news', enabled: true, order: 1 },
+				{ id: 'moments', enabled: true, order: 2 },
+				{ id: 'about', enabled: true, order: 3 },
+				{ id: 'weather', enabled: true, order: 4 },
+				{ id: 'music', enabled: true, order: 5 },
+				{ id: 'links', enabled: true, order: 6 },
+				{ id: 'archive', enabled: true, order: 7 },
+			],
+		}))
+		return
+	}
+
+	if (path === '/api/admin/publishing/configs/weather' && method === 'GET') {
+		await route.fulfill(success({
+			kind: 'weather',
+			path: 'config/site/weather.json',
+			sha: 'weather-config-main-sha',
+			content: {
+				enabled: true,
+				provider: 'open-meteo',
+				city: '杭州',
+				latitude: 30.2741,
+				longitude: 120.1551,
+				timezone: 'Asia/Shanghai',
+			},
+		}))
+		return
+	}
+
 	if (path === '/api/admin/publishing/pull-requests' && method === 'POST') {
 		capture.configWrites.push(request.postDataJSON())
 		await route.fulfill(success({

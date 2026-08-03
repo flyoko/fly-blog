@@ -50,7 +50,7 @@ const { transform } = useAvoidTransform(panelRef, avoidTargets)
 	backdrop-filter: blur(0.5rem);
 	font-size: 1.4rem;
 	transition: transform 0.1s;
-	z-index: var(--z-index-popover);
+	z-index: calc(var(--z-index-popover) + 3);
 
 	@media (max-height: $breakpoint-phone) {
 		display: flex;

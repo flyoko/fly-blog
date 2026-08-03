@@ -45,6 +45,10 @@ const editableConfigFiles = {
 
 export type EditableConfigKind = keyof typeof editableConfigFiles
 
+export function isEditableConfigKind(value: string): value is EditableConfigKind {
+	return Object.hasOwn(editableConfigFiles, value)
+}
+
 export interface PublishingRepositoryPort extends ArticleRepositoryPort {
 	createBranch: (input: { name: string, fromSha: string }) => Promise<void>
 	createPullRequest: (input: { head: string, base: string, title: string, body: string }) => Promise<{ number: number, url: string }>
@@ -215,6 +219,27 @@ export class PublishingService {
 	) {
 		this.publishRepository = new PublishRepository(env.DB)
 		this.auditRepository = new AuditRepository(env.DB)
+	}
+
+	async getConfig(kind: EditableConfigKind): Promise<{
+		kind: EditableConfigKind
+		path: string
+		sha: string
+		content: unknown
+	}> {
+		const definition = editableConfigFiles[kind]
+		const file = await this.repository.getFile(definition.path, this.env.GITHUB_DEFAULT_BRANCH)
+		let raw: unknown
+		try {
+			raw = JSON.parse(file.content)
+		}
+		catch {
+			throw new ApiError('UPSTREAM_FAILED', 502, 'Repository config is not valid JSON')
+		}
+		const content = (definition.schema as z.ZodType).safeParse(raw)
+		if (!content.success)
+			throw new ApiError('UPSTREAM_FAILED', 502, 'Repository config failed validation')
+		return { kind, path: file.path, sha: file.sha, content: content.data }
 	}
 
 	async publishConfig(input: {

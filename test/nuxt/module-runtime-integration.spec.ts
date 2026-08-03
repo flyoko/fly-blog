@@ -32,4 +32,23 @@ describe('module management runtime integration', () => {
 		expect(admin).toContain('固定位置')
 		expect(admin).toContain('isNavigationModuleId')
 	})
+
+	it('reloads module state from the production branch instead of stale bundled data', () => {
+		const admin = read('app/pages/admin/modules.vue')
+		expect(admin).toContain('/api/admin/publishing/configs/modules')
+		expect(admin).toContain('loadDeployedModules')
+		expect(admin).toContain('重新读取已部署配置')
+	})
+
+	it('bundles every dynamic weather icon used by module cards and forecasts', () => {
+		const nuxtConfig = read('nuxt.config.ts')
+		for (const icon of [
+			'ri:sun-cloudy-line',
+			'tabler:cloud-question',
+			'tabler:cloud-storm',
+			'tabler:mist',
+		]) {
+			expect(nuxtConfig).toContain(icon)
+		}
+	})
 })

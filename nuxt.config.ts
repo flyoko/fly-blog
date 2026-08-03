@@ -247,6 +247,31 @@ ${packageJson.homepage}
 			{ prefix: 'zi', dir: './app/assets/icons' },
 		],
 		clientBundle: {
+			// 动态配置中的图标无法稳定被源码扫描，需显式进入客户端包。
+			// @keep-sorted
+			icons: [
+				'ri:sun-cloudy-line',
+				'tabler:archive',
+				'tabler:cloud-question',
+				'tabler:cloud-rain',
+				'tabler:cloud-storm',
+				'tabler:cloud',
+				'tabler:file-text',
+				'tabler:files',
+				'tabler:friends',
+				'tabler:headphones',
+				'tabler:home',
+				'tabler:link',
+				'tabler:mail',
+				'tabler:mist',
+				'tabler:news',
+				'tabler:rss',
+				'tabler:snowflake',
+				'tabler:sparkles',
+				'tabler:sun',
+				'tabler:umbrella',
+				'tabler:user-circle',
+			],
 			scan: {
 				globInclude: ['**\/*.{vue,jsx,tsx,ts,md,mdc,mdx}'],
 			},

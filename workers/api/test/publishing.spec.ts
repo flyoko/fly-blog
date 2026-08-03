@@ -39,6 +39,19 @@ class FakePublishingRepository implements PublishingRepositoryPort {
 	deploymentRefs: string[] = []
 	files = new Map<string, { sha: string, content: string }>([
 		['config/taxonomy/categories.json', { sha: 'category-sha', content: JSON.stringify(categoryConfig) }],
+		['config/site/modules.json', {
+			sha: 'modules-sha',
+			content: JSON.stringify([
+				{ id: 'articles', enabled: true, order: 0 },
+				{ id: 'ai-news', enabled: true, order: 1 },
+				{ id: 'moments', enabled: true, order: 2 },
+				{ id: 'about', enabled: true, order: 3 },
+				{ id: 'weather', enabled: true, order: 4 },
+				{ id: 'music', enabled: true, order: 5 },
+				{ id: 'links', enabled: true, order: 6 },
+				{ id: 'archive', enabled: true, order: 7 },
+			]),
+		}],
 		['content/posts/2026/existing.md', {
 			sha: 'article-sha',
 			content: '---\ntitle: Existing\ncategories:\n  - 技术\ntags: []\n---\n# Existing\n',
@@ -221,6 +234,31 @@ beforeEach(async () => {
 })
 
 describe('configuration pull requests', () => {
+	it('reads the production-branch module config for admin refresh', async () => {
+		const repository = new FakePublishingRepository()
+		const response = await createApp(repository).request('https://blog.example.test/api/admin/publishing/configs/modules', {
+			headers: { cookie: 'fly_admin_session=publishing-session' },
+		}, runtimeEnv())
+
+		expect(response.status).toBe(200)
+		const payload = await response.json() as {
+			ok: boolean
+			data: { kind: string, path: string, sha: string, content: unknown[] }
+		}
+		expect(payload).toMatchObject({
+			ok: true,
+			data: {
+				kind: 'modules',
+				path: 'config/site/modules.json',
+				sha: 'modules-sha',
+			},
+		})
+		expect(payload.data.content.slice(0, 2)).toEqual([
+			{ id: 'articles', enabled: true, order: 0 },
+			{ id: 'ai-news', enabled: true, order: 1 },
+		])
+	})
+
 	it('maps allowed config keys to fixed paths, creates unique branches, and replays duplicates', async () => {
 		const repository = new FakePublishingRepository()
 		const app = createApp(repository)

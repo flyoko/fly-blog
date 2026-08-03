@@ -37,7 +37,7 @@ async function mockPublicWeatherAndMusic(page: Page) {
 				temperature: 29.4,
 				weatherCode: 1,
 				condition: '少云',
-				icon: 'tabler:cloud-sun',
+				icon: 'ri:sun-cloudy-line',
 				isDay: true,
 				high: 34,
 				low: 25,
@@ -107,30 +107,42 @@ test.describe('cycle 3 desktop workflows', () => {
 		await expect(page.getByText(/歌单提交成功/u)).toBeVisible()
 	})
 
-	test('normalizes module order and creates a modules PR', async ({ page }) => {
+	test('reloads deployed module state, renders icons, and creates a modules PR', async ({ page }) => {
 		const capture = await mockAuthenticatedAdmin(page)
 		await page.goto('/admin/modules')
+		await expect(page.getByText(/生产分支配置 module-/u)).toBeVisible()
+
 		const weatherCard = page.locator('.module-card').filter({ hasText: '城市天气' })
-		await weatherCard.getByRole('checkbox').check()
+		await expect(weatherCard.getByRole('checkbox')).toBeChecked()
+		await expect(weatherCard.getByText('右侧栏固定显示杭州天气。')).toBeVisible()
+		const weatherIcon = weatherCard.locator('.module-icon .iconify')
+		await expect(weatherIcon).toBeVisible()
+		await expect(weatherIcon).toHaveClass(/i-ri:sun-cloudy-line/u)
 		await expect(weatherCard.getByText('固定位置')).toBeVisible()
+
+		const musicCard = page.locator('.module-card').filter({ hasText: '随心听' })
+		await expect(musicCard.getByRole('checkbox')).toBeChecked()
+
 		const newsCard = page.locator('.module-card').filter({ hasText: 'AI 阅闻' })
-		await newsCard.getByRole('button', { name: '上移模块' }).click()
+		await newsCard.getByRole('button', { name: '下移模块' }).click()
 		await page.getByRole('button', { name: '创建模块 PR' }).click()
 		await expect.poll(() => capture.configWrites.some(write => write.kind === 'modules')).toBe(true)
 		const modules = capture.configWrites.find(write => write.kind === 'modules')?.content as Array<{ id: string, order: number }>
 		expect(modules.map(module => module.order)).toEqual(modules.map((_, index) => index))
-		expect(modules.findIndex(module => module.id === 'ai-news')).toBeLessThan(modules.findIndex(module => module.id === 'moments'))
+		expect(modules.findIndex(module => module.id === 'ai-news')).toBeGreaterThan(modules.findIndex(module => module.id === 'moments'))
 	})
 
 	test('keeps weather and music usable while navigating between public pages', async ({ page }) => {
 		await mockPublicWeatherAndMusic(page)
-		await page.goto('/__e2e__', { waitUntil: 'domcontentloaded' })
+		await page.goto('/', { waitUntil: 'domcontentloaded' })
 		await expect(page.getByText('杭州 · 浙江 · 中国')).toBeVisible()
 		await expect(page.getByRole('link', { name: 'Open-Meteo' })).toBeVisible()
 		const player = page.getByRole('region', { name: '随心听播放器' })
 		await expect(player).toBeVisible()
 		await expect(player.getByText('E2E Song A')).toBeVisible()
-		await player.getByRole('button', { name: '播放', exact: true }).click()
+		const playButton = player.getByRole('button', { name: '播放', exact: true })
+		if (await playButton.isVisible())
+			await playButton.click()
 		await expect(player.getByRole('button', { name: '暂停' })).toBeVisible()
 		await expect.poll(async () => Number(await player.getByLabel('播放进度').inputValue())).toBeGreaterThan(0)
 		await player.getByRole('button', { name: '下一首' }).click()
@@ -157,7 +169,8 @@ test('cycle 3 admin pages remain usable on mobile', async ({ page, isMobile }) =
 test('cycle 3 public weather and player remain usable on mobile', async ({ page, isMobile }) => {
 	test.skip(!isMobile, 'Mobile coverage runs in the mobile project.')
 	await mockPublicWeatherAndMusic(page)
-	await page.goto('/__e2e__', { waitUntil: 'domcontentloaded' })
+	await page.goto('/', { waitUntil: 'domcontentloaded' })
+	await page.getByRole('button', { name: '切换侧边栏' }).click()
 	await expect(page.getByText('杭州 · 浙江 · 中国')).toBeVisible()
 	await expect(page.getByRole('region', { name: '随心听播放器' })).toBeVisible()
 	const dimensions = await page.evaluate(() => ({ scrollWidth: document.documentElement.scrollWidth, clientWidth: document.documentElement.clientWidth }))

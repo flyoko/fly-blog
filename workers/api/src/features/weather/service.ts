@@ -51,7 +51,7 @@ function condition(code: number): { label: string, icon: string } {
 	if (code === 0)
 		return { label: '晴朗', icon: 'tabler:sun' }
 	if (code <= 2)
-		return { label: '少云', icon: 'tabler:cloud-sun' }
+		return { label: '少云', icon: 'ri:sun-cloudy-line' }
 	if (code === 3)
 		return { label: '多云', icon: 'tabler:cloud' }
 	if (code === 45 || code === 48)

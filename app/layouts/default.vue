@@ -38,7 +38,7 @@ const hasAside = computed(() => routeAsideVisible.value)
 	min-width: 0;
 	isolation: isolate;
 
-	> :not(.blog-atmosphere, .reading-progress) {
+	> :not(.blog-atmosphere, .reading-progress, #blog-panel, .music-player) {
 		z-index: 1;
 	}
 }

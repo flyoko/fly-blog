@@ -81,6 +81,7 @@
     "@iconify-json/line-md": "catalog:ui",
     "@iconify-json/ri": "catalog:ui",
     "@iconify-json/simple-icons": "catalog:ui",
+    "@iconify-json/tabler": "catalog:ui",
     "@nuxt/a11y": "catalog:quality",
     "@nuxt/hints": "catalog:quality",
     "@nuxt/test-utils": "catalog:testing",

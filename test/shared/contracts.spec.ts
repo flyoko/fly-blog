@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import footerConfig from '../../config/site/footer.json'
+import weatherConfig from '../../config/site/weather.json'
 import {
 	articleDocumentSchema,
 	decodeArticleId,
@@ -10,6 +11,7 @@ import {
 	footerConfigSchema,
 	modulesConfigSchema,
 	navigationConfigSchema,
+	weatherConfigSchema,
 } from '../../shared/admin/site-config'
 
 describe('admin contracts', () => {
@@ -65,8 +67,17 @@ describe('admin contracts', () => {
 		const social = parsed.nav.find(group => group.id === 'social')
 		expect(social?.items).toContainEqual(expect.objectContaining({
 			id: 'qq-email',
-			text: 'QQ 邮箱',
+			text: '2960257447@qq.com',
 			url: 'mailto:2960257447@qq.com',
 		}))
+	})
+
+	it('enables the fixed Hangzhou weather location', () => {
+		expect(weatherConfigSchema.parse(weatherConfig)).toMatchObject({
+			enabled: true,
+			city: '杭州',
+			latitude: 30.2741,
+			longitude: 120.1551,
+		})
 	})
 })

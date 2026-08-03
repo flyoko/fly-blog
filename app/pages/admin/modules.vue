@@ -2,7 +2,7 @@
 import type { ModulesConfig } from '#shared/admin/site-config'
 import modulesSource from '~~/config/site/modules.json'
 import { isNavigationModuleId } from '#shared/admin/modules'
-import { modulesConfigSchema } from '#shared/admin/site-config'
+import { modulesConfigSchema, weatherConfigSchema } from '#shared/admin/site-config'
 import { buildConfigPullRequest } from '~/types/admin'
 
 interface PullRequestResult {
@@ -12,22 +12,39 @@ interface PullRequestResult {
 	resourcePath: string
 }
 
+interface ConfigResult {
+	kind: string
+	path: string
+	sha: string
+	content: unknown
+}
+
 const labels: Record<ModulesConfig[number]['id'], { title: string, description: string, icon: string }> = {
 	'articles': { title: '文章', description: '首页文章列表与文章详情。', icon: 'tabler:file-text' },
 	'about': { title: '自述', description: '站长自述、时间线与链接。', icon: 'tabler:user-circle' },
 	'moments': { title: '瞬间', description: '实时动态、点赞与评论入口。', icon: 'tabler:sparkles' },
 	'ai-news': { title: 'AI 阅闻', description: '站长资讯、AI HOT 与每日早报。', icon: 'tabler:news' },
-	'weather': { title: '城市天气', description: '右侧栏固定站长城市天气。', icon: 'tabler:cloud-sun' },
+	'weather': { title: '城市天气', description: '右侧栏固定站长城市天气。', icon: 'ri:sun-cloudy-line' },
 	'music': { title: '随心听', description: '全站持续播放的个人歌单。', icon: 'tabler:headphones' },
 	'links': { title: '友链', description: '友链页面与订阅信息。', icon: 'tabler:friends' },
 	'archive': { title: '归档', description: '按年份整理的文章归档。', icon: 'tabler:archive' },
 }
 
-const modules = ref<ModulesConfig>(modulesConfigSchema.parse(structuredClone(modulesSource) as unknown).toSorted((left, right) => left.order - right.order))
+const sortModules = (value: unknown) => modulesConfigSchema.parse(value).toSorted((left, right) => left.order - right.order)
+const modules = ref<ModulesConfig>(sortModules(structuredClone(modulesSource) as unknown))
 const saving = ref(false)
+const syncing = ref(false)
 const error = ref<string | null>(null)
+const syncError = ref<string | null>(null)
 const result = ref<PullRequestResult | null>(null)
+const deployedSha = ref<string | null>(null)
+const syncedAt = ref<string | null>(null)
+const weatherCity = ref('')
+const weatherReady = ref(false)
 const articlesEnabled = computed(() => modules.value.find(module => module.id === 'articles')?.enabled ?? false)
+const weatherDescription = computed(() => weatherReady.value
+	? `右侧栏固定显示${weatherCity.value}天气。`
+	: '模块已开启时，还需在站点设置中选择天气城市。')
 
 useSeoMeta({ title: '模块管理', robots: 'noindex, nofollow' })
 
@@ -38,6 +55,34 @@ watch(articlesEnabled, (enabled) => {
 			archive.enabled = false
 	}
 })
+
+async function loadDeployedModules() {
+	syncing.value = true
+	syncError.value = null
+	try {
+		const [moduleConfig, weatherConfig] = await Promise.all([
+			useAdminApi<ConfigResult>('/api/admin/publishing/configs/modules'),
+			useAdminApi<ConfigResult>('/api/admin/publishing/configs/weather'),
+		])
+		modules.value = sortModules(moduleConfig.content)
+		const deployedWeather = weatherConfigSchema.parse(weatherConfig.content)
+		weatherCity.value = deployedWeather.city
+		weatherReady.value = Boolean(
+			deployedWeather.enabled
+			&& deployedWeather.city
+			&& deployedWeather.latitude !== null
+			&& deployedWeather.longitude !== null,
+		)
+		deployedSha.value = moduleConfig.sha
+		syncedAt.value = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+	}
+	catch (cause) {
+		syncError.value = cause instanceof Error ? cause.message : '已部署模块配置读取失败'
+	}
+	finally {
+		syncing.value = false
+	}
+}
 
 function normalize() {
 	modules.value.forEach((module, index) => {
@@ -77,6 +122,8 @@ function move(index: number, direction: -1 | 1) {
 	normalize()
 }
 
+onMounted(loadDeployedModules)
+
 async function save() {
 	saving.value = true
 	error.value = null
@@ -106,12 +153,27 @@ async function save() {
 			<h1>模块管理</h1>
 			<p>控制公开模块的启用状态；导航模块可调整左侧栏顺序，天气和随心听使用固定位置。归档依赖文章模块。创建 PR 后需审核、合并并部署后生效。</p>
 		</div>
-		<button class="admin-button admin-button-primary" type="button" :disabled="saving" @click="save">
-			<Icon name="tabler:git-pull-request" />
-			{{ saving ? '正在创建…' : '创建模块 PR' }}
-		</button>
+		<div class="module-heading-actions">
+			<button class="admin-button" type="button" :disabled="syncing" @click="loadDeployedModules">
+				<Icon name="tabler:refresh" />
+				{{ syncing ? '读取中…' : '重新读取已部署配置' }}
+			</button>
+			<button class="admin-button admin-button-primary" type="button" :disabled="saving" @click="save">
+				<Icon name="tabler:git-pull-request" />
+				{{ saving ? '正在创建…' : '创建模块 PR' }}
+			</button>
+		</div>
 	</header>
 
+	<div class="module-sync-status">
+		<Icon name="tabler:cloud-check" />
+		<span v-if="deployedSha">生产分支配置 {{ deployedSha.slice(0, 7) }} · {{ syncedAt }} 已读取</span>
+		<span v-else>正在使用页面内置配置</span>
+		<small>合并与部署完成后，页面若仍保持打开，请重新读取。</small>
+	</div>
+	<p v-if="syncError" class="admin-error">
+		{{ syncError }}
+	</p>
 	<p v-if="error" class="admin-error">
 		{{ error }}
 	</p>
@@ -130,7 +192,7 @@ async function save() {
 			</div>
 			<div class="module-copy">
 				<strong>{{ labels[module.id].title }}</strong>
-				<span>{{ labels[module.id].description }}</span>
+				<span>{{ module.id === 'weather' ? weatherDescription : labels[module.id].description }}</span>
 			</div>
 			<label class="module-switch">
 				<input v-model="module.enabled" type="checkbox" :disabled="module.id === 'archive' && !articlesEnabled">
@@ -153,6 +215,31 @@ async function save() {
 </template>
 
 <style scoped lang="scss">
+.module-heading-actions,
+.module-sync-status {
+	display: flex;
+	align-items: center;
+	gap: 0.65rem;
+}
+
+.module-heading-actions {
+	flex-wrap: wrap;
+	justify-content: flex-end;
+}
+
+.module-sync-status {
+	margin-bottom: 1rem;
+	padding: 0.8rem 1rem;
+	border: 1px solid var(--admin-border);
+	border-radius: 0.85rem;
+	background: var(--admin-surface-soft);
+	color: var(--admin-muted);
+}
+
+.module-sync-status small {
+	margin-left: auto;
+}
+
 .module-grid {
 	display: grid;
 	grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -207,6 +294,15 @@ async function save() {
 @media (max-width: 800px) {
 	.module-grid {
 		grid-template-columns: 1fr;
+	}
+
+	.module-sync-status {
+		flex-direction: column;
+		align-items: flex-start;
+	}
+
+	.module-sync-status small {
+		margin-left: 0;
 	}
 }
 </style>
