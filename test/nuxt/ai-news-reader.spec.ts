@@ -36,6 +36,6 @@ describe('ai 阅闻站内阅读界面', () => {
 
 	it('rewrites internal reader deep links to the Nuxt app shell', () => {
 		const redirects = read('public/_redirects')
-		expect(redirects).toContain('/ai.news/read/* /ai.news 200')
+		expect(redirects).toContain('/ai.news/read/* /ai.news/ 200')
 	})
 })
