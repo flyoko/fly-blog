@@ -6,6 +6,7 @@ import newsSourcesRaw from '../../../../../config/news/sources.json'
 import { newsSourcesConfigSchema } from '../../../../../shared/admin/site-config'
 import { isPublicHttpUrl } from '../../../../../shared/utils/public-url'
 import {
+	cleanAiHotBodyText,
 	extractAiHotArticle,
 	extractZaihuaArticle,
 	parseAiHotDaily,
@@ -528,7 +529,7 @@ export class NewsService {
 				sourceUrl,
 				originalUrl,
 				sourceName,
-				bodyText,
+				bodyText: cleanAiHotBodyText(bodyText),
 				contentMode,
 			}
 		})))

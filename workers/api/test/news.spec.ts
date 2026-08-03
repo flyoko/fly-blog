@@ -342,13 +342,13 @@ describe('news source parsers', () => {
 					<link>https://aihot.virxact.com/items/cms-full</link>
 					<guid isPermaLink="false">cms-full</guid>
 					<description><![CDATA[<p>简短摘要</p>]]></description>
-					<content:encoded><![CDATA[<p>正文第一段</p><p>正文第二段</p>]]></content:encoded>
+					<content:encoded><![CDATA[<p>正文第一段</p><p>正文第二段</p><p>—— 本文由 AI HOT 聚合整理，完整版与更多 AI 动态见 https://aihot.virxact.com/items/cms-full</p>]]></content:encoded>
 				</item>
 				<item>
 					<title>只有摘要</title>
 					<link>https://aihot.virxact.com/items/cms-summary</link>
 					<guid>cms-summary</guid>
-					<description><![CDATA[<p>来源未允许全文再分发</p>]]></description>
+					<description><![CDATA[<p>来源未允许全文再分发</p><p>🔗 阅读原文</p><p>via AI HOT · https://aihot.virxact.com/items/cms-summary</p>]]></description>
 				</item>
 			</channel></rss>
 		`)
@@ -384,6 +384,7 @@ describe('news source parsers', () => {
 			<div class="m-detail-summary"><p>摘要不应被当作正文。</p></div>
 			<div id="article-body"><div class="m-detail-html">
 				<p>完整正文第一段。</p><h2>小标题</h2><p>完整正文第二段。</p>
+				<p>—— 本文由 AI HOT 聚合整理，完整版与更多 AI 动态见 https://aihot.virxact.com/items/cms1</p>
 			</div></div>
 		`)).toEqual({ bodyText: '完整正文第一段。\n\n小标题\n\n完整正文第二段。' })
 		expect(extractAiHotArticle('<div>没有正文结构</div>')).toBeNull()
