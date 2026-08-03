@@ -48,21 +48,23 @@ describe('admin management UI boundaries', () => {
 	})
 
 	it('uses the public station-news label instead of exposing the upstream brand', async () => {
-		const news = await source('app/pages/ai.news.vue')
+		const news = await source('app/pages/ai.news/index.vue')
 		expect(news).toContain('{ id: \'rss\', label: \'站长资讯\' }')
 		expect(news).not.toContain('在花资讯')
 	})
 
-	it('uses the approved editorial layout for public AI news', async () => {
-		const news = await source('app/pages/ai.news.vue')
+	it('uses the approved compact internal-reading layout for public AI news', async () => {
+		const news = await source('app/pages/ai.news/index.vue')
 
-		expect(news).toContain('class="news-editorial"')
-		expect(news).toContain('class="news-feature')
+		expect(news).toContain('class="news-workbench"')
+		expect(news).toContain('class="news-feed')
 		expect(news).toContain('class="news-digest')
-		expect(news).toContain('今日主线')
-		expect(news).toContain('今日摘要')
-		expect(news).toContain('继续阅读')
-		expect(news).not.toContain('news-radar')
+		expect(news).toContain('最新收录')
+		expect(news).toContain('今日日报')
+		expect(news).toContain('站内阅读')
+		expect(news).toContain('item.readerPath')
+		expect(news).not.toContain('news-feature')
+		expect(news).not.toContain('<img')
 	})
 
 	it('shows per-file partial upload results and trash restoration', async () => {
