@@ -70,6 +70,7 @@
 ```sql
 CREATE TABLE news_documents (
   item_id TEXT PRIMARY KEY,
+  reader_key TEXT NOT NULL UNIQUE,
   source_id TEXT NOT NULL,
   source_url TEXT NOT NULL,
   original_url TEXT,
@@ -85,7 +86,7 @@ CREATE TABLE news_documents (
 );
 ```
 
-正文与卡片分表，列表查询不加载大文本。`item_id` 与 `news_items.id` 一一对应。
+正文与卡片分表，列表查询不加载大文本。`item_id` 与 `news_items.id` 一一对应；`reader_key` 是由 `item_id` 计算出的固定 SHA-256 前缀，只用于安全、短且不含斜杠的公开路由。
 
 ### 4.2 `news_sync_state` 扩展
 
@@ -166,7 +167,7 @@ Wrangler triggers 调整为：
 
 ### 7.2 详情
 
-`GET /api/news/:id`
+`GET /api/news/read/:readerKey`
 
 返回：
 
@@ -178,7 +179,7 @@ Wrangler triggers 调整为：
 - `originalUrl`
 - `fetchedAt`
 
-不存在、未公开、来源不允许站内阅读或正文记录缺失时返回 404，不提供任意 URL 代理能力。
+`readerKey` 不存在、条目未公开、来源不允许站内阅读或正文记录缺失时返回 404，不提供任意 URL 代理能力。
 
 ## 8. 安全与内容边界
 
