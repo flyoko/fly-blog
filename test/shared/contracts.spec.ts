@@ -62,5 +62,11 @@ describe('admin contracts', () => {
 		expect(parsed.showPersonalGitHub).toBe(true)
 		expect(parsed.showThemeSource).toBe(false)
 		expect(parsed.showSiteSource).toBe(false)
+		const social = parsed.nav.find(group => group.id === 'social')
+		expect(social?.items).toContainEqual(expect.objectContaining({
+			id: 'qq-email',
+			text: 'QQ 邮箱',
+			url: 'mailto:2960257447@qq.com',
+		}))
 	})
 })
