@@ -24,18 +24,7 @@ const publishedAt = computed(() =>
 	formatDateTime(newsDocument.value?.item.publishedAt || null),
 )
 
-const fetchedAt = computed(() =>
-	formatDateTime(newsDocument.value?.fetchedAt || null),
-)
-
-const originalLink = computed(() =>
-	newsDocument.value?.originalUrl || newsDocument.value?.sourceUrl || '',
-)
-
-const hasSeparateSourceLink = computed(() => Boolean(
-	newsDocument.value
-	&& newsDocument.value.sourceUrl !== originalLink.value,
-))
+const originalLink = computed(() => newsDocument.value?.originalUrl || '')
 
 useSeoMeta({
 	title: () => newsDocument.value
@@ -142,10 +131,6 @@ onMounted(load)
 					<dd>{{ publishedAt }}</dd>
 				</div>
 				<div>
-					<dt>同步</dt>
-					<dd>{{ fetchedAt }}</dd>
-				</div>
-				<div>
 					<dt>来源</dt>
 					<dd>{{ newsDocument.attribution.name }}</dd>
 				</div>
@@ -158,10 +143,10 @@ onMounted(load)
 				aria-hidden="true"
 			/>
 			<p v-if="newsDocument.contentMode === 'full'">
-				以下内容由来源公开提供并允许在聚合阅读中展示，版权与观点归原作者及来源所有。
+				以下内容整理自公开来源，版权与观点归原作者所有。
 			</p>
 			<p v-else>
-				来源未提供可转载全文，当前展示来源摘要。完整内容请通过页面底部的原始来源查看。
+				以下为内容摘要，完整信息请阅读原文。
 			</p>
 		</div>
 
@@ -173,21 +158,12 @@ onMounted(load)
 
 		<footer class="reader-source">
 			<div>
-				<p>内容来源</p>
+				<p>原文来源</p>
 				<strong>{{ newsDocument.attribution.name }}</strong>
 			</div>
 			<div class="reader-source-actions">
-				<a :href="originalLink" target="_blank" rel="noopener noreferrer">
+				<a v-if="originalLink" :href="originalLink" target="_blank" rel="noopener noreferrer">
 					查看原始来源<Icon name="tabler:arrow-up-right" aria-hidden="true" />
-				</a>
-				<a
-					v-if="hasSeparateSourceLink"
-					class="secondary"
-					:href="newsDocument.sourceUrl"
-					target="_blank"
-					rel="noopener noreferrer"
-				>
-					查看聚合来源
 				</a>
 			</div>
 		</footer>
@@ -356,11 +332,6 @@ onMounted(load)
 	font-size: 0.74rem;
 	font-weight: 700;
 	color: var(--c-primary);
-}
-
-.reader-source-actions a.secondary {
-	font-weight: 400;
-	color: var(--c-text-3);
 }
 
 .reader-loading {

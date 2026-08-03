@@ -6,6 +6,7 @@ import newsSourcesRaw from '../../../../../config/news/sources.json'
 import { newsSourcesConfigSchema } from '../../../../../shared/admin/site-config'
 import { isPublicHttpUrl } from '../../../../../shared/utils/public-url'
 import {
+	extractAiHotArticle,
 	extractZaihuaArticle,
 	parseAiHotDaily,
 	parseAiHotFullFeed,
@@ -66,6 +67,7 @@ interface DocumentRow extends NewsRow {
 interface ExistingZaihuaRow {
 	id: string
 	title: string
+	original_url: string | null
 	metadata_json: string
 	document_item_id: string | null
 }
@@ -95,7 +97,6 @@ class SourceRequestError extends Error {
 const sourcesConfig = newsSourcesConfigSchema.parse(newsSourcesRaw)
 const AIHOT_HOST = 'aihot.virxact.com'
 const ZAIHUA_HOST = 'www.zaihua.news'
-const ZAIHUA_ATTRIBUTION_URL = 'https://www.zaihua.news/'
 const CATEGORY_LABELS: Record<string, string> = {
 	'ai-agents': 'AI 智能体',
 	'ai-models': 'AI 模型',
@@ -126,6 +127,40 @@ function isAiHotReaderUrl(value: string): boolean {
 
 function isZaihuaReaderUrl(value: string): boolean {
 	return hostOf(value) === ZAIHUA_HOST
+}
+
+function isIntermediaryUrl(value: string | null | undefined): boolean {
+	if (!value)
+		return false
+	const hostname = hostOf(value)
+	return hostname === AIHOT_HOST
+		|| hostname === ZAIHUA_HOST
+		|| hostname === 'zaihua.news'
+		|| Boolean(hostname?.endsWith('.zaihua.news'))
+}
+
+function externalPublicUrl(value: unknown): string | null {
+	const url = publicUrl(value)
+	return url && !isIntermediaryUrl(url) ? url : null
+}
+
+function metadataString(metadata: Record<string, unknown>, key: string): string | null {
+	const value = metadata[key]
+	return typeof value === 'string' && value.trim() ? value.trim().slice(0, 160) : null
+}
+
+function readableSourceName(preferred: string | null, originalUrl: string | null, fallback: string): string {
+	if (preferred && preferred !== 'AI HOT' && preferred !== '在花')
+		return preferred.slice(0, 160)
+	if (originalUrl) {
+		try {
+			return new URL(originalUrl).hostname.replace(/^www\./u, '').slice(0, 160)
+		}
+		catch {
+			// 使用调用方提供的通用名称。
+		}
+	}
+	return fallback
 }
 
 function futureIso(now: Date, minutes: number): string {
@@ -170,20 +205,25 @@ export class NewsService {
 	constructor(private readonly env: Env) {}
 
 	private dto(row: NewsRow): NewsItemDto {
+		const readerPath = row.reader_key ? `/ai.news/read/${row.reader_key}` : null
+		const originalUrl = externalPublicUrl(row.original_url)
+		const publicUrlValue = isIntermediaryUrl(row.url)
+			? originalUrl || `${this.env.PUBLIC_ORIGIN}${readerPath || '/ai.news'}`
+			: row.url
 		return {
 			id: row.id,
 			sourceId: row.source_id,
 			kind: row.kind,
 			title: row.title,
 			summary: row.summary,
-			url: row.url,
-			originalUrl: row.original_url,
+			url: publicUrlValue,
+			originalUrl,
 			category: row.category,
 			rank: row.rank,
 			publishedAt: row.published_at,
 			fetchedAt: row.fetched_at,
 			selected: Boolean(row.selected),
-			readerPath: row.reader_key ? `/ai.news/read/${row.reader_key}` : null,
+			readerPath,
 			contentMode: row.content_mode || null,
 		}
 	}
@@ -387,7 +427,7 @@ export class NewsService {
 			const url = publicUrl(item.aihotUrl)
 			if (!url)
 				continue
-			const originalUrl = publicUrl(item.originalUrl)
+			const originalUrl = externalPublicUrl(item.originalUrl)
 			const itemId = `ai-hot:${item.upstreamId}`
 			await this.upsertItem({
 				id: itemId,
@@ -418,8 +458,8 @@ export class NewsService {
 					title: item.title,
 					bodyText: item.summary,
 					contentMode: 'summary',
-					attributionName: 'AI HOT',
-					attributionUrl: url,
+					attributionName: readableSourceName(item.sourceName, originalUrl, '原文来源'),
+					attributionUrl: originalUrl || this.env.PUBLIC_ORIGIN,
 					publishedAt: item.publishedAt,
 					fetchedAt,
 				})
@@ -429,36 +469,95 @@ export class NewsService {
 		return accepted
 	}
 
+	private async fetchAiHotArticle(url: string): Promise<{ bodyText: string } | null> {
+		try {
+			const response = await fetch(url, {
+				headers: { accept: 'text/html,application/xhtml+xml' },
+				signal: AbortSignal.timeout(12_000),
+			})
+			if (!response.ok)
+				return null
+			return extractAiHotArticle(await response.text())
+		}
+		catch {
+			return null
+		}
+	}
+
 	private async syncAiHotFull(response: Response, fetchedAt: string): Promise<number> {
 		const entries = parseAiHotFullFeed(await response.text())
-		let updated = 0
-		for (const entry of entries) {
+		const limit = pLimit(4)
+		const prepared = await Promise.all(entries.map(entry => limit(async () => {
 			const sourceUrl = publicUrl(entry.sourceUrl)
 			if (!sourceUrl || !isAiHotReaderUrl(sourceUrl))
-				continue
+				return null
 			const itemId = `ai-hot:${entry.upstreamId}`
 			const existing = await this.env.DB.prepare('SELECT * FROM news_items WHERE id = ?')
 				.bind(itemId)
 				.first<NewsRow>()
 			if (!existing)
+				return null
+			const existingDocument = await this.env.DB.prepare(`
+				SELECT body_text, content_mode
+				FROM news_documents WHERE item_id = ?
+			`).bind(itemId).first<{ body_text: string, content_mode: NewsDocumentDto['contentMode'] }>()
+			const originalUrl = externalPublicUrl(entry.originalUrl) || externalPublicUrl(existing.original_url)
+			const metadata = safeMetadata(existing.metadata_json)
+			const sourceName = readableSourceName(
+				metadataString(metadata, 'sourceName'),
+				originalUrl,
+				'原文来源',
+			)
+			let bodyText = entry.bodyText
+			let contentMode = entry.contentMode
+			if (entry.contentMode === 'summary' && existingDocument?.content_mode === 'full') {
+				bodyText = existingDocument.body_text
+				contentMode = 'full'
+			}
+			else if (entry.contentMode === 'summary') {
+				const pageArticle = await this.fetchAiHotArticle(sourceUrl)
+				if (pageArticle?.bodyText) {
+					bodyText = pageArticle.bodyText
+					contentMode = 'full'
+				}
+			}
+			return {
+				entry,
+				existing,
+				itemId,
+				sourceUrl,
+				originalUrl,
+				sourceName,
+				bodyText,
+				contentMode,
+			}
+		})))
+		let updated = 0
+		for (const value of prepared) {
+			if (!value)
 				continue
-			const originalUrl = publicUrl(entry.originalUrl) || existing.original_url
 			await this.env.DB.prepare(`
 				UPDATE news_items
 				SET title = ?, original_url = ?, category = COALESCE(?, category), updated_at = ?
 				WHERE id = ?
-			`).bind(entry.title, originalUrl, categoryLabel(entry.category), fetchedAt, itemId).run()
+			`).bind(
+				value.entry.title,
+				value.originalUrl,
+				categoryLabel(value.entry.category),
+				fetchedAt,
+				value.itemId,
+			).run()
 			await this.upsertDocument({
-				itemId,
-				sourceId: existing.source_id,
-				sourceUrl,
-				originalUrl,
-				title: entry.title,
-				bodyText: entry.bodyText,
-				contentMode: entry.contentMode,
-				attributionName: 'AI HOT',
-				attributionUrl: sourceUrl,
-				publishedAt: entry.publishedAt || existing.published_at,
+				itemId: value.itemId,
+				sourceId: value.existing.source_id,
+				sourceUrl: value.sourceUrl,
+				originalUrl: value.originalUrl,
+				title: value.entry.title,
+				bodyText: value.bodyText,
+				contentMode: value.contentMode,
+				attributionName: value.sourceName,
+				attributionUrl: value.originalUrl || this.env.PUBLIC_ORIGIN,
+				publishedAt: value.entry.publishedAt || value.existing.published_at,
 				fetchedAt,
 			})
 			updated += 1
@@ -466,7 +565,12 @@ export class NewsService {
 		return updated
 	}
 
-	private async fetchZaihuaArticle(url: string): Promise<{ title: string, bodyText: string } | null> {
+	private async fetchZaihuaArticle(url: string): Promise<{
+		title: string
+		bodyText: string
+		originalUrl: string | null
+		sourceName: string | null
+	} | null> {
 		try {
 			const response = await fetch(url, {
 				headers: { accept: 'text/html,application/xhtml+xml' },
@@ -485,7 +589,7 @@ export class NewsService {
 		const entries = parseRssFeed(await response.text(), 30)
 			.filter(entry => publicUrl(entry.link))
 		const existingRows = await this.env.DB.prepare(`
-			SELECT n.id, n.title, n.metadata_json, d.item_id AS document_item_id
+			SELECT n.id, n.title, n.original_url, n.metadata_json, d.item_id AS document_item_id
 			FROM news_items n
 			LEFT JOIN news_documents d ON d.item_id = n.id
 			WHERE n.source_id = ?
@@ -501,6 +605,9 @@ export class NewsService {
 				index < 5
 				|| !existing?.document_item_id
 				|| previousMetadata.rssHash !== rssHash
+				|| !metadataString(previousMetadata, 'sourceName')
+				|| !externalPublicUrl(previousMetadata.originalUrl)
+				|| isIntermediaryUrl(existing?.original_url)
 			)
 			const article = shouldRefresh ? await this.fetchZaihuaArticle(entry.link) : null
 			return { entry, itemId, existing, previousMetadata, rssHash, article, shouldRefresh }
@@ -516,17 +623,30 @@ export class NewsService {
 			const existingDocument = Boolean(value.existing?.document_item_id)
 			const preservedAfterFailure = value.shouldRefresh && !value.article && existingDocument
 			const title = value.article?.title || value.existing?.title || value.entry.title
+			const previousOriginalUrl = externalPublicUrl(value.previousMetadata.originalUrl)
+				|| externalPublicUrl(value.existing?.original_url)
+			const originalUrl = externalPublicUrl(value.article?.originalUrl) || previousOriginalUrl
+			const sourceName = readableSourceName(
+				value.article?.sourceName || metadataString(value.previousMetadata, 'sourceName'),
+				originalUrl,
+				'站长资讯',
+			)
 			const metadata = preservedAfterFailure
 				? value.previousMetadata
-				: { ...value.previousMetadata, rssHash: value.rssHash }
+				: {
+						...value.previousMetadata,
+						rssHash: value.rssHash,
+						originalUrl,
+						sourceName,
+					}
 			await this.upsertItem({
 				id: value.itemId,
 				sourceId: source.id,
 				kind: 'rss',
 				title,
-				summary: value.entry.descriptionText || null,
+				summary: value.article?.bodyText.slice(0, 5_000) || value.entry.descriptionText || null,
 				url,
-				originalUrl: url,
+				originalUrl,
 				category: '站长资讯',
 				rank: null,
 				publishedAt: value.entry.publishedAt,
@@ -540,12 +660,12 @@ export class NewsService {
 						itemId: value.itemId,
 						sourceId: source.id,
 						sourceUrl: url,
-						originalUrl: url,
+						originalUrl,
 						title: value.article.title,
 						bodyText: value.article.bodyText,
 						contentMode: 'full',
-						attributionName: '在花',
-						attributionUrl: ZAIHUA_ATTRIBUTION_URL,
+						attributionName: sourceName,
+						attributionUrl: originalUrl || this.env.PUBLIC_ORIGIN,
 						publishedAt: value.entry.publishedAt,
 						fetchedAt,
 					})
@@ -555,12 +675,12 @@ export class NewsService {
 						itemId: value.itemId,
 						sourceId: source.id,
 						sourceUrl: url,
-						originalUrl: url,
+						originalUrl,
 						title,
 						bodyText: value.entry.descriptionText,
 						contentMode: 'summary',
-						attributionName: '在花',
-						attributionUrl: ZAIHUA_ATTRIBUTION_URL,
+						attributionName: sourceName,
+						attributionUrl: originalUrl || this.env.PUBLIC_ORIGIN,
 						publishedAt: value.entry.publishedAt,
 						fetchedAt,
 					})
@@ -710,7 +830,9 @@ export class NewsService {
 		return {
 			items: items.results.map(row => this.dto(row)),
 			total: total?.total || 0,
-			briefing,
+			briefing: briefing
+				? { ...briefing, source_url: `${this.env.PUBLIC_ORIGIN}/ai.news` }
+				: null,
 			sources: sources.results,
 		}
 	}
@@ -738,17 +860,26 @@ export class NewsService {
 			return null
 		if (!isAiHotReaderUrl(row.document_source_url) && !isZaihuaReaderUrl(row.document_source_url))
 			return null
+		const metadata = safeMetadata(row.metadata_json)
+		const originalUrl = externalPublicUrl(row.document_original_url)
+			|| externalPublicUrl(row.original_url)
+		const sourceName = readableSourceName(
+			metadataString(metadata, 'sourceName') || row.attribution_name,
+			originalUrl,
+			row.kind === 'rss' ? '站长资讯' : '原文来源',
+		)
+		const publicSourceUrl = originalUrl || `${this.env.PUBLIC_ORIGIN}/ai.news`
 		return {
 			item: this.dto(row),
 			readerKey: row.reader_key,
 			bodyText: row.body_text,
 			contentMode: row.content_mode,
 			attribution: {
-				name: row.attribution_name,
-				url: row.attribution_url,
+				name: sourceName,
+				url: publicSourceUrl,
 			},
-			sourceUrl: row.document_source_url,
-			originalUrl: row.document_original_url,
+			sourceUrl: publicSourceUrl,
+			originalUrl,
 			fetchedAt: row.document_fetched_at,
 		}
 	}

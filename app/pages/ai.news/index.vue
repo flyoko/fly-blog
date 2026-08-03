@@ -31,6 +31,10 @@ interface DailySection {
 	items: Array<{
 		title: string
 		summary?: string
+		links?: {
+			aihot?: string
+			original?: string
+		}
 	}>
 }
 
@@ -38,6 +42,8 @@ interface DailyHighlight {
 	sectionLabel: string
 	title: string
 	summary?: string
+	readerPath: string | null
+	originalUrl: string | null
 }
 
 type NewsFilter = 'all' | 'hot' | 'rss' | 'manual'
@@ -92,11 +98,20 @@ const dailySections = computed<DailySection[]>(() => {
 })
 
 const dailyHighlights = computed<DailyHighlight[]>(() => dailySections.value
-	.flatMap(section => section.items.map(item => ({
-		sectionLabel: section.label,
-		title: item.title,
-		summary: item.summary,
-	})))
+	.flatMap(section => section.items.map((item) => {
+		const upstreamId = item.links?.aihot?.split('/').filter(Boolean).at(-1)
+		const matchedItem = (data.value?.items || []).find(newsItem =>
+			Boolean(upstreamId && newsItem.id === `ai-hot:${upstreamId}`)
+			|| Boolean(item.links?.original && newsItem.originalUrl === item.links.original),
+		)
+		return {
+			sectionLabel: section.label,
+			title: item.title,
+			summary: item.summary,
+			readerPath: matchedItem?.readerPath || null,
+			originalUrl: matchedItem?.originalUrl || item.links?.original || null,
+		}
+	}))
 	.filter(item => item.title)
 	.slice(0, 5),
 )
@@ -196,15 +211,14 @@ onMounted(load)
 			</p>
 			<h1>AI 阅闻</h1>
 			<p class="news-intro">
-				少一些跳转，多一些连续阅读。AI HOT 与站长资讯优先在博客内打开，同时保留原始来源。
+				每天浏览值得关注的 AI 动态、产品进展与技术资讯。
 			</p>
 		</div>
 		<div class="news-sync" :class="{ degraded: degradedSources.length }">
 			<span class="news-sync-dot" aria-hidden="true" />
 			<div>
-				<strong>{{ degradedSources.length ? '部分来源暂不可用' : '自动聚合运行中' }}</strong>
-				<span>最近更新 {{ formatDateTime(latestSyncAt) }}</span>
-				<small>每 5 分钟检查 · AI HOT 最短 30 分钟 · 站长资讯最短 60 分钟</small>
+				<strong>{{ degradedSources.length ? '部分内容暂未更新' : '内容持续更新' }}</strong>
+				<span>更新于 {{ formatDateTime(latestSyncAt) }}</span>
 			</div>
 		</div>
 	</header>
@@ -213,7 +227,7 @@ onMounted(load)
 		<div v-if="degradedSources.length" class="news-notice card">
 			<Icon name="tabler:cloud-off" aria-hidden="true" />
 			<p>
-				{{ degradedSources.map(source => source.source_id).join('、') }} 暂时同步失败，当前继续展示最后一次成功快照。
+				部分资讯暂时未能刷新，已收录内容仍可正常阅读。
 			</p>
 		</div>
 		<div v-if="error" class="news-notice news-notice-error card" role="alert">
@@ -255,9 +269,9 @@ onMounted(load)
 					<h2 id="news-feed-title">
 						最新收录
 					</h2>
-					<p>按发布时间排列，支持站内阅读的内容会优先留在博客中。</p>
+					<p>按发布时间浏览最新内容。</p>
 				</div>
-				<strong>{{ loading ? '同步中' : `${visibleItems.length} 条` }}</strong>
+				<strong>{{ loading ? '加载中' : `${visibleItems.length} 条` }}</strong>
 			</header>
 
 			<div v-if="loading" class="news-skeletons" aria-label="正在加载资讯">
@@ -302,9 +316,9 @@ onMounted(load)
 								访问原文<Icon name="tabler:arrow-up-right" aria-hidden="true" />
 							</a>
 							<a
-								v-if="item.readerPath"
+								v-if="item.readerPath && item.originalUrl"
 								class="news-source-action"
-								:href="item.originalUrl || item.url"
+								:href="item.originalUrl"
 								target="_blank"
 								rel="noopener noreferrer"
 							>
@@ -343,7 +357,25 @@ onMounted(load)
 				<ol v-if="dailyHighlights.length" class="news-digest-list">
 					<li v-for="(highlight, index) in dailyHighlights" :key="`${highlight.sectionLabel}:${highlight.title}`">
 						<span>{{ String(index + 1).padStart(2, '0') }}</span>
-						<div>
+						<NuxtLink v-if="highlight.readerPath" class="news-digest-item" :to="highlight.readerPath">
+							<small>{{ highlight.sectionLabel }}</small>
+							<strong>{{ highlight.title }}</strong>
+							<p v-if="highlight.summary">
+								{{ highlight.summary }}
+							</p>
+						</NuxtLink>
+						<a
+							v-else-if="highlight.originalUrl"
+							class="news-digest-item"
+							:href="highlight.originalUrl"
+							target="_blank"
+							rel="noopener noreferrer"
+						>
+							<small>{{ highlight.sectionLabel }}</small>
+							<strong>{{ highlight.title }}</strong>
+							<p v-if="highlight.summary">{{ highlight.summary }}</p>
+						</a>
+						<div v-else class="news-digest-item">
 							<small>{{ highlight.sectionLabel }}</small>
 							<strong>{{ highlight.title }}</strong>
 							<p v-if="highlight.summary">
@@ -352,14 +384,6 @@ onMounted(load)
 						</div>
 					</li>
 				</ol>
-				<a
-					class="news-digest-source"
-					:href="data.briefing.source_url"
-					target="_blank"
-					rel="noopener noreferrer"
-				>
-					查看 AI HOT 原始日报<Icon name="tabler:external-link" aria-hidden="true" />
-				</a>
 			</template>
 			<div v-else-if="loading" class="news-digest-loading" aria-label="正在加载日报">
 				<span v-for="index in 4" :key="index" />
@@ -673,8 +697,7 @@ onMounted(load)
 	font-size: 0.7rem;
 }
 
-.news-primary-action,
-.news-digest-source {
+.news-primary-action {
 	display: inline-flex;
 	align-items: center;
 	gap: 0.25rem;
@@ -775,6 +798,13 @@ onMounted(load)
 	gap: 0.55rem;
 }
 
+.news-digest-item {
+	display: block;
+	min-width: 0;
+	border-radius: 0.35rem;
+	color: inherit;
+}
+
 .news-digest-list li > span {
 	font: 0.65rem var(--font-monospace);
 	color: var(--c-primary);
@@ -809,13 +839,6 @@ onMounted(load)
 	-webkit-box-orient: vertical;
 }
 
-.news-digest-source {
-	margin-top: 1rem;
-	padding-top: 0.85rem;
-	border-top: 1px solid var(--c-border);
-	font-size: 0.7rem;
-}
-
 .news-digest-empty {
 	padding: 1.25rem 0;
 	font-size: 0.75rem;
@@ -838,7 +861,7 @@ onMounted(load)
 .news-filter button:focus-visible,
 .news-search:focus-within,
 .news-row a:focus-visible,
-.news-digest a:focus-visible,
+.news-digest-item:focus-visible,
 .news-empty button:focus-visible,
 .news-notice button:focus-visible {
 	outline: 0.16rem solid var(--c-primary-soft);
@@ -862,7 +885,7 @@ onMounted(load)
 
 	.news-row h3 a:hover,
 	.news-primary-action:hover,
-	.news-digest-source:hover {
+	.news-digest-item:hover {
 		color: var(--c-primary-hover);
 	}
 

@@ -139,6 +139,77 @@ function metaContent(html: string, attribute: 'name' | 'property', expected: str
 	return ''
 }
 
+function divInnerHtmlByClass(html: string, expectedClass: string): string {
+	for (const match of html.matchAll(/<div(?:\s[^>]*)?>/giu)) {
+		const className = attributeValue(match[0], 'class')
+		if (!className.split(/\s+/u).includes(expectedClass))
+			continue
+		const contentStart = (match.index || 0) + match[0].length
+		const tokenPattern = /<\/?div\b[^>]*>/giu
+		let depth = 1
+		for (const token of html.slice(contentStart).matchAll(tokenPattern)) {
+			const absoluteIndex = contentStart + (token.index || 0)
+			if (token[0].startsWith('</'))
+				depth -= 1
+			else
+				depth += 1
+			if (depth === 0)
+				return html.slice(contentStart, absoluteIndex)
+		}
+	}
+	return ''
+}
+
+interface HtmlLink {
+	label: string
+	url: string
+}
+
+function htmlLinks(html: string): HtmlLink[] {
+	const links: HtmlLink[] = []
+	for (const match of html.matchAll(/<a(?:\s[^>]*)?>([\s\S]*?)<\/a>/giu)) {
+		const href = decodeEntities(attributeValue(match[0], 'href')).trim()
+		const label = htmlToReadableText(match[1] || '').slice(0, 160)
+		try {
+			const url = new URL(href)
+			if ((url.protocol === 'http:' || url.protocol === 'https:') && label)
+				links.push({ label, url: url.toString() })
+		}
+		catch {
+			// 无效链接由调用方忽略。
+		}
+	}
+	return links
+}
+
+function isZaihuaIntermediaryLink(value: string): boolean {
+	try {
+		const hostname = new URL(value).hostname.toLowerCase()
+		return hostname === 'www.zaihua.news'
+			|| hostname === 'zaihua.news'
+			|| hostname.endsWith('.zaihua.news')
+			|| hostname === 't.me'
+			|| hostname === 'telegram.me'
+			|| hostname.endsWith('.telegram.me')
+	}
+	catch {
+		return true
+	}
+}
+
+function cleanZaihuaBodyHtml(bodyHtml: string, source: HtmlLink | null): string {
+	return bodyHtml.replace(/<p\b[^>]*>[\s\S]*?<\/p>/giu, (paragraph) => {
+		const paragraphText = htmlToReadableText(paragraph).replace(/\s+/gu, ' ').trim()
+		if (/在花频道|茶馆水群|投稿通道/u.test(paragraphText))
+			return ''
+		if (!source)
+			return paragraph
+		const normalizedText = paragraphText.replace(/^(?:来源|原文来源)\s*[:：]?\s*/u, '')
+		const containsSource = htmlLinks(paragraph).some(link => link.url === source.url)
+		return containsSource && normalizedText === source.label ? '' : paragraph
+	})
+}
+
 export function htmlToReadableText(input: string): string {
 	let html = stripCdata(input || '')
 	for (const tag of REMOVED_TAGS)
@@ -265,26 +336,35 @@ export function parseAiHotDaily(payload: unknown): ParsedAiHotDailyReport | null
 	}
 }
 
-export function extractZaihuaArticle(html: string): { title: string, bodyText: string } | null {
-	let bodyHtml = ''
-	for (const match of html.matchAll(/<div(?:\s[^>]*)?>/giu)) {
-		const className = attributeValue(match[0], 'class')
-		if (!className.split(/\s+/u).includes('msg-prose'))
-			continue
-		const contentStart = (match.index || 0) + match[0].length
-		const contentEnd = html.indexOf('</div>', contentStart)
-		if (contentEnd > contentStart)
-			bodyHtml = html.slice(contentStart, contentEnd)
-		break
-	}
+export function extractAiHotArticle(html: string): { bodyText: string } | null {
+	const bodyHtml = divInnerHtmlByClass(html, 'm-detail-html')
+	const bodyText = htmlToReadableText(bodyHtml)
+	return bodyText ? { bodyText } : null
+}
+
+export function extractZaihuaArticle(html: string): {
+	title: string
+	bodyText: string
+	originalUrl: string | null
+	sourceName: string | null
+} | null {
+	const bodyHtml = divInnerHtmlByClass(html, 'msg-prose')
 	if (!bodyHtml)
 		return null
-	const bodyText = htmlToReadableText(bodyHtml)
+	const source = htmlLinks(bodyHtml).find(link => !isZaihuaIntermediaryLink(link.url)) || null
+	const bodyText = htmlToReadableText(cleanZaihuaBodyHtml(bodyHtml, source))
 	if (!bodyText)
 		return null
 	const title = (
 		metaContent(html, 'property', 'og:title')
 		|| htmlToReadableText(html.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/iu)?.[1] || '')
-	).slice(0, 500)
-	return title ? { title, bodyText } : null
+	).replace(/^[\p{Extended_Pictographic}\uFE0F\s]+/gu, '').slice(0, 500)
+	return title
+		? {
+				title,
+				bodyText,
+				originalUrl: source?.url || null,
+				sourceName: source?.label || null,
+			}
+		: null
 }

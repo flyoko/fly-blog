@@ -3,7 +3,7 @@ import type { AppEnvironment, Env } from '../src/env'
 import { applyD1Migrations, env } from 'cloudflare:test'
 import { Hono } from 'hono'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { extractZaihuaArticle, htmlToReadableText, parseAiHotFullFeed, parseAiHotItems, parseRssFeed } from '../src/features/news/parsers'
+import { extractAiHotArticle, extractZaihuaArticle, htmlToReadableText, parseAiHotFullFeed, parseAiHotItems, parseRssFeed } from '../src/features/news/parsers'
 import { publicNewsRoutes } from '../src/features/news/routes'
 import { NewsService } from '../src/features/news/service'
 import { failure, normalizeError } from '../src/lib/api-error'
@@ -100,7 +100,11 @@ describe('news service', () => {
 			if (url === 'https://www.zaihua.news/article/100/') {
 				return new Response(`
 					<meta property="og:title" content="完整的站长资讯标题">
-					<div class="msg-prose text-[18px]"><p>站长正文第一段。</p><p>站长正文第二段。</p></div>
+					<div class="msg-prose text-[18px]">
+						<p>站长正文第一段。</p><p>站长正文第二段。</p>
+						<p><a href="https://news.example.com/original">腾讯新闻</a></p>
+						<p>🌸 <a href="https://t.me/ZaiHuaPd">在花频道</a> · <a href="https://t.me/zaihuachat">茶馆水群</a> · <a href="https://t.me/ZaiHuabot">投稿通道</a></p>
+					</div>
 				`, { status: 200 })
 			}
 			if (url.includes('/api/v1/items')) {
@@ -115,6 +119,13 @@ describe('news service', () => {
 					selected: true,
 				}] }, { headers: { etag: '"items-v1"' } })
 			}
+			if (url === 'https://aihot.virxact.com/items/cms-reader') {
+				return new Response(`
+					<div class="m-detail-html">
+						<p>来源页面正文第一段。</p><p>来源页面正文第二段。</p>
+					</div>
+				`, { status: 200 })
+			}
 			if (url.endsWith('/feed/full.xml')) {
 				return new Response(`
 					<rss xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><item>
@@ -122,7 +133,6 @@ describe('news service', () => {
 						<link>https://aihot.virxact.com/items/cms-reader</link>
 						<guid>cms-reader</guid>
 						<description><![CDATA[<p>AI HOT 摘要</p><p><a href="https://example.com/original">阅读原文</a></p>]]></description>
-						<content:encoded><![CDATA[<p>允许转载的正文第一段。</p><p>允许转载的正文第二段。</p>]]></content:encoded>
 					</item></channel></rss>
 				`, { status: 200, headers: { etag: '"full-v1"' } })
 			}
@@ -142,17 +152,38 @@ describe('news service', () => {
 			expect(data.items).toHaveLength(2)
 			const hot = data.items.find(item => item.id === 'ai-hot:cms-reader')!
 			const rss = data.items.find(item => item.sourceId === 'station-news')!
-			expect(hot).toMatchObject({ contentMode: 'full', originalUrl: 'https://example.com/original' })
-			expect(rss).toMatchObject({ title: '完整的站长资讯标题', contentMode: 'full' })
+			expect(hot).toMatchObject({
+				contentMode: 'full',
+				originalUrl: 'https://example.com/original',
+				url: 'https://example.com/original',
+			})
+			expect(rss).toMatchObject({
+				title: '完整的站长资讯标题',
+				contentMode: 'full',
+				originalUrl: 'https://news.example.com/original',
+				url: 'https://news.example.com/original',
+			})
+			expect(data.briefing?.source_url).toBe('https://flyovo.cc.cd/ai.news')
 			expect(hot.readerPath).toMatch(/^\/ai\.news\/read\/[a-f0-9]{32}$/u)
 			expect(rss.readerPath).toMatch(/^\/ai\.news\/read\/[a-f0-9]{32}$/u)
 
 			const hotDocument = await service.read(hot.readerPath!.split('/').at(-1)!)
 			expect(hotDocument).toMatchObject({
-				bodyText: '允许转载的正文第一段。\n\n允许转载的正文第二段。',
+				bodyText: '来源页面正文第一段。\n\n来源页面正文第二段。',
 				contentMode: 'full',
-				attribution: { name: 'AI HOT', url: 'https://aihot.virxact.com/items/cms-reader' },
+				attribution: { name: '官方博客', url: 'https://example.com/original' },
+				sourceUrl: 'https://example.com/original',
+				originalUrl: 'https://example.com/original',
 			})
+
+			const rssDocument = await service.read(rss.readerPath!.split('/').at(-1)!)
+			expect(rssDocument).toMatchObject({
+				bodyText: '站长正文第一段。\n\n站长正文第二段。',
+				attribution: { name: '腾讯新闻', url: 'https://news.example.com/original' },
+				sourceUrl: 'https://news.example.com/original',
+				originalUrl: 'https://news.example.com/original',
+			})
+			expect(rssDocument?.bodyText).not.toContain('在花频道')
 
 			fetchSpy.mockClear()
 			const skipped = await service.sync()
@@ -327,16 +358,35 @@ describe('news source parsers', () => {
 		])
 	})
 
-	it('extracts the readable Zaihua article body and rejects unknown markup', () => {
+	it('extracts the readable Zaihua article body, true source, and removes channel promotion', () => {
 		const article = extractZaihuaArticle(`
 			<html><head><meta property="og:title" content="站长资讯标题"></head><body>
 				<article><h1><strong>站长资讯标题</strong></h1>
-				<div class="msg-prose text-[18px]"><p>第一段。</p><p>第二段 <a href="https://example.com">来源</a>。</p></div>
+				<div class="msg-prose text-[18px]">
+					<p>第一段。</p><p>第二段。</p>
+					<p><a href="https://news.example.com/story">腾讯新闻</a></p>
+					<p>🌸 <a href="https://t.me/ZaiHuaPd">在花频道</a> · <a href="https://t.me/zaihuachat">茶馆水群</a> · <a href="https://t.me/ZaiHuabot">投稿通道</a></p>
+				</div>
 				</article>
 			</body></html>
 		`)
-		expect(article).toEqual({ title: '站长资讯标题', bodyText: '第一段。\n\n第二段 来源。' })
+		expect(article).toEqual({
+			title: '站长资讯标题',
+			bodyText: '第一段。\n\n第二段。',
+			originalUrl: 'https://news.example.com/story',
+			sourceName: '腾讯新闻',
+		})
 		expect(extractZaihuaArticle('<article><p>结构已变化</p></article>')).toBeNull()
+	})
+
+	it('extracts the full translated body from an AI HOT detail page', () => {
+		expect(extractAiHotArticle(`
+			<div class="m-detail-summary"><p>摘要不应被当作正文。</p></div>
+			<div id="article-body"><div class="m-detail-html">
+				<p>完整正文第一段。</p><h2>小标题</h2><p>完整正文第二段。</p>
+			</div></div>
+		`)).toEqual({ bodyText: '完整正文第一段。\n\n小标题\n\n完整正文第二段。' })
+		expect(extractAiHotArticle('<div>没有正文结构</div>')).toBeNull()
 	})
 
 	it('normalizes RSS and AI HOT item payloads', () => {
