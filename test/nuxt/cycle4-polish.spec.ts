@@ -26,6 +26,8 @@ describe('cycle 4 polish contracts', () => {
 		expect(widgets).toContain('LazyWidgetWeather')
 		expect(weather).toContain('module.id === \'weather\' && module.enabled')
 		expect(weather).toContain('<BlogWidget v-if="visible" title="站长城市天气" card>')
+		expect(weather).toContain('\'tabler:cloud-sun\': \'ri:sun-cloudy-line\'')
+		expect(weather).toContain(':name="weatherIcon"')
 		const panel = read('app/components/blog/BlogPanel.vue')
 		expect(panel).toContain('z-index: calc(var(--z-index-popover) + 3)')
 		expect(layout).toContain(':not(.blog-atmosphere, .reading-progress, #blog-panel, .music-player)')

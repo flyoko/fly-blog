@@ -4,9 +4,19 @@ import type { PublicWeather } from '#shared/admin/weather'
 
 const appConfig = useAppConfig()
 const configuredEnabled = computed(() => appConfig.featureModules.some(module => module.id === 'weather' && module.enabled))
+const weatherIconAliases: Record<string, string> = {
+	'tabler:cloud-sun': 'ri:sun-cloudy-line',
+}
+
 const weather = ref<PublicWeather | null>(null)
 const loading = ref(false)
 const error = ref(false)
+const weatherIcon = computed(() => {
+	const current = weather.value
+	if (!current?.available)
+		return ''
+	return weatherIconAliases[current.icon] ?? current.icon
+})
 const visible = computed(() => Boolean(
 	(weather.value?.available)
 	|| weather.value?.reason === 'temporarily_unavailable'
@@ -35,7 +45,7 @@ onMounted(load)
 	<div v-if="loading" class="weather-skeleton" aria-label="正在加载天气" />
 	<div v-else-if="weather?.available" class="weather-card" :class="weather.isDay ? 'is-day' : 'is-night'">
 		<div class="weather-current">
-			<Icon :name="weather.icon" />
+			<Icon :name="weatherIcon" />
 			<div>
 				<strong>{{ Math.round(weather.temperature) }}°</strong>
 				<span>{{ weather.condition }}</span>

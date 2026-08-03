@@ -37,7 +37,7 @@ async function mockPublicWeatherAndMusic(page: Page) {
 				temperature: 29.4,
 				weatherCode: 1,
 				condition: '少云',
-				icon: 'ri:sun-cloudy-line',
+				icon: 'tabler:cloud-sun',
 				isDay: true,
 				high: 34,
 				low: 25,
@@ -136,6 +136,7 @@ test.describe('cycle 3 desktop workflows', () => {
 		await mockPublicWeatherAndMusic(page)
 		await page.goto('/', { waitUntil: 'domcontentloaded' })
 		await expect(page.getByText('杭州 · 浙江 · 中国')).toBeVisible()
+		await expect(page.locator('.weather-current .iconify')).toHaveClass(/i-ri:sun-cloudy-line/u)
 		await expect(page.getByRole('link', { name: 'Open-Meteo' })).toBeVisible()
 		const player = page.getByRole('region', { name: '随心听播放器' })
 		await expect(player).toBeVisible()
@@ -172,6 +173,7 @@ test('cycle 3 public weather and player remain usable on mobile', async ({ page,
 	await page.goto('/', { waitUntil: 'domcontentloaded' })
 	await page.getByRole('button', { name: '切换侧边栏' }).click()
 	await expect(page.getByText('杭州 · 浙江 · 中国')).toBeVisible()
+	await expect(page.locator('.weather-current .iconify')).toHaveClass(/i-ri:sun-cloudy-line/u)
 	await expect(page.getByRole('region', { name: '随心听播放器' })).toBeVisible()
 	const dimensions = await page.evaluate(() => ({ scrollWidth: document.documentElement.scrollWidth, clientWidth: document.documentElement.clientWidth }))
 	expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth + 1)
