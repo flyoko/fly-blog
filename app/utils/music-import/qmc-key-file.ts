@@ -1,9 +1,11 @@
+import { fileExtension, getQmcFormat } from './qmc-formats'
 import { MusicImportError } from './types'
 
 const qmcEkeyPattern = /^[A-Za-z0-9+/]+={0,2}$/u
 const maxKeyEntries = 10000
 const maxEkeyLength = 16384
 const maxVarintBytes = 10
+const standardAudioExtensions = new Set(['mp3', 'ogg', 'flac', 'wav', 'm4a'])
 
 interface QmcKeyBundleJson {
 	version: number
@@ -183,7 +185,17 @@ export function parseQmcMmkv(input: ArrayBuffer): Map<string, string> {
 	}
 }
 
+function isAudioFileSelection(file: File) {
+	const extension = fileExtension(file.name)
+	return getQmcFormat(file.name) !== null
+		|| file.type.toLowerCase().startsWith('audio/')
+		|| Boolean(extension && standardAudioExtensions.has(extension))
+}
+
 export async function parseQmcKeyFile(file: File): Promise<Map<string, string>> {
+	if (isAudioFileSelection(file)) {
+		invalidBundle('你选择的是音乐文件，不是 QQ 音乐密钥文件。请使用“上传媒体/上传音频”选择该文件；此处只导入 MMKVStreamEncryptId、filenameEkeyMap、.mmkv 或 JSON 密钥包。')
+	}
 	const input = await file.arrayBuffer()
 	const bytes = new Uint8Array(input)
 	let looksLikeJson = file.name.toLowerCase().endsWith('.json')

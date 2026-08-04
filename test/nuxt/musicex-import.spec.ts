@@ -194,6 +194,25 @@ describe('qMC key bundle', () => {
 		expect(imported.get('F0M0000HJUZs40wWgK.mflac')).toBe(sampleEkey)
 	})
 
+	it.each([
+		'sample.mflac',
+		'sample.mgg',
+	])('rejects QMC audio selected as a key file with actionable guidance before reading %s', async (name) => {
+		const arrayBuffer = vi.fn()
+		const file = {
+			name,
+			size: 1024,
+			type: '',
+			arrayBuffer,
+		} as unknown as File
+
+		await expect(parseQmcKeyFile(file)).rejects.toMatchObject({
+			code: 'INVALID_KEY_BUNDLE',
+			message: expect.stringContaining('不是 QQ 音乐密钥文件'),
+		})
+		expect(arrayBuffer).not.toHaveBeenCalled()
+	})
+
 	it('auto-detects JSON key bundles even when the file has no extension', async () => {
 		const imported = await parseQmcKeyFile(new File([JSON.stringify({
 			version: 1,

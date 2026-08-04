@@ -371,12 +371,12 @@ onBeforeUnmount(() => {
 		<div>
 			<strong>MusicEx 本机密钥</strong>
 			<span v-if="keyCount">已加载 {{ keyCount }} 条本机媒体密钥，仅保留在当前页面内存。</span>
-			<span v-else>尚未加载本机密钥。支持直接导入 Mac/iOS 的 MMKVStreamEncryptId、filenameEkeyMap、.mmkv，或版本化 JSON 密钥包。</span>
+			<span v-else>尚未加载本机密钥。这里导入的是密钥数据库，不是 .mflac/.mgg 音乐文件；音乐文件请使用上方上传入口。支持 Mac/iOS 的 MMKVStreamEncryptId、filenameEkeyMap、.mmkv，或版本化 JSON 密钥包。</span>
 		</div>
 		<div class="admin-music-key-file-actions">
 			<button class="admin-button" type="button" :disabled="uploadBusy" @click="openKeyFilePicker">
 				<Icon name="tabler:key" />
-				导入 QQ 音乐密钥文件
+				导入 QQ 音乐密钥数据库
 			</button>
 			<button v-if="keyCount" class="admin-button" type="button" :disabled="uploadBusy" @click="removeMediaKeys">
 				移除本机密钥
@@ -385,6 +385,7 @@ onBeforeUnmount(() => {
 				ref="keyFileInput"
 				class="admin-music-key-file-input"
 				type="file"
+				aria-label="选择 QQ 音乐 MMKV 或 JSON 密钥文件（不是音乐文件）"
 				:disabled="uploadBusy"
 				@change="importKeyFile"
 			>
