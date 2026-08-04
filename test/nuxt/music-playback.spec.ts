@@ -28,7 +28,7 @@ describe('music playback helpers', () => {
 
 	it('keeps the default player compact and moves secondary controls into details', () => {
 		const source = readFileSync(new URL('../../app/components/music/GlobalPlayer.vue', import.meta.url), 'utf8')
-		const detailsIndex = source.indexOf('<div v-if="store.expanded" class="music-player-details">')
+		const detailsIndex = source.indexOf('class="music-player-details"')
 		const volumeIndex = source.indexOf('<div class="music-volume-control">')
 
 		expect(source).toContain('class="music-player-console"')
