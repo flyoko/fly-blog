@@ -12,6 +12,17 @@
       "duration": null,
       "enabled": true,
       "order": 0
+    },
+    {
+      "id": "track-e515d1f0",
+      "title": "哈气之路(平凡之路曼波版)",
+      "artist": " 抽象小猫来也",
+      "source": "",
+      "audioUrl": "https://flyovo.cc.cd/media/public/music/audio/3278e9cd-a310-444c-b641-46c285e65ec9.mp3",
+      "coverUrl": "https://flyovo.cc.cd/media/public/music/covers/db6715a5-651f-4854-8a2a-184887b12c04.jpg",
+      "duration": null,
+      "enabled": true,
+      "order": 1
     }
   ]
 }
