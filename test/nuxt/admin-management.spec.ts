@@ -78,7 +78,10 @@ describe('admin management UI boundaries', () => {
 		expect(news).toContain('站内阅读')
 		expect(news).toContain('item.readerPath')
 		expect(news).not.toContain('news-feature')
-		expect(news).not.toContain('<img')
+		expect(news).toContain('item.coverImage')
+		expect(news).toContain('class="news-row-image"')
+		expect(news).toContain('loading="lazy"')
+		expect(news).toContain('@error="hideBrokenImage(item.coverImage.url)"')
 	})
 
 	it('shows per-file partial upload results and trash restoration', async () => {

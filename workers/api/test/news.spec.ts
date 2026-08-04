@@ -3,7 +3,7 @@ import type { AppEnvironment, Env } from '../src/env'
 import { applyD1Migrations, env } from 'cloudflare:test'
 import { Hono } from 'hono'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { extractAiHotArticle, extractZaihuaArticle, htmlToReadableText, parseAiHotFullFeed, parseAiHotItems, parseRssFeed } from '../src/features/news/parsers'
+import { extractAiHotArticle, extractHtmlImages, extractZaihuaArticle, htmlToReadableText, parseAiHotFullFeed, parseAiHotItems, parseRssFeed } from '../src/features/news/parsers'
 import { publicNewsRoutes } from '../src/features/news/routes'
 import { NewsService } from '../src/features/news/service'
 import { failure, normalizeError } from '../src/lib/api-error'
@@ -114,6 +114,7 @@ describe('news service', () => {
 				return new Response(`
 					<meta property="og:title" content="完整的站长资讯标题">
 					<div class="msg-prose text-[18px]">
+						<img src="/images/zaihua.png" alt="站长资讯配图">
 						<p>站长正文第一段。</p><p>站长正文第二段。</p>
 						<p><a href="https://news.example.com/original">腾讯新闻</a></p>
 						<p>🌸 <a href="https://t.me/ZaiHuaPd">在花频道</a> · <a href="https://t.me/zaihuachat">茶馆水群</a> · <a href="https://t.me/ZaiHuabot">投稿通道</a></p>
@@ -135,9 +136,22 @@ describe('news service', () => {
 			if (url === 'https://aihot.virxact.com/items/cms-reader') {
 				return new Response(`
 					<div class="m-detail-html">
+						<img srcset="https://cdn.example.com/aihot-small.png 320w, https://cdn.example.com/aihot-large.png 1280w" alt="AI HOT 配图">
 						<p>来源页面正文第一段。</p><p>来源页面正文第二段。</p>
 					</div>
 				`, { status: 200 })
+			}
+			if (url === 'https://cdn.example.com/aihot-large.png') {
+				return new Response(null, {
+					status: 302,
+					headers: { location: 'https://cdn.example.com/files/aihot.png' },
+				})
+			}
+			if (url === 'https://www.zaihua.news/images/zaihua.png' || url === 'https://cdn.example.com/files/aihot.png') {
+				return new Response(Uint8Array.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, url.length]), {
+					status: 200,
+					headers: { 'content-type': 'image/png' },
+				})
 			}
 			if (url.endsWith('/feed/full.xml')) {
 				return new Response(`
@@ -169,13 +183,26 @@ describe('news service', () => {
 				contentMode: 'full',
 				originalUrl: 'https://example.com/original',
 				url: 'https://example.com/original',
+				coverImage: { alt: 'AI HOT 配图', mime: 'image/png' },
 			})
 			expect(rss).toMatchObject({
 				title: '完整的站长资讯标题',
 				contentMode: 'full',
 				originalUrl: 'https://news.example.com/original',
 				url: 'https://news.example.com/original',
+				coverImage: { alt: '站长资讯配图', mime: 'image/png' },
 			})
+			expect(hot.coverImage?.url).toContain('/public/news/')
+			expect(rss.coverImage?.url).toContain('/public/news/')
+			expect(hot.coverImage?.url).not.toContain('cdn.example.com')
+			const imageRequest = fetchSpy.mock.calls.find(([input]) => {
+				const url = typeof input === 'string' ? input : input instanceof Request ? input.url : input.toString()
+				return url === 'https://cdn.example.com/aihot-large.png'
+			})
+			expect(imageRequest).toBeDefined()
+			const imageAccept = new Headers(imageRequest?.[1]?.headers).get('accept') || ''
+			expect(imageAccept).toContain('image/webp')
+			expect(imageAccept).not.toContain('image/avif')
 			expect(data.briefing?.source_url).toBe('https://flyovo.cc.cd/ai.news')
 			expect(hot.readerPath).toMatch(/^\/ai\.news\/read\/[a-f0-9]{32}$/u)
 			expect(rss.readerPath).toMatch(/^\/ai\.news\/read\/[a-f0-9]{32}$/u)
@@ -187,6 +214,7 @@ describe('news service', () => {
 				attribution: { name: '官方博客', url: 'https://example.com/original' },
 				sourceUrl: 'https://example.com/original',
 				originalUrl: 'https://example.com/original',
+				images: [expect.objectContaining({ alt: 'AI HOT 配图', mime: 'image/png' })],
 			})
 
 			const rssDocument = await service.read(rss.readerPath!.split('/').at(-1)!)
@@ -195,6 +223,7 @@ describe('news service', () => {
 				attribution: { name: '腾讯新闻', url: 'https://news.example.com/original' },
 				sourceUrl: 'https://news.example.com/original',
 				originalUrl: 'https://news.example.com/original',
+				images: [expect.objectContaining({ alt: '站长资讯配图', mime: 'image/png' })],
 			})
 			expect(rssDocument?.bodyText).not.toContain('在花频道')
 
@@ -384,6 +413,17 @@ describe('news source parsers', () => {
 		`)).toBe('第一段 & 补充\n\n条目一\n\n条目二')
 	})
 
+	it('extracts lazy and responsive images with stable ordering', () => {
+		expect(extractHtmlImages(`
+			<img src="/placeholder.gif" data-src="/hero.webp" alt="主图">
+			<img srcset="/small.jpg 320w, /large.jpg 1280w" alt="响应式图">
+			<img src="/hero.webp" alt="重复图">
+		`, 'https://news.example.com/story')).toEqual([
+			{ url: 'https://news.example.com/hero.webp', alt: '主图' },
+			{ url: 'https://news.example.com/large.jpg', alt: '响应式图' },
+		])
+	})
+
 	it('parses AI HOT full feed without treating summaries as full text', () => {
 		const entries = parseAiHotFullFeed(`
 			<rss xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel>
@@ -423,6 +463,7 @@ describe('news source parsers', () => {
 		expect(article).toEqual({
 			title: '站长资讯标题',
 			bodyText: '第一段。\n\n第二段。',
+			images: [],
 			originalUrl: 'https://news.example.com/story',
 			sourceName: '腾讯新闻',
 		})
@@ -436,7 +477,7 @@ describe('news source parsers', () => {
 				<p>完整正文第一段。</p><h2>小标题</h2><p>完整正文第二段。</p>
 				<p>—— 本文由 AI HOT 聚合整理，完整版与更多 AI 动态见 https://aihot.virxact.com/items/cms1</p>
 			</div></div>
-		`)).toEqual({ bodyText: '完整正文第一段。\n\n小标题\n\n完整正文第二段。' })
+		`)).toEqual({ bodyText: '完整正文第一段。\n\n小标题\n\n完整正文第二段。', images: [] })
 		expect(extractAiHotArticle('<div>没有正文结构</div>')).toBeNull()
 	})
 

@@ -75,6 +75,7 @@ const loading = ref(true)
 const error = ref('')
 const filter = ref<NewsFilter>('all')
 const query = ref('')
+const failedImageUrls = ref<Set<string>>(new Set())
 
 const dailySections = computed<DailySection[]>(() => {
 	if (!data.value?.briefing)
@@ -182,9 +183,14 @@ function clearSearch() {
 	query.value = ''
 }
 
+function hideBrokenImage(url: string) {
+	failedImageUrls.value = new Set([...failedImageUrls.value, url])
+}
+
 async function load() {
 	loading.value = true
 	error.value = ''
+	failedImageUrls.value = new Set()
 	try {
 		data.value = await $fetch<{ data: NewsPayload }>('/api/news').then(result => result.data)
 	}
@@ -283,48 +289,63 @@ onMounted(load)
 					<div class="news-row-rail" aria-hidden="true">
 						<span />
 					</div>
-					<div class="news-row-body">
-						<header class="news-row-meta">
-							<span>{{ sourceLabel(item) }}</span>
-							<span>{{ categoryLabel(item) }}</span>
-							<span v-if="contentModeLabel(item)" class="news-content-mode">{{ contentModeLabel(item) }}</span>
-							<time v-if="item.publishedAt" :datetime="item.publishedAt">{{ formatDateTime(item.publishedAt) }}</time>
-							<span v-else>最近收录</span>
-						</header>
-						<h3>
-							<NuxtLink v-if="item.readerPath" :to="item.readerPath">
-								{{ item.title }}
-							</NuxtLink>
-							<a v-else :href="item.originalUrl || item.url" target="_blank" rel="noopener noreferrer">
-								{{ item.title }}
-							</a>
-						</h3>
-						<p v-if="item.summary" class="news-row-summary">
-							{{ item.summary }}
-						</p>
-						<footer class="news-row-actions">
-							<NuxtLink v-if="item.readerPath" class="news-primary-action" :to="item.readerPath">
-								站内阅读<Icon name="tabler:arrow-right" aria-hidden="true" />
-							</NuxtLink>
-							<a
-								v-else
-								class="news-primary-action"
-								:href="item.originalUrl || item.url"
-								target="_blank"
-								rel="noopener noreferrer"
-							>
-								访问原文<Icon name="tabler:arrow-up-right" aria-hidden="true" />
-							</a>
-							<a
-								v-if="item.readerPath && item.originalUrl"
-								class="news-source-action"
-								:href="item.originalUrl"
-								target="_blank"
-								rel="noopener noreferrer"
-							>
-								原始来源
-							</a>
-						</footer>
+					<div
+						class="news-row-body"
+						:class="{ 'has-image': item.coverImage && !failedImageUrls.has(item.coverImage.url) }"
+					>
+						<div class="news-row-copy">
+							<header class="news-row-meta">
+								<span>{{ sourceLabel(item) }}</span>
+								<span>{{ categoryLabel(item) }}</span>
+								<span v-if="contentModeLabel(item)" class="news-content-mode">{{ contentModeLabel(item) }}</span>
+								<time v-if="item.publishedAt" :datetime="item.publishedAt">{{ formatDateTime(item.publishedAt) }}</time>
+								<span v-else>最近收录</span>
+							</header>
+							<h3>
+								<NuxtLink v-if="item.readerPath" :to="item.readerPath">
+									{{ item.title }}
+								</NuxtLink>
+								<a v-else :href="item.originalUrl || item.url" target="_blank" rel="noopener noreferrer">
+									{{ item.title }}
+								</a>
+							</h3>
+							<p v-if="item.summary" class="news-row-summary">
+								{{ item.summary }}
+							</p>
+							<footer class="news-row-actions">
+								<NuxtLink v-if="item.readerPath" class="news-primary-action" :to="item.readerPath">
+									站内阅读<Icon name="tabler:arrow-right" aria-hidden="true" />
+								</NuxtLink>
+								<a
+									v-else
+									class="news-primary-action"
+									:href="item.originalUrl || item.url"
+									target="_blank"
+									rel="noopener noreferrer"
+								>
+									访问原文<Icon name="tabler:arrow-up-right" aria-hidden="true" />
+								</a>
+								<a
+									v-if="item.readerPath && item.originalUrl"
+									class="news-source-action"
+									:href="item.originalUrl"
+									target="_blank"
+									rel="noopener noreferrer"
+								>
+									原始来源
+								</a>
+							</footer>
+						</div>
+						<img
+							v-if="item.coverImage && !failedImageUrls.has(item.coverImage.url)"
+							class="news-row-image"
+							:src="item.coverImage.url"
+							:alt="item.coverImage.alt || ''"
+							loading="lazy"
+							decoding="async"
+							referrerpolicy="no-referrer"
+							@error="hideBrokenImage(item.coverImage.url)"
+						>
 					</div>
 				</article>
 			</div>
@@ -646,6 +667,27 @@ onMounted(load)
 	transition: background-color 0.18s;
 }
 
+.news-row-copy {
+	min-width: 0;
+}
+
+.news-row-body.has-image {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) clamp(6.8rem, 15vw, 8.6rem);
+	align-items: start;
+	gap: 1rem;
+}
+
+.news-row-image {
+	display: block;
+	width: 100%;
+	aspect-ratio: 4 / 3;
+	border: 1px solid var(--c-border);
+	border-radius: 0.65rem;
+	background: var(--c-primary-soft);
+	object-fit: cover;
+}
+
 .news-row-meta {
 	display: flex;
 	flex-wrap: wrap;
@@ -945,6 +987,11 @@ onMounted(load)
 
 	.news-row h3 {
 		font-size: 1rem;
+	}
+
+	.news-row-body.has-image {
+		grid-template-columns: minmax(0, 1fr) 5.6rem;
+		gap: 0.65rem;
 	}
 
 	.news-row-actions {

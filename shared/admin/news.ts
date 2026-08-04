@@ -3,6 +3,12 @@ import { publicHttpUrlSchema } from '../utils/public-url'
 
 export const newsContentModeSchema = z.enum(['full', 'summary'])
 
+export const newsImageSchema = z.object({
+	url: publicHttpUrlSchema,
+	alt: z.string().max(500).nullable(),
+	mime: z.enum(['image/png', 'image/jpeg', 'image/webp', 'image/gif']),
+})
+
 export const newsItemSchema = z.object({
 	id: z.string().min(1),
 	sourceId: z.string().min(1),
@@ -18,12 +24,14 @@ export const newsItemSchema = z.object({
 	selected: z.boolean(),
 	readerPath: z.string().startsWith('/ai.news/read/').nullable(),
 	contentMode: newsContentModeSchema.nullable(),
+	coverImage: newsImageSchema.nullable().default(null),
 })
 
 export const newsDocumentSchema = z.object({
 	item: newsItemSchema,
 	readerKey: z.string().regex(/^[a-f0-9]{32}$/u),
 	bodyText: z.string().min(1).max(100_000),
+	images: z.array(newsImageSchema).max(6).default([]),
 	contentMode: newsContentModeSchema,
 	attribution: z.object({
 		name: z.string().min(1).max(160),
@@ -48,5 +56,6 @@ export const deleteNewsRequestSchema = z.object({
 })
 
 export type NewsContentMode = z.infer<typeof newsContentModeSchema>
+export type NewsImageDto = z.infer<typeof newsImageSchema>
 export type NewsItemDto = z.infer<typeof newsItemSchema>
 export type NewsDocumentDto = z.infer<typeof newsDocumentSchema>

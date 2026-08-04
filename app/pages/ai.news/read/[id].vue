@@ -6,6 +6,7 @@ const readerKey = computed(() => String(route.params.id || ''))
 const newsDocument = ref<NewsDocumentDto | null>(null)
 const loading = ref(true)
 const error = ref('')
+const failedImageUrls = ref<Set<string>>(new Set())
 
 const paragraphs = computed(() =>
 	(newsDocument.value?.bodyText || '')
@@ -30,6 +31,9 @@ const publishedAt = computed(() =>
 )
 
 const originalLink = computed(() => newsDocument.value?.originalUrl || '')
+const visibleImages = computed(() =>
+	(newsDocument.value?.images || []).filter(image => !failedImageUrls.value.has(image.url)),
+)
 
 useSeoMeta({
 	title: () => newsDocument.value
@@ -66,10 +70,15 @@ function formatDateTime(value: string | null) {
 	}).format(date).replaceAll('/', '.')
 }
 
+function hideBrokenImage(url: string) {
+	failedImageUrls.value = new Set([...failedImageUrls.value, url])
+}
+
 async function load() {
 	loading.value = true
 	error.value = ''
 	newsDocument.value = null
+	failedImageUrls.value = new Set()
 	try {
 		const endpoint = '/api/news/read/'
 		newsDocument.value = await $fetch<{ data: NewsDocumentDto }>(
@@ -153,6 +162,22 @@ onMounted(load)
 			<p v-else>
 				以下为内容摘要，完整信息请阅读原文。
 			</p>
+		</div>
+
+		<div v-if="visibleImages.length" class="reader-gallery" aria-label="新闻相关图片">
+			<figure v-for="image in visibleImages" :key="image.url">
+				<img
+					:src="image.url"
+					:alt="image.alt || ''"
+					loading="lazy"
+					decoding="async"
+					referrerpolicy="no-referrer"
+					@error="hideBrokenImage(image.url)"
+				>
+				<figcaption v-if="image.alt">
+					{{ image.alt }}
+				</figcaption>
+			</figure>
 		</div>
 
 		<div class="reader-body">
@@ -287,6 +312,36 @@ onMounted(load)
 
 .reader-notice.summary .iconify {
 	color: var(--c-warning);
+}
+
+.reader-gallery {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+	gap: 1rem;
+	padding: clamp(1.2rem, 3vw, 1.8rem) clamp(1.3rem, 4vw, 2.35rem) 0;
+}
+
+.reader-gallery figure {
+	overflow: hidden;
+	border: 1px solid var(--c-border);
+	border-radius: 0.85rem;
+	background: var(--c-primary-soft);
+}
+
+.reader-gallery img {
+	display: block;
+	width: 100%;
+	max-height: 34rem;
+	background: var(--ld-bg-card);
+	object-fit: contain;
+}
+
+.reader-gallery figcaption {
+	padding: 0.65rem 0.8rem;
+	border-top: 1px solid var(--c-border);
+	font-size: 0.72rem;
+	line-height: 1.6;
+	color: var(--c-text-2);
 }
 
 .reader-body {

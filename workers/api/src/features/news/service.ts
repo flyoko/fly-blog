@@ -1,10 +1,12 @@
-import type { NewsDocumentDto, NewsItemDto } from '../../../../../shared/admin/news'
+import type { NewsDocumentDto, NewsImageDto, NewsItemDto } from '../../../../../shared/admin/news'
 import type { NewsSourcesConfig } from '../../../../../shared/admin/site-config'
 import type { Env } from '../../env'
+import type { ParsedNewsImage } from './parsers'
 import pLimit from 'p-limit'
 import newsSourcesRaw from '../../../../../config/news/sources.json'
 import { newsSourcesConfigSchema } from '../../../../../shared/admin/site-config'
 import { isPublicHttpUrl } from '../../../../../shared/utils/public-url'
+import { detectAllowedMedia } from '../media/file-signatures'
 import {
 	cleanAiHotBodyText,
 	extractAiHotArticle,
@@ -31,6 +33,7 @@ interface NewsRow {
 	metadata_json?: string
 	reader_key?: string | null
 	content_mode?: NewsDocumentDto['contentMode'] | null
+	images_json?: string
 }
 
 interface BriefingRow {
@@ -63,6 +66,7 @@ interface DocumentRow extends NewsRow {
 	document_source_url: string
 	document_original_url: string | null
 	document_fetched_at: string
+	images_json: string
 }
 
 interface ExistingZaihuaRow {
@@ -71,6 +75,7 @@ interface ExistingZaihuaRow {
 	original_url: string | null
 	metadata_json: string
 	document_item_id: string | null
+	document_images_json: string | null
 }
 
 export interface NewsSyncSourceResult {
@@ -98,6 +103,19 @@ class SourceRequestError extends Error {
 const sourcesConfig = newsSourcesConfigSchema.parse(newsSourcesRaw)
 const AIHOT_HOST = 'aihot.virxact.com'
 const ZAIHUA_HOST = 'www.zaihua.news'
+const MAX_NEWS_IMAGES = 6
+const MAX_NEWS_IMAGE_CANDIDATES = 24
+const MAX_NEWS_IMAGE_BYTES = 8 * 1024 * 1024
+const MAX_NEWS_IMAGE_REDIRECTS = 3
+const NEWS_IMAGE_REQUEST_TIMEOUT_MS = 12_000
+const NEWS_IMAGE_DOCUMENT_BUDGET_MS = 20_000
+const NEWS_IMAGE_TOTAL_SYNC_BUDGET_MS = 45_000
+const NEWS_IMAGE_MIMES = new Set<NewsImageDto['mime']>([
+	'image/png',
+	'image/jpeg',
+	'image/webp',
+	'image/gif',
+])
 const CATEGORY_LABELS: Record<string, string> = {
 	'ai-agents': 'AI 智能体',
 	'ai-models': 'AI 模型',
@@ -195,6 +213,51 @@ function safeMetadata(value: string | undefined): Record<string, unknown> {
 	}
 }
 
+function safeImages(value: string | undefined, mediaOrigin: string): NewsImageDto[] {
+	try {
+		const parsed = JSON.parse(value || '[]')
+		if (!Array.isArray(parsed))
+			return []
+		const originPrefix = `${mediaOrigin.replace(/\/$/u, '')}/`
+		return parsed.slice(0, MAX_NEWS_IMAGES).flatMap((raw) => {
+			if (!raw || typeof raw !== 'object')
+				return []
+			const image = raw as Record<string, unknown>
+			const url = publicUrl(image.url)
+			const mime = typeof image.mime === 'string' && NEWS_IMAGE_MIMES.has(image.mime as NewsImageDto['mime'])
+				? image.mime as NewsImageDto['mime']
+				: null
+			if (!url || !url.startsWith(originPrefix) || !mime)
+				return []
+			const alt = typeof image.alt === 'string'
+				? image.alt.trim().slice(0, 500) || null
+				: null
+			return [{ url, alt, mime }]
+		})
+	}
+	catch {
+		return []
+	}
+}
+
+function mergeParsedImages(...groups: Array<ParsedNewsImage[] | undefined>): ParsedNewsImage[] {
+	const images: ParsedNewsImage[] = []
+	const seen = new Set<string>()
+	for (const group of groups) {
+		for (const image of group || []) {
+			if (!image.url || seen.has(image.url) || images.length >= MAX_NEWS_IMAGE_CANDIDATES)
+				continue
+			seen.add(image.url)
+			images.push({ url: image.url, alt: image.alt?.trim().slice(0, 500) || null })
+		}
+	}
+	return images
+}
+
+function mediaUrl(origin: string, key: string): string {
+	return `${origin.replace(/\/$/u, '')}/${key.split('/').map(encodeURIComponent).join('/')}`
+}
+
 async function sha256(value: string): Promise<string> {
 	const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))
 	return [...new Uint8Array(digest)]
@@ -202,8 +265,155 @@ async function sha256(value: string): Promise<string> {
 		.join('')
 }
 
+async function sha256Bytes(value: Uint8Array): Promise<string> {
+	const digest = await crypto.subtle.digest('SHA-256', value)
+	return [...new Uint8Array(digest)]
+		.map(byte => byte.toString(16).padStart(2, '0'))
+		.join('')
+}
+
+async function limitedBytes(response: Response): Promise<Uint8Array | null> {
+	const contentLength = Number(response.headers.get('content-length'))
+	if (Number.isFinite(contentLength) && contentLength > MAX_NEWS_IMAGE_BYTES) {
+		await response.body?.cancel().catch(() => undefined)
+		return null
+	}
+	if (!response.body) {
+		const bytes = new Uint8Array(await response.arrayBuffer())
+		return bytes.byteLength <= MAX_NEWS_IMAGE_BYTES ? bytes : null
+	}
+	const reader = response.body.getReader()
+	const chunks: Uint8Array[] = []
+	let total = 0
+	try {
+		while (true) {
+			const { done, value } = await reader.read()
+			if (done)
+				break
+			total += value.byteLength
+			if (total > MAX_NEWS_IMAGE_BYTES) {
+				await reader.cancel()
+				return null
+			}
+			chunks.push(value)
+		}
+	}
+	finally {
+		reader.releaseLock()
+	}
+	const bytes = new Uint8Array(total)
+	let offset = 0
+	for (const chunk of chunks) {
+		bytes.set(chunk, offset)
+		offset += chunk.byteLength
+	}
+	return bytes
+}
+
+async function fetchPublicImage(url: string, timeoutMs: number): Promise<Response | null> {
+	let currentUrl = url
+	const signal = AbortSignal.timeout(timeoutMs)
+	for (let redirects = 0; redirects <= MAX_NEWS_IMAGE_REDIRECTS; redirects++) {
+		if (!isPublicHttpUrl(currentUrl))
+			return null
+		const response = await fetch(currentUrl, {
+			headers: { accept: 'image/webp,image/png,image/jpeg,image/gif;q=0.9,*/*;q=0.1' },
+			redirect: 'manual',
+			signal,
+		})
+		if (response.status >= 300 && response.status < 400) {
+			const location = response.headers.get('location')
+			await response.body?.cancel().catch(() => undefined)
+			if (!location || redirects >= MAX_NEWS_IMAGE_REDIRECTS)
+				return null
+			try {
+				currentUrl = new URL(location, currentUrl).toString()
+			}
+			catch {
+				return null
+			}
+			continue
+		}
+		if (response.ok)
+			return response
+		await response.body?.cancel().catch(() => undefined)
+		return null
+	}
+	return null
+}
+
 export class NewsService {
+	private imageSyncDeadline = 0
+
 	constructor(private readonly env: Env) {}
+
+	private async syncImage(candidate: ParsedNewsImage, timeoutMs: number): Promise<NewsImageDto | null> {
+		if (!isPublicHttpUrl(candidate.url))
+			return null
+		try {
+			const response = await fetchPublicImage(candidate.url, timeoutMs)
+			if (!response)
+				return null
+			const bytes = await limitedBytes(response)
+			if (!bytes?.byteLength)
+				return null
+			const detected = detectAllowedMedia(bytes)
+			if (!detected || detected.kind !== 'image' || !NEWS_IMAGE_MIMES.has(detected.mime as NewsImageDto['mime']))
+				return null
+			const hash = await sha256Bytes(bytes)
+			const key = `public/news/${hash}.${detected.extension}`
+			const existing = await this.env.MEDIA.head(key)
+			if (!existing) {
+				await this.env.MEDIA.put(key, bytes, {
+					httpMetadata: { contentType: detected.mime },
+					customMetadata: {
+						sha256: hash,
+						sourceUrl: candidate.url.slice(0, 1_024),
+					},
+				})
+				const stored = await this.env.MEDIA.head(key)
+				if (!stored || stored.size !== bytes.byteLength) {
+					await this.env.MEDIA.delete(key).catch(() => undefined)
+					return null
+				}
+			}
+			return {
+				url: mediaUrl(this.env.MEDIA_ORIGIN, key),
+				alt: candidate.alt?.trim().slice(0, 500) || null,
+				mime: detected.mime as NewsImageDto['mime'],
+			}
+		}
+		catch {
+			return null
+		}
+	}
+
+	private async syncImages(candidates: ParsedNewsImage[]): Promise<NewsImageDto[]> {
+		const sourceImages = mergeParsedImages(candidates)
+		const images: NewsImageDto[] = []
+		const seen = new Set<string>()
+		const documentDeadline = Date.now() + NEWS_IMAGE_DOCUMENT_BUDGET_MS
+		const deadline = this.imageSyncDeadline > 0
+			? Math.min(documentDeadline, this.imageSyncDeadline)
+			: documentDeadline
+		for (let offset = 0; offset < sourceImages.length && images.length < MAX_NEWS_IMAGES; offset += 2) {
+			const remainingMs = deadline - Date.now()
+			if (remainingMs <= 0)
+				break
+			const timeoutMs = Math.max(1, Math.min(NEWS_IMAGE_REQUEST_TIMEOUT_MS, remainingMs))
+			const batch = sourceImages.slice(offset, offset + 2)
+			const results = await Promise.all(batch.map(image => this.syncImage(image, timeoutMs)))
+			for (const image of results) {
+				if (!image || seen.has(image.url))
+					continue
+				seen.add(image.url)
+				images.push(image)
+				if (images.length >= MAX_NEWS_IMAGES)
+					break
+			}
+		}
+		return images
+	}
 
 	private dto(row: NewsRow): NewsItemDto {
 		const readerPath = row.reader_key ? `/ai.news/read/${row.reader_key}` : null
@@ -226,6 +436,7 @@ export class NewsService {
 			selected: Boolean(row.selected),
 			readerPath,
 			contentMode: row.content_mode || null,
+			coverImage: safeImages(row.images_json, this.env.MEDIA_ORIGIN)[0] || null,
 		}
 	}
 
@@ -365,6 +576,7 @@ export class NewsService {
 		originalUrl: string | null
 		title: string
 		bodyText: string
+		imageCandidates?: ParsedNewsImage[]
 		contentMode: NewsDocumentDto['contentMode']
 		attributionName: string
 		attributionUrl: string
@@ -374,16 +586,31 @@ export class NewsService {
 		if (!input.bodyText.trim())
 			return
 		const bodyText = input.bodyText.trim().slice(0, 100_000)
+		const existing = await this.env.DB.prepare('SELECT images_json FROM news_documents WHERE item_id = ?')
+			.bind(input.itemId)
+			.first<{ images_json: string }>()
+		let images = safeImages(existing?.images_json, this.env.MEDIA_ORIGIN)
+		if (input.imageCandidates) {
+			if (input.imageCandidates.length === 0) {
+				images = []
+			}
+			else {
+				const synced = await this.syncImages(input.imageCandidates)
+				if (synced.length || !existing)
+					images = synced
+			}
+		}
+		const imagesJson = JSON.stringify(images)
 		const [readerKey, contentHash] = await Promise.all([
 			sha256(input.itemId).then(value => value.slice(0, 32)),
-			sha256(`${input.contentMode}\0${input.title}\0${bodyText}`),
+			sha256(`${input.contentMode}\0${input.title}\0${bodyText}\0${imagesJson}`),
 		])
 		await this.env.DB.prepare(`
 			INSERT INTO news_documents (
-				item_id, reader_key, source_id, source_url, original_url, title, body_text,
+				item_id, reader_key, source_id, source_url, original_url, title, body_text, images_json,
 				content_mode, attribution_name, attribution_url, published_at, content_hash,
 				fetched_at, updated_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			ON CONFLICT(item_id) DO UPDATE SET
 				reader_key = excluded.reader_key,
 				source_id = excluded.source_id,
@@ -393,6 +620,10 @@ export class NewsService {
 				body_text = CASE
 					WHEN news_documents.content_hash <> excluded.content_hash THEN excluded.body_text
 					ELSE news_documents.body_text
+				END,
+				images_json = CASE
+					WHEN news_documents.content_hash <> excluded.content_hash THEN excluded.images_json
+					ELSE news_documents.images_json
 				END,
 				content_mode = excluded.content_mode,
 				attribution_name = excluded.attribution_name,
@@ -412,6 +643,7 @@ export class NewsService {
 			input.originalUrl,
 			input.title.slice(0, 500),
 			bodyText,
+			imagesJson,
 			input.contentMode,
 			input.attributionName.slice(0, 160),
 			input.attributionUrl,
@@ -474,7 +706,7 @@ export class NewsService {
 		return accepted
 	}
 
-	private async fetchAiHotArticle(url: string): Promise<{ bodyText: string } | null> {
+	private async fetchAiHotArticle(url: string): Promise<{ bodyText: string, images: ParsedNewsImage[] } | null> {
 		try {
 			const response = await fetch(url, {
 				headers: { accept: 'text/html,application/xhtml+xml' },
@@ -482,7 +714,7 @@ export class NewsService {
 			})
 			if (!response.ok)
 				return null
-			return extractAiHotArticle(await response.text())
+			return extractAiHotArticle(await response.text(), url)
 		}
 		catch {
 			return null
@@ -515,15 +747,18 @@ export class NewsService {
 			)
 			let bodyText = entry.bodyText
 			let contentMode = entry.contentMode
+			let imageCandidates: ParsedNewsImage[] | undefined = entry.images
 			if (entry.contentMode === 'summary' && existingDocument?.content_mode === 'full') {
 				bodyText = existingDocument.body_text
 				contentMode = 'full'
+				imageCandidates = undefined
 			}
 			else if (entry.contentMode === 'summary') {
 				const pageArticle = await this.fetchAiHotArticle(sourceUrl)
 				if (pageArticle?.bodyText) {
 					bodyText = pageArticle.bodyText
 					contentMode = 'full'
+					imageCandidates = mergeParsedImages(pageArticle.images, entry.images)
 				}
 			}
 			return {
@@ -534,6 +769,7 @@ export class NewsService {
 				originalUrl,
 				sourceName,
 				bodyText: cleanAiHotBodyText(bodyText),
+				imageCandidates,
 				contentMode,
 			}
 		})))
@@ -559,6 +795,7 @@ export class NewsService {
 				originalUrl: value.originalUrl,
 				title: value.entry.title,
 				bodyText: value.bodyText,
+				imageCandidates: value.imageCandidates,
 				contentMode: value.contentMode,
 				attributionName: value.sourceName,
 				attributionUrl: value.originalUrl || this.env.PUBLIC_ORIGIN,
@@ -573,6 +810,7 @@ export class NewsService {
 	private async fetchZaihuaArticle(url: string): Promise<{
 		title: string
 		bodyText: string
+		images: ParsedNewsImage[]
 		originalUrl: string | null
 		sourceName: string | null
 	} | null> {
@@ -583,7 +821,7 @@ export class NewsService {
 			})
 			if (!response.ok)
 				return null
-			return extractZaihuaArticle(await response.text())
+			return extractZaihuaArticle(await response.text(), url)
 		}
 		catch {
 			return null
@@ -594,7 +832,13 @@ export class NewsService {
 		const entries = parseRssFeed(await response.text(), 30)
 			.filter(entry => publicUrl(entry.link))
 		const existingRows = await this.env.DB.prepare(`
-			SELECT n.id, n.title, n.original_url, n.metadata_json, d.item_id AS document_item_id
+			SELECT
+				n.id,
+				n.title,
+				n.original_url,
+				n.metadata_json,
+				d.item_id AS document_item_id,
+				d.images_json AS document_images_json
 			FROM news_items n
 			LEFT JOIN news_documents d ON d.item_id = n.id
 			WHERE n.source_id = ?
@@ -609,6 +853,7 @@ export class NewsService {
 			const shouldRefresh = isZaihuaReaderUrl(entry.link) && (
 				index < 5
 				|| !existing?.document_item_id
+				|| safeImages(existing?.document_images_json || undefined, this.env.MEDIA_ORIGIN).length === 0
 				|| previousMetadata.rssHash !== rssHash
 				|| !metadataString(previousMetadata, 'sourceName')
 				|| !externalPublicUrl(previousMetadata.originalUrl)
@@ -668,6 +913,7 @@ export class NewsService {
 						originalUrl,
 						title: value.article.title,
 						bodyText: value.article.bodyText,
+						imageCandidates: mergeParsedImages(value.article.images, value.entry.images),
 						contentMode: 'full',
 						attributionName: sourceName,
 						attributionUrl: originalUrl || this.env.PUBLIC_ORIGIN,
@@ -683,6 +929,7 @@ export class NewsService {
 						originalUrl,
 						title,
 						bodyText: value.entry.descriptionText,
+						imageCandidates: value.entry.images,
 						contentMode: 'summary',
 						attributionName: sourceName,
 						attributionUrl: originalUrl || this.env.PUBLIC_ORIGIN,
@@ -818,7 +1065,7 @@ export class NewsService {
 		const offset = (safePage - 1) * safePageSize
 		const [items, total, briefing, sources] = await Promise.all([
 			this.env.DB.prepare(`
-				SELECT n.*, d.reader_key, d.content_mode
+				SELECT n.*, d.reader_key, d.content_mode, d.images_json
 				FROM news_items n
 				LEFT JOIN news_documents d ON d.item_id = n.id
 				WHERE n.selected = 1
@@ -855,7 +1102,8 @@ export class NewsService {
 				d.attribution_url,
 				d.source_url AS document_source_url,
 				d.original_url AS document_original_url,
-				d.fetched_at AS document_fetched_at
+				d.fetched_at AS document_fetched_at,
+				d.images_json
 			FROM news_documents d
 			JOIN news_items n ON n.id = d.item_id
 			WHERE d.reader_key = ? AND n.selected = 1
@@ -881,6 +1129,7 @@ export class NewsService {
 			item: this.dto(row),
 			readerKey: row.reader_key,
 			bodyText: row.body_text,
+			images: safeImages(row.images_json, this.env.MEDIA_ORIGIN),
 			contentMode: row.content_mode,
 			attribution: {
 				name: sourceName,
@@ -992,13 +1241,19 @@ export class NewsService {
 	async sync(options: { force?: boolean, sourceId?: string } = {}): Promise<NewsSyncResult> {
 		if (!sourcesConfig.enabled)
 			return { sources: [], syncedAt: new Date().toISOString() }
-		const sources = sourcesConfig.sources
-			.filter(source => source.enabled && (!options.sourceId || source.id === options.sourceId))
-			.sort((left, right) => left.priority - right.priority)
-		const results: NewsSyncSourceResult[] = []
-		for (const source of sources)
-			results.push(await this.syncConfiguredSource(source, Boolean(options.force)))
-		return { sources: results, syncedAt: new Date().toISOString() }
+		this.imageSyncDeadline = Date.now() + NEWS_IMAGE_TOTAL_SYNC_BUDGET_MS
+		try {
+			const sources = sourcesConfig.sources
+				.filter(source => source.enabled && (!options.sourceId || source.id === options.sourceId))
+				.sort((left, right) => left.priority - right.priority)
+			const results: NewsSyncSourceResult[] = []
+			for (const source of sources)
+				results.push(await this.syncConfiguredSource(source, Boolean(options.force)))
+			return { sources: results, syncedAt: new Date().toISOString() }
+		}
+		finally {
+			this.imageSyncDeadline = 0
+		}
 	}
 
 	async syncSource(sourceId: string): Promise<NewsSyncResult> {

@@ -1,8 +1,14 @@
 import type { NewsContentMode } from '../../../../../shared/admin/news'
 
 const MAX_BODY_LENGTH = 100_000
+const MAX_IMAGE_CANDIDATES = 24
 const BLOCK_TAGS = ['p', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'pre']
 const REMOVED_TAGS = ['script', 'style', 'noscript', 'iframe', 'form', 'template', 'svg']
+
+export interface ParsedNewsImage {
+	url: string
+	alt: string | null
+}
 
 export interface ParsedRssEntry {
 	guid: string
@@ -11,6 +17,7 @@ export interface ParsedRssEntry {
 	descriptionHtml: string
 	descriptionText: string
 	contentEncodedHtml: string | null
+	images: ParsedNewsImage[]
 	category: string | null
 	author: string | null
 	publishedAt: string | null
@@ -33,6 +40,7 @@ export interface ParsedAiHotFeedEntry {
 	upstreamId: string
 	title: string
 	bodyText: string
+	images: ParsedNewsImage[]
 	contentMode: NewsContentMode
 	sourceUrl: string
 	originalUrl: string | null
@@ -137,6 +145,118 @@ function metaContent(html: string, attribute: 'name' | 'property', expected: str
 		return decodeEntities(attributeValue(tag, 'content')).trim()
 	}
 	return ''
+}
+
+function absoluteHttpUrl(value: string, baseUrl: string): string | null {
+	const candidate = decodeEntities(value).trim()
+	if (!candidate)
+		return null
+	try {
+		const url = new URL(candidate, baseUrl)
+		return url.protocol === 'http:' || url.protocol === 'https:' ? url.toString() : null
+	}
+	catch {
+		return null
+	}
+}
+
+function largestSrcsetUrl(value: string): string {
+	let best = ''
+	let bestScore = -1
+	for (const candidate of decodeEntities(value).split(',')) {
+		const parts = candidate.trim().split(/\s+/u)
+		const url = parts[0] || ''
+		const descriptor = parts[1] || ''
+		const score = descriptor.endsWith('w')
+			? Number.parseFloat(descriptor.slice(0, -1))
+			: descriptor.endsWith('x')
+				? Number.parseFloat(descriptor.slice(0, -1)) * 10_000
+				: 0
+		if (url && Number.isFinite(score) && score >= bestScore) {
+			best = url
+			bestScore = score
+		}
+	}
+	return best
+}
+
+function pushUniqueImage(
+	images: ParsedNewsImage[],
+	seen: Set<string>,
+	value: string,
+	baseUrl: string,
+	alt: string | null,
+): void {
+	if (images.length >= MAX_IMAGE_CANDIDATES)
+		return
+	const url = absoluteHttpUrl(value, baseUrl)
+	if (!url || seen.has(url))
+		return
+	seen.add(url)
+	images.push({ url, alt })
+}
+
+export function extractHtmlImages(html: string, baseUrl: string): ParsedNewsImage[] {
+	const images: ParsedNewsImage[] = []
+	const seen = new Set<string>()
+	for (const match of html.matchAll(/<img(?:\s[^>]*)?>/giu)) {
+		const tag = match[0]
+		const altText = decodeEntities(attributeValue(tag, 'alt')).replace(/\s+/gu, ' ').trim().slice(0, 500)
+		const values = [
+			attributeValue(tag, 'data-src'),
+			attributeValue(tag, 'data-original'),
+			attributeValue(tag, 'data-lazy-src'),
+			largestSrcsetUrl(attributeValue(tag, 'srcset')),
+			attributeValue(tag, 'src'),
+		]
+		const before = images.length
+		for (const value of values) {
+			pushUniqueImage(images, seen, value, baseUrl, altText || null)
+			if (images.length > before)
+				break
+		}
+	}
+	return images
+}
+
+function rssMediaImages(block: string, baseUrl: string): ParsedNewsImage[] {
+	const images: ParsedNewsImage[] = []
+	const seen = new Set<string>()
+	for (const match of block.matchAll(/<(?:enclosure|media:content|media:thumbnail)\b[^>]*>/giu)) {
+		const tag = match[0]
+		const mime = attributeValue(tag, 'type').toLowerCase()
+		if (mime && !mime.startsWith('image/'))
+			continue
+		const alt = decodeEntities(attributeValue(tag, 'title') || attributeValue(tag, 'description'))
+			.replace(/\s+/gu, ' ')
+			.trim()
+			.slice(0, 500)
+		pushUniqueImage(images, seen, attributeValue(tag, 'url'), baseUrl, alt || null)
+	}
+	return images
+}
+
+function pageMetaImages(html: string, baseUrl: string): ParsedNewsImage[] {
+	const images: ParsedNewsImage[] = []
+	const seen = new Set<string>()
+	for (const value of [
+		metaContent(html, 'property', 'og:image'),
+		metaContent(html, 'property', 'og:image:secure_url'),
+		metaContent(html, 'name', 'twitter:image'),
+	]) {
+		pushUniqueImage(images, seen, value, baseUrl, null)
+	}
+	return images
+}
+
+function mergeImages(...groups: ParsedNewsImage[][]): ParsedNewsImage[] {
+	const images: ParsedNewsImage[] = []
+	const seen = new Set<string>()
+	for (const group of groups) {
+		for (const image of group)
+			pushUniqueImage(images, seen, image.url, image.url, image.alt)
+	}
+	return images
 }
 
 function divInnerHtmlByClass(html: string, expectedClass: string): string {
@@ -252,13 +372,22 @@ export function parseRssFeed(xml: string, limit = 50): ParsedRssEntry[] {
 			const block = match[1] || ''
 			const descriptionHtml = stripCdata(xmlField(block, 'description'))
 			const contentEncoded = stripCdata(xmlField(block, 'content:encoded')).trim()
+			const link = decodeEntities(stripCdata(xmlField(block, 'link'))).trim()
+			const images = link
+				? mergeImages(
+						rssMediaImages(block, link),
+						extractHtmlImages(contentEncoded, link),
+						extractHtmlImages(descriptionHtml, link),
+					)
+				: []
 			return {
 				guid: htmlToReadableText(xmlField(block, 'guid')),
 				title: htmlToReadableText(xmlField(block, 'title')).slice(0, 500),
-				link: decodeEntities(stripCdata(xmlField(block, 'link'))).trim(),
+				link,
 				descriptionHtml,
 				descriptionText: htmlToReadableText(descriptionHtml).slice(0, 5_000),
 				contentEncodedHtml: contentEncoded || null,
+				images,
 				category: htmlToReadableText(xmlField(block, 'category')).slice(0, 120) || null,
 				author: htmlToReadableText(xmlField(block, 'author')).slice(0, 160) || null,
 				publishedAt: normalizeDate(htmlToReadableText(xmlField(block, 'pubDate'))),
@@ -301,6 +430,7 @@ export function parseAiHotFullFeed(xml: string): ParsedAiHotFeedEntry[] {
 			upstreamId,
 			title: entry.title,
 			bodyText: fullText || summaryText,
+			images: entry.images,
 			contentMode: fullText ? 'full' as const : 'summary' as const,
 			sourceUrl: entry.link,
 			originalUrl: firstExternalHref(entry.descriptionHtml),
@@ -351,15 +481,21 @@ export function parseAiHotDaily(payload: unknown): ParsedAiHotDailyReport | null
 	}
 }
 
-export function extractAiHotArticle(html: string): { bodyText: string } | null {
+export function extractAiHotArticle(
+	html: string,
+	baseUrl = 'https://aihot.virxact.com/',
+): { bodyText: string, images: ParsedNewsImage[] } | null {
 	const bodyHtml = divInnerHtmlByClass(html, 'm-detail-html')
 	const bodyText = cleanAiHotBodyText(htmlToReadableText(bodyHtml))
-	return bodyText ? { bodyText } : null
+	return bodyText
+		? { bodyText, images: mergeImages(extractHtmlImages(bodyHtml, baseUrl), pageMetaImages(html, baseUrl)) }
+		: null
 }
 
-export function extractZaihuaArticle(html: string): {
+export function extractZaihuaArticle(html: string, baseUrl = 'https://www.zaihua.news/'): {
 	title: string
 	bodyText: string
+	images: ParsedNewsImage[]
 	originalUrl: string | null
 	sourceName: string | null
 } | null {
@@ -378,6 +514,7 @@ export function extractZaihuaArticle(html: string): {
 		? {
 				title,
 				bodyText,
+				images: mergeImages(extractHtmlImages(bodyHtml, baseUrl), pageMetaImages(html, baseUrl)),
 				originalUrl: source?.url || null,
 				sourceName: source?.label || null,
 			}
