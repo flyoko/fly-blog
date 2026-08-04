@@ -30,6 +30,14 @@ function clearSurface(element = active) {
 	element.style.removeProperty('--surface-sheen-position')
 	element.style.removeProperty('--scene-shift-x')
 	element.style.removeProperty('--scene-shift-y')
+	element.style.removeProperty('--scene-avatar-x')
+	element.style.removeProperty('--scene-avatar-y')
+	element.style.removeProperty('--scene-character-x')
+	element.style.removeProperty('--scene-character-y')
+	element.style.removeProperty('--scene-planet-x')
+	element.style.removeProperty('--scene-planet-y')
+	element.style.removeProperty('--scene-orbit-x')
+	element.style.removeProperty('--scene-orbit-y')
 }
 
 function deactivateSurface() {
@@ -67,6 +75,14 @@ function updateSurface() {
 	active.style.setProperty('--surface-sheen-position', `${x.toFixed(2)}%`)
 	active.style.setProperty('--scene-shift-x', `${(-normalizedX * (compact ? 3 : 7) * intensity).toFixed(2)}px`)
 	active.style.setProperty('--scene-shift-y', `${(-normalizedY * (compact ? 2 : 5) * intensity).toFixed(2)}px`)
+	active.style.setProperty('--scene-avatar-x', `${(-normalizedX * 9 * intensity).toFixed(2)}px`)
+	active.style.setProperty('--scene-avatar-y', `${(-normalizedY * 7 * intensity).toFixed(2)}px`)
+	active.style.setProperty('--scene-character-x', `${(normalizedX * 5 * intensity).toFixed(2)}px`)
+	active.style.setProperty('--scene-character-y', `${(normalizedY * 3.5 * intensity).toFixed(2)}px`)
+	active.style.setProperty('--scene-planet-x', `${(-normalizedX * 2.4 * intensity).toFixed(2)}px`)
+	active.style.setProperty('--scene-planet-y', `${(-normalizedY * 1.8 * intensity).toFixed(2)}px`)
+	active.style.setProperty('--scene-orbit-x', `${(-normalizedX * 4.5 * intensity).toFixed(2)}px`)
+	active.style.setProperty('--scene-orbit-y', `${(-normalizedY * 3 * intensity).toFixed(2)}px`)
 }
 
 useEventListener('pointermove', (event) => {

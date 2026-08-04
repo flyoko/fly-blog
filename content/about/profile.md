@@ -1,5 +1,5 @@
 ---
-avatar: https://flyovo.cc.cd/media/public/profile/2d6c33d9-5beb-4129-8cca-2f57b36103af.jpg
+avatar: https://flyovo.cc.cd/media/public/profile/917a55b1-a628-406b-8bdf-76a0a8ad81fa.gif
 date: 2026-08-03
 sitemap: false
 summary: 一个持续学习、写代码，也认真生活的人。
