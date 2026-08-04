@@ -5,6 +5,7 @@ const emit = defineEmits<{
 
 const route = useRoute()
 const { post } = useArticle()
+const isArticlePage = computed(() => route.meta.articlePage === true)
 const widgetNames = computed<WidgetName[]>(() => {
 	if (route.path === '/')
 		return ['blog-stats', 'weather', 'domain-status', 'comm-group']
@@ -12,7 +13,7 @@ const widgetNames = computed<WidgetName[]>(() => {
 		return ['blog-stats', 'blog-log']
 	if (route.path === '/preview')
 		return ['blog-log']
-	if (post.value)
+	if (isArticlePage.value && post.value)
 		return (post.value.meta?.aside as WidgetName[] | undefined) ?? ['toc']
 	return []
 })

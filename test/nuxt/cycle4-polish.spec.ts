@@ -20,6 +20,7 @@ describe('cycle 4 polish contracts', () => {
 	it('keeps weather and music runtimes module-aware while placing public status widgets in the home aside', () => {
 		const layout = read('app/layouts/default.vue')
 		const routeAside = read('app/components/blog/RouteAside.vue')
+		const articlePage = read('app/pages/[...slug].vue')
 		const widgets = read('app/composables/useWidgets.ts')
 		const weather = read('app/components/widget/Weather.vue')
 		const domainStatus = read('app/components/widget/DomainStatus.vue')
@@ -27,6 +28,9 @@ describe('cycle 4 polish contracts', () => {
 		expect(layout).toContain('<LazyMusicGlobalPlayer v-if="musicEnabled" />')
 		expect(layout).toContain('<BlogRouteAside @visibility-change="routeAsideVisible = $event" />')
 		expect(routeAside).toContain('return [\'blog-stats\', \'weather\', \'domain-status\', \'comm-group\']')
+		expect(articlePage).toContain('articlePage: true')
+		expect(routeAside).toContain('route.meta.articlePage === true')
+		expect(routeAside).toContain('isArticlePage.value && post.value')
 		expect(widgets).toContain('LazyWidgetWeather')
 		expect(widgets).toContain('LazyWidgetDomainStatus')
 		expect(domainStatus).toContain('<BlogWidget card title="域名续费提醒">')

@@ -124,3 +124,101 @@ test.describe('public route switch stability', () => {
 		expectStableGeometry(frames)
 	})
 })
+
+interface ContentPageFrame {
+	asideVisible: boolean
+	pageKind: 'me' | 'link' | 'none'
+	pageWidth: number | null
+	path: string
+}
+
+declare global {
+	interface Window {
+		__contentPageFrames?: ContentPageFrame[]
+		__contentPageRecorderDone?: boolean
+	}
+}
+
+test.describe('self-introduction and links route stability', () => {
+	test.beforeEach(async ({ isMobile }) => {
+		test.skip(Boolean(isMobile), 'The reported macOS route flicker is covered in the desktop project.')
+	})
+
+	test('keeps the same content width while repeatedly switching between self-introduction and links', async ({ page }) => {
+		await page.goto('/me', { waitUntil: 'domcontentloaded' })
+		await expect(page.locator('.about-page')).toBeVisible()
+
+		await page.evaluate(() => {
+			window.__contentPageFrames = []
+			window.__contentPageRecorderDone = false
+			const record = () => {
+				const about = document.querySelector<HTMLElement>('.about-page')
+				const link = document.querySelector<HTMLElement>('.link-page')
+				const active = about || link
+				const aside = document.querySelector<HTMLElement>('#blog-aside')
+				window.__contentPageFrames?.push({
+					asideVisible: Boolean(aside && aside.childElementCount > 0 && getComputedStyle(aside).display !== 'none'),
+					pageKind: about ? 'me' : link ? 'link' : 'none',
+					pageWidth: active?.getBoundingClientRect().width ?? null,
+					path: location.pathname,
+				})
+			}
+			record()
+			const observer = new MutationObserver(record)
+			observer.observe(document.querySelector('#main-content')!, { childList: true, subtree: true })
+			const timer = window.setInterval(record, 10)
+			window.setTimeout(() => {
+				window.clearInterval(timer)
+				observer.disconnect()
+				record()
+				window.__contentPageRecorderDone = true
+			}, 2_200)
+		})
+
+		for (let index = 0; index < 4; index++) {
+			await page.locator('.sidebar-nav-item[href="/link"]').click()
+			await expect(page).toHaveURL('/link')
+			await expect(page.locator('.link-page')).toBeVisible()
+			await page.waitForTimeout(40)
+			await page.locator('.sidebar-nav-item[href="/me"]').click()
+			await expect(page).toHaveURL('/me')
+			await expect(page.locator('.about-page')).toBeVisible()
+			await page.waitForTimeout(40)
+		}
+
+		await page.waitForFunction(() => window.__contentPageRecorderDone === true)
+		const frames = await page.evaluate(() => window.__contentPageFrames ?? [])
+		const widths = frames.map(frame => frame.pageWidth).filter((width): width is number => width !== null)
+
+		expect(frames.some(frame => frame.pageKind === 'me')).toBe(true)
+		expect(frames.some(frame => frame.pageKind === 'link')).toBe(true)
+		expect(frames.some(frame => frame.pageKind === 'none')).toBe(false)
+		expect(frames.some(frame => frame.asideVisible)).toBe(false)
+		expect(Math.max(...widths) - Math.min(...widths)).toBeLessThanOrEqual(1)
+	})
+
+	test('reserves the self-introduction image space before the image finishes loading', async ({ page }) => {
+		const profileImage = 'https://flyovo.cc.cd/media/public/profile/3000773f-11b2-4991-9690-5dae22d4295e.png'
+		let releaseImage: (() => void) | undefined
+		const imageGate = new Promise<void>((resolve) => {
+			releaseImage = resolve
+		})
+		await page.route(profileImage, async (route) => {
+			await imageGate
+			await route.continue()
+		})
+
+		await page.goto('/link', { waitUntil: 'domcontentloaded' })
+		await page.locator('.sidebar-nav-item[href="/me"]').click()
+		await expect(page).toHaveURL('/me')
+		const image = page.locator(`.about-section.article img[src="${profileImage}"]`)
+		await expect(image).toHaveAttribute('width', '2394')
+		await expect(image).toHaveAttribute('height', '657')
+		const heightBeforeLoad = await page.locator('.about-page').evaluate(element => element.getBoundingClientRect().height)
+
+		releaseImage?.()
+		await expect.poll(() => image.evaluate(element => (element as HTMLImageElement).complete)).toBe(true)
+		const heightAfterLoad = await page.locator('.about-page').evaluate(element => element.getBoundingClientRect().height)
+		expect(Math.abs(heightAfterLoad - heightBeforeLoad)).toBeLessThanOrEqual(1)
+	})
+})

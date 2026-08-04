@@ -1,4 +1,8 @@
 <script setup lang="ts">
+definePageMeta({
+	articlePage: true,
+})
+
 const route = useRoute()
 
 const { data: post } = await useAsyncData(
