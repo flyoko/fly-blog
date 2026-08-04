@@ -121,7 +121,8 @@ describe('admin management UI boundaries', () => {
 		expect(reviews).toContain('Head SHA')
 		expect(reviews).toContain('file.patch')
 		expect(reviews).toContain('确认合并')
-		expect(reviews).toContain('verification-text="MERGE"')
+		expect(reviews).toContain('title="确认合并 Pull Request"')
+		expect(reviews).not.toContain('verification-text="MERGE"')
 		expect(reviews).toContain(':show-actions="false"')
 	})
 
