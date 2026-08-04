@@ -1,4 +1,5 @@
 import type { MusicTrack } from '../../shared/admin/music'
+import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import {
 	nextPlayableTrackIndex,
@@ -23,6 +24,17 @@ describe('music playback helpers', () => {
 			.toBe('https://flyovo.cc.cd/api/music/playlist')
 		expect(resolvePublicApiUrl('/api/music/playlist', 'flyovo.cc.cd'))
 			.toBe('/api/music/playlist')
+	})
+
+	it('keeps volume controls visible without expanding the player', () => {
+		const source = readFileSync(new URL('../../app/components/music/GlobalPlayer.vue', import.meta.url), 'utf8')
+		const volumeRow = source.match(/<div class="music-volume-control">[\s\S]*?<\/div>/u)?.[0]
+		expect(volumeRow).toBeDefined()
+		expect(volumeRow).toContain('aria-label="音量"')
+		expect(volumeRow).toContain('store.setVolume')
+		expect(volumeRow).toContain('store.toggleMuted')
+		expect(volumeRow).toContain('Math.round(store.volume * 100)')
+		expect(volumeRow).not.toContain('v-if="store.expanded"')
 	})
 
 	it('wraps sequence playback and avoids immediate shuffle repeats', () => {

@@ -78,11 +78,7 @@ function formatTime(value: number) {
 		<span>{{ formatTime(store.duration) }}</span>
 	</div>
 
-	<div v-if="store.expanded" class="music-player-tools">
-		<button type="button" :aria-label="store.mode === 'shuffle' ? '切换为顺序播放' : '切换为随机播放'" @click="store.toggleMode">
-			<Icon :name="store.mode === 'shuffle' ? 'tabler:arrows-shuffle' : 'tabler:repeat'" />
-			{{ store.mode === 'shuffle' ? '随机' : '顺序' }}
-		</button>
+	<div class="music-volume-control">
 		<button type="button" :aria-label="store.muted ? '取消静音' : '静音'" @click="store.toggleMuted">
 			<Icon :name="store.muted ? 'tabler:volume-off' : 'tabler:volume'" />
 		</button>
@@ -93,8 +89,17 @@ function formatTime(value: number) {
 			max="1"
 			step="0.05"
 			aria-label="音量"
+			:aria-valuetext="store.muted ? '静音' : `${Math.round(store.volume * 100)}%`"
 			@input="store.setVolume(Number(($event.target as HTMLInputElement).value))"
 		>
+		<output>{{ store.muted ? '静音' : `${Math.round(store.volume * 100)}%` }}</output>
+	</div>
+
+	<div v-if="store.expanded" class="music-player-tools">
+		<button type="button" :aria-label="store.mode === 'shuffle' ? '切换为顺序播放' : '切换为随机播放'" @click="store.toggleMode">
+			<Icon :name="store.mode === 'shuffle' ? 'tabler:arrows-shuffle' : 'tabler:repeat'" />
+			{{ store.mode === 'shuffle' ? '随机' : '顺序' }}
+		</button>
 	</div>
 	<p v-if="store.error" class="music-player-error" role="status">
 		{{ store.error }}
@@ -201,7 +206,8 @@ function formatTime(value: number) {
 }
 
 .music-controls button,
-.music-player-tools button {
+.music-player-tools button,
+.music-volume-control button {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
@@ -236,8 +242,36 @@ function formatTime(value: number) {
 }
 
 .music-progress-row input,
-.music-player-tools input {
+.music-volume-control input {
 	accent-color: var(--c-primary);
+}
+
+.music-volume-control {
+	display: grid;
+	grid-template-columns: 2.25rem minmax(0, 1fr) 2.75rem;
+	align-items: center;
+	gap: 0.5rem;
+	padding: 0 1rem 0.75rem;
+}
+
+.music-volume-control button {
+	display: inline-grid;
+	place-items: center;
+	width: 2.25rem;
+	height: 2.25rem;
+	border-radius: 50%;
+}
+
+.music-volume-control input {
+	width: 100%;
+	min-width: 0;
+}
+
+.music-volume-control output {
+	font-variant-numeric: tabular-nums;
+	font-size: 0.7rem;
+	text-align: end;
+	color: var(--c-text-2);
 }
 
 .music-player-tools {
@@ -246,11 +280,6 @@ function formatTime(value: number) {
 	gap: 0.6rem;
 	padding: 0 1rem 0.8rem;
 	font-size: 0.75rem;
-}
-
-.music-player-tools input {
-	flex: 1;
-	min-width: 0;
 }
 
 .music-player-error {
@@ -289,6 +318,7 @@ function formatTime(value: number) {
 
 	.music-controls button,
 	.music-player-tools button,
+	.music-volume-control button,
 	.music-cover {
 		min-width: 2.75rem;
 		min-height: 2.75rem;
