@@ -7,6 +7,7 @@ const { data: post } = await useAsyncData(
 )
 
 const excerpt = computed(() => post.value?.description || '')
+const commentPath = computed(() => route.path.replace(/\/+$/u, '') || '/')
 
 if (post.value) {
 	useSeoMeta({
@@ -37,7 +38,7 @@ else {
 
 	<PostFooter v-bind="post" />
 	<PostSurround />
-	<PostComment />
+	<PostComment :path="commentPath" />
 </template>
 
 <ZError

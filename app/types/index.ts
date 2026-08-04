@@ -7,7 +7,8 @@ declare global {
 				region?: string
 				path?: string
 				lang?: string
-			}) => void
+				placeholder?: string
+			}) => Promise<void> | void
 			version: string
 		}
 	}

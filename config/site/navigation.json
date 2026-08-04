@@ -38,6 +38,12 @@
         "icon": "tabler:archive",
         "text": "归档",
         "url": "/archive"
+      },
+      {
+        "id": "comments",
+        "icon": "tabler:message-circle",
+        "text": "留言",
+        "url": "/comments"
       }
     ]
   }
