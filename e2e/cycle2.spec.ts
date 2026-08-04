@@ -51,6 +51,22 @@ test.describe('cycle 2 desktop workflows', () => {
 		await expect.poll(() => capture.configWrites.some(item => item.kind === 'aboutTimeline')).toBe(true)
 	})
 
+	test('admin explains direct publish progress and completed deployment states', async ({ page }) => {
+		await mockAuthenticatedAdmin(page, { publishRunScenario: 'direct_pending' })
+		await page.goto('/admin/reviews')
+		await expect(page.getByRole('heading', { name: '发布与审核' })).toBeVisible()
+		await expect(page.getByRole('heading', { name: '直接提交已完成，正在确认检查与正式部署' })).toBeVisible()
+		await expect(page.getByText(/系统正在核对这个提交的自动检查和正式部署/u)).toBeVisible()
+		await expect(page.getByRole('button', { name: /查看发布记录 profile\.md，检查中/u })).toBeVisible()
+
+		await page.unroute('**/api/**')
+		await mockAuthenticatedAdmin(page, { publishRunScenario: 'direct_published' })
+		await page.reload()
+		await expect(page.getByRole('heading', { name: '正式站点已部署' })).toBeVisible()
+		await expect(page.getByText(/自动检查与正式部署都已成功/u)).toBeVisible()
+		await expect(page.getByRole('link', { name: '打开部署结果' })).toHaveAttribute('href', 'https://deployment.example')
+	})
+
 	test('admin refreshes news sources and creates a manual card', async ({ page }) => {
 		const capture = await mockAuthenticatedAdmin(page)
 		await page.goto('/admin/ai-news')

@@ -28,6 +28,7 @@ const categoryConfig = [
 class FakePublishingRepository implements PublishingRepositoryPort {
 	baseHead = 'base-head'
 	commitCounter = 0
+	commitChangeCount = 1
 	pullCounter = 0
 	mergeCalls = 0
 	pullReadFailure = false
@@ -36,6 +37,7 @@ class FakePublishingRepository implements PublishingRepositoryPort {
 	pulls = new Map<number, PullRequestDto>()
 	checks: CheckSummaryDto = { status: 'pending', total: 1, successful: 0, failed: 0, pending: 1 }
 	deployment: DeploymentDto | null = null
+	checkRefs: string[] = []
 	deploymentRefs: string[] = []
 	files = new Map<string, { sha: string, content: string }>([
 		['config/taxonomy/categories.json', { sha: 'category-sha', content: JSON.stringify(categoryConfig) }],
@@ -139,8 +141,13 @@ class FakePublishingRepository implements PublishingRepositoryPort {
 		return this.changedFiles
 	}
 
-	async getChecks() {
+	async getChecks(ref: string) {
+		this.checkRefs.push(ref)
 		return this.checks
+	}
+
+	async getCommitChangeCount() {
+		return this.commitChangeCount
 	}
 
 	async getDeployment(ref: string) {
@@ -378,6 +385,81 @@ describe('pull request status and merge guard', () => {
 		expect(await testEnv.DB.prepare('SELECT status FROM publish_runs WHERE id = ?')
 			.bind(run.publishRunId)
 			.first<{ status: string }>()).toEqual({ status: 'closed' })
+	})
+
+	it('reconciles successful direct publishes using checks and the exact commit deployment', async () => {
+		const repository = new FakePublishingRepository()
+		const commitSha = 'd'.repeat(40)
+		await testEnv.DB.prepare(`
+			INSERT INTO publish_runs (
+				id, kind, status, repository_ref, resource_path, commit_sha, created_at, updated_at
+			) VALUES ('direct-success', 'direct', 'checks_pending', 'main', 'content/about/profile.md', ?, ?, ?)
+		`).bind(commitSha, '2026-08-03T00:00:00.000Z', '2026-08-03T00:00:01.000Z').run()
+		repository.checks = { status: 'failure', total: 2, successful: 1, failed: 1, pending: 0 }
+		repository.deployment = {
+			id: 'production-deployment',
+			ref: 'main',
+			environment: 'production',
+			url: 'https://production.example.test',
+			status: 'success',
+			updatedAt: '2026-08-03T00:05:00.000Z',
+		}
+
+		const list = await new PublishingService(runtimeEnv(), repository).listRuns(1, 30)
+		expect(list.items[0]).toMatchObject({
+			id: 'direct-success',
+			status: 'published',
+			deploymentUrl: 'https://production.example.test',
+		})
+		expect(repository.checkRefs).toEqual([commitSha])
+		expect(repository.deploymentRefs).toEqual([commitSha])
+		expect(await testEnv.DB.prepare('SELECT status, deployment_url, error_code FROM publish_runs WHERE id = ?')
+			.bind('direct-success')
+			.first()).toEqual({
+			status: 'published',
+			deployment_url: 'https://production.example.test',
+			error_code: null,
+		})
+	})
+
+	it('treats a no-change direct commit as complete when no workflows are triggered', async () => {
+		const repository = new FakePublishingRepository()
+		const commitSha = 'f'.repeat(40)
+		await testEnv.DB.prepare(`
+			INSERT INTO publish_runs (
+				id, kind, status, repository_ref, resource_path, commit_sha, created_at, updated_at
+			) VALUES ('direct-no-change', 'direct', 'checks_pending', 'main', 'content/playlists/default.json', ?, ?, ?)
+		`).bind(commitSha, '2026-08-03T00:00:00.000Z', '2026-08-03T00:00:01.000Z').run()
+		repository.checks = { status: 'success', total: 0, successful: 0, failed: 0, pending: 0 }
+		repository.commitChangeCount = 0
+
+		const list = await new PublishingService(runtimeEnv(), repository).listRuns(1, 30)
+		expect(list.items[0]).toMatchObject({ id: 'direct-no-change', status: 'published', deploymentUrl: null })
+	})
+
+	it('marks a direct publish failed when repository checks fail', async () => {
+		const repository = new FakePublishingRepository()
+		const commitSha = 'e'.repeat(40)
+		await testEnv.DB.prepare(`
+			INSERT INTO publish_runs (
+				id, kind, status, repository_ref, resource_path, commit_sha, created_at, updated_at
+			) VALUES ('direct-failed', 'direct', 'checks_pending', 'main', 'content/playlists/default.json', ?, ?, ?)
+		`).bind(commitSha, '2026-08-03T00:00:00.000Z', '2026-08-03T00:00:01.000Z').run()
+		repository.checks = { status: 'failure', total: 2, successful: 1, failed: 1, pending: 0 }
+
+		const list = await new PublishingService(runtimeEnv(), repository).listRuns(1, 30)
+		expect(list.items[0]).toMatchObject({
+			id: 'direct-failed',
+			status: 'failed',
+			errorCode: 'CHECKS_FAILED',
+		})
+		expect(await testEnv.DB.prepare('SELECT status, error_code, error_message FROM publish_runs WHERE id = ?')
+			.bind('direct-failed')
+			.first()).toEqual({
+			status: 'failed',
+			error_code: 'CHECKS_FAILED',
+			error_message: 'Repository checks failed',
+		})
 	})
 
 	it('keeps the run list available when GitHub status refresh fails', async () => {

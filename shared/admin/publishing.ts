@@ -30,6 +30,8 @@ export const publishStatusSchema = z.enum([
 	'checks_pending',
 	'preview_ready',
 	'merged',
+	'published',
+	'closed',
 	'conflict',
 	'failed',
 ])
