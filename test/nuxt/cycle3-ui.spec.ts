@@ -7,7 +7,8 @@ describe('cycle 3 UI contracts', () => {
 	it('ships real music and module admin pages instead of placeholders', () => {
 		expect(read('app/pages/admin/music.vue')).toContain('保存歌单')
 		expect(read('app/pages/admin/music.vue')).toContain('AdminMediaPicker')
-		expect(read('app/pages/admin/modules.vue')).toContain('保存模块并预览')
+		expect(read('app/pages/admin/modules.vue')).toContain('AdminModuleWorkbench')
+		expect(read('app/components/admin/settings/AdminModuleWorkbench.vue')).toContain('保存并生成预览')
 		expect(read('app/types/admin.ts')).toContain('adminUnavailableSections: Record')
 	})
 

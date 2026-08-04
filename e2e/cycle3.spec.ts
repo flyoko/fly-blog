@@ -90,7 +90,7 @@ test.describe('cycle 3 desktop workflows', () => {
 	test('searches a fixed weather city and creates a controlled PR', async ({ page }) => {
 		const capture = await mockAuthenticatedAdmin(page)
 		await page.goto('/admin/settings')
-		await page.getByRole('button', { name: /^天气 选择公开展示的固定城市。$/u }).click()
+		await page.getByRole('tab', { name: /^天气/u }).click()
 		await page.getByLabel('搜索城市').fill('杭州')
 		await page.getByRole('button', { name: '搜索', exact: true }).click()
 		await page.getByRole('button', { name: /杭州/u }).click()
@@ -104,39 +104,40 @@ test.describe('cycle 3 desktop workflows', () => {
 	test('edits a playlist, selects R2 audio, and saves a direct commit', async ({ page }) => {
 		const capture = await mockAuthenticatedAdmin(page)
 		await page.goto('/admin/music')
-		await page.getByRole('button', { name: '从媒体库添加', exact: true }).click()
+		await page.locator('.admin-task-header button').filter({ hasText: '从媒体库添加' }).click()
 		await page.getByRole('dialog').getByRole('button', { name: /sample\.mp3/u }).click()
-		await page.getByLabel('标题', { exact: true }).fill('Browser song')
+		await page.getByLabel('歌曲名', { exact: true }).fill('Browser song')
 		await expect(page.getByLabel('音频')).toHaveValue('https://flyovo.cc.cd/media/music/sample.mp3')
-		await expect(page.getByLabel('在公开播放器中启用')).toBeChecked()
+		await expect(page.getByText('公开播放', { exact: true })).toBeVisible()
+		await expect(page.locator('.music-enable-toggle input')).toBeChecked()
 		await page.getByRole('button', { name: '保存歌单' }).click()
 		await expect.poll(() => capture.musicWrites.length).toBe(1)
 		expect(capture.musicWrites[0]).toMatchObject({
 			expectedSha: 'playlist-sha',
 			playlist: { tracks: [{ title: 'Browser song', audioUrl: 'https://flyovo.cc.cd/media/music/sample.mp3', enabled: true, order: 0 }] },
 		})
-		await expect(page.getByText(/歌单提交成功/u)).toBeVisible()
+		await expect(page.getByText(/歌单保存成功/u)).toBeVisible()
 	})
 
 	test('reloads deployed module state, renders icons, and creates a modules PR', async ({ page }) => {
 		const capture = await mockAuthenticatedAdmin(page)
 		await page.goto('/admin/modules')
-		await expect(page.getByText(/生产分支配置 module-/u)).toBeVisible()
+		await expect(page.getByText(/已读取线上配置/u)).toBeVisible()
 
-		const weatherCard = page.locator('.module-card').filter({ hasText: '城市天气' })
+		const weatherCard = page.locator('.admin-module-card').filter({ hasText: '城市天气' })
 		await expect(weatherCard.getByRole('checkbox')).toBeChecked()
 		await expect(weatherCard.getByText('右侧栏固定显示杭州天气。')).toBeVisible()
-		const weatherIcon = weatherCard.locator('.module-icon .iconify')
+		const weatherIcon = weatherCard.locator('.admin-module-icon .iconify')
 		await expect(weatherIcon).toBeVisible()
 		await expect(weatherIcon).toHaveClass(/i-ri:sun-cloudy-line/u)
 		await expect(weatherCard.getByText('固定位置')).toBeVisible()
 
-		const musicCard = page.locator('.module-card').filter({ hasText: '随心听' })
+		const musicCard = page.locator('.admin-module-card').filter({ hasText: '随心听' })
 		await expect(musicCard.getByRole('checkbox')).toBeChecked()
 
-		const newsCard = page.locator('.module-card').filter({ hasText: 'AI 阅闻' })
-		await newsCard.getByRole('button', { name: '下移模块' }).click()
-		await page.getByRole('button', { name: '保存模块并预览' }).click()
+		const newsCard = page.locator('.admin-module-card').filter({ hasText: 'AI 阅闻' })
+		await newsCard.getByRole('button', { name: '下移AI 阅闻' }).click()
+		await page.getByRole('button', { name: '保存并生成预览' }).click()
 		await expect.poll(() => capture.configWrites.some(write => write.kind === 'modules')).toBe(true)
 		const modules = capture.configWrites.find(write => write.kind === 'modules')?.content as Array<{ id: string, order: number }>
 		expect(modules.map(module => module.order)).toEqual(modules.map((_, index) => index))

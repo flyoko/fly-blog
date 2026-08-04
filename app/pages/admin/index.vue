@@ -165,7 +165,7 @@ onMounted(refresh)
 			</div>
 		</section>
 
-		<section class="admin-panel">
+		<section class="admin-panel admin-service-panel">
 			<header class="admin-panel-header">
 				<div>
 					<h2>服务状态</h2>

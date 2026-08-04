@@ -17,6 +17,7 @@ import {
 	navigationConfigSchema,
 	weatherConfigSchema,
 } from '#shared/admin/site-config'
+import AdminModuleWorkbench from '~/components/admin/settings/AdminModuleWorkbench.vue'
 import { buildConfigPullRequest } from '~/types/admin'
 
 interface PullRequestResult {
@@ -37,12 +38,12 @@ type SettingsKind = Extract<AdminConfigKind, 'categories' | 'navigation' | 'foot
 type NavigationItem = NavigationConfig[number]['items'][number]
 type FooterItem = FooterConfig['iconNav'][number]
 
-const tabs: Array<{ kind: SettingsKind, label: string, description: string, icon: string }> = [
-	{ kind: 'categories', label: '分类', description: '整理文章使用的分类名称、图标和颜色。', icon: 'tabler:category' },
-	{ kind: 'navigation', label: '导航', description: '决定访客在左侧菜单里看到什么。', icon: 'tabler:menu-2' },
-	{ kind: 'footer', label: '页脚', description: '维护社交方式、订阅和站点信息。', icon: 'tabler:layout-bottombar' },
-	{ kind: 'modules', label: '模块', description: '控制天气、音乐等功能的启用与顺序。', icon: 'tabler:layout-grid' },
-	{ kind: 'weather', label: '天气', description: '选择公开展示的固定城市。', icon: 'ri:sun-cloudy-line' },
+const tabs: Array<{ id: SettingsKind, kind: SettingsKind, label: string, description: string, icon: string }> = [
+	{ id: 'categories', kind: 'categories', label: '分类', description: '整理文章使用的分类名称、图标和颜色。', icon: 'tabler:category' },
+	{ id: 'navigation', kind: 'navigation', label: '导航', description: '决定访客在左侧菜单里看到什么。', icon: 'tabler:menu-2' },
+	{ id: 'modules', kind: 'modules', label: '首页模块', description: '控制公开模块、显示状态和导航顺序。', icon: 'tabler:layout-grid' },
+	{ id: 'weather', kind: 'weather', label: '天气', description: '选择公开展示的固定城市。', icon: 'ri:sun-cloudy-line' },
+	{ id: 'footer', kind: 'footer', label: '页脚', description: '维护社交方式、订阅和站点信息。', icon: 'tabler:layout-bottombar' },
 ]
 
 const selected = ref<SettingsKind>('categories')
@@ -61,6 +62,7 @@ const cityQuery = ref('')
 const cityResults = ref<WeatherCity[]>([])
 const citySearching = ref(false)
 const citySearchError = ref<string | null>(null)
+const moduleUnsaved = ref(false)
 
 const currentTab = computed(() => tabs.find(tab => tab.kind === selected.value) ?? tabs[0]!)
 useSeoMeta({ title: '站点设置', robots: 'noindex, nofollow' })
@@ -198,22 +200,42 @@ function fingerprint(value: unknown) {
 	return JSON.stringify(value)
 }
 
+const editableKinds = ['categories', 'navigation', 'footer', 'weather'] as const
 const currentFingerprint = computed(() => selected.value === 'modules' ? '' : fingerprint(contentFor(selected.value)))
-const selectedChanged = computed(() => selected.value !== 'modules' && baselineFingerprints[selected.value] !== currentFingerprint.value)
-const canSubmit = computed(() => selected.value === 'modules' || (
+const selectedChanged = computed(() => selected.value !== 'modules' && Boolean(baselineFingerprints[selected.value]) && baselineFingerprints[selected.value] !== currentFingerprint.value)
+const hasUnsavedEditableSettings = computed(() => editableKinds.some((kind) => {
+	const current = fingerprint(contentFor(kind))
+	return Boolean(baselineFingerprints[kind])
+		&& baselineFingerprints[kind] !== current
+		&& submittedFingerprints[kind] !== current
+}))
+const hasUnsavedSettings = computed(() => hasUnsavedEditableSettings.value || moduleUnsaved.value)
+const canSubmit = computed(() => selected.value !== 'modules' && (
 	selectedChanged.value
 	&& submittedFingerprints[selected.value] !== currentFingerprint.value
 ))
 
 const createButtonLabel = computed(() => {
-	if (selected.value === 'modules')
-		return '前往模块管理'
 	if (!selectedChanged.value)
 		return '没有改动'
-	if (submittedFingerprints[selected.value] === currentFingerprint.value)
+	if (selected.value !== 'modules' && submittedFingerprints[selected.value] === currentFingerprint.value)
 		return '这版已提交'
-	return ({ categories: '保存分类并预览', navigation: '保存导航并预览', footer: '保存页脚并预览', weather: '保存天气并预览' })[selected.value]
+	return ({ categories: '保存分类并预览', navigation: '保存导航并预览', footer: '保存页脚并预览', weather: '保存天气并预览', modules: '由模块工作台保存' })[selected.value]
 })
+const taskStatus = computed(() => {
+	if (loadingDeployed.value)
+		return '正在读取线上配置…'
+	if (saving.value)
+		return '正在生成预览…'
+	if (hasUnsavedSettings.value)
+		return '存在未保存的站点设置'
+	if (syncedAt.value)
+		return `已读取线上配置 · ${syncedAt.value}`
+	return '正在使用页面内置配置'
+})
+const taskTone = computed(() => error.value ? 'danger' : hasUnsavedSettings.value ? 'warning' : 'positive')
+
+useAdminUnsavedChanges(hasUnsavedSettings)
 
 async function loadDeployedConfigs() {
 	loadingDeployed.value = true
@@ -243,13 +265,19 @@ async function loadDeployedConfigs() {
 	}
 }
 
-async function createPullRequest() {
-	if (selected.value !== 'modules' && !canSubmit.value)
-		return
-	if (selected.value === 'modules') {
-		await navigateTo('/admin/modules')
-		return
+function reloadDeployedConfigs() {
+	if (hasUnsavedEditableSettings.value) {
+		// eslint-disable-next-line no-alert -- replacing local edits requires explicit synchronous confirmation
+		const confirmed = window.confirm('当前站点设置还有未保存的改动，重新读取会覆盖这些改动。确定继续吗？')
+		if (!confirmed)
+			return
 	}
+	void loadDeployedConfigs()
+}
+
+async function createPullRequest() {
+	if (!canSubmit.value || selected.value === 'modules')
+		return
 	saving.value = true
 	error.value = null
 	result.value = null
@@ -278,53 +306,49 @@ onMounted(loadDeployedConfigs)
 
 <template>
 <section>
-	<header class="admin-page-heading">
-		<div>
-			<span class="admin-badge">站点外观与入口</span>
-			<h1>站点设置</h1>
-			<p>像整理内容一样调整站点。创建配置 PR 后，可以先看预览，再决定是否合并。</p>
-		</div>
-		<div class="admin-heading-actions">
-			<button class="admin-button" type="button" :disabled="loadingDeployed" @click="loadDeployedConfigs">
+	<AdminTaskHeader
+		eyebrow="公开站点"
+		title="站点设置"
+		description="用可视化表单管理分类、导航、首页模块、天气和页脚。保存后先生成预览，不会直接影响线上。"
+		:status="taskStatus"
+		:status-tone="taskTone"
+	>
+		<template #actions>
+			<button v-if="selected !== 'modules'" class="admin-button" type="button" :disabled="loadingDeployed" @click="reloadDeployedConfigs">
 				<Icon name="tabler:refresh" />{{ loadingDeployed ? '读取中…' : '重新读取线上配置' }}
 			</button>
-			<button class="admin-button admin-button-primary" type="button" :disabled="saving || loadingDeployed || !canSubmit" @click="createPullRequest">
-				<Icon :name="selected === 'modules' ? 'tabler:arrow-right' : 'tabler:git-pull-request'" />{{ saving ? '正在创建…' : createButtonLabel }}
+			<button v-if="selected !== 'modules'" class="admin-button admin-button-primary" type="button" :disabled="saving || loadingDeployed || !canSubmit" @click="createPullRequest">
+				<Icon name="tabler:eye-check" />{{ saving ? '正在生成…' : createButtonLabel }}
 			</button>
-		</div>
-	</header>
+		</template>
+	</AdminTaskHeader>
 
-	<p v-if="syncedAt" class="admin-config-sync-note">
-		<Icon name="tabler:cloud-check" />已读取线上配置 · {{ syncedAt }}<span v-if="selectedChanged"> · 当前页面有未提交改动</span>
-	</p>
-	<p v-if="error" class="admin-error">
+	<p v-if="error" class="admin-error" role="alert">
 		{{ error }}
 	</p>
 	<div v-if="result" class="admin-success admin-pr-result">
 		<div>
-			<strong>Pull Request #{{ result.pullRequestNumber }} 已创建</strong>
-			<span>{{ result.resourcePath }} · {{ result.branch }} · 可以前往发布与审核查看预览</span>
+			<strong>预览任务已创建</strong>
+			<span>自动检查通过后，可在发布与审核中查看预览并确认上线。</span>
 		</div>
-		<a class="admin-button" :href="result.pullRequestUrl" target="_blank" rel="noopener">查看 PR</a>
+		<NuxtLink class="admin-button" to="/admin/reviews">
+			前往发布与审核
+		</NuxtLink>
 	</div>
+	<AdminAdvancedDetails v-if="result" title="发布技术详情">
+		<div class="admin-settings-technical-grid">
+			<div><span>Pull Request</span><code>#{{ result.pullRequestNumber }}</code></div>
+			<div><span>配置路径</span><code>{{ result.resourcePath }}</code></div>
+			<div><span>分支</span><code>{{ result.branch }}</code></div>
+		</div>
+		<a class="admin-button" :href="result.pullRequestUrl" target="_blank" rel="noopener">在 GitHub 查看</a>
+	</AdminAdvancedDetails>
 
-	<div class="admin-settings-layout">
-		<nav class="admin-settings-nav" aria-label="设置分类">
-			<button
-				v-for="tab in tabs"
-				:key="tab.kind"
-				class="admin-settings-nav-item"
-				:class="{ 'is-active': selected === tab.kind }"
-				type="button"
-				@click="selected = tab.kind"
-			>
-				<Icon :name="tab.icon" />
-				<span><strong>{{ tab.label }}</strong><small>{{ tab.description }}</small></span>
-			</button>
-		</nav>
+	<AdminSectionTabs v-model="selected" :tabs="tabs" label="站点设置分区" />
 
-		<section class="admin-panel admin-settings-editor">
-			<header class="admin-panel-header">
+	<div class="admin-settings-layout admin-settings-layout-single">
+		<section class="admin-panel admin-settings-editor" :class="{ 'is-module-workbench': selected === 'modules' }">
+			<header v-if="selected !== 'modules'" class="admin-panel-header">
 				<div>
 					<h2>{{ currentTab.label }}</h2>
 					<p>{{ currentTab.description }}</p>
@@ -481,18 +505,7 @@ onMounted(loadDeployedConfigs)
 				</section>
 			</div>
 
-			<div v-else-if="selected === 'modules'" class="admin-settings-guidance">
-				<div class="admin-settings-guidance-icon">
-					<Icon name="tabler:layout-grid" />
-				</div>
-				<h2>模块有自己的可视化工作台</h2>
-				<p>在那里可以启用天气和随心听、调整公开导航顺序，并在部署后重新读取生产状态。</p>
-				<NuxtLink class="admin-button admin-button-primary" to="/admin/modules">
-					<Icon name="tabler:arrow-right" />前往模块管理
-				</NuxtLink>
-			</div>
-
-			<div v-else class="admin-weather-editor">
+			<div v-else-if="selected === 'weather'" class="admin-weather-editor">
 				<label class="admin-weather-toggle">
 					<input v-model="weather.enabled" type="checkbox">
 					<div><strong>启用城市天气</strong><span>公开博客只展示这个固定城市，不读取访客定位。</span></div>
@@ -526,6 +539,15 @@ onMounted(loadDeployedConfigs)
 					<div><span>数据源</span><strong>Open-Meteo</strong></div>
 				</div>
 			</div>
+
+			<AdminModuleWorkbench
+				v-show="selected === 'modules'"
+				:aria-hidden="selected !== 'modules'"
+				:inert="selected !== 'modules'"
+				embedded
+				:active="selected === 'modules'"
+				@dirty-change="moduleUnsaved = $event"
+			/>
 		</section>
 	</div>
 </section>
@@ -787,5 +809,51 @@ onMounted(loadDeployedConfigs)
 	margin: -0.5rem 0 1rem;
 	font-size: 0.72rem;
 	color: var(--admin-muted);
+}
+
+.admin-settings-layout-single {
+	grid-template-columns: 1fr;
+}
+
+.admin-settings-editor.is-module-workbench {
+	min-height: auto;
+	padding: 0;
+	border: 0;
+	box-shadow: none;
+	background: transparent;
+}
+
+.admin-settings-technical-grid {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 0.65rem;
+	margin-bottom: 0.8rem;
+}
+
+.admin-settings-technical-grid > div {
+	display: grid;
+	gap: 0.2rem;
+	min-width: 0;
+	padding: 0.65rem;
+	border-radius: 0.7rem;
+	background: var(--admin-surface);
+}
+
+.admin-settings-technical-grid span {
+	font-size: 0.62rem;
+	color: var(--admin-muted);
+}
+
+.admin-settings-technical-grid code {
+	overflow: hidden;
+	font-size: 0.68rem;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+@media (max-width: 720px) {
+	.admin-settings-technical-grid {
+		grid-template-columns: 1fr;
+	}
 }
 </style>

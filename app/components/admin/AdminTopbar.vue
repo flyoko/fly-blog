@@ -28,9 +28,9 @@ function toggleColorMode() {
 		</div>
 	</div>
 	<div class="admin-topbar-actions">
-		<button class="admin-command-trigger" type="button" aria-label="快速开始" @click="emit('command')">
-			<Icon name="tabler:command" />
-			<span>快速开始</span>
+		<button class="admin-command-trigger" type="button" aria-label="快速开始" title="快速开始" @click="emit('command')">
+			<Icon name="tabler:search" aria-hidden="true" />
+			<span class="admin-command-label">快速开始</span>
 			<kbd>⌘K</kbd>
 		</button>
 		<a class="admin-icon-button" href="/" target="_blank" rel="noopener" aria-label="查看博客" title="查看博客">

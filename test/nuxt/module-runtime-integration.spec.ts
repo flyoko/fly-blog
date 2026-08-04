@@ -27,17 +27,17 @@ describe('module management runtime integration', () => {
 	})
 
 	it('explains fixed utility positions and deployment timing', () => {
-		const admin = read('app/pages/admin/modules.vue')
-		expect(admin).toContain('合并并部署后生效')
+		const admin = read('app/components/admin/settings/AdminModuleWorkbench.vue')
+		expect(admin).toContain('保存后先生成预览，不会直接影响线上')
 		expect(admin).toContain('固定位置')
 		expect(admin).toContain('isNavigationModuleId')
 	})
 
 	it('reloads module state from the production branch instead of stale bundled data', () => {
-		const admin = read('app/pages/admin/modules.vue')
+		const admin = read('app/components/admin/settings/AdminModuleWorkbench.vue')
 		expect(admin).toContain('/api/admin/publishing/configs/modules')
 		expect(admin).toContain('loadDeployedModules')
-		expect(admin).toContain('重新读取已部署配置')
+		expect(admin).toContain('重新读取线上配置')
 	})
 
 	it('bundles every dynamic weather icon used by module cards and forecasts', () => {

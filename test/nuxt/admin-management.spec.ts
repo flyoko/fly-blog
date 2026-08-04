@@ -57,12 +57,13 @@ describe('admin management UI boundaries', () => {
 	it('orders station news before AI selections and supports deleting admin items', async () => {
 		const news = await source('app/pages/ai.news/index.vue')
 		const admin = await source('app/pages/admin/ai-news.vue')
+		const inbox = await source('app/components/admin/news/AdminNewsInbox.vue')
 		const navigation = await source('config/site/navigation.json')
 
 		expect(news.indexOf('{ id: \'rss\', label: \'站长资讯\' }')).toBeLessThan(news.indexOf('{ id: \'hot\', label: \'AI 精选\' }'))
 		expect(admin).toContain('method: \'DELETE\'')
 		expect(admin).toContain('/api/admin/news/items')
-		expect(admin).toContain('item.readerPath || item.originalUrl || item.url')
+		expect(inbox).toContain('item.readerPath || item.originalUrl || item.url')
 		expect(admin).toContain('删除 AI 阅闻条目')
 		expect(navigation).toContain('"text": "AI 阅闻"')
 	})
@@ -109,21 +110,24 @@ describe('admin management UI boundaries', () => {
 	it('submits settings through the controlled configuration PR endpoint', async () => {
 		const settings = await source('app/pages/admin/settings.vue')
 		expect(settings).toContain('/api/admin/publishing/pull-requests')
-		expect(settings).toContain('创建配置 PR')
+		expect(settings).toContain('预览任务已创建')
 		expect(settings).not.toContain('repositoryPath')
 	})
 
 	it('only exposes merge when checks and preview permit it', async () => {
 		const reviews = await source('app/pages/admin/reviews.vue')
-		expect(reviews).toContain('canMerge')
-		expect(reviews).toContain('检查与预览尚未通过')
-		expect(reviews).toContain('变更文件')
-		expect(reviews).toContain('Head SHA')
-		expect(reviews).toContain('file.patch')
-		expect(reviews).toContain('确认合并')
-		expect(reviews).toContain('title="确认合并 Pull Request"')
+		const checklist = await source('app/components/admin/reviews/AdminReleaseChecklist.vue')
+		const technical = await source('app/components/admin/reviews/AdminReleaseTechnicalDetails.vue')
+
+		expect(reviews).toContain('visibleDetail.canMerge')
+		expect(reviews).toContain('expectedHeadSha')
+		expect(checklist).toContain('等待检查和预览全部通过')
+		expect(technical).toContain('变更文件')
+		expect(technical).toContain('Head SHA')
+		expect(technical).toContain('file.patch')
+		expect(reviews).toContain('确认上线')
+		expect(reviews).toContain('title="确认上线"')
 		expect(reviews).not.toContain('verification-text="MERGE"')
-		expect(reviews).toContain(':show-actions="false"')
 	})
 
 	it('uses a reusable publish status component', async () => {
@@ -138,7 +142,7 @@ describe('admin management UI boundaries', () => {
 		const emptyState = await source('app/components/admin/AdminEmptyState.vue')
 		const fallbackPage = await source('app/pages/admin/[section].vue')
 		const managementStyles = await source('app/assets/css/admin-management.scss')
-		const news = await source('app/pages/admin/ai-news.vue')
+		const newsInbox = await source('app/components/admin/news/AdminNewsInbox.vue')
 
 		expect(emptyState).toContain('headingLevel?: 1 | 2 | 3')
 		expect(emptyState).toContain('headingLevel: 2')
@@ -146,6 +150,6 @@ describe('admin management UI boundaries', () => {
 		expect(emptyState).toContain('headingLevel')
 		expect(fallbackPage).toContain(':heading-level="1"')
 		expect(managementStyles).toContain('color: var(--admin-text)')
-		expect(news).toContain('color: var(--admin-accent-strong)')
+		expect(newsInbox).toContain('color: var(--admin-accent-strong)')
 	})
 })
