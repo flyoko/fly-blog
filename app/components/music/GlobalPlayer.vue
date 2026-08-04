@@ -371,8 +371,8 @@ function formatTime(value: number) {
 
 .music-player-details {
 	display: grid;
-	gap: 0.55rem;
-	padding: 0.55rem 0.75rem 0.7rem;
+	gap: 0.4rem;
+	padding: 0.45rem 0.75rem 0.6rem;
 	border-top: 1px solid color-mix(in srgb, var(--c-border) 72%, transparent);
 	background: color-mix(in srgb, var(--c-bg-soft) 42%, transparent);
 }
