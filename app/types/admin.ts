@@ -51,6 +51,7 @@ export interface AdminNavigationItem {
 
 export const adminNavigation: AdminNavigationItem[] = [
 	{ label: '概览', to: '/admin', icon: 'tabler:layout-dashboard' },
+	{ label: '访问分析', to: '/admin/analytics', icon: 'tabler:chart-line' },
 	{ label: '文章', to: '/admin/articles', icon: 'tabler:file-text' },
 	{ label: '瞬间', to: '/admin/moments', icon: 'tabler:sparkles' },
 	{ label: 'AI 阅闻', to: '/admin/ai-news', icon: 'tabler:news' },

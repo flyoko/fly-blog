@@ -16,7 +16,8 @@
     "GITHUB_OWNER": "flyoko",
     "GITHUB_REPO": "fly-blog",
     "GITHUB_DEFAULT_BRANCH": "main",
-    "GITHUB_ALLOWED_LOGIN": "flyoko"
+    "GITHUB_ALLOWED_LOGIN": "flyoko",
+    "ANALYTICS_ENABLED": "true"
   },
   "d1_databases": [
     {
@@ -33,7 +34,11 @@
     }
   ],
   "triggers": {
-    "crons": ["*/5 * * * *", "17 19 * * *"]
+    "crons": [
+      "*/5 * * * *",
+      "17 19 * * *",
+      "31 19 * * *"
+    ]
   },
   "ratelimits": [
     {
@@ -49,6 +54,14 @@
       "namespace_id": "1002",
       "simple": {
         "limit": 60,
+        "period": 60
+      }
+    },
+    {
+      "name": "ANALYTICS_RATE_LIMITER",
+      "namespace_id": "1003",
+      "simple": {
+        "limit": 120,
         "period": 60
       }
     }

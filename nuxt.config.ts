@@ -73,6 +73,7 @@ export default defineNuxtConfig({
 	],
 
 	css: [
+		'@/assets/css/admin-analytics.scss',
 		'@/assets/css/admin-management.scss',
 		'@/assets/css/admin.scss',
 		'@/assets/css/animation.scss',
@@ -92,6 +93,7 @@ export default defineNuxtConfig({
 
 	nitro: {
 		prerender: {
+			routes: ['/admin/analytics'],
 			ignore: disabledModulePrerenderPaths,
 			// 修复部分平台会在文章路径后添加 `/`，导致闪现 404 错误
 			// https://github.com/nuxt/content/issues/2378

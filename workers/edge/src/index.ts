@@ -1,4 +1,6 @@
-const apiPrefixes = ['/api/auth/', '/api/admin/', '/api/moments/', '/api/music/', '/api/news/', '/media/']
+import { analyticsBeaconPath, handleAnalyticsBeacon, instrumentPageResponse } from './analytics'
+
+const apiPrefixes = ['/api/auth/', '/api/admin/', '/api/analytics/', '/api/moments/', '/api/music/', '/api/news/', '/media/']
 const apiExact = new Set(['/api/health', '/api/moments', '/api/news', '/api/weather'])
 
 const hopByHopHeaders = new Set([
@@ -71,12 +73,13 @@ function upstreamUnavailable(): Response {
 }
 
 const worker = {
-	async fetch(request, env, _ctx) {
+	async fetch(request, env, ctx) {
 		try {
 			const incomingUrl = new URL(request.url)
-			if (shouldUseApi(incomingUrl.pathname)) {
+			if (incomingUrl.pathname === analyticsBeaconPath)
+				return handleAnalyticsBeacon(request, env, ctx)
+			if (shouldUseApi(incomingUrl.pathname))
 				return await env.API.fetch(await forwardedRequest(request, incomingUrl))
-			}
 
 			const detailId = request.method === 'GET' || request.method === 'HEAD'
 				? momentDetailId(incomingUrl.pathname)
@@ -85,8 +88,15 @@ const worker = {
 				const apiUrl = new URL(incomingUrl)
 				apiUrl.pathname = `/api/moments/${detailId}`
 				const probe = await env.API.fetch(await forwardedRequest(new Request(request, { method: 'GET' }), apiUrl))
-				if (probe.status === 404)
-					return momentNotFound()
+				if (probe.status === 404) {
+					return instrumentPageResponse(
+						request,
+						momentNotFound(),
+						incomingUrl.pathname,
+						env,
+						ctx,
+					)
+				}
 				if (!probe.ok)
 					return probe
 			}
@@ -96,7 +106,8 @@ const worker = {
 				&& shouldUseSpaShell(incomingUrl.pathname)
 			pagesUrl.pathname = useSpaShell ? '/200' : incomingUrl.pathname
 			pagesUrl.search = useSpaShell ? '' : incomingUrl.search
-			return await fetch(await forwardedRequest(request, pagesUrl))
+			const response = await fetch(await forwardedRequest(request, pagesUrl))
+			return instrumentPageResponse(request, response, incomingUrl.pathname, env, ctx)
 		}
 		catch {
 			return upstreamUnavailable()

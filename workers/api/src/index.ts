@@ -1,6 +1,8 @@
 import type { AppEnvironment, Env } from './env'
 import { Hono } from 'hono'
 import { aboutRoutes } from './features/about/routes'
+import { adminAnalyticsRoutes, internalAnalyticsRoutes, publicAnalyticsRoutes } from './features/analytics/routes'
+import { AnalyticsService } from './features/analytics/service'
 import { GitHubRepository } from './features/articles/github-repository'
 import { createArticleRoutes } from './features/articles/routes'
 import { authRoutes } from './features/auth/routes'
@@ -22,11 +24,12 @@ import { adminWeatherRoutes, publicWeatherRoutes } from './features/weather/rout
 import { ApiError, failure, normalizeError } from './lib/api-error'
 import { contextMiddleware } from './middleware/context'
 
-export type ScheduledJob = 'news-sync' | 'moment-backup'
+export type ScheduledJob = 'analytics-maintenance' | 'news-sync' | 'moment-backup'
 
 export interface ScheduledTaskServices {
 	syncNews: () => Promise<unknown>
 	backupMoments: () => Promise<unknown>
+	maintainAnalytics: () => Promise<unknown>
 }
 
 export function scheduledJobsFor(cron: string): ScheduledJob[] {
@@ -35,6 +38,8 @@ export function scheduledJobsFor(cron: string): ScheduledJob[] {
 			return ['news-sync']
 		case '17 19 * * *':
 			return ['moment-backup', 'news-sync']
+		case '31 19 * * *':
+			return ['analytics-maintenance']
 		default:
 			return []
 	}
@@ -46,11 +51,13 @@ export async function runScheduledTask(
 	services: ScheduledTaskServices = {
 		syncNews: () => new NewsService(env).sync(),
 		backupMoments: () => new MomentBackupService(env).backup(),
+		maintainAnalytics: () => new AnalyticsService(env).maintain(),
 	},
 ): Promise<void> {
 	const runners: Record<ScheduledJob, () => Promise<unknown>> = {
 		'news-sync': services.syncNews,
 		'moment-backup': services.backupMoments,
+		'analytics-maintenance': services.maintainAnalytics,
 	}
 	await Promise.all(scheduledJobsFor(cron).map(job => runners[job]()))
 }
@@ -61,6 +68,9 @@ const articleRoutes = createArticleRoutes({
 })
 
 app.use('*', contextMiddleware)
+app.route('/internal/analytics', internalAnalyticsRoutes)
+app.route('/api/analytics', publicAnalyticsRoutes)
+app.route('/api/admin/analytics', adminAnalyticsRoutes)
 app.route('/api/admin/articles', articleRoutes)
 app.route('/api/admin/about', aboutRoutes)
 app.route('/api/admin/overview', overviewRoutes)

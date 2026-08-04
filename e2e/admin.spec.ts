@@ -378,6 +378,49 @@ test.describe('admin desktop workflows', () => {
 		await expect(page.getByPlaceholder('MERGE')).not.toBeVisible()
 	})
 
+	test('visitor analytics dashboard supports insights, privacy reveal, filters, and CSV export', async ({ page }) => {
+		const capture = await mockAuthenticatedAdmin(page)
+		await page.goto('/admin/analytics')
+
+		await expect(page.getByRole('heading', { name: '访问分析', exact: true })).toBeVisible()
+		const kpiGrid = page.locator('.admin-analytics-kpis')
+		await expect(kpiGrid.getByText('248', { exact: true }).first()).toBeVisible()
+		await expect(kpiGrid.getByText('91', { exact: true }).first()).toBeVisible()
+		await expect(page.getByRole('img', { name: /访问趋势/u })).toBeVisible()
+		await expect(page.getByText('欢迎来到 fly living')).toBeVisible()
+		await expect(page.getByText('San Francisco').first()).toBeVisible()
+		await expect(page.getByText('203.0.113.xxx')).toBeVisible()
+
+		await page.getByRole('button', { name: '查看完整 IP' }).click()
+		await expect(page.getByText('203.0.113.42')).toBeVisible()
+		await expect.poll(() => capture.analyticsIpViews).toBe(1)
+		await page.getByRole('button', { name: '隐藏完整 IP' }).click()
+		await expect(page.getByText('203.0.113.42')).not.toBeVisible()
+
+		await page.getByLabel('流量类型').selectOption('bot')
+		await page.getByRole('button', { name: '筛选' }).click()
+		const visitorsPanel = page.locator('.admin-analytics-visitors-panel')
+		await expect(visitorsPanel.getByText('bot:google')).toBeVisible()
+		const botRow = visitorsPanel.getByRole('row', { name: /bot:google/u })
+		await expect(botRow.getByText('爬虫', { exact: true })).toBeVisible()
+
+		const downloadPromise = page.waitForEvent('download')
+		await page.getByRole('button', { name: '导出 CSV' }).click()
+		const download = await downloadPromise
+		expect(download.suggestedFilename()).toMatch(/^fly-living-analytics-/u)
+		await expect.poll(() => capture.analyticsExports).toBe(1)
+		await expect(page.getByText('原始 IP 保留 30 天')).toBeVisible()
+	})
+
+	test('analytics status failure stays isolated and retryable', async ({ page }) => {
+		await mockAuthenticatedAdmin(page, { analyticsStatusFailure: true })
+		await page.goto('/admin/analytics')
+		await expect(page.getByRole('heading', { name: '访问分析', exact: true })).toBeVisible()
+		await expect(page.locator('.admin-analytics-kpis').getByText('248', { exact: true }).first()).toBeVisible()
+		await expect(page.getByText('状态不可用', { exact: true })).toBeVisible()
+		await expect(page.getByRole('button', { name: '重试状态' })).toBeVisible()
+	})
+
 	test('dark mode and reduced motion remain available', async ({ page }) => {
 		await page.emulateMedia({ reducedMotion: 'reduce' })
 		await mockAuthenticatedAdmin(page)
@@ -457,4 +500,50 @@ test('mobile admin uses a compact navigation drawer', async ({ page, isMobile })
 	await page.getByRole('button', { name: '打开导航' }).click()
 	await expect(page.locator('.admin-sidebar')).toHaveClass(/is-open/u)
 	await expect(page.getByRole('link', { name: '媒体库' })).toBeVisible()
+})
+
+test('visitor analytics stays contained across target widths and themes', async ({ page, isMobile }) => {
+	test.skip(isMobile, 'Responsive matrix runs once in the desktop project.')
+	await page.emulateMedia({ reducedMotion: 'reduce' })
+	await mockAuthenticatedAdmin(page)
+	await page.goto('/admin/analytics')
+	await expect(page.getByRole('heading', { name: '访问分析', exact: true })).toBeVisible()
+	for (const width of [320, 390, 768, 1024, 1440]) {
+		await page.setViewportSize({ width, height: 900 })
+		const dimensions = await page.evaluate(() => ({
+			scrollWidth: document.documentElement.scrollWidth,
+			clientWidth: document.documentElement.clientWidth,
+		}))
+		expect(dimensions.scrollWidth, `${width}px viewport overflowed`).toBeLessThanOrEqual(dimensions.clientWidth + 1)
+	}
+	await page.setViewportSize({ width: 1440, height: 900 })
+	await page.getByRole('button', { name: '切换明暗模式' }).click()
+	await expect(page.locator('html')).toHaveClass(/dark/u)
+	await expect(page.getByRole('img', { name: /访问趋势/u })).toBeVisible()
+	const transitionDuration = await page.locator('.admin-analytics-page').evaluate((element) => {
+		return Number.parseFloat(getComputedStyle(element).transitionDuration) || 0
+	})
+	expect(transitionDuration).toBeLessThanOrEqual(0.001)
+})
+
+test('unauthenticated visitor analytics redirects to login', async ({ page }) => {
+	await mockAdminApi(page, { authenticated: false })
+	await page.goto('/admin/analytics')
+	await expect(page).toHaveURL(/\/admin\/login\?returnTo=/u)
+	await expect(page.getByRole('button', { name: '使用 GitHub 登录' })).toBeVisible()
+})
+
+test('mobile visitor analytics keeps the page contained and the dashboard operable', async ({ page, isMobile }) => {
+	test.skip(!isMobile, 'Mobile analytics coverage runs in the mobile project.')
+	await mockAuthenticatedAdmin(page)
+	await page.goto('/admin/analytics')
+	await expect(page.getByRole('heading', { name: '访问分析', exact: true })).toBeVisible()
+	await expect(page.locator('.admin-analytics-kpis').getByText('248', { exact: true }).first()).toBeVisible()
+	const dimensions = await page.evaluate(() => ({
+		scrollWidth: document.documentElement.scrollWidth,
+		clientWidth: document.documentElement.clientWidth,
+	}))
+	expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth + 1)
+	await page.getByRole('button', { name: '打开导航' }).click()
+	await expect(page.getByRole('link', { name: '访问分析', exact: true })).toBeVisible()
 })
