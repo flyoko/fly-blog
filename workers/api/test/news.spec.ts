@@ -310,6 +310,73 @@ describe('news service', () => {
 		}
 	})
 
+	it('resets the image budget between sources so later sources are not starved', async () => {
+		let logicalNow = 1_000
+		vi.spyOn(Date, 'now').mockImplementation(() => logicalNow)
+		vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+			const url = typeof input === 'string' ? input : input instanceof Request ? input.url : input.toString()
+			if (url.endsWith('/rss.xml')) {
+				return new Response(`
+					<rss><channel><item>
+						<title>站长图片预算</title>
+						<link>https://www.zaihua.news/article/budget/</link>
+						<guid>https://www.zaihua.news/article/budget/</guid>
+						<description><![CDATA[<p>站长摘要</p><img src="https://cdn.example.com/station-budget.png">]]></description>
+					</item></channel></rss>
+				`, { status: 200 })
+			}
+			if (url === 'https://www.zaihua.news/article/budget/')
+				return new Response('<article><p>结构不匹配</p></article>', { status: 200 })
+			if (url === 'https://cdn.example.com/station-budget.png') {
+				logicalNow += 46_000
+				return new Response(Uint8Array.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x11]), { status: 200 })
+			}
+			if (url.includes('/api/v1/items')) {
+				return Response.json({ items: [{
+					id: 'cms-budget',
+					title: 'AI HOT 图片预算',
+					summary: 'AI HOT 摘要',
+					links: { aihot: 'https://aihot.virxact.com/items/cms-budget', original: 'https://example.com/original' },
+					selected: true,
+				}] })
+			}
+			if (url.endsWith('/feed/full.xml')) {
+				return new Response(`
+					<rss><channel><item>
+						<title>AI HOT 图片预算</title>
+						<link>https://aihot.virxact.com/items/cms-budget</link>
+						<guid>cms-budget</guid>
+						<description><![CDATA[<p>AI HOT 摘要</p>]]></description>
+					</item></channel></rss>
+				`, { status: 200 })
+			}
+			if (url === 'https://aihot.virxact.com/items/cms-budget') {
+				return new Response(`
+					<head><meta property="og:image" content="https://cdn.example.com/aihot-budget.png"></head>
+					<body><main>仅图片元数据</main></body>
+				`, { status: 200 })
+			}
+			if (url === 'https://cdn.example.com/aihot-budget.png') {
+				return new Response(Uint8Array.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x22]), { status: 200 })
+			}
+			return Response.json({ report: {
+				date: '2026-08-04',
+				links: { aihot: 'https://aihot.virxact.com/daily/2026-08-04' },
+				sections: [],
+			} })
+		})
+		try {
+			const service = new NewsService(runtimeEnv())
+			await service.sync({ force: true })
+			const items = (await service.list()).items
+			expect(items.find(item => item.kind === 'rss')?.coverImage).toMatchObject({ mime: 'image/png' })
+			expect(items.find(item => item.kind === 'hot')?.coverImage).toMatchObject({ mime: 'image/png' })
+		}
+		finally {
+			vi.restoreAllMocks()
+		}
+	})
+
 	it('keeps deleted automated items excluded after later source syncs', async () => {
 		vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
 			const url = typeof input === 'string' ? input : input instanceof Request ? input.url : input.toString()

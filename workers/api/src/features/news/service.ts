@@ -109,7 +109,7 @@ const MAX_NEWS_IMAGE_BYTES = 8 * 1024 * 1024
 const MAX_NEWS_IMAGE_REDIRECTS = 3
 const NEWS_IMAGE_REQUEST_TIMEOUT_MS = 12_000
 const NEWS_IMAGE_DOCUMENT_BUDGET_MS = 20_000
-const NEWS_IMAGE_TOTAL_SYNC_BUDGET_MS = 45_000
+const NEWS_IMAGE_SOURCE_SYNC_BUDGET_MS = 45_000
 const NEWS_IMAGE_MIMES = new Set<NewsImageDto['mime']>([
 	'image/png',
 	'image/jpeg',
@@ -1249,19 +1249,20 @@ export class NewsService {
 	async sync(options: { force?: boolean, sourceId?: string } = {}): Promise<NewsSyncResult> {
 		if (!sourcesConfig.enabled)
 			return { sources: [], syncedAt: new Date().toISOString() }
-		this.imageSyncDeadline = Date.now() + NEWS_IMAGE_TOTAL_SYNC_BUDGET_MS
-		try {
-			const sources = sourcesConfig.sources
-				.filter(source => source.enabled && (!options.sourceId || source.id === options.sourceId))
-				.sort((left, right) => left.priority - right.priority)
-			const results: NewsSyncSourceResult[] = []
-			for (const source of sources)
+		const sources = sourcesConfig.sources
+			.filter(source => source.enabled && (!options.sourceId || source.id === options.sourceId))
+			.sort((left, right) => left.priority - right.priority)
+		const results: NewsSyncSourceResult[] = []
+		for (const source of sources) {
+			this.imageSyncDeadline = Date.now() + NEWS_IMAGE_SOURCE_SYNC_BUDGET_MS
+			try {
 				results.push(await this.syncConfiguredSource(source, Boolean(options.force)))
-			return { sources: results, syncedAt: new Date().toISOString() }
+			}
+			finally {
+				this.imageSyncDeadline = 0
+			}
 		}
-		finally {
-			this.imageSyncDeadline = 0
-		}
+		return { sources: results, syncedAt: new Date().toISOString() }
 	}
 
 	async syncSource(sourceId: string): Promise<NewsSyncResult> {
