@@ -2,6 +2,7 @@ import type { ArticleDocument, ArticleSummary } from '#shared/admin/articles'
 import { encodeArticleId } from '#shared/admin/articles'
 import {
 	buildArticleSaveRequest,
+	cloneArticleDocument,
 	useAdminDraft,
 } from '~/composables/useAdminDraft'
 
@@ -13,6 +14,10 @@ export interface AdminArticleEditorOptions {
 
 function newIdempotencyKey(prefix: string) {
 	return `${prefix}-${crypto.randomUUID()}`
+}
+
+function documentFingerprint(document: ArticleDocument) {
+	return JSON.stringify(document)
 }
 
 export function useAdminArticleEditor(options: AdminArticleEditorOptions) {
@@ -40,19 +45,27 @@ export function useAdminArticleEditor(options: AdminArticleEditorOptions) {
 	const rawComparisonOpen = ref(false)
 	const initialized = ref(false)
 	const draftRestored = ref(false)
+	const initialFingerprint = documentFingerprint(document.value)
+	const remoteFingerprint = ref(initialFingerprint)
+	const localDraftFingerprint = ref(initialFingerprint)
 	const drafts = useAdminDraft()
 	let draftTimer: ReturnType<typeof setTimeout> | undefined
+	let draftSavePromise: Promise<void> | undefined
 
+	const hasUnsavedChanges = computed(() => documentFingerprint(document.value) !== localDraftFingerprint.value)
+	const matchesRemote = computed(() => documentFingerprint(document.value) === remoteFingerprint.value)
 	const draftStatus = computed(() => {
 		if (drafts.saving.value)
-			return '正在保存本地草稿…'
+			return '正在把改动保存到这台设备…'
 		if (drafts.error.value)
 			return drafts.error.value
+		if (hasUnsavedChanges.value)
+			return '有改动，稍后会自动保存在这台设备'
 		if (draftRestored.value)
-			return '已恢复浏览器中的本地草稿'
+			return '已恢复上次没有发布的本地内容'
 		if (drafts.lastSavedAt.value)
-			return `本地草稿已保存 ${new Date(drafts.lastSavedAt.value).toLocaleTimeString()}`
-		return ''
+			return `已在这台设备保存 · ${new Date(drafts.lastSavedAt.value).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`
+		return matchesRemote.value ? '内容已与远端版本一致' : '改动已保存在这台设备，尚未发布'
 	})
 
 	async function loadArticles() {
@@ -75,6 +88,7 @@ export function useAdminArticleEditor(options: AdminArticleEditorOptions) {
 		if (!saved)
 			return
 		document.value = saved.document
+		localDraftFingerprint.value = documentFingerprint(document.value)
 		draftRestored.value = true
 		drafts.lastSavedAt.value = saved.updatedAt
 	}
@@ -84,6 +98,9 @@ export function useAdminArticleEditor(options: AdminArticleEditorOptions) {
 		error.value = null
 		try {
 			await Promise.all([loadArticles(), loadRemote()])
+			const loadedFingerprint = documentFingerprint(document.value)
+			remoteFingerprint.value = loadedFingerprint
+			localDraftFingerprint.value = loadedFingerprint
 			await restoreDraft()
 			initialized.value = true
 		}
@@ -95,7 +112,44 @@ export function useAdminArticleEditor(options: AdminArticleEditorOptions) {
 		}
 	}
 
+	async function persistLocalDraft() {
+		if (!initialized.value)
+			return
+		if (draftSavePromise)
+			await draftSavePromise
+		if (!hasUnsavedChanges.value)
+			return
+		const snapshot = cloneArticleDocument(document.value)
+		const snapshotFingerprint = documentFingerprint(snapshot)
+		const operation = drafts.save(snapshot)
+		draftSavePromise = operation
+		try {
+			await operation
+			localDraftFingerprint.value = snapshotFingerprint
+		}
+		finally {
+			if (draftSavePromise === operation)
+				draftSavePromise = undefined
+		}
+	}
+
+	async function flushPendingDraft() {
+		if (!initialized.value)
+			return
+		if (draftTimer) {
+			clearTimeout(draftTimer)
+			draftTimer = undefined
+		}
+		if (draftSavePromise)
+			await draftSavePromise
+		await persistLocalDraft()
+	}
+
 	async function save(mode: 'direct' | 'pull_request') {
+		if (!document.value.frontmatter.title?.trim() || !document.value.body.trim()) {
+			error.value = '先写好标题和正文，再保存或提交审核。'
+			return
+		}
 		saving.value = true
 		error.value = null
 		success.value = null
@@ -112,13 +166,25 @@ export function useAdminArticleEditor(options: AdminArticleEditorOptions) {
 				body: request,
 			})
 			await drafts.remove(document.value.path, document.value.sha)
+			const savedFingerprint = documentFingerprint(document.value)
+			remoteFingerprint.value = savedFingerprint
+			localDraftFingerprint.value = savedFingerprint
+			draftRestored.value = false
 			conflict.value = false
-			success.value = mode === 'direct' ? '文章已提交发布' : '文章 Pull Request 已创建'
+			if (mode === 'pull_request')
+				success.value = '已提交审核，检查与预览完成后可在“发布与审核”中合并。'
+			else if (document.value.frontmatter.draft)
+				success.value = '草稿已保存到内容仓库，前台仍不会展示。'
+			else
+				success.value = '文章已发布。'
 			if (options.isNew) {
 				await router.replace(`/admin/articles/${encodeArticleId(document.value.path)}`)
 			}
 			else {
 				await loadRemote()
+				const loadedFingerprint = documentFingerprint(document.value)
+				remoteFingerprint.value = loadedFingerprint
+				localDraftFingerprint.value = loadedFingerprint
 			}
 		}
 		catch (cause) {
@@ -134,10 +200,16 @@ export function useAdminArticleEditor(options: AdminArticleEditorOptions) {
 	async function reloadRemote() {
 		if (options.isNew) {
 			document.value = options.initialDocument ?? document.value
+			const resetFingerprint = documentFingerprint(document.value)
+			remoteFingerprint.value = resetFingerprint
+			localDraftFingerprint.value = resetFingerprint
 			return
 		}
 		await drafts.remove(document.value.path, document.value.sha)
 		await loadRemote()
+		const loadedFingerprint = documentFingerprint(document.value)
+		remoteFingerprint.value = loadedFingerprint
+		localDraftFingerprint.value = loadedFingerprint
 		conflict.value = false
 		draftRestored.value = false
 	}
@@ -146,22 +218,33 @@ export function useAdminArticleEditor(options: AdminArticleEditorOptions) {
 		rawComparisonOpen.value = true
 	}
 
-	function navigate(id: string) {
-		router.push(`/admin/articles/${id}`)
+	async function navigate(id: string) {
+		await flushPendingDraft()
+		await router.push(`/admin/articles/${id}`)
 	}
 
 	watch(document, () => {
 		if (!initialized.value)
 			return
+		draftRestored.value = false
 		if (draftTimer)
 			clearTimeout(draftTimer)
-		draftTimer = setTimeout(() => drafts.save(document.value), 800)
+		draftTimer = setTimeout(() => {
+			draftTimer = undefined
+			void persistLocalDraft().catch(() => {})
+		}, 800)
 	}, { deep: true })
+
+	onBeforeRouteLeave(async () => {
+		await flushPendingDraft()
+		return true
+	})
 
 	onMounted(initialize)
 	onBeforeUnmount(() => {
 		if (draftTimer)
 			clearTimeout(draftTimer)
+		void flushPendingDraft()
 	})
 
 	return {
@@ -175,7 +258,9 @@ export function useAdminArticleEditor(options: AdminArticleEditorOptions) {
 		success,
 		rawComparisonOpen,
 		draftStatus,
+		hasUnsavedChanges,
 		initialize,
+		flushPendingDraft,
 		save,
 		reloadRemote,
 		compareRaw,

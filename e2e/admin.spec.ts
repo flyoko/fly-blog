@@ -89,7 +89,7 @@ test.describe('admin desktop workflows', () => {
 		await page.getByRole('link', { name: '新建文章', exact: true }).click()
 		await page.getByLabel('标题').fill('Cycle 1 test article')
 		await page.getByLabel('Markdown 正文').fill('# Test\n\nPublished through the admin.')
-		await page.getByRole('button', { name: '直接发布' }).click()
+		await page.getByRole('button', { name: '保存草稿' }).click()
 
 		await expect.poll(() => capture.articleWrites.length).toBe(1)
 		expect(capture.articleWrites[0]).toMatchObject({ mode: 'direct' })
@@ -99,7 +99,7 @@ test.describe('admin desktop workflows', () => {
 	test('configuration changes create a controlled pull request', async ({ page }) => {
 		const capture = await mockAuthenticatedAdmin(page)
 		await page.goto('/admin/settings')
-		await page.getByRole('button', { name: '创建配置 PR' }).click()
+		await page.getByRole('button', { name: '创建分类 PR' }).click()
 		await expect(page.locator('.admin-pr-result').filter({ hasText: 'Pull Request #42 已创建' })).toBeVisible()
 		await expect.poll(() => capture.configWrites.length).toBe(1)
 		expect(capture.configWrites[0]).toMatchObject({ kind: 'categories' })
@@ -184,7 +184,7 @@ test.describe('admin desktop workflows', () => {
 						this.onmessage?.(new MessageEvent('message', {
 							data: { type: 'success', id: message.id, buffer: bytes.buffer, songId: null, usedMediaKey: false },
 						}))
-					}, 400)
+					}, 2_000)
 				}
 
 				terminate() {}
@@ -354,9 +354,11 @@ test.describe('admin desktop workflows', () => {
 
 	test('article conflict preserves the local draft and exposes recovery choices', async ({ page }) => {
 		await mockAuthenticatedAdmin(page, { articleConflict: true })
-		await page.goto(`/admin/articles/${articleId}`)
+		await page.goto('/admin/articles')
+		await page.getByRole('link', { name: /Cycle 1 article/u }).click()
+		await expect(page).toHaveURL(`/admin/articles/${articleId}`)
 		await page.getByLabel('Markdown 正文').fill('# Local conflicting edit')
-		await page.getByRole('button', { name: '直接发布' }).click()
+		await page.getByRole('button', { name: '发布文章' }).click()
 		await expect(page.getByText('远端文章已经变化')).toBeVisible()
 		await expect(page.getByRole('button', { name: '重新加载远端' })).toBeVisible()
 		await expect(page.getByRole('button', { name: '比较原始 Markdown' })).toBeVisible()
@@ -367,7 +369,7 @@ test.describe('admin desktop workflows', () => {
 		await mockAuthenticatedAdmin(page)
 		await page.goto('/admin/reviews')
 		await page.getByRole('button').filter({ hasText: 'config/taxonomy/categories.json' }).click()
-		await expect(page.getByText('success', { exact: true }).first()).toBeVisible()
+		await expect(page.getByText('检查通过', { exact: true })).toBeVisible()
 		await expect(page.locator('.admin-review-file code').filter({ hasText: 'config/taxonomy/categories.json' })).toBeVisible()
 		await expect(page.locator('.admin-review-meta code').filter({ hasText: 'head-sha-1' }).first()).toBeVisible()
 		await expect(page.locator('.admin-review-file pre')).toContainText('@@ -1 +1 @@')

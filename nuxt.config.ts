@@ -25,6 +25,7 @@ const disabledModulePrerenderPaths = disabledModulePathPrefixes(configuredModule
 export default defineNuxtConfig({
 	app: {
 		head: {
+			htmlAttrs: { lang: 'zh-CN' },
 			meta: [
 				{ name: 'author', content: [blogConfig.author.name, blogConfig.author.email].filter(Boolean).join(', ') },
 				{ name: 'color-scheme', content: 'light dark' },

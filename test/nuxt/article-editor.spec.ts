@@ -2,9 +2,11 @@ import type { ArticleDocument } from '../../shared/admin/articles'
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import { reactive } from 'vue'
 import {
 	adminDraftKey,
 	buildArticleSaveRequest,
+	cloneArticleDocument,
 	insertMarkdownImage,
 	updateArticleFrontmatter,
 } from '../../app/composables/useAdminDraft'
@@ -66,6 +68,11 @@ describe('article editor helpers', () => {
 		expect(pullRequest).toMatchObject({ document, expectedSha: 'base-sha', mode: 'pull_request' })
 	})
 
+	it('clones Vue reactive documents before writing them to IndexedDB', () => {
+		const reactiveDocument = reactive(structuredClone(document))
+		expect(cloneArticleDocument(reactiveDocument)).toEqual(document)
+	})
+
 	it('renders preview Markdown without executable HTML or dangerous protocols', () => {
 		const html = renderAdminMarkdown('<script>alert(1)</script>\n\n[bad](javascript:alert(1))')
 		expect(html).not.toContain('<script>')
@@ -98,8 +105,9 @@ describe('article editor UI boundaries', () => {
 
 	it('offers direct and Pull Request publishing plus media insertion', async () => {
 		const editor = await source('app/components/admin/AdminArticleEditor.vue')
-		expect(editor).toContain('直接发布')
-		expect(editor).toContain('创建 PR')
+		expect(editor).toContain('保存草稿')
+		expect(editor).toContain('发布文章')
+		expect(editor).toContain('提交审核')
 		expect(editor).toContain('插入媒体')
 		expect(editor).toContain('<h1 class="visually-hidden">')
 	})

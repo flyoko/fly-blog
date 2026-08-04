@@ -65,6 +65,10 @@ function enhanceTwikooAccessibility() {
 		if (!link.getAttribute('aria-label') && !link.textContent?.trim())
 			link.setAttribute('aria-label', link.getAttribute('alt') || '外部链接')
 	})
+	root.querySelectorAll<HTMLImageElement>('.OwO-item img:not([alt])').forEach((image) => {
+		const label = image.closest<HTMLElement>('.OwO-item')?.getAttribute('title')?.trim()
+		image.setAttribute('alt', label || '表情')
+	})
 }
 
 onMounted(async () => {
