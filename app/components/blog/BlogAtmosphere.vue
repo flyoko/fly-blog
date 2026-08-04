@@ -23,8 +23,8 @@ let targetX = 50
 let targetY = 26
 let currentX = 50
 let currentY = 26
-const routePointerSettleMs = 1_200
-const routePointerFailSafeMs = 6_000
+const routePointerSettleMs = 360
+const routePointerFailSafeMs = 4_000
 
 let pointerResumeAt = 0
 let routeSettleTimer: ReturnType<typeof setTimeout> | undefined
@@ -33,7 +33,7 @@ const { isActive, pause, resume } = useRafFn(() => {
 	const element = root.value
 	const flowElement = flow.value
 	const pointerElement = pointer.value
-	if (!element || !flowElement || !pointerElement || !isFinePointer.value || prefersReducedMotion.value || isMobilePerformanceMode.value) {
+	if (!element || !flowElement || !pointerElement || !isFinePointer.value || prefersReducedMotion.value || isMobilePerformanceMode.value || isRouteSettling.value) {
 		pause()
 		return
 	}
@@ -58,21 +58,27 @@ const { isActive, pause, resume } = useRafFn(() => {
 		pause()
 }, { immediate: false })
 
+function canAnimatePointer() {
+	return isFinePointer.value
+		&& !prefersReducedMotion.value
+		&& !isMobilePerformanceMode.value
+		&& !isRouteSettling.value
+}
+
 function resumePointerAnimation() {
-	if (!isActive.value)
+	if (canAnimatePointer() && !isActive.value)
 		resume()
 }
 
 function resetPointer() {
 	targetX = 50
 	targetY = 26
-	resumePointerAnimation()
+	if (!isRouteSettling.value)
+		resumePointerAnimation()
 }
 
 function freezePointerAnimation(resumeAt = Number.POSITIVE_INFINITY) {
 	pause()
-	targetX = currentX
-	targetY = currentY
 	pointerResumeAt = resumeAt
 }
 
@@ -91,14 +97,16 @@ function releaseRouteSettling() {
 	}
 
 	routeSettleTimer = undefined
+	pointerResumeAt = 0
 	isRouteSettling.value = false
+	resumePointerAnimation()
 }
 
 function beginRouteSettling() {
 	clearRouteSettleTimer()
 	isRouteSettling.value = true
 	freezePointerAnimation()
-	// Abort/error paths should never leave the persistent background paused.
+	// Abort/error paths should never leave the pointer compositor locked.
 	routeSettleTimer = setTimeout(scheduleRouteResume, routePointerFailSafeMs)
 }
 
@@ -116,7 +124,7 @@ const unhookPageStart = nuxtApp.hook('page:start', beginRouteSettling)
 const unhookPageFinish = nuxtApp.hook('page:finish', scheduleRouteResume)
 
 useEventListener('pointermove', (event) => {
-	if (!isFinePointer.value || prefersReducedMotion.value || isMobilePerformanceMode.value)
+	if (!canAnimatePointer())
 		return
 	if (performance.now() < pointerResumeAt)
 		return
@@ -132,15 +140,17 @@ useEventListener('pointerout', (event) => {
 }, { passive: true })
 
 watch(() => route.fullPath, () => {
-	// Route swaps already replace a large painted area. Freeze both the
-	// pointer transforms and the CSS-driven background animations until the
-	// incoming page has completed its compositor settling window.
+	// Keep the ambient CSS animation alive during route swaps. Only freeze the
+	// two pointer-driven transform layers until the incoming page has mounted.
 	scheduleRouteResume()
 })
 
 watch([isFinePointer, prefersReducedMotion, isMobilePerformanceMode], ([fine, reduced, mobile]) => {
-	if (fine && !reduced && !mobile)
+	if (fine && !reduced && !mobile) {
+		pointerResumeAt = 0
+		resumePointerAnimation()
 		return
+	}
 
 	pause()
 	targetX = 50
@@ -157,6 +167,7 @@ onBeforeUnmount(() => {
 	unhookPageStart()
 	unhookPageFinish()
 	clearRouteSettleTimer()
+	pointerResumeAt = 0
 	isRouteSettling.value = false
 	pause()
 })

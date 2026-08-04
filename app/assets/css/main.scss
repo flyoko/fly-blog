@@ -294,16 +294,6 @@ img {
 	filter: drop-shadow(0 0 7px var(--c-flow-violet));
 }
 
-.blog-atmosphere.is-route-settling {
-	.atmosphere-lens,
-	.flow-ribbon,
-	.flow-halo,
-	.flow-thread,
-	.flow-signal {
-		animation-play-state: paused;
-	}
-}
-
 .atmosphere-pointer {
 	inset: auto;
 	top: 0;

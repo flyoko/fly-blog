@@ -133,14 +133,64 @@ test.describe('public route switch stability', () => {
 		expectStableGeometry(frames)
 	})
 
-	test('keeps avatar hover compositor-local while switching routes in macOS Chrome', async ({ page }) => {
+	test('recovers ambient and pointer motion after interrupted and repeated module navigation', async ({ page }) => {
+		let delayAiNews = true
+		await page.route('**/ai.news/_payload.json*', async (route) => {
+			if (delayAiNews) {
+				delayAiNews = false
+				await new Promise(resolve => setTimeout(resolve, 850))
+			}
+			await route.continue()
+		})
+
+		await page.goto('/2026/welcome', { waitUntil: 'domcontentloaded' })
+		const atmosphere = page.locator('.blog-atmosphere')
+		await expect(atmosphere).toBeVisible()
+		await expect(atmosphere).not.toHaveClass(/is-route-settling/, { timeout: 2_000 })
+
+		await page.locator('.sidebar-nav-item[href="/ai.news"]').click()
+		await page.waitForTimeout(70)
+		await page.locator('.sidebar-nav-item[href="/moments"]').click()
+		await expect(page).toHaveURL('/moments')
+
+		for (const path of ['/link', '/archive', '/comments', '/me', '/moments']) {
+			await page.locator(`.sidebar-nav-item[href="${path}"]`).click()
+			await page.waitForTimeout(60)
+		}
+		await expect(page).toHaveURL('/moments')
+		await expect(atmosphere).not.toHaveClass(/is-route-settling/, { timeout: 3_000 })
+
+		const signal = page.locator('.flow-ribbon-primary .flow-signal')
+		await expect(signal).toHaveCSS('animation-play-state', 'running')
+		const ambientBefore = await signal.evaluate(element => getComputedStyle(element).strokeDashoffset)
+		await page.waitForTimeout(260)
+		const ambientAfter = await signal.evaluate(element => getComputedStyle(element).strokeDashoffset)
+		expect(ambientAfter).not.toBe(ambientBefore)
+
+		const flow = page.locator('.atmosphere-flow')
+		const pointerBefore = await flow.evaluate(element => getComputedStyle(element).transform)
+		await page.mouse.move(1_080, 640)
+		await page.waitForTimeout(280)
+		const pointerAfter = await flow.evaluate(element => getComputedStyle(element).transform)
+		expect(pointerAfter).not.toBe(pointerBefore)
+
+		await page.locator('.sidebar-nav-item[href="/moments"]').click()
+		await page.waitForTimeout(420)
+		await expect(atmosphere).not.toHaveClass(/is-route-settling/)
+		const sameRouteBefore = await signal.evaluate(element => getComputedStyle(element).strokeDashoffset)
+		await page.waitForTimeout(220)
+		const sameRouteAfter = await signal.evaluate(element => getComputedStyle(element).strokeDashoffset)
+		expect(sameRouteAfter).not.toBe(sameRouteBefore)
+	})
+
+	test('keeps avatar and ambient motion alive while route-sensitive transforms settle in macOS Chrome', async ({ page }) => {
 		let delayNextMePayload = false
 		let delayedMePayloadStarted = false
 		await page.route('**/me/_payload.json*', async (route) => {
 			if (delayNextMePayload) {
 				delayNextMePayload = false
 				delayedMePayloadStarted = true
-				await new Promise(resolve => setTimeout(resolve, 900))
+				await new Promise(resolve => setTimeout(resolve, 2_200))
 			}
 			await route.continue()
 		})
@@ -239,12 +289,13 @@ test.describe('public route switch stability', () => {
 				signalPlayState: signal ? getComputedStyle(signal).animationPlayState : null,
 			}
 		})
-		expect(loadingAnimationState.lensPlayState).toBe('paused')
-		expect(loadingAnimationState.ribbonPlayState).toBe('paused')
-		expect(loadingAnimationState.signalPlayState).toBe('paused')
+		expect(loadingAnimationState.lensPlayState).toBe('running')
+		expect(loadingAnimationState.ribbonPlayState).toBe('running')
+		expect(loadingAnimationState.signalPlayState).toBe('running')
 		const loadingTransform = await page.locator('.atmosphere-flow').evaluate(element => getComputedStyle(element).transform)
 		await page.mouse.move(320, 240)
 		await page.waitForTimeout(450)
+		await expect(atmosphere).toHaveClass(/is-route-settling/)
 		const loadingTransformAfterMove = await page.locator('.atmosphere-flow').evaluate(element => getComputedStyle(element).transform)
 		const loadingAnimationStateAfterMove = await page.evaluate(() => {
 			const lens = document.querySelector<HTMLElement>('.atmosphere-lens-a')
@@ -257,38 +308,77 @@ test.describe('public route switch stability', () => {
 			}
 		})
 		expect(loadingTransformAfterMove).toBe(loadingTransform)
-		expect(loadingAnimationStateAfterMove).toEqual({
-			lensTransform: loadingAnimationState.lensTransform,
-			ribbonTransform: loadingAnimationState.ribbonTransform,
-			signalDashOffset: loadingAnimationState.signalDashOffset,
-		})
+		expect([
+			loadingAnimationStateAfterMove.lensTransform !== loadingAnimationState.lensTransform,
+			loadingAnimationStateAfterMove.ribbonTransform !== loadingAnimationState.ribbonTransform,
+			loadingAnimationStateAfterMove.signalDashOffset !== loadingAnimationState.signalDashOffset,
+		].some(Boolean)).toBe(true)
 		await expect(page).toHaveURL('/me')
-		await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))))
-		const loadingTailTransform = await page.locator('.atmosphere-flow').evaluate(element => getComputedStyle(element).transform)
-		await page.mouse.move(700, 360)
+		await expect(atmosphere).not.toHaveClass(/is-route-settling/, { timeout: 2_000 })
+		const automaticResumeStart = await page.locator('.atmosphere-flow').evaluate(element => getComputedStyle(element).transform)
 		await page.waitForTimeout(220)
-		const loadingTailTransformAfterMove = await page.locator('.atmosphere-flow').evaluate(element => getComputedStyle(element).transform)
-		expect(loadingTailTransformAfterMove).toBe(loadingTailTransform)
-		await page.waitForTimeout(1_250)
-		await expect(atmosphere).not.toHaveClass(/is-route-settling/)
-		const resumedTransform = await page.locator('.atmosphere-flow').evaluate(element => getComputedStyle(element).transform)
+		const automaticResumeEnd = await page.locator('.atmosphere-flow').evaluate(element => getComputedStyle(element).transform)
+		expect(automaticResumeEnd).not.toBe(automaticResumeStart)
+		const resumedTransform = automaticResumeEnd
 		await page.mouse.move(910, 520)
 		await page.waitForTimeout(260)
 		const resumedTransformAfterMove = await page.locator('.atmosphere-flow').evaluate(element => getComputedStyle(element).transform)
 		expect(resumedTransformAfterMove).not.toBe(resumedTransform)
 
-		for (const [index, path] of ['/moments', '/link', '/archive', '/ai.news', '/'].entries()) {
+		for (const [index, path] of ['/moments', '/link', '/archive', '/ai.news', '/', '/comments', '/me'].entries()) {
 			await page.locator(`.sidebar-nav-item[href="${path}"]`).click()
 			await expect(page).toHaveURL(path)
 			await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))))
-			const first = await page.locator('.atmosphere-flow').evaluate(element => getComputedStyle(element).transform)
+			const settlingState = await page.evaluate(() => {
+				const flow = document.querySelector<HTMLElement>('.atmosphere-flow')
+				const signal = document.querySelector<SVGPathElement>('.flow-ribbon-primary .flow-signal')
+				return {
+					flowTransform: flow ? getComputedStyle(flow).transform : null,
+					settling: document.querySelector('.blog-atmosphere')?.classList.contains('is-route-settling') ?? false,
+					signalOffset: signal ? getComputedStyle(signal).strokeDashoffset : null,
+					signalPlayState: signal ? getComputedStyle(signal).animationPlayState : null,
+				}
+			})
 			// macOS Chromium can synthesize a pointermove for a stationary cursor when
-			// the layout underneath it is replaced. Reproduce that event inside the
-			// route-settling window and verify it cannot wake the full-screen RAF.
+			// the layout underneath it is replaced. It must not wake the pointer RAF,
+			// while the independent ambient signal keeps travelling.
 			await page.mouse.move(360 + index * 4, 240)
 			await page.waitForTimeout(220)
-			const second = await page.locator('.atmosphere-flow').evaluate(element => getComputedStyle(element).transform)
-			expect(second).toBe(first)
+			const settlingStateAfterMove = await page.evaluate(() => {
+				const flow = document.querySelector<HTMLElement>('.atmosphere-flow')
+				const signal = document.querySelector<SVGPathElement>('.flow-ribbon-primary .flow-signal')
+				return {
+					flowTransform: flow ? getComputedStyle(flow).transform : null,
+					settling: document.querySelector('.blog-atmosphere')?.classList.contains('is-route-settling') ?? false,
+					signalOffset: signal ? getComputedStyle(signal).strokeDashoffset : null,
+					signalPlayState: signal ? getComputedStyle(signal).animationPlayState : null,
+				}
+			})
+			if (settlingState.settling && settlingStateAfterMove.settling)
+				expect(settlingStateAfterMove.flowTransform).toBe(settlingState.flowTransform)
+			expect(settlingStateAfterMove.signalPlayState).toBe('running')
+			expect(settlingStateAfterMove.signalOffset).not.toBe(settlingState.signalOffset)
+
+			await expect(atmosphere).not.toHaveClass(/is-route-settling/, { timeout: 2_000 })
+			const ambientBefore = await page.locator('.flow-ribbon-primary .flow-signal').evaluate(element => getComputedStyle(element).strokeDashoffset)
+			await page.waitForTimeout(240)
+			const ambientAfter = await page.locator('.flow-ribbon-primary .flow-signal').evaluate(element => getComputedStyle(element).strokeDashoffset)
+			expect(ambientAfter).not.toBe(ambientBefore)
+
+			const pointerBefore = await page.locator('.atmosphere-flow').evaluate(element => getComputedStyle(element).transform)
+			await page.mouse.move(940 - index * 7, 560 - index * 5)
+			await page.waitForTimeout(260)
+			const pointerAfter = await page.locator('.atmosphere-flow').evaluate(element => getComputedStyle(element).transform)
+			expect(pointerAfter).not.toBe(pointerBefore)
+		}
+
+		for (const navigate of [() => page.goBack({ waitUntil: 'domcontentloaded' }), () => page.goForward({ waitUntil: 'domcontentloaded' })]) {
+			await navigate()
+			await expect(atmosphere).not.toHaveClass(/is-route-settling/, { timeout: 2_000 })
+			const before = await page.locator('.flow-ribbon-primary .flow-signal').evaluate(element => getComputedStyle(element).strokeDashoffset)
+			await page.waitForTimeout(240)
+			const after = await page.locator('.flow-ribbon-primary .flow-signal').evaluate(element => getComputedStyle(element).strokeDashoffset)
+			expect(after).not.toBe(before)
 		}
 
 		await page.evaluate(() => window.__stopMacCompositorRecorder?.())
