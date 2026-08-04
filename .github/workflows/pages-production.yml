@@ -43,3 +43,6 @@ jobs:
           command: pages deploy .output/public --project-name=fly-living --branch=main
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
           packageManager: pnpm
+      - name: Verify controlled production entries
+        timeout-minutes: 5
+        run: pnpm check:production
