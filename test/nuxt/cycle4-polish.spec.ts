@@ -30,7 +30,7 @@ describe('cycle 4 polish contracts', () => {
 		expect(weather).toContain(':name="weatherIcon"')
 		const panel = read('app/components/blog/BlogPanel.vue')
 		expect(panel).toContain('z-index: calc(var(--z-index-popover) + 3)')
-		expect(layout).toContain(':not(.blog-atmosphere, .reading-progress, #blog-panel, .music-player)')
+		expect(layout).toContain(':not(.blog-atmosphere, .reading-progress, .storyboard-layer, #blog-panel, .music-player)')
 		const nuxtConfig = read('nuxt.config.ts')
 		expect(nuxtConfig).toContain('env.NUXT_E2E !== \'1\'')
 		expect(nuxtConfig).toContain('file: resolve(\'./e2e/fixtures/modules-page.vue\')')

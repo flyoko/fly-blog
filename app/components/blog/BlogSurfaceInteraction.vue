@@ -3,7 +3,7 @@ import { useEventListener, useMediaQuery } from '@vueuse/core'
 
 const route = useRoute()
 const colorMode = useColorMode()
-const selector = '.card, .gradient-card, .widget-card, .sidebar-nav-item, .pagination'
+const selector = '.card, .gradient-card, .widget-card, .sidebar-nav-item, .pagination, .blog-header'
 const isFinePointer = useMediaQuery('(pointer: fine)')
 const prefersReducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
 const isDynamic = computed(() => colorMode.value === 'dynamic')
@@ -22,6 +22,8 @@ function clearSurface(element = active) {
 	element.style.removeProperty('--surface-shift-x')
 	element.style.removeProperty('--surface-shift-y')
 	element.style.removeProperty('--surface-sheen-position')
+	element.style.removeProperty('--scene-shift-x')
+	element.style.removeProperty('--scene-shift-y')
 }
 
 function deactivateSurface() {
@@ -47,7 +49,7 @@ function updateSurface() {
 	const y = Math.max(0, Math.min(100, (pending.clientY - rect.top) / rect.height * 100))
 	const normalizedX = (x - 50) / 50
 	const normalizedY = (y - 50) / 50
-	const compact = active.matches('.sidebar-nav-item, .pagination')
+	const compact = active.matches('.sidebar-nav-item, .pagination, .blog-header')
 	const shiftX = normalizedX * (compact ? 2 : 4.5)
 	const shiftY = normalizedY * (compact ? 1.5 : 3.25)
 
@@ -56,6 +58,8 @@ function updateSurface() {
 	active.style.setProperty('--surface-shift-x', `${shiftX.toFixed(2)}px`)
 	active.style.setProperty('--surface-shift-y', `${shiftY.toFixed(2)}px`)
 	active.style.setProperty('--surface-sheen-position', `${x.toFixed(2)}%`)
+	active.style.setProperty('--scene-shift-x', `${(-normalizedX * (compact ? 3 : 7)).toFixed(2)}px`)
+	active.style.setProperty('--scene-shift-y', `${(-normalizedY * (compact ? 2 : 5)).toFixed(2)}px`)
 }
 
 useEventListener('pointermove', (event) => {

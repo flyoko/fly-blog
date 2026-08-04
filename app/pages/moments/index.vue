@@ -72,7 +72,8 @@ onMounted(() => load(true))
 			<h1>瞬间</h1>
 			<p>一些没有长成文章，但仍值得留下的时刻。</p>
 		</div>
-		<Icon name="tabler:sparkles" />
+		<Icon class="moments-static-icon" name="tabler:sparkles" />
+		<BlogShinchanScene variant="moments" speech="嘿，记下来！" />
 	</header>
 	<div class="moments-filter card">
 		<label><span>标签</span><input v-model.trim="tag" type="search" placeholder="全部标签"></label>
@@ -130,6 +131,23 @@ onMounted(() => load(true))
 	background:
 		radial-gradient(circle at 85% 20%, var(--c-primary-soft), transparent 35%),
 		var(--ld-bg-card);
+}
+
+.moments-hero > div:first-child {
+	position: relative;
+	z-index: 1;
+}
+
+:global(.dynamic .moments-hero) {
+	min-height: clamp(15rem, 31vw, 22rem);
+	padding-inline-end: clamp(11rem, 29vw, 20rem);
+	background:
+		radial-gradient(circle at 83% 32%, var(--c-atmosphere-lens-blue), transparent 34%),
+		linear-gradient(130deg, var(--c-surface-fill), color-mix(in srgb, var(--c-surface-fill) 78%, var(--c-flow-blue) 8%));
+}
+
+:global(.dynamic .moments-static-icon) {
+	display: none;
 }
 
 .moments-hero span {
@@ -225,6 +243,13 @@ onMounted(() => load(true))
 @keyframes moment-pulse {
 	to {
 		opacity: 0.5;
+	}
+}
+
+@media (max-width: 600px) {
+	:global(.dynamic .moments-hero) {
+		min-height: 20rem;
+		padding: 1.4rem 1.4rem 9rem;
 	}
 }
 

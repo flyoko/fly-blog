@@ -34,12 +34,14 @@ useSeoMeta({
 			<p>{{ profileSummary }}</p>
 		</div>
 		<img
+			class="about-static-avatar"
 			:src="appConfig.author.avatar"
 			alt="fly 的头像"
 			width="128"
 			height="128"
 			decoding="async"
 		>
+		<BlogShinchanScene variant="about" speech="你好，我是 fly" />
 	</header>
 
 	<section v-if="profile" class="about-section card article">
@@ -111,6 +113,23 @@ useSeoMeta({
 			transparent 35%
 		),
 		var(--ld-bg-card);
+}
+
+.about-hero-copy {
+	position: relative;
+	z-index: 1;
+}
+
+:global(.dynamic .about-hero) {
+	min-height: clamp(15rem, 30vw, 21rem);
+	padding-inline-end: clamp(10rem, 27vw, 18rem);
+	background:
+		radial-gradient(circle at 84% 32%, var(--c-atmosphere-lens-blue), transparent 35%),
+		linear-gradient(130deg, var(--c-surface-fill), color-mix(in srgb, var(--c-surface-fill) 78%, var(--c-flow-violet) 7%));
+}
+
+:global(.dynamic .about-static-avatar) {
+	display: none;
 }
 
 .about-hero h1 {
@@ -222,6 +241,11 @@ useSeoMeta({
 @media (max-width: 600px) {
 	.about-hero {
 		align-items: flex-start;
+	}
+
+	:global(.dynamic .about-hero) {
+		min-height: 20rem;
+		padding: 1.4rem 1.4rem 8rem;
 	}
 
 	.about-hero img {

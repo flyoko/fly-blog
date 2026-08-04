@@ -26,6 +26,7 @@ const hasAside = computed(() => routeAsideVisible.value)
 <LazyMusicGlobalPlayer v-if="musicEnabled" />
 <BikariyaModals />
 <BlogSurfaceInteraction />
+<BlogStoryboardInteraction />
 </template>
 
 <!-- eslint-disable-next-line vue/enforce-style-attribute -->
@@ -38,7 +39,7 @@ const hasAside = computed(() => routeAsideVisible.value)
 	min-width: 0;
 	isolation: isolate;
 
-	> :not(.blog-atmosphere, .reading-progress, #blog-panel, .music-player) {
+	> :not(.blog-atmosphere, .reading-progress, .storyboard-layer, #blog-panel, .music-player) {
 		z-index: 1;
 	}
 }

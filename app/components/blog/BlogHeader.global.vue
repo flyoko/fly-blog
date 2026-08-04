@@ -41,6 +41,8 @@ const appConfig = useAppConfig()
 			{{ appConfig.header.subtitle }}
 		</div>
 	</div>
+
+	<BlogShinchanScene variant="header" />
 </UtilLink>
 </template>
 
@@ -55,6 +57,74 @@ const appConfig = useAppConfig()
 	line-height: 1.4;
 	color: var(--c-text);
 	user-select: none;
+}
+
+.blog-logo,
+.blog-text {
+	position: relative;
+	z-index: 1;
+}
+
+:global(.dynamic .blog-header) {
+	overflow: hidden;
+	min-height: 5.4rem;
+	padding: 0.8rem 5.2rem 0.8rem 0.85rem;
+	border: 1px solid var(--c-surface-border);
+	border-radius: 1.2rem;
+	box-shadow:
+		0 18px 46px var(--c-surface-shadow),
+		inset 0 1px 0 var(--c-surface-highlight);
+	background:
+		radial-gradient(circle at 10% 35%, var(--c-atmosphere-lens-blue), transparent 38%),
+		linear-gradient(112deg, var(--c-surface-fill), color-mix(in srgb, var(--c-surface-fill) 72%, var(--c-flow-blue) 8%));
+	backdrop-filter: blur(18px) saturate(120%);
+}
+
+:global(.dynamic .blog-header::before) {
+	content: "";
+	position: absolute;
+	inset: 0;
+	background: linear-gradient(108deg, transparent 20%, var(--c-surface-sheen) 46%, transparent 66%);
+	background-size: 220% 100%;
+	animation: header-scene-scan 4.8s ease-in-out infinite;
+	pointer-events: none;
+}
+
+:global(.dynamic .blog-header::after) {
+	content: "";
+	position: absolute;
+	top: 58%;
+	left: -12%;
+	width: 72%;
+	height: 1px;
+	background: linear-gradient(90deg, transparent, var(--c-flow-cyan), transparent);
+	transform: rotate(-8deg);
+	animation: header-scene-line 3.6s ease-in-out infinite alternate;
+	pointer-events: none;
+}
+
+@keyframes header-scene-scan {
+	0%, 100% {
+		opacity: 0.22;
+		background-position: 160% 0;
+	}
+
+	50% {
+		opacity: 0.76;
+		background-position: -70% 0;
+	}
+}
+
+@keyframes header-scene-line {
+	from {
+		opacity: 0.25;
+		transform: translateX(-8%) rotate(-8deg);
+	}
+
+	to {
+		opacity: 0.88;
+		transform: translateX(18%) rotate(-5deg);
+	}
 }
 
 .blog-logo {
@@ -144,6 +214,13 @@ const appConfig = useAppConfig()
 	100% {
 		transform: translate(-4px, -12px) scale(0.9);
 		filter: blur(1px);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	:global(.dynamic .blog-header::before),
+	:global(.dynamic .blog-header::after) {
+		animation: none;
 	}
 }
 </style>
