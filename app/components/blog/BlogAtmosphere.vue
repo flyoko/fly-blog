@@ -6,6 +6,7 @@ const colorMode = useColorMode()
 const root = useTemplateRef<HTMLElement>('root')
 const isFinePointer = useMediaQuery('(pointer: fine)')
 const prefersReducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
+const isMobilePerformanceMode = useMediaQuery('(max-width: 768px), (hover: none) and (pointer: coarse)')
 const pointerIntensity = computed(() => {
 	if (colorMode.value === 'dynamic')
 		return 1
@@ -22,7 +23,7 @@ let pulseTimer: ReturnType<typeof setTimeout> | undefined
 
 const { isActive, pause, resume } = useRafFn(() => {
 	const element = root.value
-	if (!element || !isFinePointer.value || prefersReducedMotion.value) {
+	if (!element || !isFinePointer.value || prefersReducedMotion.value || isMobilePerformanceMode.value) {
 		pause()
 		return
 	}
@@ -55,7 +56,7 @@ function resetPointer() {
 }
 
 useEventListener('pointermove', (event) => {
-	if (!isFinePointer.value || prefersReducedMotion.value)
+	if (!isFinePointer.value || prefersReducedMotion.value || isMobilePerformanceMode.value)
 		return
 
 	targetX = event.clientX / window.innerWidth * 100
@@ -68,8 +69,8 @@ useEventListener('pointerout', (event) => {
 		resetPointer()
 }, { passive: true })
 
-watch([isFinePointer, prefersReducedMotion], ([fine, reduced]) => {
-	if (fine && !reduced)
+watch([isFinePointer, prefersReducedMotion, isMobilePerformanceMode], ([fine, reduced, mobile]) => {
+	if (fine && !reduced && !mobile)
 		return
 
 	pause()
@@ -81,11 +82,14 @@ watch([isFinePointer, prefersReducedMotion], ([fine, reduced]) => {
 	root.value?.style.removeProperty('--pointer-y')
 	root.value?.style.removeProperty('--pointer-shift-x')
 	root.value?.style.removeProperty('--pointer-shift-y')
+	root.value?.classList.remove('is-route-pulse')
+	if (pulseTimer)
+		clearTimeout(pulseTimer)
 }, { immediate: true })
 
 watch(() => route.fullPath, () => {
 	const element = root.value
-	if (!element || prefersReducedMotion.value)
+	if (!element || prefersReducedMotion.value || isMobilePerformanceMode.value)
 		return
 
 	element.classList.remove('is-route-pulse')

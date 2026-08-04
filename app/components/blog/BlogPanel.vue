@@ -1,9 +1,11 @@
 <script setup lang="ts">
 defineProps<{
 	hasAside?: boolean
+	musicEnabled?: boolean
 }>()
 
 const layoutStore = useLayoutStore()
+const musicStore = useMusicStore()
 const { avoidTargets } = storeToRefs(layoutStore)
 
 const panelRef = useTemplateRef('blog-panel')
@@ -25,6 +27,16 @@ const { transform } = useAvoidTransform(panelRef, avoidTargets)
 		@click="layoutStore.toggle('aside')"
 	>
 		<Icon class="rtl-flip" name="tabler:align-right" />
+	</button>
+	<button
+		v-if="musicEnabled && musicStore.hasTracks"
+		class="toggle-music mobile-only"
+		:class="{ 'active': musicStore.mobileOpen, 'is-playing': musicStore.playing }"
+		:aria-label="musicStore.mobileOpen ? '收起音乐播放器' : '打开音乐播放器'"
+		:aria-expanded="musicStore.mobileOpen"
+		@click="musicStore.toggleMobileOpen"
+	>
+		<Icon name="tabler:music" />
 	</button>
 
 	<Icon v-show="false" name="tabler:layout-sidebar-filled" />
@@ -63,6 +75,7 @@ const { transform } = useAvoidTransform(panelRef, avoidTargets)
 
 button {
 	display: block;
+	position: relative;
 	padding: 0.5rem;
 	transition: all 0.2s;
 
@@ -75,5 +88,17 @@ button {
 		background-color: var(--ld-bg-active);
 		color: var(--c-primary);
 	}
+}
+
+.toggle-music.is-playing::after {
+	content: "";
+	position: absolute;
+	inset-inline-end: 0.45rem;
+	top: 0.45rem;
+	width: 0.42rem;
+	height: 0.42rem;
+	border: 1px solid var(--c-bg-1);
+	border-radius: 50%;
+	background: var(--c-primary);
 }
 </style>

@@ -79,7 +79,7 @@ useEventListener('pointermove', (event) => {
 }, { passive: true })
 
 useEventListener('pointerdown', (event) => {
-	if (prefersReducedMotion.value || event.button > 0)
+	if (!isFinePointer.value || prefersReducedMotion.value || event.button > 0)
 		return
 	createBurst(event.clientX, event.clientY)
 }, { passive: true })

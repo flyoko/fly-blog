@@ -4,7 +4,13 @@ import type { PublicMusicPlaylist } from '#shared/admin/music'
 import { resolvePublicApiUrl } from '~/utils/public-api'
 
 const store = useMusicStore()
+const route = useRoute()
 const moduleEnabled = ref(false)
+const playerRef = useTemplateRef<HTMLElement>('player')
+
+useAvoidTarget(playerRef, computed(() => store.mobileOpen))
+
+watch(() => route.fullPath, () => store.setMobileOpen(false))
 
 onMounted(async () => {
 	try {
@@ -16,6 +22,7 @@ onMounted(async () => {
 	}
 	catch {
 		moduleEnabled.value = false
+		store.setMobileOpen(false)
 	}
 })
 
@@ -29,7 +36,13 @@ function formatTime(value: number) {
 </script>
 
 <template>
-<section v-if="moduleEnabled && store.hasTracks" class="music-player" :class="{ 'is-expanded': store.expanded, 'is-playing': store.playing }" aria-label="随心听播放器">
+<section
+	v-if="moduleEnabled && store.hasTracks"
+	ref="player"
+	class="music-player"
+	:class="{ 'is-expanded': store.expanded, 'is-playing': store.playing, 'is-mobile-open': store.mobileOpen }"
+	aria-label="随心听播放器"
+>
 	<div v-if="store.expanded" class="music-player-expanded">
 		<div class="music-cover-large">
 			<img v-if="store.currentTrack?.coverUrl" :src="store.currentTrack.coverUrl" :alt="`${store.currentTrack.title} 封面`" decoding="async">
@@ -307,13 +320,20 @@ function formatTime(value: number) {
 	}
 }
 
-@media (max-width: 520px) {
+@media (max-width: $breakpoint-mobile), (hover: none) and (pointer: coarse) {
 	.music-player {
+		display: none;
 		overflow-y: auto;
 		inset-inline: 0.6rem;
-		bottom: max(4.8rem, calc(env(safe-area-inset-bottom) + 4.2rem));
+		bottom: max(0.6rem, env(safe-area-inset-bottom));
 		width: auto;
 		max-height: min(34rem, calc(100dvh - 6rem));
+		background: var(--c-bg-2);
+		backdrop-filter: none;
+
+		&.is-mobile-open {
+			display: block;
+		}
 	}
 
 	.music-controls button,

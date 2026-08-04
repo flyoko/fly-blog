@@ -335,22 +335,46 @@ img {
 	}
 }
 
-@media (max-width: $breakpoint-mobile) {
-	.atmosphere-flow {
-		inset: -15%;
-		width: 130%;
-		height: 130%;
-		transform: scale(1.08);
+@media (max-width: $breakpoint-mobile), (hover: none) and (pointer: coarse) {
+	.atmosphere-lens,
+	.flow-ribbon,
+	.flow-halo,
+	.flow-thread,
+	.flow-signal,
+	.flow-ribbon-secondary .flow-thread,
+	.flow-ribbon-secondary .flow-signal,
+	.blog-atmosphere.is-route-pulse .atmosphere-flow {
+		animation: none;
 	}
 
-	.flow-ribbon-secondary {
-		opacity: 0.34;
+	.atmosphere-flow {
+		inset: -8%;
+		width: 116%;
+		height: 116%;
+		transform: scale(1.02);
+		transition: none;
+		will-change: auto;
+	}
+
+	.atmosphere-lens {
+		will-change: auto;
+		filter: blur(32px);
+	}
+
+	.flow-ribbon-secondary,
+	.atmosphere-grain {
+		display: none;
 	}
 
 	.flow-halo {
-		opacity: 0.4;
-		stroke-width: 30px;
-		filter: blur(15px);
+		opacity: 0.28;
+		stroke-width: 20px;
+		filter: none;
+	}
+
+	.flow-thread,
+	.flow-signal {
+		filter: none;
 	}
 
 	.atmosphere-pointer {

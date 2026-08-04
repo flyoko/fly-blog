@@ -24,7 +24,7 @@ async function expectNoHorizontalOverflow(page: import('@playwright/test').Page)
 	expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth + 1)
 }
 
-test('enabled weather and music initialize their public runtimes once', async ({ page }) => {
+test('enabled weather and music initialize their public runtimes once', async ({ page, isMobile }) => {
 	await page.addInitScript(() => {
 		Object.defineProperty(window, '__mediaLoadCount', { configurable: true, writable: true, value: 0 })
 		Object.defineProperty(HTMLMediaElement.prototype, 'duration', { configurable: true, get: () => 120 })
@@ -84,7 +84,12 @@ test('enabled weather and music initialize their public runtimes once', async ({
 	})
 	await page.goto('/', { waitUntil: 'networkidle' })
 	await expect(page.locator('.weather-card')).toBeVisible()
-	await expect(page.getByRole('region', { name: '随心听播放器' })).toBeVisible()
+	const player = page.getByRole('region', { name: '随心听播放器' })
+	if (isMobile) {
+		await expect(player).toBeHidden()
+		await page.getByRole('button', { name: '打开音乐播放器' }).click()
+	}
+	await expect(player).toBeVisible()
 	await expect(page.getByText('Cycle 4 Song')).toBeVisible()
 	expect(weatherRequests).toBe(1)
 	expect(musicRequests).toBe(1)

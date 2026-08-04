@@ -22,7 +22,7 @@ const hasAside = computed(() => routeAsideVisible.value)
 		</ClientOnly>
 	</BlogAside>
 </div>
-<BlogPanel :has-aside="hasAside" />
+<BlogPanel :has-aside="hasAside" :music-enabled="musicEnabled" />
 <LazyMusicGlobalPlayer v-if="musicEnabled" />
 <BikariyaModals />
 <BlogSurfaceInteraction />
