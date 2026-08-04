@@ -12,6 +12,18 @@ describe('public blog presentation', () => {
 		expect(date).not.toContain('today.since(zdt.value')
 	})
 
+	it('shows the author age for every archive year', () => {
+		const config = read('app/app.config.ts')
+		const archive = read('app/pages/archive.vue')
+
+		expect(config).toContain('birthYear: 2002')
+		expect(archive).toContain('v-if="birthYear > 0"')
+		expect(archive).toContain('Number(year) - birthYear')
+		expect(2026 - 2002).toBe(24)
+		expect(2025 - 2002).toBe(23)
+		expect(2024 - 2002).toBe(22)
+	})
+
 	it('composes the about avatar, planet, and character as one coordinated scene', () => {
 		const scene = read('app/components/blog/BlogShinchanScene.vue')
 		const page = read('app/pages/me.vue')

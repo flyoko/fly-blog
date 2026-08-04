@@ -86,7 +86,7 @@ export default defineAppConfig({
 
 		stats: {
 			/** 归档页面每年标题对应的年龄 */
-			birthYear: 0,
+			birthYear: 2002,
 			/** blog-stats widget 的预置文本 */
 			wordCount: '持续更新',
 		},
