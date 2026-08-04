@@ -34,6 +34,17 @@
       "duration": null,
       "enabled": true,
       "order": 2
+    },
+    {
+      "id": "track-da3d1c35",
+      "title": "Money loves me ",
+      "artist": "7uid",
+      "source": "",
+      "audioUrl": "https://flyovo.cc.cd/media/public/music/audio/4f68f553-d6b1-4fd9-a265-7ef98fcff4f4.mp3",
+      "coverUrl": "https://flyovo.cc.cd/media/public/music/covers/2af7eb4f-8f2b-47ee-a00e-e774dccebc7c.jpg",
+      "duration": null,
+      "enabled": true,
+      "order": 3
     }
   ]
 }
