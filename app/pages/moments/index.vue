@@ -138,7 +138,7 @@ onMounted(() => load(true))
 	z-index: 1;
 }
 
-:global(.dynamic .moments-hero) {
+.moments-hero {
 	min-height: clamp(15rem, 31vw, 22rem);
 	padding-inline-end: clamp(11rem, 29vw, 20rem);
 	background:
@@ -146,7 +146,7 @@ onMounted(() => load(true))
 		linear-gradient(130deg, var(--c-surface-fill), color-mix(in srgb, var(--c-surface-fill) 78%, var(--c-flow-blue) 8%));
 }
 
-:global(.dynamic .moments-static-icon) {
+.moments-static-icon {
 	display: none;
 }
 
@@ -247,7 +247,7 @@ onMounted(() => load(true))
 }
 
 @media (max-width: 600px) {
-	:global(.dynamic .moments-hero) {
+	.moments-hero {
 		min-height: 20rem;
 		padding: 1.4rem 1.4rem 9rem;
 	}

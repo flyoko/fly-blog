@@ -14,9 +14,12 @@ describe('motion v2 production integration', () => {
 		expect(toWeatherMotionState(95)).toBe('storm')
 	})
 
-	it('keeps the supplied character scene scoped to dynamic mode', () => {
+	it('shares the supplied character scene across every public theme', () => {
 		const scene = read('app/components/blog/BlogShinchanScene.vue')
 		expect(existsSync('public/assets/shinchan-user-cutout.webp')).toBe(true)
+		expect(scene).toContain('display: block')
+		expect(scene).toContain(':global(.light .shinchan-scene)')
+		expect(scene).toContain(':global(.dark .shinchan-scene)')
 		expect(scene).toContain(':global(.dynamic .shinchan-scene)')
 		expect(scene).toContain('prefers-reduced-motion: reduce')
 		expect(read('app/components/blog/BlogHeader.global.vue')).toContain('<BlogShinchanScene variant="header"')
@@ -33,8 +36,23 @@ describe('motion v2 production integration', () => {
 		]) {
 			const source = read(file)
 			expect(source).not.toContain(':global(.dynamic) .')
-			expect(source).toContain(':global(.dynamic .')
+			expect(source).not.toContain(':global(.light) .')
+			expect(source).not.toContain(':global(.dark) .')
 		}
+	})
+
+	it('enables atmosphere and pointer feedback in light, dark, system-resolved, and dynamic modes', () => {
+		const atmosphere = read('app/components/blog/BlogAtmosphere.vue')
+		const surface = read('app/components/blog/BlogSurfaceInteraction.vue')
+		const storyboard = read('app/components/blog/BlogStoryboardInteraction.vue')
+		const main = read('app/assets/css/main.scss')
+		expect(atmosphere).not.toContain('!isDynamic.value')
+		expect(surface).not.toContain('!isDynamic.value')
+		expect(storyboard).not.toContain('!isDynamic.value')
+		expect(main).toContain('.light .blog-atmosphere')
+		expect(main).toContain('.dark .blog-atmosphere')
+		expect(main).toContain('.dynamic .blog-atmosphere')
+		expect(storyboard).toContain('trailDistance')
 	})
 
 	it('adds storyboard pointer feedback without intercepting controls', () => {

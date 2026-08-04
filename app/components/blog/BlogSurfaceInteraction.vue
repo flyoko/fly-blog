@@ -6,7 +6,13 @@ const colorMode = useColorMode()
 const selector = '.card, .gradient-card, .widget-card, .sidebar-nav-item, .pagination, .blog-header'
 const isFinePointer = useMediaQuery('(pointer: fine)')
 const prefersReducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
-const isDynamic = computed(() => colorMode.value === 'dynamic')
+const interactionIntensity = computed(() => {
+	if (colorMode.value === 'dynamic')
+		return 1
+	if (colorMode.value === 'dark')
+		return 0.72
+	return 0.58
+})
 
 let active: HTMLElement | undefined
 let frame = 0
@@ -50,20 +56,21 @@ function updateSurface() {
 	const normalizedX = (x - 50) / 50
 	const normalizedY = (y - 50) / 50
 	const compact = active.matches('.sidebar-nav-item, .pagination, .blog-header')
-	const shiftX = normalizedX * (compact ? 2 : 4.5)
-	const shiftY = normalizedY * (compact ? 1.5 : 3.25)
+	const intensity = interactionIntensity.value
+	const shiftX = normalizedX * (compact ? 2 : 4.5) * intensity
+	const shiftY = normalizedY * (compact ? 1.5 : 3.25) * intensity
 
 	active.style.setProperty('--surface-x', `${x.toFixed(2)}%`)
 	active.style.setProperty('--surface-y', `${y.toFixed(2)}%`)
 	active.style.setProperty('--surface-shift-x', `${shiftX.toFixed(2)}px`)
 	active.style.setProperty('--surface-shift-y', `${shiftY.toFixed(2)}px`)
 	active.style.setProperty('--surface-sheen-position', `${x.toFixed(2)}%`)
-	active.style.setProperty('--scene-shift-x', `${(-normalizedX * (compact ? 3 : 7)).toFixed(2)}px`)
-	active.style.setProperty('--scene-shift-y', `${(-normalizedY * (compact ? 2 : 5)).toFixed(2)}px`)
+	active.style.setProperty('--scene-shift-x', `${(-normalizedX * (compact ? 3 : 7) * intensity).toFixed(2)}px`)
+	active.style.setProperty('--scene-shift-y', `${(-normalizedY * (compact ? 2 : 5) * intensity).toFixed(2)}px`)
 }
 
 useEventListener('pointermove', (event) => {
-	if (!isDynamic.value || !isFinePointer.value || prefersReducedMotion.value)
+	if (!isFinePointer.value || prefersReducedMotion.value)
 		return
 
 	const eventTarget = event.target
@@ -86,7 +93,7 @@ useEventListener('pointermove', (event) => {
 }, { passive: true })
 
 useEventListener('pointerdown', (event) => {
-	if (event.button !== 0 || !isDynamic.value || !isFinePointer.value || prefersReducedMotion.value)
+	if (event.button !== 0 || !isFinePointer.value || prefersReducedMotion.value)
 		return
 
 	const eventTarget = event.target
@@ -114,8 +121,8 @@ useEventListener('pointerout', (event) => {
 
 useEventListener('pointercancel', deactivateSurface, { passive: true })
 
-watch([isFinePointer, prefersReducedMotion, isDynamic], ([fine, reduced, dynamic]) => {
-	if (!dynamic || !fine || reduced)
+watch([isFinePointer, prefersReducedMotion], ([fine, reduced]) => {
+	if (!fine || reduced)
 		deactivateSurface()
 })
 

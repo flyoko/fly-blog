@@ -32,7 +32,7 @@ withDefaults(defineProps<{
 
 <style scoped lang="scss">
 .shinchan-scene {
-	display: none;
+	display: block;
 	position: absolute;
 	overflow: hidden;
 	inset: 0;
@@ -41,8 +41,16 @@ withDefaults(defineProps<{
 	z-index: 0;
 }
 
+:global(.light .shinchan-scene) {
+	opacity: 0.84;
+}
+
+:global(.dark .shinchan-scene) {
+	opacity: 0.92;
+}
+
 :global(.dynamic .shinchan-scene) {
-	display: block;
+	opacity: 1;
 }
 
 .scene-orbit,

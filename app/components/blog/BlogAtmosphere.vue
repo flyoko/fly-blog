@@ -6,7 +6,13 @@ const colorMode = useColorMode()
 const root = useTemplateRef<HTMLElement>('root')
 const isFinePointer = useMediaQuery('(pointer: fine)')
 const prefersReducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
-const isDynamic = computed(() => colorMode.value === 'dynamic')
+const pointerIntensity = computed(() => {
+	if (colorMode.value === 'dynamic')
+		return 1
+	if (colorMode.value === 'dark')
+		return 0.72
+	return 0.56
+})
 
 let targetX = 50
 let targetY = 26
@@ -16,7 +22,7 @@ let pulseTimer: ReturnType<typeof setTimeout> | undefined
 
 const { isActive, pause, resume } = useRafFn(() => {
 	const element = root.value
-	if (!element || !isDynamic.value || !isFinePointer.value || prefersReducedMotion.value) {
+	if (!element || !isFinePointer.value || prefersReducedMotion.value) {
 		pause()
 		return
 	}
@@ -26,8 +32,8 @@ const { isActive, pause, resume } = useRafFn(() => {
 	currentX += deltaX * 0.09
 	currentY += deltaY * 0.09
 
-	const shiftX = (currentX - 50) / 50 * 22
-	const shiftY = (currentY - 50) / 50 * 14
+	const shiftX = (currentX - 50) / 50 * 22 * pointerIntensity.value
+	const shiftY = (currentY - 50) / 50 * 14 * pointerIntensity.value
 	element.style.setProperty('--pointer-x', `${currentX.toFixed(2)}%`)
 	element.style.setProperty('--pointer-y', `${currentY.toFixed(2)}%`)
 	element.style.setProperty('--pointer-shift-x', `${shiftX.toFixed(2)}px`)
@@ -49,7 +55,7 @@ function resetPointer() {
 }
 
 useEventListener('pointermove', (event) => {
-	if (!isDynamic.value || !isFinePointer.value || prefersReducedMotion.value)
+	if (!isFinePointer.value || prefersReducedMotion.value)
 		return
 
 	targetX = event.clientX / window.innerWidth * 100
@@ -62,8 +68,8 @@ useEventListener('pointerout', (event) => {
 		resetPointer()
 }, { passive: true })
 
-watch([isFinePointer, prefersReducedMotion, isDynamic], ([fine, reduced, dynamic]) => {
-	if (dynamic && fine && !reduced)
+watch([isFinePointer, prefersReducedMotion], ([fine, reduced]) => {
+	if (fine && !reduced)
 		return
 
 	pause()
@@ -79,7 +85,7 @@ watch([isFinePointer, prefersReducedMotion, isDynamic], ([fine, reduced, dynamic
 
 watch(() => route.fullPath, () => {
 	const element = root.value
-	if (!element || !isDynamic.value || prefersReducedMotion.value)
+	if (!element || prefersReducedMotion.value)
 		return
 
 	element.classList.remove('is-route-pulse')

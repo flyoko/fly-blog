@@ -162,7 +162,7 @@ img {
 	--pointer-shift-y: 0px;
 
 	contain: paint;
-	display: none;
+	display: block;
 	position: fixed;
 	overflow: hidden;
 	inset: 0;
@@ -173,8 +173,28 @@ img {
 	z-index: 0;
 }
 
+.light .blog-atmosphere {
+	opacity: 0.56;
+}
+
+.dark .blog-atmosphere {
+	opacity: 0.74;
+}
+
 .dynamic .blog-atmosphere {
-	display: block;
+	opacity: 1;
+}
+
+.light .atmosphere-flow {
+	opacity: 0.62;
+}
+
+.dark .atmosphere-flow {
+	opacity: 0.78;
+}
+
+.dynamic .atmosphere-flow {
+	opacity: 1;
 }
 
 .atmosphere-lens,

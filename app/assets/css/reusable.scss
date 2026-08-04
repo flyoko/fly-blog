@@ -56,7 +56,7 @@
 	outline-offset: 3px;
 }
 
-.dynamic :where(.card, .gradient-card, .widget-card, .sidebar-nav-item, .pagination) {
+:where(.card, .gradient-card, .widget-card, .sidebar-nav-item, .pagination) {
 	--surface-x: 50%;
 	--surface-y: 50%;
 	--surface-shift-x: 0px;
@@ -121,7 +121,7 @@
 	}
 }
 
-.dynamic :where(.widget-card, .sidebar-nav-item, .pagination).is-pointer-active {
+:where(.widget-card, .sidebar-nav-item, .pagination).is-pointer-active {
 	box-shadow:
 		0 12px 32px var(--c-surface-shadow),
 		inset 0 0 0 1px var(--c-surface-border),
@@ -141,7 +141,7 @@
 }
 
 @media (pointer: fine) and (prefers-reduced-motion: no-preference) {
-	.dynamic :where(.card, .gradient-card, .widget-card, .sidebar-nav-item, .pagination):active {
+	:where(.card, .gradient-card, .widget-card, .sidebar-nav-item, .pagination):active {
 		scale: 0.982;
 	}
 }
@@ -154,8 +154,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.dynamic :where(.card, .gradient-card, .widget-card, .sidebar-nav-item, .pagination),
-	.dynamic .gradient-card::before {
+	:where(.card, .gradient-card, .widget-card, .sidebar-nav-item, .pagination),
+	.gradient-card::before {
 		--surface-shift-x: 0px;
 		--surface-shift-y: 0px;
 

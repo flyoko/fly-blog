@@ -65,7 +65,7 @@ const appConfig = useAppConfig()
 	z-index: 1;
 }
 
-:global(.dynamic .blog-header) {
+.blog-header {
 	overflow: hidden;
 	min-height: 5.4rem;
 	padding: 0.8rem 5.2rem 0.8rem 0.85rem;
@@ -80,7 +80,7 @@ const appConfig = useAppConfig()
 	backdrop-filter: blur(18px) saturate(120%);
 }
 
-:global(.dynamic .blog-header::before) {
+.blog-header::before {
 	content: "";
 	position: absolute;
 	inset: 0;
@@ -90,7 +90,7 @@ const appConfig = useAppConfig()
 	pointer-events: none;
 }
 
-:global(.dynamic .blog-header::after) {
+.blog-header::after {
 	content: "";
 	position: absolute;
 	top: 58%;
@@ -101,6 +101,25 @@ const appConfig = useAppConfig()
 	transform: rotate(-8deg);
 	animation: header-scene-line 3.6s ease-in-out infinite alternate;
 	pointer-events: none;
+}
+
+:global(.light .blog-header) {
+	--header-scene-opacity: 0.68;
+}
+
+:global(.dark .blog-header) {
+	--header-scene-opacity: 0.82;
+}
+
+:global(.dynamic .blog-header) {
+	--header-scene-opacity: 1;
+
+	backdrop-filter: blur(18px) saturate(120%);
+}
+
+.blog-header::before,
+.blog-header::after {
+	opacity: var(--header-scene-opacity, 0.72);
 }
 
 @keyframes header-scene-scan {
@@ -219,7 +238,7 @@ const appConfig = useAppConfig()
 
 @media (prefers-reduced-motion: reduce) {
 	:global(.dynamic .blog-header::before),
-	:global(.dynamic .blog-header::after) {
+	.blog-header::after {
 		animation: none;
 	}
 }

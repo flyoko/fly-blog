@@ -6,6 +6,8 @@ const root = useTemplateRef<HTMLElement>('root')
 const isFinePointer = useMediaQuery('(pointer: fine)')
 const prefersReducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
 const isDynamic = computed(() => colorMode.value === 'dynamic')
+const trailDistance = computed(() => isDynamic.value ? 24 : 38)
+const trailInterval = computed(() => isDynamic.value ? 42 : 64)
 
 let previousX = 0
 let previousY = 0
@@ -62,12 +64,12 @@ function createBurst(x: number, y: number) {
 }
 
 useEventListener('pointermove', (event) => {
-	if (!isDynamic.value || !isFinePointer.value || prefersReducedMotion.value)
+	if (!isFinePointer.value || prefersReducedMotion.value)
 		return
 
 	const now = performance.now()
 	const distance = Math.hypot(event.clientX - previousX, event.clientY - previousY)
-	if (distance < 24 || now - previousTime < 42)
+	if (distance < trailDistance.value || now - previousTime < trailInterval.value)
 		return
 
 	previousX = event.clientX
@@ -77,7 +79,7 @@ useEventListener('pointermove', (event) => {
 }, { passive: true })
 
 useEventListener('pointerdown', (event) => {
-	if (!isDynamic.value || prefersReducedMotion.value || event.button > 0)
+	if (prefersReducedMotion.value || event.button > 0)
 		return
 	createBurst(event.clientX, event.clientY)
 }, { passive: true })
@@ -92,8 +94,8 @@ function clearEffects() {
 	previousTime = 0
 }
 
-watch([isDynamic, prefersReducedMotion], ([dynamic, reduced]) => {
-	if (!dynamic || reduced)
+watch(prefersReducedMotion, (reduced) => {
+	if (reduced)
 		clearEffects()
 })
 

@@ -120,7 +120,7 @@ useSeoMeta({
 	z-index: 1;
 }
 
-:global(.dynamic .about-hero) {
+.about-hero {
 	min-height: clamp(15rem, 30vw, 21rem);
 	padding-inline-end: clamp(10rem, 27vw, 18rem);
 	background:
@@ -128,7 +128,7 @@ useSeoMeta({
 		linear-gradient(130deg, var(--c-surface-fill), color-mix(in srgb, var(--c-surface-fill) 78%, var(--c-flow-violet) 7%));
 }
 
-:global(.dynamic .about-static-avatar) {
+.about-static-avatar {
 	display: none;
 }
 
@@ -243,7 +243,7 @@ useSeoMeta({
 		align-items: flex-start;
 	}
 
-	:global(.dynamic .about-hero) {
+	.about-hero {
 		min-height: 20rem;
 		padding: 1.4rem 1.4rem 8rem;
 	}
