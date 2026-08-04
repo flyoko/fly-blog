@@ -147,17 +147,21 @@ test.describe('public route switch stability', () => {
 		await page.goto('/2026/welcome', { waitUntil: 'domcontentloaded' })
 		const header = page.locator('.sidebar-header')
 		const logo = header.locator('.blog-logo')
+		const logoMotion = header.locator('.blog-logo-motion')
+		const atmosphere = page.locator('.blog-atmosphere')
 		await expect(header).toBeVisible()
 		await logo.hover()
 		await page.waitForTimeout(1_200)
 
 		const headerState = await header.evaluate((element) => {
 			const logoElement = element.querySelector<HTMLElement>('.blog-logo')
+			const logoMotionElement = element.querySelector<HTMLElement>('.blog-logo-motion')
 			const titleChar = element.querySelector<HTMLElement>('.header-title .split-char')
 			const style = getComputedStyle(element)
 			return {
 				backdropFilter: style.backdropFilter,
 				contain: style.contain,
+				logoMotionTransform: logoMotionElement ? getComputedStyle(logoMotionElement).transform : null,
 				logoTransform: logoElement ? getComputedStyle(logoElement).transform : null,
 				pointerActive: element.classList.contains('is-pointer-active'),
 				surfaceShiftX: element.style.getPropertyValue('--surface-shift-x'),
@@ -170,6 +174,7 @@ test.describe('public route switch stability', () => {
 		expect(headerState.contain).toContain('layout')
 		expect(headerState.contain).toContain('paint')
 		expect(headerState.logoTransform).toBe('none')
+		expect(headerState.logoMotionTransform).not.toBe('none')
 		expect(headerState.pointerActive).toBe(false)
 		expect(headerState.surfaceShiftX).toBe('')
 		expect(headerState.surfaceShiftY).toBe('')
@@ -218,11 +223,45 @@ test.describe('public route switch stability', () => {
 		delayNextMePayload = true
 		await page.locator('.sidebar-nav-item[href="/me"]').click()
 		await expect.poll(() => delayedMePayloadStarted).toBe(true)
+		await expect(atmosphere).toHaveClass(/is-route-settling/)
+		await expect(header).toHaveClass(/is-route-settling/)
+		await expect(logoMotion).toHaveCSS('will-change', 'transform')
+		const loadingAnimationState = await page.evaluate(() => {
+			const lens = document.querySelector<HTMLElement>('.atmosphere-lens-a')
+			const ribbon = document.querySelector<SVGElement>('.flow-ribbon-primary')
+			const signal = document.querySelector<SVGPathElement>('.flow-ribbon-primary .flow-signal')
+			return {
+				lensPlayState: lens ? getComputedStyle(lens).animationPlayState : null,
+				lensTransform: lens ? getComputedStyle(lens).transform : null,
+				ribbonPlayState: ribbon ? getComputedStyle(ribbon).animationPlayState : null,
+				ribbonTransform: ribbon ? getComputedStyle(ribbon).transform : null,
+				signalDashOffset: signal ? getComputedStyle(signal).strokeDashoffset : null,
+				signalPlayState: signal ? getComputedStyle(signal).animationPlayState : null,
+			}
+		})
+		expect(loadingAnimationState.lensPlayState).toBe('paused')
+		expect(loadingAnimationState.ribbonPlayState).toBe('paused')
+		expect(loadingAnimationState.signalPlayState).toBe('paused')
 		const loadingTransform = await page.locator('.atmosphere-flow').evaluate(element => getComputedStyle(element).transform)
 		await page.mouse.move(320, 240)
 		await page.waitForTimeout(450)
 		const loadingTransformAfterMove = await page.locator('.atmosphere-flow').evaluate(element => getComputedStyle(element).transform)
+		const loadingAnimationStateAfterMove = await page.evaluate(() => {
+			const lens = document.querySelector<HTMLElement>('.atmosphere-lens-a')
+			const ribbon = document.querySelector<SVGElement>('.flow-ribbon-primary')
+			const signal = document.querySelector<SVGPathElement>('.flow-ribbon-primary .flow-signal')
+			return {
+				lensTransform: lens ? getComputedStyle(lens).transform : null,
+				ribbonTransform: ribbon ? getComputedStyle(ribbon).transform : null,
+				signalDashOffset: signal ? getComputedStyle(signal).strokeDashoffset : null,
+			}
+		})
 		expect(loadingTransformAfterMove).toBe(loadingTransform)
+		expect(loadingAnimationStateAfterMove).toEqual({
+			lensTransform: loadingAnimationState.lensTransform,
+			ribbonTransform: loadingAnimationState.ribbonTransform,
+			signalDashOffset: loadingAnimationState.signalDashOffset,
+		})
 		await expect(page).toHaveURL('/me')
 		await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))))
 		const loadingTailTransform = await page.locator('.atmosphere-flow').evaluate(element => getComputedStyle(element).transform)
@@ -230,6 +269,13 @@ test.describe('public route switch stability', () => {
 		await page.waitForTimeout(220)
 		const loadingTailTransformAfterMove = await page.locator('.atmosphere-flow').evaluate(element => getComputedStyle(element).transform)
 		expect(loadingTailTransformAfterMove).toBe(loadingTailTransform)
+		await page.waitForTimeout(1_250)
+		await expect(atmosphere).not.toHaveClass(/is-route-settling/)
+		const resumedTransform = await page.locator('.atmosphere-flow').evaluate(element => getComputedStyle(element).transform)
+		await page.mouse.move(910, 520)
+		await page.waitForTimeout(260)
+		const resumedTransformAfterMove = await page.locator('.atmosphere-flow').evaluate(element => getComputedStyle(element).transform)
+		expect(resumedTransformAfterMove).not.toBe(resumedTransform)
 
 		for (const [index, path] of ['/moments', '/link', '/archive', '/ai.news', '/'].entries()) {
 			await page.locator(`.sidebar-nav-item[href="${path}"]`).click()

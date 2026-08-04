@@ -11,10 +11,11 @@ const profileAvatar = computed(() =>
 	String((aboutProfile.value as Record<string, unknown> | null)?.avatar || ''),
 )
 const headerLogo = computed(() => profileAvatar.value || appConfig.header.logo)
+const isRouteSettling = useState<boolean>('route-compositor-settling', () => false)
 </script>
 
 <template>
-<UtilLink class="blog-header">
+<UtilLink class="blog-header" :class="{ 'is-route-settling': isRouteSettling }">
 	<div v-if="appConfig.header.emojiTail" class="emoji-tail">
 		<span
 			v-for="(emoji, emojiIndex) in appConfig.header.emojiTail"
@@ -26,15 +27,17 @@ const headerLogo = computed(() => profileAvatar.value || appConfig.header.logo)
 	</div>
 
 	<span class="blog-logo-shell round-cobblestone" :class="{ circle: appConfig.header.showTitle }">
-		<img
-			:src="headerLogo"
-			class="blog-logo"
-			:class="{ 'is-profile-avatar': profileAvatar }"
-			:alt="appConfig.title"
-			width="96"
-			height="96"
-			decoding="async"
-		>
+		<span class="blog-logo-motion">
+			<img
+				:src="headerLogo"
+				class="blog-logo"
+				:class="{ 'is-profile-avatar': profileAvatar }"
+				:alt="appConfig.title"
+				width="96"
+				height="96"
+				decoding="async"
+			>
+		</span>
 	</span>
 
 	<div v-if="appConfig.header.showTitle" class="blog-text">
@@ -156,10 +159,15 @@ const headerLogo = computed(() => profileAvatar.value || appConfig.header.logo)
 }
 
 .blog-logo-shell {
+	contain: layout paint;
 	display: block;
 	flex: 0 0 auto;
+	position: relative;
 	overflow: hidden;
 	height: 3em;
+	backface-visibility: hidden;
+	transform: translateZ(0);
+	isolation: isolate;
 
 	&.circle {
 		width: 3em;
@@ -172,10 +180,37 @@ const headerLogo = computed(() => profileAvatar.value || appConfig.header.logo)
 	}
 }
 
+.blog-logo-shell::after {
+	content: "";
+	position: absolute;
+	opacity: 0;
+	inset: 2px;
+	border: 1px solid color-mix(in srgb, var(--c-flow-cyan) 72%, transparent);
+	border-radius: inherit;
+	transform: translateZ(0) scale(0.84);
+	transition: opacity 0.28s ease, transform 0.36s cubic-bezier(0.22, 1, 0.36, 1);
+	pointer-events: none;
+	z-index: 2;
+}
+
+.blog-logo-motion {
+	contain: paint;
+	display: block;
+	width: 100%;
+	height: 100%;
+	backface-visibility: hidden;
+	transform: translateZ(0);
+	transform-origin: center;
+	transition: transform 0.38s cubic-bezier(0.22, 1, 0.36, 1);
+	will-change: transform;
+	isolation: isolate;
+}
+
 .blog-logo {
 	display: block;
 	width: 100%;
 	height: 100%;
+	backface-visibility: hidden;
 	object-fit: cover;
 }
 
@@ -186,11 +221,35 @@ const headerLogo = computed(() => profileAvatar.value || appConfig.header.logo)
 	margin: -17.5%;
 }
 
-.blog-header:hover .blog-logo-shell.circle {
+.blog-header:hover .blog-logo-shell.circle,
+.blog-header:focus-visible .blog-logo-shell.circle {
 	box-shadow:
 		0 12px 28px var(--c-surface-shadow),
 		inset 0 0 0 1px var(--c-surface-border),
 		inset 0 1px 0 var(--c-surface-highlight);
+}
+
+.blog-header:hover .blog-logo-motion,
+.blog-header:focus-visible .blog-logo-motion {
+	transform: translate3d(0, -1px, 0) scale(1.045) rotate(0.8deg);
+	will-change: transform;
+}
+
+.blog-header:hover .blog-logo-shell::after,
+.blog-header:focus-visible .blog-logo-shell::after {
+	opacity: 0.72;
+	transform: translateZ(0) scale(1);
+}
+
+.blog-header.is-route-settling::before,
+.blog-header.is-route-settling::after {
+	animation-play-state: paused;
+}
+
+.blog-header.is-route-settling .blog-logo-motion,
+.blog-header.is-route-settling .blog-logo-shell::after,
+.blog-header.is-route-settling .emoji-tail {
+	transition: none;
 }
 
 @font-face {
@@ -235,6 +294,16 @@ const headerLogo = computed(() => profileAvatar.value || appConfig.header.logo)
 	:global(.dynamic .blog-header::before),
 	.blog-header::after {
 		animation: none;
+	}
+
+	.blog-logo-motion,
+	.blog-logo-shell::after {
+		transition: none;
+	}
+
+	.blog-header:hover .blog-logo-motion,
+	.blog-header:focus-visible .blog-logo-motion {
+		transform: translateZ(0);
 	}
 }
 </style>

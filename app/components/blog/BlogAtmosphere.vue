@@ -5,9 +5,12 @@ const route = useRoute()
 const nuxtApp = useNuxtApp()
 const colorMode = useColorMode()
 const root = useTemplateRef<HTMLElement>('root')
+const flow = useTemplateRef<SVGElement>('flow')
+const pointer = useTemplateRef<HTMLElement>('pointer')
 const isFinePointer = useMediaQuery('(pointer: fine)')
 const prefersReducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
 const isMobilePerformanceMode = useMediaQuery('(max-width: 768px), (hover: none) and (pointer: coarse)')
+const isRouteSettling = useState<boolean>('route-compositor-settling', () => false)
 const pointerIntensity = computed(() => {
 	if (colorMode.value === 'dynamic')
 		return 1
@@ -21,12 +24,16 @@ let targetY = 26
 let currentX = 50
 let currentY = 26
 const routePointerSettleMs = 1_200
+const routePointerFailSafeMs = 6_000
 
 let pointerResumeAt = 0
+let routeSettleTimer: ReturnType<typeof setTimeout> | undefined
 
 const { isActive, pause, resume } = useRafFn(() => {
 	const element = root.value
-	if (!element || !isFinePointer.value || prefersReducedMotion.value || isMobilePerformanceMode.value) {
+	const flowElement = flow.value
+	const pointerElement = pointer.value
+	if (!element || !flowElement || !pointerElement || !isFinePointer.value || prefersReducedMotion.value || isMobilePerformanceMode.value) {
 		pause()
 		return
 	}
@@ -38,10 +45,14 @@ const { isActive, pause, resume } = useRafFn(() => {
 
 	const shiftX = (currentX - 50) / 50 * 22 * pointerIntensity.value
 	const shiftY = (currentY - 50) / 50 * 14 * pointerIntensity.value
-	element.style.setProperty('--pointer-x', `${currentX.toFixed(2)}%`)
-	element.style.setProperty('--pointer-y', `${currentY.toFixed(2)}%`)
-	element.style.setProperty('--pointer-shift-x', `${shiftX.toFixed(2)}px`)
-	element.style.setProperty('--pointer-shift-y', `${shiftY.toFixed(2)}px`)
+	const pointerX = currentX / 100 * window.innerWidth
+	const pointerY = currentY / 100 * window.innerHeight
+
+	// Keep both moving effects on their own compositor layers. Updating a
+	// full-screen radial-gradient custom property repaints the whole viewport
+	// in macOS Chrome, while transforms only move the cached layer textures.
+	flowElement.style.transform = `translate3d(${shiftX.toFixed(2)}px, ${shiftY.toFixed(2)}px, 0) scale(1.025)`
+	pointerElement.style.transform = `translate3d(${pointerX.toFixed(2)}px, ${pointerY.toFixed(2)}px, 0)`
 
 	if (Math.abs(deltaX) + Math.abs(deltaY) < 0.02)
 		pause()
@@ -65,18 +76,44 @@ function freezePointerAnimation(resumeAt = Number.POSITIVE_INFINITY) {
 	pointerResumeAt = resumeAt
 }
 
-const unhookLoadingStart = nuxtApp.hook('page:loading:start', () => {
+function clearRouteSettleTimer() {
+	if (routeSettleTimer !== undefined) {
+		clearTimeout(routeSettleTimer)
+		routeSettleTimer = undefined
+	}
+}
+
+function releaseRouteSettling() {
+	const remaining = pointerResumeAt - performance.now()
+	if (remaining > 0) {
+		routeSettleTimer = setTimeout(releaseRouteSettling, remaining + 34)
+		return
+	}
+
+	routeSettleTimer = undefined
+	isRouteSettling.value = false
+}
+
+function beginRouteSettling() {
+	clearRouteSettleTimer()
+	isRouteSettling.value = true
 	freezePointerAnimation()
-})
-const unhookLoadingEnd = nuxtApp.hook('page:loading:end', () => {
-	freezePointerAnimation(performance.now() + routePointerSettleMs)
-})
-const unhookPageStart = nuxtApp.hook('page:start', () => {
-	freezePointerAnimation()
-})
-const unhookPageFinish = nuxtApp.hook('page:finish', () => {
-	freezePointerAnimation(performance.now() + routePointerSettleMs)
-})
+	// Abort/error paths should never leave the persistent background paused.
+	routeSettleTimer = setTimeout(scheduleRouteResume, routePointerFailSafeMs)
+}
+
+function scheduleRouteResume() {
+	clearRouteSettleTimer()
+	isRouteSettling.value = true
+	const nextResumeAt = performance.now() + routePointerSettleMs
+	freezePointerAnimation(Number.isFinite(pointerResumeAt) ? Math.max(pointerResumeAt, nextResumeAt) : nextResumeAt)
+	routeSettleTimer = setTimeout(releaseRouteSettling, routePointerSettleMs + 34)
+}
+
+const unhookLoadingStart = nuxtApp.hook('page:loading:start', beginRouteSettling)
+const unhookLoadingEnd = nuxtApp.hook('page:loading:end', scheduleRouteResume)
+const unhookPageStart = nuxtApp.hook('page:start', beginRouteSettling)
+const unhookPageFinish = nuxtApp.hook('page:finish', scheduleRouteResume)
 
 useEventListener('pointermove', (event) => {
 	if (!isFinePointer.value || prefersReducedMotion.value || isMobilePerformanceMode.value)
@@ -95,11 +132,10 @@ useEventListener('pointerout', (event) => {
 }, { passive: true })
 
 watch(() => route.fullPath, () => {
-	// Route swaps already replace a large painted area. Stop the full-screen
-	// pointer chase on that frame so macOS browsers do not recompose both the
-	// background and the incoming page at the same time. The next real pointer
-	// movement resumes the RAF loop normally.
-	freezePointerAnimation(Math.max(pointerResumeAt, performance.now() + routePointerSettleMs))
+	// Route swaps already replace a large painted area. Freeze both the
+	// pointer transforms and the CSS-driven background animations until the
+	// incoming page has completed its compositor settling window.
+	scheduleRouteResume()
 })
 
 watch([isFinePointer, prefersReducedMotion, isMobilePerformanceMode], ([fine, reduced, mobile]) => {
@@ -111,10 +147,8 @@ watch([isFinePointer, prefersReducedMotion, isMobilePerformanceMode], ([fine, re
 	targetY = 26
 	currentX = 50
 	currentY = 26
-	root.value?.style.removeProperty('--pointer-x')
-	root.value?.style.removeProperty('--pointer-y')
-	root.value?.style.removeProperty('--pointer-shift-x')
-	root.value?.style.removeProperty('--pointer-shift-y')
+	flow.value?.style.removeProperty('transform')
+	pointer.value?.style.removeProperty('transform')
 }, { immediate: true })
 
 onBeforeUnmount(() => {
@@ -122,15 +156,17 @@ onBeforeUnmount(() => {
 	unhookLoadingEnd()
 	unhookPageStart()
 	unhookPageFinish()
+	clearRouteSettleTimer()
+	isRouteSettling.value = false
 	pause()
 })
 </script>
 
 <template>
-<div ref="root" class="blog-atmosphere" aria-hidden="true">
+<div ref="root" class="blog-atmosphere" :class="{ 'is-route-settling': isRouteSettling }" aria-hidden="true">
 	<div class="atmosphere-lens atmosphere-lens-a" />
 	<div class="atmosphere-lens atmosphere-lens-b" />
-	<svg class="atmosphere-flow" viewBox="0 0 1440 900" preserveAspectRatio="none" focusable="false">
+	<svg ref="flow" class="atmosphere-flow" viewBox="0 0 1440 900" preserveAspectRatio="none" focusable="false">
 		<defs>
 			<linearGradient id="flow-primary-gradient" x1="0" y1="0" x2="1" y2="0">
 				<stop offset="0" stop-color="var(--c-flow-blue)" stop-opacity="0" />
@@ -157,7 +193,7 @@ onBeforeUnmount(() => {
 			<path class="flow-signal" pathLength="100" d="M -110 118 C 245 35 395 510 748 332 S 1182 96 1560 532" stroke="var(--c-flow-signal-alt)" />
 		</g>
 	</svg>
-	<div class="atmosphere-pointer" />
+	<div ref="pointer" class="atmosphere-pointer" />
 	<div class="atmosphere-grain" />
 	<div class="atmosphere-vignette" />
 </div>

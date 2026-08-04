@@ -157,11 +157,6 @@ img {
 }
 
 .blog-atmosphere {
-	--pointer-x: 50%;
-	--pointer-y: 26%;
-	--pointer-shift-x: 0px;
-	--pointer-shift-y: 0px;
-
 	contain: paint;
 	display: block;
 	position: fixed;
@@ -170,6 +165,9 @@ img {
 	background:
 		linear-gradient(180deg, var(--c-atmosphere-panel), transparent 38%),
 		var(--c-atmosphere-base);
+	backface-visibility: hidden;
+	transform: translateZ(0);
+	isolation: isolate;
 	pointer-events: none;
 	z-index: 0;
 }
@@ -234,7 +232,8 @@ img {
 	inset: -5%;
 	width: 110%;
 	height: 110%;
-	transform: translate3d(var(--pointer-shift-x), var(--pointer-shift-y), 0) scale(1.025);
+	backface-visibility: hidden;
+	transform: translate3d(0, 0, 0) scale(1.025);
 	transform-origin: center;
 	will-change: transform;
 }
@@ -295,8 +294,28 @@ img {
 	filter: drop-shadow(0 0 7px var(--c-flow-violet));
 }
 
+.blog-atmosphere.is-route-settling {
+	.atmosphere-lens,
+	.flow-ribbon,
+	.flow-halo,
+	.flow-thread,
+	.flow-signal {
+		animation-play-state: paused;
+	}
+}
+
 .atmosphere-pointer {
-	background: radial-gradient(circle 24rem at var(--pointer-x) var(--pointer-y), var(--c-atmosphere-pointer), transparent 72%);
+	inset: auto;
+	top: 0;
+	left: 0;
+	width: 48rem;
+	height: 48rem;
+	margin: -24rem 0 0 -24rem;
+	border-radius: 50%;
+	background: radial-gradient(circle, var(--c-atmosphere-pointer), transparent 72%);
+	backface-visibility: hidden;
+	transform: translate3d(50vw, 26vh, 0);
+	will-change: transform;
 }
 
 .atmosphere-grain {
