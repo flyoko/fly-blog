@@ -14,6 +14,7 @@ withDefaults(defineProps<{
 	<span class="scene-orbit scene-orbit-one" />
 	<span class="scene-orbit scene-orbit-two" />
 	<span class="scene-track" />
+	<span v-if="variant === 'about'" class="scene-planet" />
 	<span class="scene-spark scene-spark-one">✦</span>
 	<span class="scene-spark scene-spark-two">✦</span>
 	<span class="scene-spark scene-spark-three">·</span>
@@ -38,6 +39,7 @@ withDefaults(defineProps<{
 			draggable="false"
 			decoding="async"
 		>
+		<span class="scene-profile-badge">✦</span>
 	</span>
 </div>
 </template>
@@ -71,7 +73,8 @@ withDefaults(defineProps<{
 .scene-rocket,
 .scene-speech,
 .scene-character,
-.scene-profile-avatar {
+.scene-profile-avatar,
+.scene-planet {
 	position: absolute;
 	will-change: transform, opacity;
 }
@@ -144,21 +147,82 @@ withDefaults(defineProps<{
 	--profile-base-y: -50%;
 
 	display: block;
-	overflow: hidden;
-	border: 1px solid color-mix(in srgb, var(--c-primary) 28%, var(--c-border));
-	border-radius: 36%;
-	box-shadow: var(--box-shadow-3);
-	background: color-mix(in srgb, var(--c-surface-fill) 86%, transparent);
+	overflow: visible;
+	padding: 0.42rem;
+	border: 1px solid color-mix(in srgb, var(--c-primary) 48%, white 12%);
+	border-radius: 50%;
+	box-shadow:
+		inset 0 0 0 0.55rem color-mix(in srgb, var(--c-surface-fill) 72%, transparent),
+		inset 0 1px 0 rgb(255 255 255 / 34%),
+		0 0 0 0.65rem color-mix(in srgb, var(--c-primary) 10%, transparent),
+		0 1.25rem 3rem rgb(15 43 105 / 24%);
+	background:
+		radial-gradient(circle at 32% 22%, rgb(255 255 255 / 20%), transparent 34%),
+		color-mix(in srgb, var(--c-surface-fill) 76%, transparent);
+	backdrop-filter: blur(12px) saturate(1.12);
 	animation: shinchan-profile-float 4.6s cubic-bezier(0.45, 0, 0.2, 1) infinite;
-	z-index: 1;
+	z-index: 4;
 }
 
 .scene-profile-avatar img {
 	display: block;
 	width: 100%;
 	height: 100%;
-	transform: scale(1.35);
-	object-fit: cover;
+	border-radius: inherit;
+	transform: scale(0.94);
+	object-fit: contain;
+}
+
+.scene-profile-avatar::before {
+	content: "";
+	position: absolute;
+	inset: 10%;
+	border: 1px solid rgb(255 255 255 / 18%);
+	border-radius: inherit;
+	pointer-events: none;
+}
+
+.scene-profile-badge {
+	display: grid;
+	place-items: center;
+	position: absolute;
+	top: 5%;
+	right: 2%;
+	width: 1.8rem;
+	aspect-ratio: 1;
+	border: 1px solid color-mix(in srgb, var(--c-primary) 44%, white 14%);
+	border-radius: 50%;
+	box-shadow: 0 0 1rem color-mix(in srgb, var(--c-primary) 28%, transparent);
+	background: color-mix(in srgb, var(--c-surface-fill) 78%, transparent);
+	font-size: 0.75rem;
+	color: color-mix(in srgb, var(--c-primary) 70%, white);
+}
+
+.scene-planet {
+	right: -6%;
+	bottom: -74%;
+	width: clamp(19rem, 40vw, 31rem);
+	aspect-ratio: 1;
+	border: 1px solid color-mix(in srgb, var(--c-primary) 42%, white 8%);
+	border-radius: 50%;
+	box-shadow:
+		inset 0 1.1rem 2.5rem rgb(255 255 255 / 16%),
+		inset 0 -2rem 4rem rgb(20 53 150 / 28%),
+		0 0 3rem color-mix(in srgb, var(--c-flow-blue) 32%, transparent);
+	background:
+		radial-gradient(circle at 35% 14%, rgb(255 255 255 / 28%), transparent 22%),
+		linear-gradient(155deg, color-mix(in srgb, var(--c-flow-blue) 88%, white 6%), color-mix(in srgb, var(--c-primary) 82%, #15378F));
+	animation: shinchan-planet-breathe 6.8s ease-in-out infinite;
+	z-index: 2;
+}
+
+.scene-planet::before {
+	content: "";
+	position: absolute;
+	opacity: 0.7;
+	inset: -8%;
+	border: 1px solid color-mix(in srgb, var(--c-primary) 24%, transparent);
+	border-radius: inherit;
 }
 
 .scene-speech {
@@ -219,42 +283,56 @@ withDefaults(defineProps<{
 }
 
 .is-about .scene-character {
-	right: 5%;
-	bottom: -2%;
-	width: clamp(8rem, 20vw, 13rem);
+	right: 2.2%;
+	bottom: -8%;
+	width: clamp(7rem, 14vw, 9.5rem);
 	aspect-ratio: 390 / 333;
+	z-index: 3;
 }
 
 .is-about.has-custom-character .scene-character {
-	right: clamp(0.35rem, 2vw, 1.25rem);
-	bottom: -5%;
-	width: clamp(5.6rem, 11vw, 7.8rem);
-	z-index: 2;
+	right: 1.8%;
+	bottom: -8%;
+	width: clamp(6.8rem, 13vw, 9rem);
 }
 
 .is-about.has-custom-character .scene-profile-avatar {
-	top: 50%;
-	right: clamp(1.5rem, 7vw, 5rem);
-	width: clamp(7.5rem, 15vw, 10rem);
+	top: 42%;
+	right: clamp(6.5rem, 16vw, 11rem);
+	width: clamp(7rem, 14vw, 9.5rem);
 	aspect-ratio: 1;
 }
 
-.is-about::before {
-	content: "";
-	position: absolute;
-	right: 3%;
-	bottom: -20%;
-	width: clamp(10rem, 24vw, 16rem);
-	aspect-ratio: 1;
-	border-radius: 42%;
-	box-shadow: inset 0 1px 0 rgb(255 255 255 / 38%), 0 22px 48px rgb(44 93 194 / 22%);
-	background: linear-gradient(145deg, #3B86FF, #294FCD);
-	animation: shinchan-blob 5s ease-in-out infinite alternate;
+.is-about .scene-orbit-one {
+	inset: -24% -12% -42% 48%;
+	border-color: color-mix(in srgb, var(--c-primary) 24%, transparent);
 }
 
-.is-about .scene-speech {
-	top: 16%;
-	right: 28%;
+.is-about .scene-orbit-two {
+	inset: 2% -18% -50% 55%;
+	border-color: color-mix(in srgb, var(--c-primary) 36%, transparent);
+}
+
+.is-about .scene-track {
+	opacity: 0.66;
+	top: 40%;
+	right: -2%;
+	width: 47%;
+}
+
+.is-about .scene-spark-one {
+	top: 11%;
+	right: 7%;
+}
+
+.is-about .scene-spark-two {
+	right: 30%;
+	bottom: 18%;
+}
+
+.is-about .scene-spark-three {
+	top: 52%;
+	right: 43%;
 }
 
 @keyframes shinchan-orbit {
@@ -330,15 +408,13 @@ withDefaults(defineProps<{
 	}
 }
 
-@keyframes shinchan-blob {
-	from {
-		border-radius: 42% 44% 40% 48%;
-		transform: rotate(-3deg) scale(0.96);
+@keyframes shinchan-planet-breathe {
+	0%, 100% {
+		transform: translateY(0) scale(0.985);
 	}
 
-	to {
-		border-radius: 47% 39% 48% 41%;
-		transform: rotate(3deg) scale(1.04);
+	50% {
+		transform: translateY(-4px) scale(1.015);
 	}
 }
 
@@ -356,37 +432,32 @@ withDefaults(defineProps<{
 	}
 
 	.is-about .scene-character {
-		right: 2%;
-		bottom: 0;
-		width: 6.2rem;
-	}
-
-	.is-about.has-custom-character .scene-character {
-		right: -0.2rem;
-		bottom: -0.4rem;
-		width: 4.8rem;
+		right: -0.25rem;
+		bottom: -0.5rem;
+		width: 5rem;
 	}
 
 	.is-about.has-custom-character .scene-profile-avatar {
 		--profile-base-y: 0px;
 
 		top: auto;
-		right: 1.25rem;
-		bottom: 1.25rem;
-		width: 6rem;
+		right: 5.2rem;
+		bottom: 3.6rem;
+		width: 5.8rem;
 	}
 
-	.is-about::before {
-		right: -1%;
-		bottom: -7%;
-		width: 7.6rem;
+	.is-about .scene-planet {
+		right: -13%;
+		bottom: -46%;
+		width: 13rem;
 	}
 
-	.is-about .scene-speech {
-		top: auto;
-		right: 24%;
-		bottom: 10%;
-		font-size: 0.58rem;
+	.is-about .scene-orbit-one {
+		inset: 38% -24% -35% 30%;
+	}
+
+	.is-about .scene-orbit-two {
+		inset: 46% -40% -52% 44%;
 	}
 }
 
@@ -398,7 +469,7 @@ withDefaults(defineProps<{
 	.shinchan-scene .scene-speech,
 	.shinchan-scene .scene-character,
 	.shinchan-scene .scene-profile-avatar,
-	.shinchan-scene.is-about::before {
+	.shinchan-scene .scene-planet {
 		animation: none;
 	}
 }

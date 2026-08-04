@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Temporal } from 'temporal-polyfill'
+import type { Temporal } from 'temporal-polyfill'
 
 const props = withDefaults(defineProps<{
 	icon?: string
@@ -14,7 +14,6 @@ const props = withDefaults(defineProps<{
 	tipTransform: String,
 })
 
-const today = Temporal.Now.plainDateISO()
 const zdt = computed(() => {
 	try {
 		return typeof props.date === 'string' ? toZonedTemporal(props.date) : props.date
@@ -24,10 +23,7 @@ const zdt = computed(() => {
 	}
 })
 
-const relative = computed(() => props.absolute || !zdt.value
-	? false
-	: props.relative || today.since(zdt.value, { largestUnit: 'week' }).weeks < 1,
-)
+const relative = computed(() => Boolean(zdt.value && props.relative && !props.absolute))
 
 const mounted = useMounted()
 const tooltip = computed(() => mounted.value && zdt.value
@@ -53,7 +49,7 @@ const tooltip = computed(() => mounted.value && zdt.value
 		v-else
 		:datetime="toInstantString(zdt)"
 		:relative
-		:year="zdt.year === today.year ? undefined : '2-digit'"
+		year="2-digit"
 		month="long"
 		day="numeric"
 		numeric="auto"

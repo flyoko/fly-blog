@@ -39,7 +39,6 @@ useSeoMeta({
 		</div>
 		<BlogShinchanScene
 			variant="about"
-			speech="你好，我是 fly"
 			:character-src="profileAvatar || undefined"
 		/>
 	</header>
@@ -124,9 +123,10 @@ useSeoMeta({
 	position: relative;
 	overflow: hidden;
 	min-height: clamp(15rem, 30vw, 21rem);
-	padding-inline-end: clamp(10rem, 27vw, 18rem);
+	padding-inline-end: clamp(17rem, 43vw, 32rem);
 	background:
-		radial-gradient(circle at 84% 32%, var(--c-atmosphere-lens-blue), transparent 35%),
+		radial-gradient(circle at 82% 34%, color-mix(in srgb, var(--c-flow-blue) 18%, transparent), transparent 30%),
+		radial-gradient(circle at 98% 112%, color-mix(in srgb, var(--c-flow-blue) 26%, transparent), transparent 42%),
 		linear-gradient(130deg, var(--c-surface-fill), color-mix(in srgb, var(--c-surface-fill) 78%, var(--c-flow-violet) 7%));
 }
 
@@ -237,7 +237,7 @@ useSeoMeta({
 
 	.about-hero {
 		min-height: 20rem;
-		padding: 1.4rem 1.4rem 8rem;
+		padding: 1.4rem 1.4rem 10.5rem;
 	}
 
 	.about-timeline li {
