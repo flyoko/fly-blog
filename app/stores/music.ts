@@ -32,6 +32,7 @@ export const useMusicStore = defineStore('music', () => {
 	const error = ref<string | null>(null)
 	const audio = shallowRef<HTMLAudioElement | null>(null)
 	let initialized = false
+	let loadedTrackUrl: string | null = null
 	const failedTrackIds = new Set<string>()
 	let lastPersistedSecond = -1
 
@@ -146,6 +147,7 @@ export const useMusicStore = defineStore('music', () => {
 		progress.value = Math.max(0, restoreProgress)
 		duration.value = track.duration ?? 0
 		element.src = track.audioUrl
+		loadedTrackUrl = track.audioUrl
 		element.load()
 		if (restoreProgress > 0) {
 			const restore = () => {
@@ -155,6 +157,13 @@ export const useMusicStore = defineStore('music', () => {
 			element.addEventListener('loadedmetadata', restore)
 		}
 		persist()
+	}
+
+	function ensureCurrentLoaded() {
+		const track = currentTrack.value
+		if (!track || loadedTrackUrl === track.audioUrl)
+			return
+		loadCurrent(progress.value)
 	}
 
 	function initialize(input: MusicTrack[]) {
@@ -173,14 +182,18 @@ export const useMusicStore = defineStore('music', () => {
 		const restoredIndex = stored.trackId ? tracks.value.findIndex(track => track.id === stored.trackId) : -1
 		currentIndex.value = restoredIndex >= 0 ? restoredIndex : 0
 		initialized = true
-		if (tracks.value.length)
-			loadCurrent(typeof stored.progress === 'number' ? stored.progress : 0)
+		loadedTrackUrl = null
+		const restoredProgress = typeof stored.progress === 'number' ? Math.max(0, stored.progress) : 0
+		progress.value = restoredProgress
+		duration.value = currentTrack.value?.duration ?? 0
+		if (tracks.value.length && !usesMobilePresentation())
+			loadCurrent(restoredProgress)
 	}
 
 	async function play(resetFailures = true) {
 		if (!hasTracks.value)
 			return
-		attachAudio()
+		ensureCurrentLoaded()
 		if (!audio.value)
 			return
 		if (resetFailures)
@@ -290,8 +303,10 @@ export const useMusicStore = defineStore('music', () => {
 
 	function setMobileOpen(value: boolean) {
 		mobileOpen.value = value
-		if (value && usesMobilePresentation())
+		if (value && usesMobilePresentation()) {
 			expanded.value = false
+			ensureCurrentLoaded()
+		}
 	}
 
 	function toggleMobileOpen() {

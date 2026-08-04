@@ -3,6 +3,7 @@ import { expect, test } from '@playwright/test'
 
 async function mockPublicMusic(page: Page) {
 	await page.addInitScript(() => {
+		Object.defineProperty(window, '__mobileMediaLoadCount', { configurable: true, writable: true, value: 0 })
 		localStorage.setItem('fly-living-music-state-v1', JSON.stringify({
 			trackId: 'mobile-a',
 			progress: 12,
@@ -13,6 +14,9 @@ async function mockPublicMusic(page: Page) {
 		}))
 		Object.defineProperty(HTMLMediaElement.prototype, 'duration', { configurable: true, get: () => 120 })
 		HTMLMediaElement.prototype.load = function load() {
+			Object.assign(window, {
+				__mobileMediaLoadCount: Number((window as unknown as { __mobileMediaLoadCount?: number }).__mobileMediaLoadCount || 0) + 1,
+			})
 			setTimeout(() => {
 				this.dispatchEvent(new Event('loadedmetadata'))
 				this.dispatchEvent(new Event('canplay'))
@@ -57,9 +61,11 @@ test.describe('移动端播放器与性能基线', () => {
 		await expect(launcher).toBeVisible()
 		await expect(launcher).toHaveAttribute('aria-expanded', 'false')
 		await expect(player).toBeHidden()
+		expect(await page.evaluate(() => Number((window as unknown as { __mobileMediaLoadCount?: number }).__mobileMediaLoadCount || 0))).toBe(0)
 
 		await launcher.click()
 		await expect(player).toBeVisible()
+		await expect.poll(() => page.evaluate(() => Number((window as unknown as { __mobileMediaLoadCount?: number }).__mobileMediaLoadCount || 0))).toBe(1)
 		await expect(page.getByRole('button', { name: '收起音乐播放器' })).toHaveAttribute('aria-expanded', 'true')
 		await expect(player.locator('.music-player-expanded')).toHaveCount(0)
 		const playerHeight = await player.evaluate(element => element.getBoundingClientRect().height)

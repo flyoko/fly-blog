@@ -17,6 +17,9 @@ describe('mobile player and performance contracts', () => {
 		expect(player).toContain('\'is-mobile-open\': store.mobileOpen')
 		expect(store).toContain('const mobileOpen = ref(false)')
 		expect(store).toContain('mobileOpen.value = false')
+		expect(store).toContain('function ensureCurrentLoaded()')
+		expect(store).toContain('if (tracks.value.length && !usesMobilePresentation())')
+		expect(store).toMatch(/function setMobileOpen[\s\S]*?ensureCurrentLoaded\(\)/u)
 		expect(store).not.toMatch(/StoredMusicState[\s\S]*?mobileOpen\??:/u)
 	})
 
