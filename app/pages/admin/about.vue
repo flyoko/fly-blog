@@ -27,6 +27,7 @@ const timeline = ref<AboutTimeline>([])
 const links = ref<AboutLinks>([])
 const bodyTextarea = ref<HTMLTextAreaElement | null>(null)
 const mediaPickerOpen = ref(false)
+const mediaPickerTarget = ref<'avatar' | 'body'>('body')
 const previewError = ref<string | null>(null)
 const previewLoading = ref(false)
 const lastSuccessfulPreview = ref('')
@@ -102,6 +103,25 @@ function insertMedia(media: MediaObjectDto) {
 		bodyTextarea.value?.focus()
 		bodyTextarea.value?.setSelectionRange(result.cursor, result.cursor)
 	})
+}
+
+function openMediaPicker(target: 'avatar' | 'body') {
+	mediaPickerTarget.value = target
+	mediaPickerOpen.value = true
+}
+
+function selectMedia(media: MediaObjectDto) {
+	if (mediaPickerTarget.value === 'avatar') {
+		profile.avatar = media.url
+		success.value = `已选择头像：${media.originalName}。保存正文后会发布到自述页。`
+		return
+	}
+	insertMedia(media)
+}
+
+function clearAvatar() {
+	profile.avatar = undefined
+	success.value = '已移除头像，保存正文后生效。'
 }
 
 function refreshPreview(body: string) {
@@ -208,14 +228,44 @@ onBeforeUnmount(() => {
 					<h2>自述正文</h2>
 					<p>Markdown 内容，可上传图片并实时预览，保存后直接提交 Git。</p>
 				</div>
-				<button class="admin-button" type="button" @click="mediaPickerOpen = true">
+				<button class="admin-button" type="button" @click="openMediaPicker('body')">
 					<Icon name="tabler:photo-plus" />插入图片
 				</button>
 			</header>
 			<label class="admin-field"><span>标题</span><input v-model="profile.title" maxlength="120"></label>
 			<label class="admin-field"><span>摘要</span><textarea v-model="profile.summary" rows="3" maxlength="500" />
 			</label>
-			<label class="admin-field"><span>头像 URL（可选）</span><input v-model="profile.avatar" type="url" placeholder="https://..."></label>
+			<div class="admin-about-avatar-field">
+				<div class="admin-about-avatar-preview" :class="{ 'is-empty': !profile.avatar }" aria-live="polite">
+					<img
+						v-if="profile.avatar"
+						:src="profile.avatar"
+						alt="当前头像预览"
+						width="128"
+						height="128"
+						decoding="async"
+					>
+					<Icon v-else name="tabler:user-circle" aria-hidden="true" />
+				</div>
+				<div class="admin-about-avatar-copy">
+					<div>
+						<strong>头像</strong>
+						<p>支持 PNG、JPG、WebP 和 GIF。GIF 会保留原始动画，不会转换为静态图片。</p>
+					</div>
+					<div class="admin-about-avatar-actions">
+						<button class="admin-button" type="button" @click="openMediaPicker('avatar')">
+							<Icon name="tabler:upload" />上传或选择头像
+						</button>
+						<button v-if="profile.avatar" class="admin-button" type="button" @click="clearAvatar">
+							<Icon name="tabler:trash" />移除头像
+						</button>
+					</div>
+					<label class="admin-field">
+						<span>也可直接粘贴头像 URL</span>
+						<input v-model="profile.avatar" type="url" placeholder="https://.../avatar.gif">
+					</label>
+				</div>
+			</div>
 			<div class="admin-about-editor-workspace">
 				<label class="admin-field admin-about-editor-pane">
 					<span>正文 Markdown</span>
@@ -318,7 +368,7 @@ onBeforeUnmount(() => {
 		kind="image"
 		upload-purpose="profile"
 		@close="mediaPickerOpen = false"
-		@select="insertMedia"
+		@select="selectMedia"
 	/>
 </section>
 </template>
@@ -338,6 +388,56 @@ onBeforeUnmount(() => {
 .admin-about-structures {
 	display: grid;
 	gap: 1rem;
+}
+
+.admin-about-avatar-field {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr);
+	align-items: center;
+	gap: 1rem;
+	margin-bottom: 1rem;
+	padding: 0.9rem;
+	border: 1px solid var(--admin-border);
+	border-radius: 0.85rem;
+	background: var(--admin-surface-soft);
+}
+
+.admin-about-avatar-preview {
+	display: grid;
+	place-items: center;
+	overflow: hidden;
+	width: 7rem;
+	aspect-ratio: 1;
+	border: 1px solid var(--admin-border);
+	border-radius: 1.25rem;
+	background: var(--admin-surface);
+}
+
+.admin-about-avatar-preview img {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+
+.admin-about-avatar-preview.is-empty {
+	font-size: 2.5rem;
+	color: var(--admin-text-muted);
+}
+
+.admin-about-avatar-copy {
+	display: grid;
+	gap: 0.75rem;
+}
+
+.admin-about-avatar-copy p {
+	margin: 0.25rem 0 0;
+	color: var(--admin-text-muted);
+}
+
+.admin-about-avatar-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.55rem;
 }
 
 .admin-about-item-list {
@@ -426,6 +526,16 @@ onBeforeUnmount(() => {
 	.admin-about-editor-pane,
 	.admin-field.admin-about-editor-pane textarea {
 		min-height: 22rem;
+	}
+}
+
+@media (max-width: 560px) {
+	.admin-about-avatar-field {
+		grid-template-columns: 1fr;
+	}
+
+	.admin-about-avatar-preview {
+		width: 6rem;
 	}
 }
 </style>

@@ -11,6 +11,9 @@ const appConfig = useAppConfig()
 const profileSummary = computed(() =>
 	String((profile.value as Record<string, unknown> | null)?.summary || ''),
 )
+const profileAvatar = computed(() =>
+	String((profile.value as Record<string, unknown> | null)?.avatar || ''),
+)
 
 useSeoMeta({
 	title: () => profile.value?.title || '自述',
@@ -18,6 +21,7 @@ useSeoMeta({
 	ogTitle: () => profile.value?.title || '自述',
 	ogDescription: () =>
 		profileSummary.value || `${appConfig.title} 的个人自述。`,
+	ogImage: () => profileAvatar.value || appConfig.author.avatar,
 })
 </script>
 
@@ -34,14 +38,15 @@ useSeoMeta({
 			<p>{{ profileSummary }}</p>
 		</div>
 		<img
-			class="about-static-avatar"
-			:src="appConfig.author.avatar"
+			v-if="profileAvatar"
+			class="about-profile-avatar"
+			:src="profileAvatar"
 			alt="fly 的头像"
-			width="128"
-			height="128"
+			width="160"
+			height="160"
 			decoding="async"
 		>
-		<BlogShinchanScene variant="about" speech="你好，我是 fly" />
+		<BlogShinchanScene v-else variant="about" speech="你好，我是 fly" />
 	</header>
 
 	<section v-if="profile" class="about-section card article">
@@ -121,6 +126,8 @@ useSeoMeta({
 }
 
 .about-hero {
+	position: relative;
+	overflow: hidden;
 	min-height: clamp(15rem, 30vw, 21rem);
 	padding-inline-end: clamp(10rem, 27vw, 18rem);
 	background:
@@ -128,8 +135,19 @@ useSeoMeta({
 		linear-gradient(130deg, var(--c-surface-fill), color-mix(in srgb, var(--c-surface-fill) 78%, var(--c-flow-violet) 7%));
 }
 
-.about-static-avatar {
-	display: none;
+.about-profile-avatar {
+	position: absolute;
+	inset-inline-end: clamp(1.5rem, 7vw, 5rem);
+	top: 50%;
+	width: clamp(7.5rem, 15vw, 10rem);
+	height: auto;
+	aspect-ratio: 1;
+	border: 1px solid color-mix(in srgb, var(--c-primary) 28%, var(--c-border));
+	border-radius: 36%;
+	box-shadow: var(--box-shadow-3);
+	transform: translateY(-50%);
+	object-fit: cover;
+	z-index: 1;
 }
 
 .about-hero h1 {
@@ -142,12 +160,6 @@ useSeoMeta({
 .about-hero p {
 	max-width: 38rem;
 	color: var(--c-text-2);
-}
-
-.about-hero img {
-	flex: 0 0 auto;
-	border-radius: 42%;
-	box-shadow: var(--box-shadow-3);
 }
 
 .about-eyebrow,
@@ -248,9 +260,13 @@ useSeoMeta({
 		padding: 1.4rem 1.4rem 8rem;
 	}
 
-	.about-hero img {
-		width: 72px;
-		height: 72px;
+	.about-profile-avatar {
+		inset-inline-end: 1.25rem;
+		top: auto;
+		bottom: 1.25rem;
+		width: 6rem;
+		height: 6rem;
+		transform: none;
 	}
 
 	.about-timeline li {

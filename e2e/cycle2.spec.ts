@@ -23,6 +23,16 @@ test.describe('cycle 2 desktop workflows', () => {
 	test('admin publishes about markdown and creates controlled structure PRs', async ({ page }) => {
 		const capture = await mockAuthenticatedAdmin(page)
 		await page.goto('/admin/about')
+		await expect(page.getByText(/structuredClone/u)).toHaveCount(0)
+		await page.getByRole('button', { name: '上传或选择头像' }).click()
+		await page.locator('input[type="file"]').setInputFiles({
+			name: 'animated-avatar.gif',
+			mimeType: 'image/gif',
+			buffer: Buffer.from('GIF89a'),
+		})
+		await expect.poll(() => capture.mediaUploads).toBe(1)
+		await page.getByRole('button', { name: /sample\.webp/u }).click()
+		await expect(page.getByAltText('当前头像预览')).toHaveAttribute('src', 'https://media.example/sample.webp')
 		await page.getByLabel('正文 Markdown').fill('Updated **about** body.\n\n')
 		await page.getByRole('button', { name: '插入图片' }).click()
 		await page.locator('input[type="file"]').setInputFiles({
@@ -30,7 +40,7 @@ test.describe('cycle 2 desktop workflows', () => {
 			mimeType: 'image/png',
 			buffer: Buffer.from('profile-image'),
 		})
-		await expect.poll(() => capture.mediaUploads).toBe(1)
+		await expect.poll(() => capture.mediaUploads).toBe(2)
 		await page.getByRole('button', { name: /sample\.webp/u }).click()
 		await expect(page.getByLabel('正文 Markdown')).toHaveValue(/!\[sample\.webp\]\(https:\/\/media\.example\/sample\.webp\)/u)
 		await expect(page.locator('.admin-preview-content img')).toHaveAttribute('src', 'https://media.example/sample.webp')
@@ -38,6 +48,7 @@ test.describe('cycle 2 desktop workflows', () => {
 		await expect.poll(() => capture.aboutWrites.length).toBe(1)
 		expect(capture.aboutWrites[0]).toMatchObject({
 			profile: {
+				avatar: 'https://media.example/sample.webp',
 				body: expect.stringContaining('![sample.webp](https://media.example/sample.webp)'),
 				date: '2026-08-03',
 				sitemap: false,

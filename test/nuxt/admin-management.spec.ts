@@ -34,20 +34,30 @@ describe('admin management helpers', () => {
 })
 
 describe('admin management UI boundaries', () => {
-	it('lets the about editor upload, insert, and preview profile images', async () => {
+	it('lets the about editor upload animated avatars, insert body images, and preview safely', async () => {
 		const about = await source('app/pages/admin/about.vue')
+		const me = await source('app/pages/me.vue')
 		const picker = await source('app/components/admin/AdminMediaPicker.vue')
 
 		expect(about).toContain('insertMarkdownImage')
 		expect(about).toContain('renderAdminMarkdown')
-		expect(about).toContain('插入图片')
+		expect(about).toContain('openMediaPicker(\'body\')')
+		expect(about).toContain('openMediaPicker(\'avatar\')')
+		expect(about).toContain('profile.avatar = media.url')
+		expect(about).toContain('上传或选择头像')
+		expect(about).toContain('GIF 会保留原始动画')
 		expect(about).toContain('实时预览')
 		expect(about).toContain('upload-purpose="profile"')
+		expect(about).toContain('@select="selectMedia"')
 		expect(about).toContain('aboutTimelineSchema.parse(payload.timeline.items)')
 		expect(about).toContain('aboutLinksSchema.parse(payload.links.items)')
-		expect(about).not.toContain('structuredClone(data.value.timeline.items)')
+		expect(about).not.toContain('structuredClone(')
+		expect(me).toContain('profileAvatar')
+		expect(me).toContain('class="about-profile-avatar"')
+		expect(me).toContain('<BlogShinchanScene v-else')
 		expect(picker).toContain('uploadPurpose')
 		expect(picker).toContain('/api/admin/media')
+		expect(picker).toContain('image/png,image/jpeg,image/webp,image/gif')
 		expect(picker).toContain('上传图片')
 	})
 
