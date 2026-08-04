@@ -31,11 +31,9 @@ interface GitHubPullResponse {
 
 const failedCheckConclusions = new Set([
 	'action_required',
-	'cancelled',
 	'failure',
 	'skipped_due_to_failure',
 	'slow',
-	'stale',
 	'startup_failure',
 	'timed_out',
 ])

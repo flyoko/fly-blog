@@ -37,16 +37,11 @@ useSeoMeta({
 			<h1>{{ profile?.title || "关于我" }}</h1>
 			<p>{{ profileSummary }}</p>
 		</div>
-		<img
-			v-if="profileAvatar"
-			class="about-profile-avatar"
-			:src="profileAvatar"
-			alt="fly 的头像"
-			width="160"
-			height="160"
-			decoding="async"
-		>
-		<BlogShinchanScene v-else variant="about" speech="你好，我是 fly" />
+		<BlogShinchanScene
+			variant="about"
+			speech="你好，我是 fly"
+			:character-src="profileAvatar || undefined"
+		/>
 	</header>
 
 	<section v-if="profile" class="about-section card article">
@@ -133,21 +128,6 @@ useSeoMeta({
 	background:
 		radial-gradient(circle at 84% 32%, var(--c-atmosphere-lens-blue), transparent 35%),
 		linear-gradient(130deg, var(--c-surface-fill), color-mix(in srgb, var(--c-surface-fill) 78%, var(--c-flow-violet) 7%));
-}
-
-.about-profile-avatar {
-	position: absolute;
-	inset-inline-end: clamp(1.5rem, 7vw, 5rem);
-	top: 50%;
-	width: clamp(7.5rem, 15vw, 10rem);
-	height: auto;
-	aspect-ratio: 1;
-	border: 1px solid color-mix(in srgb, var(--c-primary) 28%, var(--c-border));
-	border-radius: 36%;
-	box-shadow: var(--box-shadow-3);
-	transform: translateY(-50%);
-	object-fit: cover;
-	z-index: 1;
 }
 
 .about-hero h1 {
@@ -258,15 +238,6 @@ useSeoMeta({
 	.about-hero {
 		min-height: 20rem;
 		padding: 1.4rem 1.4rem 8rem;
-	}
-
-	.about-profile-avatar {
-		inset-inline-end: 1.25rem;
-		top: auto;
-		bottom: 1.25rem;
-		width: 6rem;
-		height: 6rem;
-		transform: none;
 	}
 
 	.about-timeline li {

@@ -422,6 +422,46 @@ describe('pull request status and merge guard', () => {
 		})
 	})
 
+	it('recovers a direct publish that was marked failed before its deployment succeeded', async () => {
+		const repository = new FakePublishingRepository()
+		const commitSha = 'c'.repeat(40)
+		await testEnv.DB.prepare(`
+			INSERT INTO publish_runs (
+				id, kind, status, repository_ref, resource_path, commit_sha,
+				deployment_url, error_code, error_message, created_at, updated_at
+			) VALUES (
+				'direct-recovered', 'direct', 'failed', 'main', 'content/about/profile.md', ?,
+				'https://github.test/failed-job', 'CHECKS_FAILED', 'Repository checks failed', ?, ?
+			)
+		`).bind(commitSha, '2026-08-03T00:00:00.000Z', '2026-08-03T00:00:01.000Z').run()
+		repository.checks = { status: 'pending', total: 2, successful: 1, failed: 0, pending: 1 }
+		repository.deployment = {
+			id: 'production-deployment',
+			ref: 'main',
+			environment: 'production',
+			url: 'https://production.example.test',
+			status: 'success',
+			updatedAt: '2026-08-03T00:05:00.000Z',
+		}
+
+		const list = await new PublishingService(runtimeEnv(), repository).listRuns(1, 30)
+		expect(list.items[0]).toMatchObject({
+			id: 'direct-recovered',
+			status: 'published',
+			deploymentUrl: 'https://production.example.test',
+			errorCode: null,
+			errorMessage: null,
+		})
+		expect(await testEnv.DB.prepare('SELECT status, deployment_url, error_code, error_message FROM publish_runs WHERE id = ?')
+			.bind('direct-recovered')
+			.first()).toEqual({
+			status: 'published',
+			deployment_url: 'https://production.example.test',
+			error_code: null,
+			error_message: null,
+		})
+	})
+
 	it('treats a no-change direct commit as complete when no workflows are triggered', async () => {
 		const repository = new FakePublishingRepository()
 		const commitSha = 'f'.repeat(40)

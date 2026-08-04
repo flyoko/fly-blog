@@ -37,6 +37,8 @@ describe('admin management UI boundaries', () => {
 	it('lets the about editor upload animated avatars, insert body images, and preview safely', async () => {
 		const about = await source('app/pages/admin/about.vue')
 		const me = await source('app/pages/me.vue')
+		const header = await source('app/components/blog/BlogHeader.global.vue')
+		const scene = await source('app/components/blog/BlogShinchanScene.vue')
 		const picker = await source('app/components/admin/AdminMediaPicker.vue')
 
 		expect(about).toContain('insertMarkdownImage')
@@ -53,8 +55,11 @@ describe('admin management UI boundaries', () => {
 		expect(about).toContain('aboutLinksSchema.parse(payload.links.items)')
 		expect(about).not.toContain('structuredClone(')
 		expect(me).toContain('profileAvatar')
-		expect(me).toContain('class="about-profile-avatar"')
-		expect(me).toContain('<BlogShinchanScene v-else')
+		expect(me).toContain(':character-src="profileAvatar || undefined"')
+		expect(scene).toContain('characterSrc?: string')
+		expect(scene).toContain('scene-profile-avatar')
+		expect(header).toContain('about:header-avatar')
+		expect(header).toContain(':src="headerLogo"')
 		expect(picker).toContain('uploadPurpose')
 		expect(picker).toContain('/api/admin/media')
 		expect(picker).toContain('image/png,image/jpeg,image/webp,image/gif')
@@ -144,6 +149,18 @@ describe('admin management UI boundaries', () => {
 		expect(reviews).toContain('打开部署结果')
 		expect(reviews).toContain('title="确认上线"')
 		expect(reviews).not.toContain('verification-text="MERGE"')
+	})
+
+	it('loads release history in bounded pages with an infinite-scroll fallback', async () => {
+		const reviews = await source('app/pages/admin/reviews.vue')
+		const queue = await source('app/components/admin/reviews/AdminReleaseQueue.vue')
+
+		expect(reviews).toContain('const pageSize = 8')
+		expect(reviews).toContain('fetchRunPage')
+		expect(reviews).toContain('@load-more="loadMore"')
+		expect(queue).toContain('useIntersectionObserver')
+		expect(queue).toContain('加载更多历史记录')
+		expect(queue).toContain('max-height: min(42rem, calc(100dvh - 8rem))')
 	})
 
 	it('uses a reusable publish status component', async () => {

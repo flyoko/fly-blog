@@ -8,7 +8,7 @@ export interface AdminApiMockOptions {
 	mediaPartialFailure?: boolean
 	sessionExpiresAfterLoad?: boolean
 	analyticsStatusFailure?: boolean
-	publishRunScenario?: 'pull_request' | 'direct_pending' | 'direct_published'
+	publishRunScenario?: 'pull_request' | 'direct_pending' | 'direct_published' | 'direct_history'
 }
 
 export interface AdminApiCapture {
@@ -252,22 +252,22 @@ function publishRun() {
 	}
 }
 
-function directPublishRun(status: 'checks_pending' | 'published') {
+function directPublishRun(status: 'checks_pending' | 'published', index = 0) {
 	return {
-		id: `direct-${status}`,
+		id: `direct-${status}-${index}`,
 		kind: 'direct',
 		status,
 		repositoryRef: 'main',
-		resourcePath: 'content/about/profile.md',
-		commitSha: 'a'.repeat(40),
+		resourcePath: index % 2 === 0 ? 'content/about/profile.md' : 'content/playlists/default.json',
+		commitSha: index.toString(16).padStart(40, 'a').slice(-40),
 		pullNumber: null,
 		pullRequestUrl: null,
 		workflowRunId: null,
 		deploymentUrl: status === 'published' ? 'https://deployment.example' : null,
 		errorCode: null,
 		errorMessage: null,
-		createdAt: '2026-08-04T12:00:00.000Z',
-		updatedAt: '2026-08-04T12:05:00.000Z',
+		createdAt: new Date(Date.UTC(2026, 7, 4, 12, 0, index)).toISOString(),
+		updatedAt: new Date(Date.UTC(2026, 7, 4, 12, 5, index)).toISOString(),
 	}
 }
 
@@ -762,12 +762,25 @@ async function respond(route: Route, options: AdminApiMockOptions, capture: Admi
 	}
 
 	if (path === '/api/admin/publishing/runs') {
+		const page = Number(url.searchParams.get('page') || '1')
+		const pageSize = Number(url.searchParams.get('pageSize') || '30')
+		if (options.publishRunScenario === 'direct_history') {
+			const allRuns = Array.from({ length: 14 }, (_, index) => directPublishRun('published', index))
+			const start = (page - 1) * pageSize
+			await route.fulfill(success({
+				items: allRuns.slice(start, start + pageSize),
+				total: allRuns.length,
+				page,
+				pageSize,
+			}))
+			return
+		}
 		const run = options.publishRunScenario === 'direct_pending'
 			? directPublishRun('checks_pending')
 			: options.publishRunScenario === 'direct_published'
 				? directPublishRun('published')
 				: publishRun()
-		await route.fulfill(success({ items: [run], total: 1, page: 1, pageSize: 30 }))
+		await route.fulfill(success({ items: [run], total: 1, page, pageSize }))
 		return
 	}
 

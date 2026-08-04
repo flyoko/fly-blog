@@ -241,6 +241,27 @@ describe('gitHubRepository reviews and status', () => {
 		expect(requests[1]!.url).toContain('/deployments?ref=feature&per_page=20')
 	})
 
+	it('keeps cancelled and stale checks pending instead of reporting a false failure', async () => {
+		const { repository } = createRepository([
+			json({
+				total_count: 3,
+				check_runs: [
+					{ status: 'completed', conclusion: 'success' },
+					{ status: 'completed', conclusion: 'cancelled' },
+					{ status: 'completed', conclusion: 'stale' },
+				],
+			}),
+		])
+
+		await expect(repository.getChecks('main')).resolves.toEqual({
+			status: 'pending',
+			total: 3,
+			successful: 1,
+			failed: 0,
+			pending: 2,
+		})
+	})
+
 	it('queries deployments by sha, ignores inactive states, and prefers the site over health checks', async () => {
 		const sha = 'a'.repeat(40)
 		const { repository, requests } = createRepository([

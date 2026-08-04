@@ -2,6 +2,7 @@
 withDefaults(defineProps<{
 	variant?: 'header' | 'moments' | 'about'
 	speech?: string
+	characterSrc?: string
 }>(), {
 	variant: 'moments',
 	speech: '',
@@ -9,7 +10,7 @@ withDefaults(defineProps<{
 </script>
 
 <template>
-<div class="shinchan-scene" :class="`is-${variant}`" aria-hidden="true">
+<div class="shinchan-scene" :class="[`is-${variant}`, { 'has-custom-character': characterSrc }]" aria-hidden="true">
 	<span class="scene-orbit scene-orbit-one" />
 	<span class="scene-orbit scene-orbit-two" />
 	<span class="scene-track" />
@@ -18,15 +19,26 @@ withDefaults(defineProps<{
 	<span class="scene-spark scene-spark-three">·</span>
 	<span v-if="variant === 'header'" class="scene-rocket">🚀</span>
 	<span v-if="speech" class="scene-speech">{{ speech }}</span>
-	<img
-		class="scene-character"
-		src="/assets/shinchan-user-cutout.webp"
-		alt=""
-		width="390"
-		height="333"
-		draggable="false"
-		decoding="async"
-	>
+	<span class="scene-character">
+		<img
+			src="/assets/shinchan-user-cutout.webp"
+			alt=""
+			width="390"
+			height="333"
+			draggable="false"
+			decoding="async"
+		>
+	</span>
+	<span v-if="characterSrc" class="scene-profile-avatar">
+		<img
+			:src="characterSrc"
+			alt=""
+			width="160"
+			height="160"
+			draggable="false"
+			decoding="async"
+		>
+	</span>
 </div>
 </template>
 
@@ -58,7 +70,8 @@ withDefaults(defineProps<{
 .scene-spark,
 .scene-rocket,
 .scene-speech,
-.scene-character {
+.scene-character,
+.scene-profile-avatar {
 	position: absolute;
 	will-change: transform, opacity;
 }
@@ -113,11 +126,39 @@ withDefaults(defineProps<{
 }
 
 .scene-character {
+	display: block;
 	transform: translate3d(var(--scene-shift-x, 0), var(--scene-shift-y, 0), 0);
 	transform-origin: 54% 88%;
 	animation: shinchan-bob 3.9s cubic-bezier(0.45, 0, 0.2, 1) infinite;
 	filter: drop-shadow(0 16px 26px rgb(28 61 120 / 18%));
+}
+
+.scene-character img {
+	display: block;
+	width: 100%;
+	height: 100%;
 	object-fit: contain;
+}
+
+.scene-profile-avatar {
+	--profile-base-y: -50%;
+
+	display: block;
+	overflow: hidden;
+	border: 1px solid color-mix(in srgb, var(--c-primary) 28%, var(--c-border));
+	border-radius: 36%;
+	box-shadow: var(--box-shadow-3);
+	background: color-mix(in srgb, var(--c-surface-fill) 86%, transparent);
+	animation: shinchan-profile-float 4.6s cubic-bezier(0.45, 0, 0.2, 1) infinite;
+	z-index: 1;
+}
+
+.scene-profile-avatar img {
+	display: block;
+	width: 100%;
+	height: 100%;
+	transform: scale(1.35);
+	object-fit: cover;
 }
 
 .scene-speech {
@@ -135,7 +176,7 @@ withDefaults(defineProps<{
 	right: -0.55rem;
 	bottom: -1rem;
 	width: 5.7rem;
-	height: auto;
+	aspect-ratio: 390 / 333;
 	animation-name: shinchan-peek;
 }
 
@@ -169,7 +210,7 @@ withDefaults(defineProps<{
 	right: 1%;
 	bottom: -10%;
 	width: clamp(9.5rem, 23vw, 15rem);
-	height: auto;
+	aspect-ratio: 390 / 333;
 }
 
 .is-moments .scene-speech {
@@ -181,7 +222,21 @@ withDefaults(defineProps<{
 	right: 5%;
 	bottom: -2%;
 	width: clamp(8rem, 20vw, 13rem);
-	height: auto;
+	aspect-ratio: 390 / 333;
+}
+
+.is-about.has-custom-character .scene-character {
+	right: clamp(0.35rem, 2vw, 1.25rem);
+	bottom: -5%;
+	width: clamp(5.6rem, 11vw, 7.8rem);
+	z-index: 2;
+}
+
+.is-about.has-custom-character .scene-profile-avatar {
+	top: 50%;
+	right: clamp(1.5rem, 7vw, 5rem);
+	width: clamp(7.5rem, 15vw, 10rem);
+	aspect-ratio: 1;
 }
 
 .is-about::before {
@@ -265,6 +320,16 @@ withDefaults(defineProps<{
 	}
 }
 
+@keyframes shinchan-profile-float {
+	0%, 100% {
+		transform: translate3d(var(--scene-shift-x, 0), calc(var(--profile-base-y) + 2px), 0) rotate(-1deg);
+	}
+
+	50% {
+		transform: translate3d(var(--scene-shift-x, 0), calc(var(--profile-base-y) - 6px), 0) rotate(1deg);
+	}
+}
+
 @keyframes shinchan-blob {
 	from {
 		border-radius: 42% 44% 40% 48%;
@@ -296,6 +361,21 @@ withDefaults(defineProps<{
 		width: 6.2rem;
 	}
 
+	.is-about.has-custom-character .scene-character {
+		right: -0.2rem;
+		bottom: -0.4rem;
+		width: 4.8rem;
+	}
+
+	.is-about.has-custom-character .scene-profile-avatar {
+		--profile-base-y: 0px;
+
+		top: auto;
+		right: 1.25rem;
+		bottom: 1.25rem;
+		width: 6rem;
+	}
+
 	.is-about::before {
 		right: -1%;
 		bottom: -7%;
@@ -317,6 +397,7 @@ withDefaults(defineProps<{
 	.shinchan-scene .scene-rocket,
 	.shinchan-scene .scene-speech,
 	.shinchan-scene .scene-character,
+	.shinchan-scene .scene-profile-avatar,
 	.shinchan-scene.is-about::before {
 		animation: none;
 	}
