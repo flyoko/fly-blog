@@ -26,15 +26,21 @@ describe('music playback helpers', () => {
 			.toBe('/api/music/playlist')
 	})
 
-	it('keeps volume controls visible without expanding the player', () => {
+	it('keeps the default player compact and moves secondary controls into details', () => {
 		const source = readFileSync(new URL('../../app/components/music/GlobalPlayer.vue', import.meta.url), 'utf8')
-		const volumeRow = source.match(/<div class="music-volume-control">[\s\S]*?<\/div>/u)?.[0]
-		expect(volumeRow).toBeDefined()
-		expect(volumeRow).toContain('aria-label="音量"')
-		expect(volumeRow).toContain('store.setVolume')
-		expect(volumeRow).toContain('store.toggleMuted')
-		expect(volumeRow).toContain('Math.round(store.volume * 100)')
-		expect(volumeRow).not.toContain('v-if="store.expanded"')
+		const detailsIndex = source.indexOf('<div v-if="store.expanded" class="music-player-details">')
+		const volumeIndex = source.indexOf('<div class="music-volume-control">')
+
+		expect(source).toContain('class="music-player-console"')
+		expect(source).toContain('class="music-progress-rail"')
+		expect(detailsIndex).toBeGreaterThan(-1)
+		expect(volumeIndex).toBeGreaterThan(detailsIndex)
+		expect(source).toContain(':aria-expanded="store.expanded"')
+		expect(source).toContain('aria-label="音量"')
+		expect(source).toContain('store.setVolume')
+		expect(source).toContain('store.toggleMuted')
+		expect(source).toContain('Math.round(store.volume * 100)')
+		expect(source).not.toContain('music-cover-large')
 	})
 
 	it('wraps sequence playback and avoids immediate shuffle repeats', () => {
