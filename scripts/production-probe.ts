@@ -10,6 +10,7 @@ export interface ProductionProbeOptions {
 	timeoutMs?: number
 	baseDelayMs?: number
 	nonce?: string
+	expectedDeploymentOrigin?: string
 }
 
 export interface ProductionProbeCheck {
@@ -24,6 +25,7 @@ interface ProbeRuntime {
 	timeoutMs: number
 	baseDelayMs: number
 	nonce: string
+	expectedDeploymentOrigin?: string
 }
 
 const defaultAttempts = 6
@@ -45,6 +47,31 @@ export function assertControlledProductionOrigins(origins: Readonly<{ primary: s
 		throw new ProductionProbeError(`Unexpected primary production origin: ${primary.origin}`)
 	if (backup.origin !== controlledProductionOrigins.backup)
 		throw new ProductionProbeError(`Unexpected backup production origin: ${backup.origin}`)
+}
+
+export function resolveExpectedPagesDeploymentOrigin(value: string | undefined) {
+	if (!value)
+		return undefined
+
+	let url: URL
+	try {
+		url = new URL(value)
+	}
+	catch (error) {
+		throw new ProductionProbeError('EXPECTED_PAGES_DEPLOYMENT_URL must be a valid URL.', { cause: error })
+	}
+
+	const suffix = '.fly-living.pages.dev'
+	const deploymentName = url.hostname.endsWith(suffix)
+		? url.hostname.slice(0, -suffix.length)
+		: ''
+	if (url.protocol !== 'https:' || !deploymentName || !/^[a-z0-9]{8,64}$/u.test(deploymentName)) {
+		throw new ProductionProbeError(
+			`Unexpected Pages deployment origin: ${url.origin}. Expected an immutable fly-living.pages.dev deployment URL.`,
+		)
+	}
+
+	return url.origin
 }
 
 export function extractNuxtAssetPaths(html: string): string[] {
@@ -76,6 +103,7 @@ function runtime(options: ProductionProbeOptions): ProbeRuntime {
 		timeoutMs: positiveInteger(options.timeoutMs, defaultTimeoutMs, 'timeoutMs'),
 		baseDelayMs: positiveInteger(options.baseDelayMs, defaultBaseDelayMs, 'baseDelayMs'),
 		nonce: options.nonce ?? crypto.randomUUID(),
+		expectedDeploymentOrigin: resolveExpectedPagesDeploymentOrigin(options.expectedDeploymentOrigin),
 	}
 }
 
@@ -154,16 +182,30 @@ async function readHomeAssets(origin: string, runtime: ProbeRuntime) {
 
 async function checkMatchingHomes(runtime: ProbeRuntime) {
 	return retryCheck('Production domain build consistency', runtime, async () => {
-		const [primaryAssets, backupAssets] = await Promise.all([
+		const expectedAssetsPromise = runtime.expectedDeploymentOrigin
+			? readHomeAssets(runtime.expectedDeploymentOrigin, runtime)
+			: Promise.resolve(undefined)
+		const [primaryAssets, backupAssets, expectedAssets] = await Promise.all([
 			readHomeAssets(controlledProductionOrigins.primary, runtime),
 			readHomeAssets(controlledProductionOrigins.backup, runtime),
+			expectedAssetsPromise,
 		])
-		if (primaryAssets.join('\n') !== backupAssets.join('\n')) {
+		const primarySignature = primaryAssets.join('\n')
+		const backupSignature = backupAssets.join('\n')
+		if (primarySignature !== backupSignature) {
 			throw new ProductionProbeError(
 				`Primary and backup domains reference different Nuxt assets. primary=${primaryAssets.length}, backup=${backupAssets.length}.`,
 			)
 		}
-		return { primaryAssets, backupAssets }
+		if (expectedAssets) {
+			const expectedSignature = expectedAssets.join('\n')
+			if (primarySignature !== expectedSignature || backupSignature !== expectedSignature) {
+				throw new ProductionProbeError(
+					`Production domains do not match the immutable deployment ${runtime.expectedDeploymentOrigin}.`,
+				)
+			}
+		}
+		return { primaryAssets, backupAssets, expectedAssets }
 	})
 }
 
@@ -214,17 +256,24 @@ async function checkLoginPage(runtime: ProbeRuntime) {
 export async function runProductionProbe(options: ProductionProbeOptions = {}): Promise<ProductionProbeCheck[]> {
 	assertControlledProductionOrigins()
 	const resolved = runtime(options)
-	const { primaryAssets } = await checkMatchingHomes(resolved)
+	const { primaryAssets, expectedAssets } = await checkMatchingHomes(resolved)
 	const [service] = await Promise.all([
 		checkHealth(resolved),
 		checkAnonymousSession(resolved),
 		checkLoginPage(resolved),
 	])
-	return [
+	const checks: ProductionProbeCheck[] = [
 		{ name: '正式域首页', detail: `${controlledProductionOrigins.primary}/ · ${primaryAssets.length} 个构建资源` },
 		{ name: '备用域首页', detail: `${controlledProductionOrigins.backup}/ · 构建资源一致` },
 		{ name: 'API 健康', detail: `${controlledProductionOrigins.primary}/api/health · ${service}` },
 		{ name: '后台未登录保护', detail: '/api/auth/session · authenticated=false' },
 		{ name: '后台登录页', detail: '/admin/login?returnTo=/admin · 可访问' },
 	]
+	if (resolved.expectedDeploymentOrigin && expectedAssets) {
+		checks.unshift({
+			name: '本次 Pages 部署',
+			detail: `${resolved.expectedDeploymentOrigin}/ · 正式域与备用域均已收敛`,
+		})
+	}
+	return checks
 }

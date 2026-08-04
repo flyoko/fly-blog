@@ -5,11 +5,13 @@ import {
 	assertControlledProductionOrigins,
 	controlledProductionOrigins,
 	extractNuxtAssetPaths,
+	resolveExpectedPagesDeploymentOrigin,
 	runProductionProbe,
 } from '../../scripts/production-probe'
 
 const root = fileURLToPath(new URL('../..', import.meta.url))
 const sharedAssets = ['/_nuxt/entry-a1b2c3.js', '/_nuxt/entry-d4e5f6.css']
+const expectedDeploymentOrigin = 'https://a1b2c3d4.fly-living.pages.dev'
 
 function html(assets = sharedAssets) {
 	return `<!doctype html><html><head><title>fly living</title>${assets.map((asset, index) => index % 2
@@ -17,9 +19,20 @@ function html(assets = sharedAssets) {
 		: `<script src="${asset}"></script>`).join('')}</head><body>fly living</body></html>`
 }
 
-function successResponse(url: URL, options: { backupAssets?: string[], healthStatus?: number } = {}) {
-	if (url.pathname === '/')
-		return new Response(html(url.origin === controlledProductionOrigins.backup ? options.backupAssets : undefined), { status: 200 })
+function successResponse(url: URL, options: {
+	backupAssets?: string[]
+	expectedAssets?: string[]
+	expectedOrigin?: string
+	healthStatus?: number
+} = {}) {
+	if (url.pathname === '/') {
+		const assets = url.origin === controlledProductionOrigins.backup
+			? options.backupAssets
+			: url.origin === options.expectedOrigin
+				? options.expectedAssets
+				: undefined
+		return new Response(html(assets), { status: 200 })
+	}
 	if (url.pathname === '/api/health') {
 		if (options.healthStatus && options.healthStatus !== 200)
 			return new Response('temporary failure', { status: options.healthStatus })
@@ -47,6 +60,15 @@ describe('production entry probe', () => {
 			primary: controlledProductionOrigins.primary,
 			backup: 'https://fly-blog.pages.dev',
 		})).toThrow(/Unexpected backup production origin/u)
+	})
+
+	it('accepts only immutable deployment origins from the fly-living Pages project', () => {
+		expect(resolveExpectedPagesDeploymentOrigin(undefined)).toBeUndefined()
+		expect(resolveExpectedPagesDeploymentOrigin(`${expectedDeploymentOrigin}/archive?probe=1`)).toBe(expectedDeploymentOrigin)
+		expect(() => resolveExpectedPagesDeploymentOrigin(controlledProductionOrigins.backup)).toThrow(/Unexpected Pages deployment origin/u)
+		expect(() => resolveExpectedPagesDeploymentOrigin('https://main.fly-living.pages.dev')).toThrow(/Unexpected Pages deployment origin/u)
+		expect(() => resolveExpectedPagesDeploymentOrigin('https://example.com')).toThrow(/Unexpected Pages deployment origin/u)
+		expect(() => resolveExpectedPagesDeploymentOrigin('not a url')).toThrow(/must be a valid URL/u)
 	})
 
 	it('extracts stable Nuxt asset paths without query strings or duplicates', () => {
@@ -77,6 +99,43 @@ describe('production entry probe', () => {
 			'后台登录页',
 		])
 		expect(fetchImpl).toHaveBeenCalledTimes(5)
+	})
+
+	it('compares both production domains with the immutable deployment from this run', async () => {
+		const fetchImpl = vi.fn(async (input: string | URL | Request) => successResponse(requestUrl(input), {
+			expectedOrigin: expectedDeploymentOrigin,
+			expectedAssets: sharedAssets,
+		})) as unknown as typeof fetch
+		const checks = await runProductionProbe({
+			fetchImpl,
+			sleep: async () => {},
+			attempts: 1,
+			timeoutMs: 1_000,
+			baseDelayMs: 1,
+			nonce: 'test-immutable-success',
+			expectedDeploymentOrigin,
+		})
+
+		expect(checks).toHaveLength(6)
+		expect(checks[0]).toMatchObject({ name: '本次 Pages 部署' })
+		expect(fetchImpl).toHaveBeenCalledTimes(6)
+	})
+
+	it('fails when both public domains match each other but not this run deployment', async () => {
+		const fetchImpl = vi.fn(async (input: string | URL | Request) => successResponse(requestUrl(input), {
+			expectedOrigin: expectedDeploymentOrigin,
+			expectedAssets: ['/_nuxt/current-deployment.js'],
+		})) as unknown as typeof fetch
+
+		await expect(runProductionProbe({
+			fetchImpl,
+			sleep: async () => {},
+			attempts: 1,
+			timeoutMs: 1_000,
+			baseDelayMs: 1,
+			nonce: 'test-immutable-mismatch',
+			expectedDeploymentOrigin,
+		})).rejects.toThrow(/do not match the immutable deployment/u)
 	})
 
 	it('fails when the primary and backup domains reference different builds', async () => {
@@ -173,6 +232,10 @@ describe('production entry probe', () => {
 		])
 		expect(workflow).toContain('pnpm check:production')
 		expect(workflow).toContain('timeout-minutes: 5')
+		expect(workflow).toContain('/pages/projects/fly-living')
+		expect(workflow).toContain('production_branch')
+		expect(workflow).toContain('EXPECTED_PAGES_DEPLOYMENT_URL')
+		expect(workflow).toContain('steps.deploy.outputs.deployment-url')
 		expect(packageJson).toContain('"check:production": "unrun scripts/check-production.ts && unrun scripts/check-production-browser.ts"')
 		expect(`${workflow}\n${packageJson}`).not.toContain('fly-blog.pages.dev')
 	})
