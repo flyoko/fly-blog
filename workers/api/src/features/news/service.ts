@@ -735,9 +735,14 @@ export class NewsService {
 			if (!existing)
 				return null
 			const existingDocument = await this.env.DB.prepare(`
-				SELECT body_text, content_mode
+				SELECT body_text, content_mode, images_json
 				FROM news_documents WHERE item_id = ?
-			`).bind(itemId).first<{ body_text: string, content_mode: NewsDocumentDto['contentMode'] }>()
+			`).bind(itemId).first<{
+				body_text: string
+				content_mode: NewsDocumentDto['contentMode']
+				images_json: string
+			}>()
+			const existingImages = safeImages(existingDocument?.images_json, this.env.MEDIA_ORIGIN)
 			const originalUrl = externalPublicUrl(entry.originalUrl) || externalPublicUrl(existing.original_url)
 			const metadata = safeMetadata(existing.metadata_json)
 			const sourceName = readableSourceName(
@@ -747,20 +752,23 @@ export class NewsService {
 			)
 			let bodyText = entry.bodyText
 			let contentMode = entry.contentMode
-			let imageCandidates: ParsedNewsImage[] | undefined = entry.images
+			let imageCandidates: ParsedNewsImage[] | undefined = entry.images.length ? entry.images : undefined
+			const needsPageBody = entry.contentMode === 'summary' && existingDocument?.content_mode !== 'full'
+			const needsPageImages = existingImages.length === 0 && entry.images.length === 0
+			const pageArticle = needsPageBody || needsPageImages
+				? await this.fetchAiHotArticle(sourceUrl)
+				: null
 			if (entry.contentMode === 'summary' && existingDocument?.content_mode === 'full') {
 				bodyText = existingDocument.body_text
 				contentMode = 'full'
-				imageCandidates = undefined
 			}
-			else if (entry.contentMode === 'summary') {
-				const pageArticle = await this.fetchAiHotArticle(sourceUrl)
-				if (pageArticle?.bodyText) {
-					bodyText = pageArticle.bodyText
-					contentMode = 'full'
-					imageCandidates = mergeParsedImages(pageArticle.images, entry.images)
-				}
+			else if (pageArticle?.bodyText) {
+				bodyText = pageArticle.bodyText
+				contentMode = 'full'
 			}
+			const mergedImages = mergeParsedImages(pageArticle?.images, entry.images)
+			if (mergedImages.length)
+				imageCandidates = mergedImages
 			return {
 				entry,
 				existing,

@@ -487,8 +487,9 @@ export function extractAiHotArticle(
 ): { bodyText: string, images: ParsedNewsImage[] } | null {
 	const bodyHtml = divInnerHtmlByClass(html, 'm-detail-html')
 	const bodyText = cleanAiHotBodyText(htmlToReadableText(bodyHtml))
-	return bodyText
-		? { bodyText, images: mergeImages(extractHtmlImages(bodyHtml, baseUrl), pageMetaImages(html, baseUrl)) }
+	const images = mergeImages(extractHtmlImages(bodyHtml, baseUrl), pageMetaImages(html, baseUrl))
+	return bodyText || images.length
+		? { bodyText, images }
 		: null
 }
 

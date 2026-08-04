@@ -242,6 +242,74 @@ describe('news service', () => {
 		}
 	})
 
+	it('backfills AI HOT metadata images without replacing existing full text', async () => {
+		let metadataOnlyPage = false
+		const imageUrl = 'https://aihot.virxact.com/items/cms-backfill/opengraph-image'
+		vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+			const url = typeof input === 'string' ? input : input instanceof Request ? input.url : input.toString()
+			if (url.endsWith('/rss.xml'))
+				return new Response('<rss><channel></channel></rss>', { status: 200 })
+			if (url.includes('/api/v1/items')) {
+				return Response.json({ items: [{
+					id: 'cms-backfill',
+					title: 'AI HOT 图片回填',
+					summary: '摘要正文',
+					source: { name: '官方博客' },
+					links: { aihot: 'https://aihot.virxact.com/items/cms-backfill', original: 'https://example.com/original' },
+					selected: true,
+				}] })
+			}
+			if (url.endsWith('/feed/full.xml')) {
+				return new Response(`
+					<rss><channel><item>
+						<title>AI HOT 图片回填</title>
+						<link>https://aihot.virxact.com/items/cms-backfill</link>
+						<guid>cms-backfill</guid>
+						<description><![CDATA[<p>摘要正文</p>]]></description>
+					</item></channel></rss>
+				`, { status: 200 })
+			}
+			if (url === 'https://aihot.virxact.com/items/cms-backfill') {
+				return metadataOnlyPage
+					? new Response(`<head><meta property="og:image" content="${imageUrl}"></head><body><main>仅元数据图片</main></body>`, { status: 200 })
+					: new Response('<div class="m-detail-html"><p>已保存的完整正文。</p></div>', { status: 200 })
+			}
+			if (url === imageUrl) {
+				return new Response(Uint8Array.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x01]), {
+					status: 200,
+					headers: { 'content-type': 'image/png' },
+				})
+			}
+			return Response.json({ report: {
+				date: '2026-08-04',
+				links: { aihot: 'https://aihot.virxact.com/daily/2026-08-04' },
+				sections: [],
+			} })
+		})
+		try {
+			const service = new NewsService(runtimeEnv())
+			await service.sync({ force: true })
+			const before = (await service.list()).items.find(item => item.id === 'ai-hot:cms-backfill')!
+			const beforeDocument = await service.read(before.readerPath!.split('/').at(-1)!)
+			expect(before.coverImage).toBeNull()
+			expect(beforeDocument).toMatchObject({ bodyText: '已保存的完整正文。', contentMode: 'full', images: [] })
+
+			metadataOnlyPage = true
+			await service.sync({ force: true })
+			const after = (await service.list()).items.find(item => item.id === 'ai-hot:cms-backfill')!
+			const afterDocument = await service.read(after.readerPath!.split('/').at(-1)!)
+			expect(after.coverImage).toMatchObject({ mime: 'image/png' })
+			expect(afterDocument).toMatchObject({
+				bodyText: '已保存的完整正文。',
+				contentMode: 'full',
+				images: [expect.objectContaining({ mime: 'image/png' })],
+			})
+		}
+		finally {
+			vi.restoreAllMocks()
+		}
+	})
+
 	it('keeps deleted automated items excluded after later source syncs', async () => {
 		vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
 			const url = typeof input === 'string' ? input : input instanceof Request ? input.url : input.toString()
@@ -478,6 +546,13 @@ describe('news source parsers', () => {
 				<p>—— 本文由 AI HOT 聚合整理，完整版与更多 AI 动态见 https://aihot.virxact.com/items/cms1</p>
 			</div></div>
 		`)).toEqual({ bodyText: '完整正文第一段。\n\n小标题\n\n完整正文第二段。', images: [] })
+		expect(extractAiHotArticle(`
+			<head><meta property="og:image" content="/items/cms1/opengraph-image"></head>
+			<body><div>没有正文结构</div></body>
+		`, 'https://aihot.virxact.com/items/cms1')).toEqual({
+			bodyText: '',
+			images: [{ url: 'https://aihot.virxact.com/items/cms1/opengraph-image', alt: null }],
+		})
 		expect(extractAiHotArticle('<div>没有正文结构</div>')).toBeNull()
 	})
 
