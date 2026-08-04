@@ -10,12 +10,12 @@
     "order": 1
   },
   {
-    "id": "about",
+    "id": "moments",
     "enabled": true,
     "order": 2
   },
   {
-    "id": "moments",
+    "id": "about",
     "enabled": true,
     "order": 3
   },
