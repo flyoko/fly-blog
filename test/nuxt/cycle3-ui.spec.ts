@@ -5,9 +5,9 @@ const read = (path: string) => readFileSync(path, 'utf8')
 
 describe('cycle 3 UI contracts', () => {
 	it('ships real music and module admin pages instead of placeholders', () => {
-		expect(read('app/pages/admin/music.vue')).toContain('直接保存歌单')
+		expect(read('app/pages/admin/music.vue')).toContain('保存歌单')
 		expect(read('app/pages/admin/music.vue')).toContain('AdminMediaPicker')
-		expect(read('app/pages/admin/modules.vue')).toContain('创建模块 PR')
+		expect(read('app/pages/admin/modules.vue')).toContain('保存模块并预览')
 		expect(read('app/types/admin.ts')).toContain('adminUnavailableSections: Record')
 	})
 

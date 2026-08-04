@@ -99,7 +99,10 @@ test.describe('admin desktop workflows', () => {
 	test('configuration changes create a controlled pull request', async ({ page }) => {
 		const capture = await mockAuthenticatedAdmin(page)
 		await page.goto('/admin/settings')
-		await page.getByRole('button', { name: '创建分类 PR' }).click()
+		await expect(page.getByText(/已读取线上配置/u)).toBeVisible()
+		await page.getByRole('button', { name: '添加分类' }).click()
+		await page.getByLabel('名称').last().fill('浏览器测试')
+		await page.getByRole('button', { name: '保存分类并预览' }).click()
 		await expect(page.locator('.admin-pr-result').filter({ hasText: 'Pull Request #42 已创建' })).toBeVisible()
 		await expect.poll(() => capture.configWrites.length).toBe(1)
 		expect(capture.configWrites[0]).toMatchObject({ kind: 'categories' })
@@ -121,7 +124,7 @@ test.describe('admin desktop workflows', () => {
 	test('music upload keeps QMCv2 input local and uploads only standard audio', async ({ page }) => {
 		const capture = await mockAuthenticatedAdmin(page)
 		await page.goto('/admin/media')
-		await page.getByLabel('上传用途').selectOption('music')
+		await page.getByRole('button', { name: '音乐文件' }).click()
 		const input = page.locator('input[type="file"][multiple]')
 
 		await input.setInputFiles({
@@ -197,7 +200,7 @@ test.describe('admin desktop workflows', () => {
 		})
 		const capture = await mockAuthenticatedAdmin(page)
 		await page.goto('/admin/media')
-		await page.getByLabel('上传用途').selectOption('music')
+		await page.getByRole('button', { name: '音乐文件' }).click()
 		await page.locator('input[type="file"][multiple]').setInputFiles({
 			name: 'convertible.mgg',
 			mimeType: 'application/octet-stream',
@@ -241,7 +244,7 @@ test.describe('admin desktop workflows', () => {
 		})
 		const capture = await mockAuthenticatedAdmin(page)
 		await page.goto('/admin/media')
-		await page.getByLabel('上传用途').selectOption('music')
+		await page.getByRole('button', { name: '音乐文件' }).click()
 		await page.getByText('MusicEx 加密文件兼容（高级）', { exact: true }).click()
 		await page.getByRole('button', { name: '导入兼容密钥数据库' }).click()
 		await page.locator('input[type="file"]:not([multiple])').setInputFiles({
@@ -284,7 +287,7 @@ test.describe('admin desktop workflows', () => {
 		})
 		const capture = await mockAuthenticatedAdmin(page)
 		await page.goto('/admin/media')
-		await page.getByLabel('上传用途').selectOption('music')
+		await page.getByRole('button', { name: '音乐文件' }).click()
 		await page.locator('input[type="file"][multiple]').setInputFiles({
 			name: 'pending.mgg',
 			mimeType: 'application/octet-stream',
@@ -335,6 +338,7 @@ test.describe('admin desktop workflows', () => {
 		expect(capture.momentWrites[0]).toMatchObject({ expectedVersion: 2 })
 		await expect(page.getByText('瞬间已撤回。')).toBeVisible()
 
+		await page.getByRole('button', { name: '备份与恢复' }).click()
 		const pathInput = page.getByLabel('快照仓库路径')
 		await page.getByRole('button', { name: '恢复预检' }).click()
 		await expect(page.getByLabel('恢复确认')).toBeVisible()
@@ -377,9 +381,10 @@ test.describe('admin desktop workflows', () => {
 		await expect(page.locator('.admin-review-file pre')).toContainText('@@ -1 +1 @@')
 		await expect(page.getByRole('link', { name: '打开预览' })).toHaveAttribute('href', 'https://preview.example')
 		await page.getByRole('button', { name: '确认合并' }).click()
-		await page.getByPlaceholder('MERGE').fill('MERGE')
-		await page.getByRole('button', { name: '确认合并' }).last().click()
-		await expect(page.getByPlaceholder('MERGE')).not.toBeVisible()
+		const mergeDialog = page.getByRole('dialog')
+		await expect(mergeDialog.getByRole('textbox')).toHaveCount(0)
+		await mergeDialog.getByRole('button', { name: '确认合并' }).click()
+		await expect(mergeDialog).not.toBeVisible()
 	})
 
 	test('visitor analytics dashboard supports insights, privacy reveal, filters, and CSV export', async ({ page }) => {
@@ -453,7 +458,7 @@ test.describe('admin desktop workflows', () => {
 		await expect(titleInput).toHaveValue('Keyboard article')
 
 		await page.goto('/admin/media')
-		const uploadButton = page.getByRole('button', { name: '上传媒体' })
+		const uploadButton = page.getByRole('button', { name: '选择文件', exact: true })
 		await tabTo(page, uploadButton)
 		const focus = await uploadButton.evaluate((element) => {
 			const style = getComputedStyle(element)

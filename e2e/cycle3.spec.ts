@@ -83,7 +83,7 @@ test.describe('cycle 3 desktop workflows', () => {
 		await page.getByRole('button', { name: '搜索', exact: true }).click()
 		await page.getByRole('button', { name: /杭州/u }).click()
 		await expect(page.getByText('杭州 · 浙江 · 中国')).toBeVisible()
-		await page.getByRole('button', { name: '创建天气 PR' }).click()
+		await page.getByRole('button', { name: '保存天气并预览' }).click()
 		await expect.poll(() => capture.configWrites.some(write => write.kind === 'weather')).toBe(true)
 		const weatherWrite = capture.configWrites.find(write => write.kind === 'weather')
 		expect(weatherWrite).toMatchObject({ content: { enabled: true, latitude: 30.2741, longitude: 120.1551, timezone: 'Asia/Shanghai' } })
@@ -92,13 +92,12 @@ test.describe('cycle 3 desktop workflows', () => {
 	test('edits a playlist, selects R2 audio, and saves a direct commit', async ({ page }) => {
 		const capture = await mockAuthenticatedAdmin(page)
 		await page.goto('/admin/music')
-		await page.getByRole('button', { name: '添加歌曲' }).first().click()
-		await page.getByLabel('标题').last().fill('Browser song')
-		await page.getByRole('button', { name: '选择/上传音频' }).click()
-		await page.getByRole('button', { name: /sample\.mp3/u }).click()
-		await expect(page.getByLabel('音频 URL')).toHaveValue('https://flyovo.cc.cd/media/music/sample.mp3')
-		await page.getByLabel('在公开播放器中启用').check()
-		await page.getByRole('button', { name: '直接保存歌单' }).click()
+		await page.getByRole('button', { name: '从媒体库添加', exact: true }).click()
+		await page.getByRole('dialog').getByRole('button', { name: /sample\.mp3/u }).click()
+		await page.getByLabel('标题', { exact: true }).fill('Browser song')
+		await expect(page.getByLabel('音频')).toHaveValue('https://flyovo.cc.cd/media/music/sample.mp3')
+		await expect(page.getByLabel('在公开播放器中启用')).toBeChecked()
+		await page.getByRole('button', { name: '保存歌单' }).click()
 		await expect.poll(() => capture.musicWrites.length).toBe(1)
 		expect(capture.musicWrites[0]).toMatchObject({
 			expectedSha: 'playlist-sha',
@@ -125,7 +124,7 @@ test.describe('cycle 3 desktop workflows', () => {
 
 		const newsCard = page.locator('.module-card').filter({ hasText: 'AI 阅闻' })
 		await newsCard.getByRole('button', { name: '下移模块' }).click()
-		await page.getByRole('button', { name: '创建模块 PR' }).click()
+		await page.getByRole('button', { name: '保存模块并预览' }).click()
 		await expect.poll(() => capture.configWrites.some(write => write.kind === 'modules')).toBe(true)
 		const modules = capture.configWrites.find(write => write.kind === 'modules')?.content as Array<{ id: string, order: number }>
 		expect(modules.map(module => module.order)).toEqual(modules.map((_, index) => index))
