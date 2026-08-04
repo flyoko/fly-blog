@@ -1,10 +1,10 @@
 ---
-avatar: https://flyovo.cc.cd/media/public/profile/917a55b1-a628-406b-8bdf-76a0a8ad81fa.gif
+avatar: https://flyovo.cc.cd/media/public/profile/2d6c33d9-5beb-4129-8cca-2f57b36103af.jpg
 date: 2026-08-03
 sitemap: false
 summary: 一个持续学习、写代码，也认真生活的人。
 title: 关于我
-updatedAt: 2026-08-04T16:10:17.895Z
+updatedAt: 2026-08-04T17:15:18.500Z
 ---
 你好，我是 fly，热爱ViveCoding。
 
