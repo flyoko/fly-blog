@@ -37,7 +37,7 @@ async function mockPublicWeatherAndMusic(page: Page) {
 				temperature: 29.4,
 				weatherCode: 1,
 				condition: '少云',
-				icon: 'tabler:cloud-sun',
+				icon: 'ri:sun-cloudy-line',
 				isDay: true,
 				high: 34,
 				low: 25,

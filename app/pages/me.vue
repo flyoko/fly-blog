@@ -23,7 +23,7 @@ useSeoMeta({
 
 <template>
 <div class="mobile-only">
-	<BlogHeader to="/" suffix="自述" tag="h1" />
+	<BlogHeader to="/" />
 </div>
 
 <article class="about-page">

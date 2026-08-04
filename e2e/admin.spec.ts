@@ -242,13 +242,14 @@ test.describe('admin desktop workflows', () => {
 		const capture = await mockAuthenticatedAdmin(page)
 		await page.goto('/admin/media')
 		await page.getByLabel('上传用途').selectOption('music')
-		await page.getByRole('button', { name: '导入 QQ 音乐密钥文件' }).click()
+		await page.getByText('MusicEx 加密文件兼容（高级）', { exact: true }).click()
+		await page.getByRole('button', { name: '导入兼容密钥数据库' }).click()
 		await page.locator('input[type="file"]:not([multiple])').setInputFiles({
 			name: 'MMKVStreamEncryptId',
 			mimeType: 'application/octet-stream',
 			buffer: qmcMmkvBuffer('F0M0000HJUZs40wWgK.mflac', sampleQmcEkey),
 		})
-		await expect(page.getByRole('status').filter({ hasText: '已加载 1 条本机媒体密钥，仅保留在当前页面内存。' })).toBeVisible()
+		await expect(page.getByRole('status').filter({ hasText: '已加载 1 条本机媒体密钥，仅保留在当前浏览器标签页内存。' })).toBeVisible()
 
 		await page.locator('input[type="file"][multiple]').setInputFiles({
 			name: 'musicex.mflac',
@@ -262,7 +263,8 @@ test.describe('admin desktop workflows', () => {
 		expect(await page.evaluate(() => (window as typeof window & { __musicExMediaKey?: string }).__musicExMediaKey)).toBe(sampleQmcEkey)
 
 		await page.getByRole('button', { name: '移除本机密钥' }).click()
-		await expect(page.getByText(/尚未加载本机密钥/u)).toBeVisible()
+		await expect(page.getByRole('status').filter({ hasText: '已从当前浏览器标签页内存移除本机密钥。' })).toBeVisible()
+		await expect(page.getByRole('button', { name: '移除本机密钥' })).toHaveCount(0)
 	})
 
 	test('cancelling QMC conversion stops the batch before upload', async ({ page }) => {

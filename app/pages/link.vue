@@ -14,10 +14,13 @@ useSeoMeta({
 
 <template>
 <div class="mobile-only">
-	<BlogHeader to="/" suffix="友链" tag="h1" />
+	<BlogHeader to="/" />
 </div>
 
 <section class="link-page card">
+	<h1 class="visually-hidden">
+		友链
+	</h1>
 	<ContentRenderer
 		v-if="postLink"
 		:value="postLink"
