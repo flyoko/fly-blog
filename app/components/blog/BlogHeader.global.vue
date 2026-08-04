@@ -59,7 +59,7 @@ const headerLogo = computed(() => profileAvatar.value || appConfig.header.logo)
 
 <style lang="scss" scoped>
 .blog-header {
-	contain: layout;
+	contain: layout paint;
 	display: flex;
 	align-items: center;
 	gap: 0.5em;
@@ -67,6 +67,7 @@ const headerLogo = computed(() => profileAvatar.value || appConfig.header.logo)
 	margin: clamp(1rem, 2rem, 5vh) 1rem min(1rem, 5vh);
 	line-height: 1.4;
 	color: var(--c-text);
+	isolation: isolate;
 	user-select: none;
 }
 
@@ -88,7 +89,6 @@ const headerLogo = computed(() => profileAvatar.value || appConfig.header.logo)
 	background:
 		radial-gradient(circle at 10% 35%, var(--c-atmosphere-lens-blue), transparent 38%),
 		linear-gradient(112deg, var(--c-surface-fill), color-mix(in srgb, var(--c-surface-fill) 72%, var(--c-flow-blue) 8%));
-	backdrop-filter: blur(18px) saturate(120%);
 }
 
 .blog-header::before {
@@ -124,8 +124,6 @@ const headerLogo = computed(() => profileAvatar.value || appConfig.header.logo)
 
 :global(.dynamic .blog-header) {
 	--header-scene-opacity: 1;
-
-	backdrop-filter: blur(18px) saturate(120%);
 }
 
 .blog-header::before,
@@ -170,6 +168,7 @@ const headerLogo = computed(() => profileAvatar.value || appConfig.header.logo)
 			0 10px 24px var(--c-surface-shadow),
 			inset 0 0 0 1px var(--c-surface-line),
 			inset 0 1px 0 var(--c-surface-highlight);
+		transition: box-shadow 0.2s ease;
 	}
 }
 
@@ -177,16 +176,21 @@ const headerLogo = computed(() => profileAvatar.value || appConfig.header.logo)
 	display: block;
 	width: 100%;
 	height: 100%;
-	transition: transform 0.35s ease;
 	object-fit: cover;
 }
 
 .blog-logo.is-profile-avatar {
-	transform: scale(1.35);
+	width: 135%;
+	height: 135%;
+	max-width: none;
+	margin: -17.5%;
 }
 
-.blog-header:hover .blog-logo.is-profile-avatar {
-	transform: scale(1.42) rotate(-1deg);
+.blog-header:hover .blog-logo-shell.circle {
+	box-shadow:
+		0 12px 28px var(--c-surface-shadow),
+		inset 0 0 0 1px var(--c-surface-border),
+		inset 0 1px 0 var(--c-surface-highlight);
 }
 
 @font-face {
@@ -199,28 +203,11 @@ const headerLogo = computed(() => profileAvatar.value || appConfig.header.logo)
 	font-size: 1.5em;
 	font-synthesis: none;
 	font-variation-settings: "wght" 600, "BEVL" 100;
-
-	> .split-char {
-		animation: 3.14s infinite alternate vf-weight, 2.72s infinite alternate vf-bevel;
-		animation-delay: var(--delay);
-		animation-play-state: paused;
-	}
 }
 
 .header-subtitle {
 	font-size: 0.8em;
 	color: var(--c-text-2);
-}
-
-@keyframes vf-weight {
-	0% { font-weight: 600; }
-	38.2% { font-weight: 300; }
-	100% { font-weight: 900; }
-}
-
-@keyframes vf-bevel {
-	from { font-variation-settings: "BEVL" 100; }
-	to { font-variation-settings: "BEVL" 1; }
 }
 
 .emoji-tail {
@@ -236,33 +223,11 @@ const headerLogo = computed(() => profileAvatar.value || appConfig.header.logo)
 	filter: grayscale(0.85) saturate(0.4) blur(1px);
 	pointer-events: none;
 	z-index: -2;
-
-	> .split-char {
-		animation: 5s infinite alternate emoji-floating;
-		animation-delay: var(--delay);
-		animation-play-state: paused;
-	}
 }
 
 .blog-header:hover {
 	.emoji-tail {
 		opacity: 0.14;
-	}
-
-	.split-char {
-		animation-play-state: running;
-	}
-}
-
-@keyframes emoji-floating {
-	50% {
-		transform: translate(-12px, -4px) scale(1.2);
-		filter: blur(4px);
-	}
-
-	100% {
-		transform: translate(-4px, -12px) scale(0.9);
-		filter: blur(1px);
 	}
 }
 
@@ -270,10 +235,6 @@ const headerLogo = computed(() => profileAvatar.value || appConfig.header.logo)
 	:global(.dynamic .blog-header::before),
 	.blog-header::after {
 		animation: none;
-	}
-
-	.blog-logo {
-		transition: none;
 	}
 }
 </style>

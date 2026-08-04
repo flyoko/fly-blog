@@ -86,6 +86,25 @@ describe('motion v2 production integration', () => {
 		expect(router).toContain('return { left: 0, top: 0 }')
 	})
 
+	it('keeps the persistent profile header out of macOS compositor-heavy pointer motion', () => {
+		const atmosphere = read('app/components/blog/BlogAtmosphere.vue')
+		const header = read('app/components/blog/BlogHeader.global.vue')
+		const main = read('app/assets/css/main.scss')
+		const surface = read('app/components/blog/BlogSurfaceInteraction.vue')
+
+		expect(surface).not.toContain('.pagination, .blog-header')
+		expect(surface).not.toContain('.sidebar-nav-item, .pagination, .blog-header')
+		expect(header).toContain('contain: layout paint')
+		expect(header).toContain('isolation: isolate')
+		expect(header).not.toContain('backdrop-filter: blur(18px)')
+		expect(header).not.toContain('.blog-header:hover .blog-logo.is-profile-avatar')
+		expect(header).not.toContain('transition: transform 0.35s ease')
+		expect(header).not.toContain('animation-play-state: running')
+		expect(atmosphere).toContain('watch(() => route.fullPath')
+		expect(atmosphere).toContain('targetX = currentX')
+		expect(main).not.toMatch(/\.atmosphere-flow \{[\s\S]*?transition: transform/u)
+	})
+
 	it('renders condition-specific weather scenes from the production API response', () => {
 		const weather = read('app/components/widget/Weather.vue')
 		expect(weather).toContain('$fetch<ApiSuccess<PublicWeather>>(weatherUrl)')

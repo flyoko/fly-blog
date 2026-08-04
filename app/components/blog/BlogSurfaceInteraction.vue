@@ -3,7 +3,7 @@ import { useEventListener, useMediaQuery } from '@vueuse/core'
 
 const route = useRoute()
 const colorMode = useColorMode()
-const selector = '.card, .gradient-card, .widget-card, .sidebar-nav-item, .pagination, .blog-header'
+const selector = '.card, .gradient-card, .widget-card, .sidebar-nav-item, .pagination'
 const isFinePointer = useMediaQuery('(pointer: fine)')
 const prefersReducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
 const interactionIntensity = computed(() => {
@@ -55,7 +55,7 @@ function updateSurface() {
 	const y = Math.max(0, Math.min(100, (pending.clientY - rect.top) / rect.height * 100))
 	const normalizedX = (x - 50) / 50
 	const normalizedY = (y - 50) / 50
-	const compact = active.matches('.sidebar-nav-item, .pagination, .blog-header')
+	const compact = active.matches('.sidebar-nav-item, .pagination')
 	const intensity = interactionIntensity.value
 	const shiftX = normalizedX * (compact ? 2 : 4.5) * intensity
 	const shiftY = normalizedY * (compact ? 1.5 : 3.25) * intensity

@@ -12,6 +12,12 @@ interface RouteFrame {
 	y: number
 }
 
+interface MacCompositorFrame {
+	flowTransform: string | null
+	path: string
+	visibleCount: number
+}
+
 declare global {
 	interface Window {
 		__captureRouteFrame?: () => void
@@ -19,6 +25,9 @@ declare global {
 		__routeRecorderDone?: boolean
 		__routePulseSeen?: boolean
 		__routeTransitionSeen?: boolean
+		__macCompositorDone?: boolean
+		__macCompositorFrames?: MacCompositorFrame[]
+		__stopMacCompositorRecorder?: () => void
 	}
 }
 
@@ -122,6 +131,94 @@ test.describe('public route switch stability', () => {
 		}
 
 		expectStableGeometry(frames)
+	})
+
+	test('keeps avatar hover compositor-local while switching routes in macOS Chrome', async ({ page }) => {
+		await page.goto('/2026/welcome', { waitUntil: 'domcontentloaded' })
+		const header = page.locator('.sidebar-header')
+		const logo = header.locator('.blog-logo')
+		await expect(header).toBeVisible()
+		await logo.hover()
+		await page.waitForTimeout(1_200)
+
+		const headerState = await header.evaluate((element) => {
+			const logoElement = element.querySelector<HTMLElement>('.blog-logo')
+			const titleChar = element.querySelector<HTMLElement>('.header-title .split-char')
+			const style = getComputedStyle(element)
+			return {
+				backdropFilter: style.backdropFilter,
+				contain: style.contain,
+				logoTransform: logoElement ? getComputedStyle(logoElement).transform : null,
+				pointerActive: element.classList.contains('is-pointer-active'),
+				surfaceShiftX: element.style.getPropertyValue('--surface-shift-x'),
+				surfaceShiftY: element.style.getPropertyValue('--surface-shift-y'),
+				titleAnimation: titleChar ? getComputedStyle(titleChar).animationName : null,
+				transform: style.transform,
+			}
+		})
+		expect(headerState.backdropFilter).toBe('none')
+		expect(headerState.contain).toContain('layout')
+		expect(headerState.contain).toContain('paint')
+		expect(headerState.logoTransform).toBe('none')
+		expect(headerState.pointerActive).toBe(false)
+		expect(headerState.surfaceShiftX).toBe('')
+		expect(headerState.surfaceShiftY).toBe('')
+		expect(headerState.titleAnimation).toBe('none')
+		expect(headerState.transform).toBe('none')
+
+		await page.evaluate(() => {
+			window.__macCompositorFrames = []
+			window.__macCompositorDone = false
+			const record = () => {
+				const main = document.querySelector('#main-content')
+				const visibleChildren = main
+					? Array.from(main.children).filter((child) => {
+							if (child.matches('footer'))
+								return false
+							const rect = child.getBoundingClientRect()
+							const style = getComputedStyle(child)
+							return style.display !== 'none'
+								&& style.visibility !== 'hidden'
+								&& Number(style.opacity) > 0.01
+								&& rect.width > 1
+								&& rect.height > 1
+						})
+					: []
+				const flow = document.querySelector<HTMLElement>('.atmosphere-flow')
+				window.__macCompositorFrames?.push({
+					flowTransform: flow ? getComputedStyle(flow).transform : null,
+					path: location.pathname,
+					visibleCount: visibleChildren.length,
+				})
+			}
+			let frame = 0
+			const loop = () => {
+				record()
+				if (!window.__macCompositorDone)
+					frame = requestAnimationFrame(loop)
+			}
+			frame = requestAnimationFrame(loop)
+			window.__stopMacCompositorRecorder = () => {
+				window.__macCompositorDone = true
+				cancelAnimationFrame(frame)
+				record()
+			}
+		})
+
+		for (const path of ['/moments', '/link', '/archive', '/ai.news', '/']) {
+			await page.locator(`.sidebar-nav-item[href="${path}"]`).click()
+			await expect(page).toHaveURL(path)
+			await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))))
+			const first = await page.locator('.atmosphere-flow').evaluate(element => getComputedStyle(element).transform)
+			await page.waitForTimeout(120)
+			const second = await page.locator('.atmosphere-flow').evaluate(element => getComputedStyle(element).transform)
+			expect(second).toBe(first)
+		}
+
+		await page.evaluate(() => window.__stopMacCompositorRecorder?.())
+		const frames = await page.evaluate(() => window.__macCompositorFrames ?? [])
+		expect(frames.length).toBeGreaterThan(10)
+		expect(frames.some(frame => frame.visibleCount === 0)).toBe(false)
 	})
 })
 

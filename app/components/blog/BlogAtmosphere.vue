@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useEventListener, useMediaQuery, useRafFn } from '@vueuse/core'
 
+const route = useRoute()
 const colorMode = useColorMode()
 const root = useTemplateRef<HTMLElement>('root')
 const isFinePointer = useMediaQuery('(pointer: fine)')
@@ -66,6 +67,16 @@ useEventListener('pointerout', (event) => {
 	if (event.relatedTarget === null)
 		resetPointer()
 }, { passive: true })
+
+watch(() => route.fullPath, () => {
+	// Route swaps already replace a large painted area. Stop the full-screen
+	// pointer chase on that frame so macOS browsers do not recompose both the
+	// background and the incoming page at the same time. The next real pointer
+	// movement resumes the RAF loop normally.
+	pause()
+	targetX = currentX
+	targetY = currentY
+})
 
 watch([isFinePointer, prefersReducedMotion, isMobilePerformanceMode], ([fine, reduced, mobile]) => {
 	if (fine && !reduced && !mobile)
