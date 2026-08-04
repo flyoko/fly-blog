@@ -235,6 +235,18 @@ onBeforeUnmount(() => {
 	color: var(--c-text-2);
 }
 
+@media (max-width: $breakpoint-widescreen) {
+	.domain-dates > div {
+		flex-direction: column;
+		align-items: start;
+		gap: 0.15rem;
+	}
+
+	.domain-dates dd {
+		text-align: start;
+	}
+}
+
 @media (prefers-reduced-motion: reduce) {
 	.domain-term-progress i {
 		transition: none;
