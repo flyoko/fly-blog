@@ -48,6 +48,11 @@ export function createPublicWeatherRoutes(options: PublicWeatherRoutesOptions = 
 			() => moduleEnabled ? serviceFactory(c.env).current() : Promise.resolve(disabledWeather()),
 			1800,
 		)
+		const requestOrigin = c.req.header('origin')
+		if (requestOrigin === c.env.PAGES_ORIGIN) {
+			c.header('Access-Control-Allow-Origin', requestOrigin)
+			c.header('Vary', 'Origin')
+		}
 		c.header('Cache-Control', 'public, max-age=1800')
 		c.header('X-Fly-Cache', cached.status)
 		return success(c, cached.data)

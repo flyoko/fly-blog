@@ -30,7 +30,7 @@ describe('cycle 3 UI contracts', () => {
 		const widget = read('app/components/widget/Weather.vue')
 		expect(settings).toContain('/api/admin/weather/search')
 		expect(settings).toContain('不读取访客定位')
-		expect(widget).toContain('/api/weather')
+		expect(widget).toContain('resolvePublicApiUrl(\'/api/weather\', globalThis.location.hostname)')
 		expect(widget).toContain('ApiSuccess<PublicWeather>')
 		expect(widget).toContain('weather.sourceName')
 	})

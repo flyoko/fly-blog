@@ -2,6 +2,7 @@
 import type { CSSProperties } from 'vue'
 import type { ApiSuccess } from '#shared/admin/api'
 import type { PublicWeather } from '#shared/admin/weather'
+import { resolvePublicApiUrl } from '~/utils/public-api'
 import { toWeatherMotionState } from '~/utils/weather-motion'
 
 const appConfig = useAppConfig()
@@ -64,7 +65,8 @@ async function load() {
 	loading.value = true
 	error.value = false
 	try {
-		weather.value = (await $fetch<ApiSuccess<PublicWeather>>('/api/weather')).data
+		const weatherUrl = resolvePublicApiUrl('/api/weather', globalThis.location.hostname)
+		weather.value = (await $fetch<ApiSuccess<PublicWeather>>(weatherUrl)).data
 	}
 	catch {
 		error.value = true

@@ -25,7 +25,10 @@ const forecast = {
 }
 
 function runtimeEnv(): Env {
-	return { ...testEnv } as unknown as Env
+	return {
+		...testEnv,
+		PAGES_ORIGIN: 'https://pages.example.test',
+	} as unknown as Env
 }
 
 function publicApp(input: { moduleEnabled: boolean, current: () => Promise<PublicWeather> }) {
@@ -103,6 +106,24 @@ describe('weather service', () => {
 			.request('https://blog.example.test/api/weather', {}, runtimeEnv())
 		expect(await response.json()).toMatchObject({ ok: true, data: { available: true, city: config.city } })
 		expect(response.headers.get('cache-control')).toBe('public, max-age=1800')
+	})
+
+	it('allows only the configured Pages backup origin to read public weather cross-origin', async () => {
+		const current = async () => payloadForDisabledTest()
+		const app = publicApp({ moduleEnabled: true, current })
+		const runtime = runtimeEnv()
+		const pagesResponse = await app.request('https://blog.example.test/api/weather', {
+			headers: { origin: runtime.PAGES_ORIGIN },
+		}, runtime)
+		expect(pagesResponse.status).toBe(200)
+		expect(pagesResponse.headers.get('access-control-allow-origin')).toBe(runtime.PAGES_ORIGIN)
+		expect(pagesResponse.headers.get('vary')).toContain('Origin')
+
+		const unrelatedResponse = await app.request('https://blog.example.test/api/weather', {
+			headers: { origin: 'https://unrelated.example.test' },
+		}, runtime)
+		expect(unrelatedResponse.status).toBe(200)
+		expect(unrelatedResponse.headers.get('access-control-allow-origin')).toBeNull()
 	})
 
 	it('does not expose weather when the public module is disabled', async () => {

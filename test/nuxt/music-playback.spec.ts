@@ -22,8 +22,12 @@ describe('music playback helpers', () => {
 	it('uses the canonical API origin on the Pages backup domain', () => {
 		expect(resolvePublicApiUrl('/api/music/playlist', 'fly-living.pages.dev'))
 			.toBe('https://flyovo.cc.cd/api/music/playlist')
+		expect(resolvePublicApiUrl('/api/weather', 'fly-living.pages.dev'))
+			.toBe('https://flyovo.cc.cd/api/weather')
 		expect(resolvePublicApiUrl('/api/music/playlist', 'flyovo.cc.cd'))
 			.toBe('/api/music/playlist')
+		expect(resolvePublicApiUrl('/api/weather', 'flyovo.cc.cd'))
+			.toBe('/api/weather')
 	})
 
 	it('keeps the default player compact and moves secondary controls into details', () => {
