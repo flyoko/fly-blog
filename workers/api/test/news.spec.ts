@@ -626,6 +626,22 @@ describe('news source parsers', () => {
 			originalUrl: 'https://news.example.com/story',
 			sourceName: '腾讯新闻',
 		})
+		expect(extractZaihuaArticle(`
+			<head>
+				<meta property="og:title" content="只有 CDN 内容图">
+				<meta property="og:image" content="https://cdn.zaihua.news/main/1/content-photo.jpg">
+			</head>
+			<div class="msg-prose"><p>正文。</p><p><a href="https://news.example.com/story">原文</a></p></div>
+		`, 'https://www.zaihua.news/article/1/')).toMatchObject({
+			images: [{ url: 'https://cdn.zaihua.news/main/1/content-photo.jpg', alt: null }],
+		})
+		expect(extractZaihuaArticle(`
+			<head>
+				<meta property="og:title" content="只有标题卡">
+				<meta property="og:image" content="https://www.zaihua.news/og/article/1.png">
+			</head>
+			<div class="msg-prose"><p>正文。</p><p><a href="https://news.example.com/story">原文</a></p></div>
+		`, 'https://www.zaihua.news/article/1/')).toMatchObject({ images: [] })
 		expect(extractZaihuaArticle('<article><p>结构已变化</p></article>')).toBeNull()
 	})
 

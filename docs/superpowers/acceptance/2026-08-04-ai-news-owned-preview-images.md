@@ -6,11 +6,11 @@
 
 ## AC-02 来源元数据卡片拒绝
 
-当页面仅通过 `og:image`、`og:image:secure_url` 或 `twitter:image` 提供图片时，该图片不得写入 `news_documents.images_json`，不得出现在公开 API 或页面中。
+AI HOT 的 `og:image`、`og:image:secure_url`、`twitter:image` 不得写入图片链路。在花的 `www.zaihua.news/og/article/` 标题卡不得写入 `news_documents.images_json`，不得出现在公开 API 或页面中。
 
 ## AC-03 正文优先
 
-当页面同时包含来源站元数据卡片和正文图片时，只保留正文图片，元数据卡片不得下载或展示。
+AI HOT 同时包含来源站元数据卡片和正文图片时，只保留正文图片。在花仅允许与当前文章 ID 精确匹配的 `https://cdn.zaihua.news/main/{文章ID}/...` 内容图，并拒绝其他元数据路径和自定义表情。
 
 ## AC-04 历史正文保护
 

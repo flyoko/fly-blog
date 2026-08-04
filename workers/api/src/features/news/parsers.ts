@@ -315,6 +315,38 @@ function isZaihuaDecorativeImage(image: ParsedNewsImage): boolean {
 	}
 }
 
+function zaihuaContentMetaImages(html: string, baseUrl: string): ParsedNewsImage[] {
+	let articleId = ''
+	try {
+		const pageUrl = new URL(baseUrl)
+		articleId = pageUrl.pathname.match(/^\/article\/(\d+)\/?$/u)?.[1] || ''
+	}
+	catch {
+		return []
+	}
+	if (!articleId)
+		return []
+	const images: ParsedNewsImage[] = []
+	const seen = new Set<string>()
+	for (const value of [
+		metaContent(html, 'property', 'og:image'),
+		metaContent(html, 'property', 'og:image:secure_url'),
+	]) {
+		pushUniqueImage(images, seen, value, baseUrl, null)
+	}
+	return images.filter((image) => {
+		try {
+			const url = new URL(image.url)
+			return url.protocol === 'https:'
+				&& url.hostname.toLowerCase() === 'cdn.zaihua.news'
+				&& url.pathname.startsWith(`/main/${articleId}/`)
+		}
+		catch {
+			return false
+		}
+	})
+}
+
 function cleanZaihuaBodyHtml(bodyHtml: string, source: HtmlLink | null): string {
 	return bodyHtml.replace(/<p\b[^>]*>[\s\S]*?<\/p>/giu, (paragraph) => {
 		const paragraphText = htmlToReadableText(paragraph).replace(/\s+/gu, ' ').trim()
@@ -505,7 +537,10 @@ export function extractZaihuaArticle(html: string, baseUrl = 'https://www.zaihua
 	const bodyText = htmlToReadableText(cleanZaihuaBodyHtml(bodyHtml, source))
 	if (!bodyText)
 		return null
-	const images = extractHtmlImages(bodyHtml, baseUrl).filter(image => !isZaihuaDecorativeImage(image))
+	const images = mergeImages(
+		extractHtmlImages(bodyHtml, baseUrl).filter(image => !isZaihuaDecorativeImage(image)),
+		zaihuaContentMetaImages(html, baseUrl),
+	)
 	const title = (
 		metaContent(html, 'property', 'og:title')
 		|| htmlToReadableText(html.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/iu)?.[1] || '')
