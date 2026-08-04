@@ -63,20 +63,20 @@ describe('qMCv2 music import UI contracts', () => {
 		expect(mediaPage).toContain('当前浏览器标签页内存')
 	})
 
-	it('exposes an in-memory MusicEx MMKV and JSON key workflow at both music upload entrypoints', () => {
+	it('keeps MusicEx key import as clearly labelled advanced compatibility at both upload entrypoints', () => {
 		const picker = read('app/components/admin/AdminMediaPicker.vue')
 		const media = read('app/pages/admin/media.vue')
 		for (const source of [picker, media]) {
 			expect(source).toContain('loadKeyFile')
 			expect(source).toContain('clearMediaKeys')
 			expect(source).toContain('keyCount')
-			expect(source).toContain('导入 QQ 音乐密钥数据库')
-			expect(source).toContain('不是 .mflac/.mgg 音乐文件')
-			expect(source).toContain('选择 QQ 音乐 MMKV 或 JSON 密钥文件（不是音乐文件）')
-			expect(source).toContain('MMKVStreamEncryptId')
-			expect(source).toContain('filenameEkeyMap')
+			expect(source).toContain('MusicEx 加密文件兼容（高级）')
+			expect(source).toContain('普通 MP3、FLAC、OGG、WAV、M4A 不需要密钥')
+			expect(source).toContain('新版 QQ 音乐 Mac')
+			expect(source).toContain('导入兼容密钥数据库')
+			expect(source).not.toContain('导入 QQ 音乐密钥数据库')
+			expect(source).toContain('选择旧版 QQ 音乐 MMKV、iOS filenameEkeyMap 或 JSON 密钥包')
 			expect(source).toContain('仅保留在当前浏览器标签页内存')
-			expect(source).toContain('可连续导入多份密钥数据库')
 			expect(source).toContain('移除本机密钥')
 		}
 	})

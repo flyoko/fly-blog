@@ -250,8 +250,15 @@ export async function parseQmcKeyFile(file: File): Promise<Map<string, string>> 
 			looksLikeJson = false
 		}
 	}
-	if (!looksLikeJson)
+	if (!looksLikeJson) {
+		if (bytes.byteLength >= 4) {
+			const dataBytes = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getUint32(0, true)
+			if (dataBytes === 0 || dataBytes > bytes.byteLength - 4) {
+				invalidBundle('这个 QQ 音乐密钥数据库为空或采用了当前不支持的加密格式。新版 QQ 音乐 Mac 生成的 MMKV 可能无法在浏览器中读取，请不要继续重复选择同一文件。普通 MP3、FLAC、OGG、WAV、M4A 不需要密钥。')
+			}
+		}
 		return parseQmcMmkv(input)
+	}
 	try {
 		return parseQmcKeyBundle(new TextDecoder('utf-8', { fatal: true }).decode(bytes))
 	}

@@ -227,6 +227,16 @@ describe('qMC key bundle', () => {
 		expect(() => parseQmcMmkv(bytes.slice(0, bytes.byteLength - 3).buffer))
 			.toThrowError(expect.objectContaining({ code: 'INVALID_KEY_BUNDLE' }))
 	})
+
+	it('explains empty or encrypted newer Mac MMKV files instead of reporting a generic length error', async () => {
+		const emptyMmkv = new Uint8Array(16 * 1024)
+		await expect(parseQmcKeyFile(new File([emptyMmkv], 'MMKVStreamEncryptId')))
+			.rejects
+			.toMatchObject({
+				code: 'INVALID_KEY_BUNDLE',
+				message: expect.stringContaining('为空或采用了当前不支持的加密格式'),
+			})
+	})
 })
 
 describe('musicEx WASM compatibility layer', () => {
@@ -419,8 +429,10 @@ describe('musicEx import orchestration', () => {
 		expect(responses).toContainEqual(expect.objectContaining({
 			type: 'error',
 			code: 'QMC_KEY_REQUIRED',
-			message: expect.stringContaining('下载该歌曲的同一 QQ 音乐客户端'),
+			message: expect.stringContaining('MusicEx 文件不能单独解密'),
 		}))
+		expect(JSON.stringify(responses)).toContain('标准 MP3、FLAC、OGG、WAV 或 M4A')
+		expect(JSON.stringify(responses)).not.toContain('导出更新后的')
 	})
 
 	it('forwards the media key to the decryptor without including it in responses', async () => {

@@ -36,7 +36,7 @@ export async function handleQmcDecryptRequest(
 				: `当前尚未加载 ${musicEx.mediaFileName} 对应的本机媒体密钥。`
 			throw new MusicImportError(
 				'QMC_KEY_REQUIRED',
-				`${loadedKeyMessage} 请从下载该歌曲的同一 QQ 音乐客户端和账号导出更新后的 MMKVStreamEncryptId 或 filenameEkeyMap，再继续导入。`,
+				`${loadedKeyMessage} MusicEx 文件不能单独解密。只有在你已经有可读取的旧版 MMKV、iOS filenameEkeyMap 或 JSON 密钥包时才能继续；新版 QQ 音乐 Mac 生成的空或加密数据库当前不受支持。也可以改用标准 MP3、FLAC、OGG、WAV 或 M4A 文件。`,
 			)
 		}
 

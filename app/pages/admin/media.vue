@@ -136,7 +136,7 @@ function removeMediaKeys() {
 	clearMediaKeys()
 	keyFileStatus.value = {
 		kind: 'success',
-		message: '已从当前页面内存移除本机密钥。',
+		message: '已从当前浏览器标签页内存移除本机密钥。',
 	}
 }
 
@@ -366,30 +366,33 @@ onBeforeUnmount(() => {
 		仅上传本人拥有、已获授权或可合法公开播放的音频。QMCv2 文件只在当前浏览器本地解密，原文件不会上传。
 	</p>
 
-	<div v-if="uploadPurpose === 'music'" class="admin-music-key-file">
-		<div>
-			<strong>MusicEx 本机密钥</strong>
-			<span v-if="keyCount">已加载 {{ keyCount }} 条本机媒体密钥，仅保留在当前浏览器标签页内存。</span>
-			<span v-else>尚未加载本机密钥。这里导入的是密钥数据库，不是 .mflac/.mgg 音乐文件；音乐文件请使用上方上传入口。支持 Mac/iOS 的 MMKVStreamEncryptId、filenameEkeyMap、.mmkv，或版本化 JSON 密钥包。可连续导入多份密钥数据库，密钥只会在当前页面内存中合并。</span>
+	<details v-if="uploadPurpose === 'music'" class="admin-music-key-file">
+		<summary>MusicEx 加密文件兼容（高级）</summary>
+		<div class="admin-music-key-file-content">
+			<div>
+				<strong>只有已经持有兼容密钥数据库时才需要这里</strong>
+				<span v-if="keyCount">已加载 {{ keyCount }} 条本机媒体密钥，仅保留在当前浏览器标签页内存。</span>
+				<span v-else>普通 MP3、FLAC、OGG、WAV、M4A 不需要密钥。如果你不知道密钥数据库是什么，不需要查找或操作这里。仅兼容旧版 QQ 音乐明文 MMKV、iOS filenameEkeyMap 或 JSON 密钥包；新版 QQ 音乐 Mac 可能生成空或加密数据库，当前浏览器无法读取。</span>
+			</div>
+			<div class="admin-music-key-file-actions">
+				<button class="admin-button" type="button" :disabled="uploadBusy" @click="openKeyFilePicker">
+					<Icon name="tabler:key" />
+					导入兼容密钥数据库
+				</button>
+				<button v-if="keyCount" class="admin-button" type="button" :disabled="uploadBusy" @click="removeMediaKeys">
+					移除本机密钥
+				</button>
+				<input
+					ref="keyFileInput"
+					class="admin-music-key-file-input"
+					type="file"
+					aria-label="选择旧版 QQ 音乐 MMKV、iOS filenameEkeyMap 或 JSON 密钥包"
+					:disabled="uploadBusy"
+					@change="importKeyFile"
+				>
+			</div>
 		</div>
-		<div class="admin-music-key-file-actions">
-			<button class="admin-button" type="button" :disabled="uploadBusy" @click="openKeyFilePicker">
-				<Icon name="tabler:key" />
-				导入 QQ 音乐密钥数据库
-			</button>
-			<button v-if="keyCount" class="admin-button" type="button" :disabled="uploadBusy" @click="removeMediaKeys">
-				移除本机密钥
-			</button>
-			<input
-				ref="keyFileInput"
-				class="admin-music-key-file-input"
-				type="file"
-				aria-label="选择 QQ 音乐 MMKV 或 JSON 密钥文件（不是音乐文件）"
-				:disabled="uploadBusy"
-				@change="importKeyFile"
-			>
-		</div>
-	</div>
+	</details>
 	<p
 		v-if="keyFileStatus && uploadPurpose === 'music'"
 		:class="keyFileStatus.kind === 'error' ? 'admin-error' : 'admin-success'"
