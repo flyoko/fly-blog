@@ -36,6 +36,11 @@ export function createPublicMusicRoutes(options: PublicMusicRoutesOptions = {}) 
 	const configVersion = options.configVersion ?? JSON.stringify({ enabled, playlist })
 
 	routes.get('/playlist', async (c) => {
+		const requestOrigin = c.req.header('origin')
+		if (requestOrigin === c.env.PAGES_ORIGIN) {
+			c.header('Access-Control-Allow-Origin', requestOrigin)
+			c.header('Vary', 'Origin')
+		}
 		const cached = await publicCacheData(c, configVersion, async () => publicPlaylist(enabled, playlist), 1800)
 		c.header('Cache-Control', 'public, max-age=1800')
 		c.header('X-Fly-Cache', cached.status)

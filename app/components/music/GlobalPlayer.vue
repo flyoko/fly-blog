@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import type { ApiSuccess } from '#shared/admin/api'
 import type { PublicMusicPlaylist } from '#shared/admin/music'
+import { resolvePublicApiUrl } from '~/utils/public-api'
 
 const store = useMusicStore()
 const moduleEnabled = ref(false)
 
 onMounted(async () => {
 	try {
-		const response = await $fetch<ApiSuccess<PublicMusicPlaylist>>('/api/music/playlist')
+		const playlistUrl = resolvePublicApiUrl('/api/music/playlist', globalThis.location.hostname)
+		const response = await $fetch<ApiSuccess<PublicMusicPlaylist>>(playlistUrl)
 		moduleEnabled.value = response.data.enabled
 		if (response.data.enabled)
 			store.initialize(response.data.tracks)

@@ -142,6 +142,21 @@ describe('music playlist routes', () => {
 		expect(repository.commits[0]!.files[0]!.content).toContain('sample-track')
 	})
 
+	it('allows the Pages backup origin to read the public playlist without opening admin CORS', async () => {
+		const app = createPublicApp(true)
+		const pagesResponse = await app.request('https://blog.example.test/api/music/playlist', {
+			headers: { origin: 'https://pages.example.test' },
+		}, runtimeEnv())
+		expect(pagesResponse.status).toBe(200)
+		expect(pagesResponse.headers.get('access-control-allow-origin')).toBe('https://pages.example.test')
+		expect(pagesResponse.headers.get('vary')).toContain('Origin')
+
+		const unrelatedResponse = await app.request('https://blog.example.test/api/music/playlist', {
+			headers: { origin: 'https://unrelated.example.test' },
+		}, runtimeEnv())
+		expect(unrelatedResponse.headers.get('access-control-allow-origin')).toBeNull()
+	})
+
 	it('publishes only enabled tracks when the public module is enabled', async () => {
 		const playlistWithPrivateMetadata = structuredClone(playlist)
 		Object.assign(playlistWithPrivateMetadata.tracks[0]!, { internalNote: 'must not be public' })

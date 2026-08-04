@@ -5,6 +5,7 @@ import {
 	nextTrackIndex,
 	normalizePlayableTracks,
 } from '../../app/utils/music-playback'
+import { resolvePublicApiUrl } from '../../app/utils/public-api'
 
 const tracks: MusicTrack[] = [
 	{ id: 'b', title: 'B', audioUrl: 'https://media.example.com/b.mp3', enabled: true, order: 1 },
@@ -15,6 +16,13 @@ const tracks: MusicTrack[] = [
 describe('music playback helpers', () => {
 	it('keeps only enabled tracks in stable order', () => {
 		expect(normalizePlayableTracks(tracks).map(track => track.id)).toEqual(['a', 'b'])
+	})
+
+	it('uses the canonical API origin on the Pages backup domain', () => {
+		expect(resolvePublicApiUrl('/api/music/playlist', 'fly-living.pages.dev'))
+			.toBe('https://flyovo.cc.cd/api/music/playlist')
+		expect(resolvePublicApiUrl('/api/music/playlist', 'flyovo.cc.cd'))
+			.toBe('/api/music/playlist')
 	})
 
 	it('wraps sequence playback and avoids immediate shuffle repeats', () => {
