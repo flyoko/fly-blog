@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { mockAdminApi, mockAuthenticatedAdmin } from './fixtures/admin-api'
+import { mockSilentMedia } from './fixtures/silent-media'
 
 const publicRoutes = ['/', '/2026/welcome', '/me', '/moments', '/ai.news', '/link', '/archive']
 const adminRoutes = [
@@ -24,7 +25,8 @@ async function expectNoHorizontalOverflow(page: import('@playwright/test').Page)
 	expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth + 1)
 }
 
-test('enabled weather and music initialize their public runtimes once', async ({ page, isMobile }) => {
+test('enabled weather and music initialize their public runtimes once', async ({ page }) => {
+	await mockSilentMedia(page)
 	await page.addInitScript(() => {
 		Object.defineProperty(window, '__mediaLoadCount', { configurable: true, writable: true, value: 0 })
 		Object.defineProperty(HTMLMediaElement.prototype, 'duration', { configurable: true, get: () => 120 })
@@ -85,10 +87,10 @@ test('enabled weather and music initialize their public runtimes once', async ({
 	await page.goto('/', { waitUntil: 'networkidle' })
 	await expect(page.locator('.weather-card')).toBeVisible()
 	const player = page.getByRole('region', { name: '随心听播放器' })
-	if (isMobile) {
-		await expect(player).toBeHidden()
-		await page.getByRole('button', { name: '打开音乐播放器' }).click()
-	}
+	await expect(player).toBeHidden()
+	const mediaLoadsBeforeOpen = await page.evaluate(() => Number((window as unknown as { __mediaLoadCount?: number }).__mediaLoadCount || 0))
+	expect(mediaLoadsBeforeOpen).toBe(0)
+	await page.getByRole('button', { name: '打开音乐播放器' }).click()
 	await expect(player).toBeVisible()
 	await expect(page.getByText('Cycle 4 Song')).toBeVisible()
 	expect(weatherRequests).toBe(1)

@@ -30,11 +30,11 @@ const { transform } = useAvoidTransform(panelRef, avoidTargets)
 	</button>
 	<button
 		v-if="musicEnabled && musicStore.hasTracks"
-		class="toggle-music mobile-only"
-		:class="{ 'active': musicStore.mobileOpen, 'is-playing': musicStore.playing }"
-		:aria-label="musicStore.mobileOpen ? '收起音乐播放器' : '打开音乐播放器'"
-		:aria-expanded="musicStore.mobileOpen"
-		@click="musicStore.toggleMobileOpen"
+		class="toggle-music"
+		:class="{ 'active': musicStore.playerOpen, 'is-playing': musicStore.playing }"
+		:aria-label="musicStore.playerOpen ? '收起音乐播放器' : '打开音乐播放器'"
+		:aria-expanded="musicStore.playerOpen"
+		@click="musicStore.togglePlayerOpen"
 	>
 		<Icon name="tabler:music" />
 	</button>

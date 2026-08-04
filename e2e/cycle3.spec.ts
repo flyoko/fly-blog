@@ -1,10 +1,22 @@
 import type { Page } from '@playwright/test'
 import { expect, test } from '@playwright/test'
 import { mockAuthenticatedAdmin } from './fixtures/admin-api'
+import { mockSilentMedia } from './fixtures/silent-media'
 
 async function mockPublicWeatherAndMusic(page: Page) {
+	await mockSilentMedia(page)
 	await page.addInitScript(() => {
+		const currentTimes = new WeakMap<HTMLMediaElement, number>()
 		Object.defineProperty(HTMLMediaElement.prototype, 'duration', { configurable: true, get: () => 120 })
+		Object.defineProperty(HTMLMediaElement.prototype, 'currentTime', {
+			configurable: true,
+			get() {
+				return currentTimes.get(this) ?? 0
+			},
+			set(value: number) {
+				currentTimes.set(this, Number.isFinite(value) ? value : 0)
+			},
+		})
 		HTMLMediaElement.prototype.load = function load() {
 			queueMicrotask(() => {
 				this.dispatchEvent(new Event('loadedmetadata'))
@@ -139,6 +151,10 @@ test.describe('cycle 3 desktop workflows', () => {
 		await expect(weatherCard.locator('.weather-current .iconify')).toHaveClass(/i-ri:sun-cloudy-line/u)
 		await expect(weatherCard.getByRole('link', { name: 'Open-Meteo' })).toBeVisible()
 		const player = page.getByRole('region', { name: '随心听播放器' })
+		const launcher = page.getByRole('button', { name: '打开音乐播放器' })
+		await expect(launcher).toBeVisible()
+		await expect(player).toBeHidden()
+		await launcher.click()
 		await expect(player).toBeVisible()
 		await expect(player.getByText('E2E Song A')).toBeVisible()
 		const playButton = player.getByRole('button', { name: '播放', exact: true })
@@ -151,6 +167,10 @@ test.describe('cycle 3 desktop workflows', () => {
 		await page.getByRole('link', { name: '自述', exact: true }).click()
 		await expect(page).toHaveURL(/\/me$/u)
 		const persistedPlayer = page.getByRole('region', { name: '随心听播放器' })
+		await expect(persistedPlayer).toBeHidden()
+		const persistedLauncher = page.getByRole('button', { name: '打开音乐播放器' })
+		await expect(persistedLauncher).toHaveClass(/is-playing/u)
+		await persistedLauncher.click()
 		await expect(persistedPlayer.getByRole('button', { name: '暂停' })).toBeVisible()
 		await expect(persistedPlayer.getByText('E2E Song B')).toBeVisible()
 	})

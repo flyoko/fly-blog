@@ -25,6 +25,7 @@ const disabledModulePrerenderPaths = disabledModulePathPrefixes(configuredModule
 export default defineNuxtConfig({
 	app: {
 		head: {
+			title: blogConfig.title,
 			htmlAttrs: { lang: 'zh-CN' },
 			meta: [
 				{ name: 'author', content: [blogConfig.author.name, blogConfig.author.email].filter(Boolean).join(', ') },
@@ -46,10 +47,6 @@ export default defineNuxtConfig({
 				// 抖音美好体 "DOUYINSANSBOLD-GB"
 				{ rel: 'stylesheet', href: 'https://fonts.bytedance.com/dfd/api/v1/css?family=DOUYINSANSBOLD-GB&display=swap', media: 'print', onload: 'this.media="all"' },
 			],
-			templateParams: {
-				separator: '|',
-			},
-			titleTemplate: `%s %separator ${blogConfig.title}`,
 			script: [
 				...blogConfig.scripts,
 				...(cloudflareWebAnalyticsToken

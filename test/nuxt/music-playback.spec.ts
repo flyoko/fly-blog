@@ -30,20 +30,25 @@ describe('music playback helpers', () => {
 			.toBe('/api/weather')
 	})
 
-	it('keeps the default player compact and moves secondary controls into details', () => {
+	it('keeps the player compact and exposes volume through a vertical popover', () => {
 		const source = readFileSync(new URL('../../app/components/music/GlobalPlayer.vue', import.meta.url), 'utf8')
 		const detailsIndex = source.indexOf('class="music-player-details"')
-		const volumeIndex = source.indexOf('<div class="music-volume-control">')
+		const volumeIndex = source.indexOf('class="music-volume-control"')
 
 		expect(source).toContain('class="music-player-console"')
 		expect(source).toContain('class="music-progress-rail"')
 		expect(detailsIndex).toBeGreaterThan(-1)
-		expect(volumeIndex).toBeGreaterThan(detailsIndex)
+		expect(volumeIndex).toBeGreaterThan(-1)
+		expect(volumeIndex).toBeLessThan(detailsIndex)
 		expect(source).toContain(':aria-expanded="store.expanded"')
-		expect(source).toContain('aria-label="音量"')
+		expect(source).toContain('aria-label="调节音量"')
+		expect(source).toContain('aria-orientation="vertical"')
+		expect(source).toContain('class="music-volume-panel"')
+		expect(source).toContain('writing-mode: vertical-lr')
 		expect(source).toContain('store.setVolume')
 		expect(source).toContain('store.toggleMuted')
 		expect(source).toContain('Math.round(store.volume * 100)')
+		expect(source).not.toMatch(/music-player-details[\s\S]*?grid-template-columns: 2rem minmax\(0, 1fr\) 2\.6rem/u)
 		expect(source).not.toContain('music-cover-large')
 	})
 

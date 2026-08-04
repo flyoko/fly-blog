@@ -6,7 +6,9 @@ import { resolvePublicApiUrl } from '~/utils/public-api'
 const store = useMusicStore()
 const route = useRoute()
 const moduleEnabled = ref(false)
+const volumeOpen = ref(false)
 const playerRef = useTemplateRef<HTMLElement>('player')
+const volumeControlRef = useTemplateRef<HTMLElement>('volume-control')
 
 const progressPercent = computed(() => {
 	if (!Number.isFinite(store.duration) || store.duration <= 0)
@@ -14,9 +16,37 @@ const progressPercent = computed(() => {
 	return Math.min(100, Math.max(0, (store.progress / store.duration) * 100))
 })
 
-useAvoidTarget(playerRef, computed(() => store.mobileOpen))
+useAvoidTarget(playerRef, computed(() => store.playerOpen))
 
-watch(() => route.fullPath, () => store.setMobileOpen(false))
+watch(() => route.fullPath, () => {
+	volumeOpen.value = false
+	store.setPlayerOpen(false)
+})
+watch(() => store.playerOpen, (open) => {
+	if (!open)
+		volumeOpen.value = false
+})
+
+function handleDocumentPointerDown(event: PointerEvent) {
+	const target = event.target
+	if (volumeOpen.value && target instanceof Node && !volumeControlRef.value?.contains(target))
+		volumeOpen.value = false
+}
+
+function handleDocumentKeyDown(event: KeyboardEvent) {
+	if (event.key === 'Escape')
+		volumeOpen.value = false
+}
+
+onMounted(() => {
+	document.addEventListener('pointerdown', handleDocumentPointerDown)
+	document.addEventListener('keydown', handleDocumentKeyDown)
+})
+
+onBeforeUnmount(() => {
+	document.removeEventListener('pointerdown', handleDocumentPointerDown)
+	document.removeEventListener('keydown', handleDocumentKeyDown)
+})
 
 onMounted(async () => {
 	try {
@@ -28,7 +58,7 @@ onMounted(async () => {
 	}
 	catch {
 		moduleEnabled.value = false
-		store.setMobileOpen(false)
+		store.setPlayerOpen(false)
 	}
 })
 
@@ -46,7 +76,7 @@ function formatTime(value: number) {
 	v-if="moduleEnabled && store.hasTracks"
 	ref="player"
 	class="music-player"
-	:class="{ 'is-expanded': store.expanded, 'is-playing': store.playing, 'is-mobile-open': store.mobileOpen }"
+	:class="{ 'is-expanded': store.expanded, 'is-playing': store.playing, 'is-open': store.playerOpen }"
 	aria-label="随心听播放器"
 >
 	<div class="music-player-console">
@@ -79,6 +109,37 @@ function formatTime(value: number) {
 				<Icon name="tabler:player-skip-forward-filled" />
 			</button>
 		</div>
+
+		<div ref="volume-control" class="music-volume-control">
+			<button
+				class="music-volume-toggle"
+				type="button"
+				aria-label="调节音量"
+				:aria-expanded="volumeOpen"
+				aria-controls="music-volume-panel"
+				@click="volumeOpen = !volumeOpen"
+			>
+				<Icon :name="store.muted || store.volume === 0 ? 'tabler:volume-off' : 'tabler:volume'" />
+			</button>
+			<div v-if="volumeOpen" id="music-volume-panel" class="music-volume-panel" role="group" aria-label="音量调节">
+				<output>{{ store.muted ? '静音' : `${Math.round(store.volume * 100)}%` }}</output>
+				<input
+					:value="store.volume"
+					class="music-volume-slider"
+					type="range"
+					min="0"
+					max="1"
+					step="0.05"
+					aria-label="音量"
+					aria-orientation="vertical"
+					:aria-valuetext="store.muted ? '静音' : `${Math.round(store.volume * 100)}%`"
+					@input="store.setVolume(Number(($event.target as HTMLInputElement).value))"
+				>
+				<button type="button" :aria-label="store.muted ? '取消静音' : '静音'" @click="store.toggleMuted">
+					<Icon :name="store.muted ? 'tabler:volume-off' : 'tabler:volume'" />
+				</button>
+			</div>
+		</div>
 	</div>
 
 	<div class="music-progress-rail" :style="{ '--music-progress': `${progressPercent}%` }">
@@ -99,23 +160,6 @@ function formatTime(value: number) {
 			<span>{{ formatTime(store.duration) }}</span>
 		</div>
 
-		<div class="music-volume-control">
-			<button type="button" :aria-label="store.muted ? '取消静音' : '静音'" @click="store.toggleMuted">
-				<Icon :name="store.muted ? 'tabler:volume-off' : 'tabler:volume'" />
-			</button>
-			<input
-				:value="store.volume"
-				type="range"
-				min="0"
-				max="1"
-				step="0.05"
-				aria-label="音量"
-				:aria-valuetext="store.muted ? '静音' : `${Math.round(store.volume * 100)}%`"
-				@input="store.setVolume(Number(($event.target as HTMLInputElement).value))"
-			>
-			<output>{{ store.muted ? '静音' : `${Math.round(store.volume * 100)}%` }}</output>
-		</div>
-
 		<div class="music-player-tools">
 			<button type="button" :aria-label="store.mode === 'shuffle' ? '切换为顺序播放' : '切换为随机播放'" @click="store.toggleMode">
 				<Icon :name="store.mode === 'shuffle' ? 'tabler:arrows-shuffle' : 'tabler:repeat'" />
@@ -132,9 +176,10 @@ function formatTime(value: number) {
 
 <style scoped lang="scss">
 .music-player {
+	display: none;
 	position: fixed;
-	overflow: hidden;
-	inset-inline-end: 1rem;
+	overflow: visible;
+	inset-inline-end: 4.5rem;
 	bottom: 1rem;
 	width: min(20.625rem, calc(100vw - 2rem));
 	border: 1px solid color-mix(in srgb, var(--c-primary) 16%, var(--c-border));
@@ -145,6 +190,10 @@ function formatTime(value: number) {
 	backdrop-filter: blur(1rem) saturate(118%);
 	transition: border-color 0.2s ease, box-shadow 0.2s ease;
 	z-index: calc(var(--z-index-popover) + 2);
+
+	&.is-open {
+		display: block;
+	}
 }
 
 .music-player-console {
@@ -386,28 +435,49 @@ function formatTime(value: number) {
 }
 
 .music-volume-control {
-	display: grid;
-	grid-template-columns: 2rem minmax(0, 1fr) 2.6rem;
-	align-items: center;
-	gap: 0.45rem;
+	flex: 0 0 auto;
+	position: relative;
 }
 
-.music-volume-control button {
-	width: 2rem;
-	height: 2rem;
+.music-volume-toggle,
+.music-volume-panel button {
+	width: 1.875rem;
+	height: 1.875rem;
 	border-radius: 50%;
 }
 
-.music-volume-control input {
-	width: 100%;
-	min-width: 0;
-	accent-color: var(--c-primary);
+.music-volume-panel {
+	display: grid;
+	justify-items: center;
+	gap: 0.45rem;
+	position: absolute;
+	inset-inline-end: 0;
+	bottom: calc(100% + 0.7rem);
+	min-width: 3.25rem;
+	padding: 0.6rem 0.45rem;
+	border: 1px solid color-mix(in srgb, var(--c-primary) 18%, var(--c-border));
+	border-radius: 0.9rem;
+	box-shadow: 0 0.7rem 1.8rem color-mix(in srgb, var(--c-text) 16%, transparent), var(--box-shadow-1);
+	background: color-mix(in srgb, var(--c-bg-2) 96%, transparent);
+	backdrop-filter: blur(0.8rem) saturate(118%);
+	z-index: 1;
 }
 
-.music-volume-control output {
+.music-volume-slider {
+	width: 1.5rem;
+	height: 6.5rem;
+	margin: 0;
+	padding: 0;
+	direction: rtl;
+	accent-color: var(--c-primary);
+	cursor: pointer;
+	writing-mode: vertical-lr;
+}
+
+.music-volume-panel output {
 	font-variant-numeric: tabular-nums;
 	font-size: 0.68rem;
-	text-align: end;
+	text-align: center;
 	color: var(--c-text-2);
 }
 
@@ -458,18 +528,12 @@ function formatTime(value: number) {
 
 @media (max-width: $breakpoint-mobile), (hover: none) and (pointer: coarse) {
 	.music-player {
-		display: none;
-		overflow-y: auto;
 		inset-inline: 0.6rem;
 		bottom: max(0.6rem, env(safe-area-inset-bottom));
 		width: auto;
 		max-height: min(20rem, calc(100dvh - 5.5rem));
 		background: var(--c-bg-2);
 		backdrop-filter: none;
-
-		&.is-mobile-open {
-			display: block;
-		}
 	}
 
 	.music-player-console {

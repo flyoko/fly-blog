@@ -1,7 +1,9 @@
 import type { Page } from '@playwright/test'
 import { expect, test } from '@playwright/test'
+import { mockSilentMedia } from './fixtures/silent-media'
 
 async function mockPublicMusic(page: Page) {
+	await mockSilentMedia(page)
 	await page.addInitScript(() => {
 		Object.defineProperty(window, '__mobileMediaLoadCount', { configurable: true, writable: true, value: 0 })
 		localStorage.setItem('fly-living-music-state-v1', JSON.stringify({
@@ -70,6 +72,11 @@ test.describe('移动端播放器与性能基线', () => {
 		await expect(player.locator('.music-player-details')).toHaveCount(0)
 		const playerHeight = await player.evaluate(element => element.getBoundingClientRect().height)
 		expect(playerHeight).toBeLessThan(80)
+		const playerBox = await player.boundingBox()
+		const panelBox = await page.locator('#blog-panel').boundingBox()
+		expect(playerBox).not.toBeNull()
+		expect(panelBox).not.toBeNull()
+		expect((panelBox?.y ?? 0) + (panelBox?.height ?? 0)).toBeLessThanOrEqual((playerBox?.y ?? 0) - 12)
 		const overflowX = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)
 		expect(overflowX).toBe(false)
 		for (const name of ['上一首', '播放', '下一首']) {
@@ -78,6 +85,16 @@ test.describe('移动端播放器与性能基线', () => {
 			expect(box?.width).toBeGreaterThanOrEqual(44)
 			expect(box?.height).toBeGreaterThanOrEqual(44)
 		}
+		const volumeToggle = player.getByRole('button', { name: '调节音量' })
+		await expect(volumeToggle).toBeVisible()
+		await volumeToggle.click()
+		const volume = player.getByRole('slider', { name: '音量' })
+		await expect(volume).toBeVisible()
+		await expect(volume).toHaveAttribute('aria-orientation', 'vertical')
+		const volumeBox = await volume.boundingBox()
+		expect(volumeBox?.height).toBeGreaterThan((volumeBox?.width ?? 0) * 2)
+		await volumeToggle.click()
+		await expect(volume).toHaveCount(0)
 		await expect(player.getByRole('button', { name: '播放', exact: true })).toBeVisible()
 		await player.getByRole('button', { name: '播放', exact: true }).click()
 		await expect(player.getByRole('button', { name: '暂停' })).toBeVisible()

@@ -27,7 +27,7 @@ export const useMusicStore = defineStore('music', () => {
 	const muted = ref(false)
 	const mode = ref<MusicPlaybackMode>('sequence')
 	const expanded = ref(false)
-	const mobileOpen = ref(false)
+	const playerOpen = ref(false)
 	const loading = ref(false)
 	const error = ref<string | null>(null)
 	const audio = shallowRef<HTMLAudioElement | null>(null)
@@ -178,7 +178,7 @@ export const useMusicStore = defineStore('music', () => {
 		muted.value = Boolean(stored.muted)
 		mode.value = stored.mode === 'shuffle' ? 'shuffle' : 'sequence'
 		expanded.value = usesMobilePresentation() ? false : Boolean(stored.expanded)
-		mobileOpen.value = false
+		playerOpen.value = false
 		const restoredIndex = stored.trackId ? tracks.value.findIndex(track => track.id === stored.trackId) : -1
 		currentIndex.value = restoredIndex >= 0 ? restoredIndex : 0
 		initialized = true
@@ -186,8 +186,6 @@ export const useMusicStore = defineStore('music', () => {
 		const restoredProgress = typeof stored.progress === 'number' ? Math.max(0, stored.progress) : 0
 		progress.value = restoredProgress
 		duration.value = currentTrack.value?.duration ?? 0
-		if (tracks.value.length && !usesMobilePresentation())
-			loadCurrent(restoredProgress)
 	}
 
 	async function play(resetFailures = true) {
@@ -301,16 +299,17 @@ export const useMusicStore = defineStore('music', () => {
 		persist()
 	}
 
-	function setMobileOpen(value: boolean) {
-		mobileOpen.value = value
-		if (value && usesMobilePresentation()) {
+	function setPlayerOpen(value: boolean) {
+		playerOpen.value = value
+		if (!value)
+			return
+		if (usesMobilePresentation())
 			expanded.value = false
-			ensureCurrentLoaded()
-		}
+		ensureCurrentLoaded()
 	}
 
-	function toggleMobileOpen() {
-		setMobileOpen(!mobileOpen.value)
+	function togglePlayerOpen() {
+		setPlayerOpen(!playerOpen.value)
 	}
 
 	return {
@@ -325,7 +324,7 @@ export const useMusicStore = defineStore('music', () => {
 		muted,
 		mode,
 		expanded,
-		mobileOpen,
+		playerOpen,
 		loading,
 		error,
 		initialize,
@@ -339,7 +338,7 @@ export const useMusicStore = defineStore('music', () => {
 		toggleMuted,
 		toggleMode,
 		toggleExpanded,
-		setMobileOpen,
-		toggleMobileOpen,
+		setPlayerOpen,
+		togglePlayerOpen,
 	}
 })

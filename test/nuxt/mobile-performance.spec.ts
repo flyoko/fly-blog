@@ -4,26 +4,30 @@ import { describe, expect, it } from 'vitest'
 const read = (path: string) => readFileSync(path, 'utf8')
 
 describe('mobile player and performance contracts', () => {
-	it('keeps the mobile player closed until the user opens it from the shared panel', () => {
+	it('keeps the player closed on every viewport until the user opens it from the shared panel', () => {
 		const player = read('app/components/music/GlobalPlayer.vue')
 		const panel = read('app/components/blog/BlogPanel.vue')
 		const layout = read('app/layouts/default.vue')
 		const store = read('app/stores/music.ts')
+		const avoid = read('app/composables/useAvoid.ts')
 
 		expect(layout).toContain(':music-enabled="musicEnabled"')
 		expect(panel).toContain('打开音乐播放器')
-		expect(panel).toContain(':aria-expanded="musicStore.mobileOpen"')
-		expect(panel).toContain('musicStore.toggleMobileOpen')
-		expect(player).toContain('\'is-mobile-open\': store.mobileOpen')
+		expect(panel).toContain(':aria-expanded="musicStore.playerOpen"')
+		expect(panel).toContain('musicStore.togglePlayerOpen')
+		expect(panel).not.toContain('toggle-music mobile-only')
+		expect(player).toContain('\'is-open\': store.playerOpen')
 		expect(player).toContain('class="music-player-console"')
 		expect(player).toContain('class="music-progress-rail"')
+		expect(player).toMatch(/\.music-player \{[\s\S]*?display: none;[\s\S]*?&\.is-open \{[\s\S]*?display: block;/u)
 		expect(player).toMatch(/@media \(max-width: \$breakpoint-mobile\), \(hover: none\) and \(pointer: coarse\)[\s\S]*?\.music-player-console \{[\s\S]*?min-height: 2\.75rem;/u)
-		expect(store).toContain('const mobileOpen = ref(false)')
-		expect(store).toContain('mobileOpen.value = false')
+		expect(store).toContain('const playerOpen = ref(false)')
+		expect(store).toContain('playerOpen.value = false')
 		expect(store).toContain('function ensureCurrentLoaded()')
-		expect(store).toContain('if (tracks.value.length && !usesMobilePresentation())')
-		expect(store).toMatch(/function setMobileOpen[\s\S]*?ensureCurrentLoaded\(\)/u)
-		expect(store).not.toMatch(/StoredMusicState[\s\S]*?mobileOpen\??:/u)
+		expect(store).toMatch(/function setPlayerOpen[\s\S]*?ensureCurrentLoaded\(\)/u)
+		expect(store).not.toContain('if (tracks.value.length && !usesMobilePresentation())')
+		expect(store).not.toMatch(/StoredMusicState[\s\S]*?playerOpen\??:/u)
+		expect(avoid).toContain('useResizeObserver(originRef, updateOriginPosition)')
 	})
 
 	it('turns the expensive atmosphere into a static mobile composition', () => {

@@ -27,6 +27,7 @@ export function useAvoidTransform(
 
 	watch([windowHeight, windowWidth], updateOriginPosition)
 	onMounted(updateOriginPosition)
+	useResizeObserver(originRef, updateOriginPosition)
 
 	watchImmediate(targets, (list) => {
 		const newMap = new Map<AvoidTarget, UseElementBoundingReturn>()
