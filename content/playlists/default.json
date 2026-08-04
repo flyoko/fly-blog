@@ -56,6 +56,17 @@
       "duration": null,
       "enabled": true,
       "order": 4
+    },
+    {
+      "id": "track-6d7ae981",
+      "title": "新歌曲沉默着走了有多遥远（不过尔尔）",
+      "artist": "薪水的薪",
+      "source": "",
+      "audioUrl": "https://flyovo.cc.cd/media/public/music/audio/1dcd7a56-9d87-415e-8a93-2bf3c915e62e.mp3",
+      "coverUrl": "https://flyovo.cc.cd/media/public/music/covers/8ef571a3-715d-4685-8738-1269527299c5.jpg",
+      "duration": null,
+      "enabled": true,
+      "order": 5
     }
   ]
 }
