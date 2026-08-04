@@ -73,7 +73,7 @@ const { transform } = useAvoidTransform(panelRef, avoidTargets)
 	transition: transform 0.1s;
 	z-index: calc(var(--z-index-popover) + 3);
 
-	&:has(.toggle-music:hover) {
+	&:not(.music-active, .music-playing):has(.toggle-music:hover) {
 		--music-spark-intensity: 1.2;
 	}
 
