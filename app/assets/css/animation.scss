@@ -70,15 +70,6 @@
 	}
 }
 
-@keyframes atmosphere-route-pulse {
-	0%, 100% {
-		filter: saturate(1) brightness(1);
-	}
-
-	45% {
-		filter: saturate(1.45) brightness(1.16);
-	}
-}
 
 @keyframes reading-progress {
 	from {

@@ -20,9 +20,10 @@
 	text-size-adjust: none;
 	color: var(--c-text-1);
 	transition: color 0.1s, background-color 0.2s;
-	scroll-behavior: smooth;
+	scroll-behavior: auto;
 	scroll-padding: 2rem;
 	scrollbar-color: var(--c-text-3) transparent;
+	scrollbar-gutter: stable;
 	font-variant-alternates: styleset(open-digits, disambiguation, round-quotes-and-commas);
 	-webkit-tap-highlight-color: var(--c-primary-soft);
 
@@ -310,9 +311,6 @@ img {
 	background: radial-gradient(ellipse at center, transparent 47%, var(--c-atmosphere-vignette) 100%);
 }
 
-.blog-atmosphere.is-route-pulse .atmosphere-flow {
-	animation: atmosphere-route-pulse 0.52s ease-out;
-}
 
 .reading-progress {
 	position: fixed;
@@ -342,8 +340,7 @@ img {
 	.flow-thread,
 	.flow-signal,
 	.flow-ribbon-secondary .flow-thread,
-	.flow-ribbon-secondary .flow-signal,
-	.blog-atmosphere.is-route-pulse .atmosphere-flow {
+	.flow-ribbon-secondary .flow-signal {
 		animation: none;
 	}
 
@@ -387,8 +384,7 @@ img {
 	.flow-ribbon,
 	.flow-halo,
 	.flow-thread,
-	.flow-signal,
-	.blog-atmosphere.is-route-pulse .atmosphere-flow {
+	.flow-signal {
 		animation: none;
 	}
 

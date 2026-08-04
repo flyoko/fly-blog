@@ -27,22 +27,6 @@ body {
 	touch-action: manipulation;
 }
 
-.page-enter-active,
-.page-leave-active {
-	transition:
-		opacity var(--motion-base) var(--motion-ease),
-		transform var(--motion-base) var(--motion-ease);
-}
-
-.page-enter-from {
-	opacity: 0;
-	transform: translateY(0.5rem);
-}
-
-.page-leave-to {
-	opacity: 0;
-	transform: translateY(-0.25rem);
-}
 
 :where(.card, .admin-panel, .moment-card, .news-card) {
 	transition:
@@ -119,8 +103,6 @@ body {
 		scroll-behavior: auto !important;
 	}
 
-	.page-enter-from,
-	.page-leave-to,
 	:where(.card, .admin-panel, .moment-card, .news-card):hover {
 		transform: none;
 	}

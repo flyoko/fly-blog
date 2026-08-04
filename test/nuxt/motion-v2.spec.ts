@@ -66,6 +66,26 @@ describe('motion v2 production integration', () => {
 		expect(interaction).toContain('cleanupTimers.clear()')
 	})
 
+	it('keeps public route changes atomic and geometry-stable', () => {
+		const app = read('app/app.vue')
+		const atmosphere = read('app/components/blog/BlogAtmosphere.vue')
+		const animation = read('app/assets/css/animation.scss')
+		const main = read('app/assets/css/main.scss')
+		const polish = read('app/assets/css/polish.scss')
+		const router = read('app/router.options.ts')
+
+		expect(app).toContain('<NuxtPage />')
+		expect(app).not.toContain(':transition=')
+		expect(polish).not.toContain('.page-enter-active')
+		expect(polish).not.toContain('.page-leave-active')
+		expect(atmosphere).not.toContain('is-route-pulse')
+		expect(animation).not.toContain('atmosphere-route-pulse')
+		expect(main).toContain('scroll-behavior: auto')
+		expect(main).toContain('scrollbar-gutter: stable')
+		expect(router).toContain('behavior: \'smooth\'')
+		expect(router).toContain('return { left: 0, top: 0 }')
+	})
+
 	it('renders condition-specific weather scenes from the production API response', () => {
 		const weather = read('app/components/widget/Weather.vue')
 		expect(weather).toContain('$fetch<ApiSuccess<PublicWeather>>(weatherUrl)')

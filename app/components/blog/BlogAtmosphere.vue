@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { useEventListener, useMediaQuery, useRafFn } from '@vueuse/core'
 
-const route = useRoute()
 const colorMode = useColorMode()
 const root = useTemplateRef<HTMLElement>('root')
 const isFinePointer = useMediaQuery('(pointer: fine)')
@@ -19,7 +18,6 @@ let targetX = 50
 let targetY = 26
 let currentX = 50
 let currentY = 26
-let pulseTimer: ReturnType<typeof setTimeout> | undefined
 
 const { isActive, pause, resume } = useRafFn(() => {
 	const element = root.value
@@ -82,28 +80,9 @@ watch([isFinePointer, prefersReducedMotion, isMobilePerformanceMode], ([fine, re
 	root.value?.style.removeProperty('--pointer-y')
 	root.value?.style.removeProperty('--pointer-shift-x')
 	root.value?.style.removeProperty('--pointer-shift-y')
-	root.value?.classList.remove('is-route-pulse')
-	if (pulseTimer)
-		clearTimeout(pulseTimer)
 }, { immediate: true })
 
-watch(() => route.fullPath, () => {
-	const element = root.value
-	if (!element || prefersReducedMotion.value || isMobilePerformanceMode.value)
-		return
-
-	element.classList.remove('is-route-pulse')
-	void element.offsetWidth
-	element.classList.add('is-route-pulse')
-
-	if (pulseTimer)
-		clearTimeout(pulseTimer)
-	pulseTimer = setTimeout(() => element.classList.remove('is-route-pulse'), 520)
-})
-
 onBeforeUnmount(() => {
-	if (pulseTimer)
-		clearTimeout(pulseTimer)
 	pause()
 })
 </script>

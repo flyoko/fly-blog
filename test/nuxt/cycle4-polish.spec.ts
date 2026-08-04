@@ -5,11 +5,13 @@ import { timeElapse } from '../../shared/utils/time'
 const read = (path: string) => readFileSync(path, 'utf8')
 
 describe('cycle 4 polish contracts', () => {
-	it('uses a bounded page transition and shared polish stylesheet', () => {
-		expect(read('app/app.vue')).toContain('name: \'page\'')
+	it('keeps route swaps atomic while retaining shared component polish', () => {
+		const app = read('app/app.vue')
+		expect(app).toContain('<NuxtPage />')
+		expect(app).not.toContain('name: \'page\'')
 		expect(read('nuxt.config.ts')).toContain('@/assets/css/polish.scss')
 		const css = read('app/assets/css/polish.scss')
-		expect(css).toContain('.page-enter-active')
+		expect(css).not.toContain('.page-enter-active')
 		expect(css).toContain('prefers-reduced-motion: reduce')
 		expect(css).toContain(':focus-visible')
 		expect(css).toContain('forced-colors: active')

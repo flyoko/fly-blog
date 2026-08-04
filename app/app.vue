@@ -10,6 +10,6 @@ useHead({
 
 <template>
 <NuxtLayout>
-	<NuxtPage :transition="{ name: 'page' }" />
+	<NuxtPage />
 </NuxtLayout>
 </template>
