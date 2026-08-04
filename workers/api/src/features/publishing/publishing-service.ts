@@ -101,7 +101,7 @@ export type MergeBlockReason
 		| 'merge_rejected'
 
 const activePullRequestStatuses = new Set(['created', 'commit_created', 'checks_pending', 'preview_ready'])
-const activeDirectStatuses = new Set(['created', 'commit_created', 'checks_pending'])
+const activeDirectStatuses = new Set(['created', 'commit_created', 'checks_pending', 'failed'])
 
 async function updateReconciledRun(
 	publishRepository: PublishRepository,
@@ -182,7 +182,11 @@ async function reconcileDirectPublishRun(
 			})
 		}
 	}
-	return updateReconciledRun(publishRepository, run, { status: 'checks_pending' })
+	return updateReconciledRun(publishRepository, run, {
+		status: 'checks_pending',
+		errorCode: null,
+		errorMessage: null,
+	})
 }
 
 async function reconcilePullRequestRun(

@@ -78,6 +78,18 @@ test.describe('cycle 2 desktop workflows', () => {
 		await expect(page.getByRole('link', { name: '打开部署结果' })).toHaveAttribute('href', 'https://deployment.example')
 	})
 
+	test('admin loads completed publish history in bounded pages', async ({ page }) => {
+		await mockAuthenticatedAdmin(page, { publishRunScenario: 'direct_history' })
+		await page.goto('/admin/reviews')
+		const queue = page.locator('.admin-release-queue')
+		await expect(queue.getByText('已加载 8/14 项记录')).toBeVisible()
+		await expect(queue.getByRole('button', { name: /查看发布记录/u })).toHaveCount(8)
+		await queue.evaluate(element => element.scrollTo({ top: element.scrollHeight }))
+		await expect(queue.getByText('已加载 14/14 项记录')).toBeVisible()
+		await expect(queue.getByRole('button', { name: /查看发布记录/u })).toHaveCount(14)
+		await expect(queue.getByText('已加载全部 14 项记录')).toBeVisible()
+	})
+
 	test('admin refreshes news sources and creates a manual card', async ({ page }) => {
 		const capture = await mockAuthenticatedAdmin(page)
 		await page.goto('/admin/ai-news')

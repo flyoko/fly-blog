@@ -21,9 +21,12 @@ interface PullRequestDetail {
 	reason?: string
 }
 
+const pageSize = 8
 const runs = ref<AdminPublishRunDto[]>([])
 const total = ref(0)
+const loadedPageCount = ref(1)
 const loading = ref(true)
+const loadingMore = ref(false)
 const detailLoading = ref(false)
 const merging = ref(false)
 const mergeConfirmOpen = ref(false)
@@ -37,6 +40,7 @@ const lastUpdatedAt = ref<string | null>(null)
 let refreshTimer: ReturnType<typeof setInterval> | undefined
 
 const hasPendingRuns = computed(() => runs.value.some(run => publishRunGroup(run) === 'in_progress'))
+const hasMore = computed(() => runs.value.length < total.value)
 const visibleDetail = computed(() => detailOwnerId.value === selected.value?.id ? detail.value : null)
 const selectedDirect = computed(() => selected.value?.kind === 'direct' ? selected.value : null)
 
@@ -65,16 +69,32 @@ const taskTone = computed(() => listError.value || mergeError.value ? 'danger' :
 
 useSeoMeta({ title: '发布与审核', robots: 'noindex, nofollow' })
 
+async function fetchRunPage(page: number) {
+	return useAdminApi<{ items: AdminPublishRunDto[], total: number }>('/api/admin/publishing/runs', {
+		query: { page, pageSize },
+	})
+}
+
+function dedupeRuns(items: AdminPublishRunDto[]) {
+	const seen = new Set<string>()
+	return items.filter((run) => {
+		if (seen.has(run.id))
+			return false
+		seen.add(run.id)
+		return true
+	})
+}
+
 async function load(silent = false) {
 	if (!silent)
 		loading.value = true
 	listError.value = null
 	try {
-		const result = await useAdminApi<{ items: AdminPublishRunDto[], total: number }>('/api/admin/publishing/runs', {
-			query: { page: 1, pageSize: 30 },
-		})
-		runs.value = result.items
-		total.value = result.total
+		const pages = await Promise.all(
+			Array.from({ length: loadedPageCount.value }, (_, index) => fetchRunPage(index + 1)),
+		)
+		runs.value = dedupeRuns(pages.flatMap(page => page.items))
+		total.value = pages[0]?.total ?? 0
 		if (selected.value)
 			selected.value = runs.value.find(run => run.id === selected.value?.id) ?? null
 		lastUpdatedAt.value = new Date().toISOString()
@@ -85,6 +105,26 @@ async function load(silent = false) {
 	finally {
 		if (!silent)
 			loading.value = false
+	}
+}
+
+async function loadMore() {
+	if (!hasMore.value || loadingMore.value)
+		return
+	loadingMore.value = true
+	listError.value = null
+	try {
+		const nextPage = loadedPageCount.value + 1
+		const result = await fetchRunPage(nextPage)
+		runs.value = dedupeRuns([...runs.value, ...result.items])
+		total.value = result.total
+		loadedPageCount.value = nextPage
+	}
+	catch (cause) {
+		listError.value = cause instanceof Error ? cause.message : '更多发布记录加载失败'
+	}
+	finally {
+		loadingMore.value = false
 	}
 }
 
@@ -215,7 +255,16 @@ onBeforeUnmount(() => {
 	</p>
 
 	<div class="admin-release-workbench">
-		<AdminReleaseQueue :runs="runs" :selected-id="selected?.id ?? null" :loading="loading" @select="inspect" />
+		<AdminReleaseQueue
+			:runs="runs"
+			:total="total"
+			:selected-id="selected?.id ?? null"
+			:loading="loading"
+			:loading-more="loadingMore"
+			:has-more="hasMore"
+			@select="inspect"
+			@load-more="loadMore"
+		/>
 
 		<aside class="admin-panel admin-release-detail">
 			<header class="admin-panel-header">

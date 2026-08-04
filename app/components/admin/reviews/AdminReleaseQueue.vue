@@ -1,16 +1,25 @@
 <script setup lang="ts">
 import type { AdminPublishRunDto, AdminPublishRunGroup } from '~/types/admin'
+import { useIntersectionObserver } from '@vueuse/core'
 import AdminEmptyState from '~/components/admin/AdminEmptyState.vue'
 import AdminStatusPill from '~/components/admin/AdminStatusPill.vue'
 import { publishNextAction, publishRunGroup, publishStatusMeta } from '~/types/admin'
 
 const props = defineProps<{
 	runs: AdminPublishRunDto[]
+	total: number
 	selectedId: string | null
 	loading: boolean
+	loadingMore: boolean
+	hasMore: boolean
 }>()
-const emit = defineEmits<{ select: [run: AdminPublishRunDto] }>()
+const emit = defineEmits<{
+	select: [run: AdminPublishRunDto]
+	loadMore: []
+}>()
 
+const queueRoot = useTemplateRef<HTMLElement>('queueRoot')
+const loadMoreTrigger = useTemplateRef<HTMLElement>('loadMoreTrigger')
 const groups: Array<{ id: AdminPublishRunGroup, label: string, description: string }> = [
 	{ id: 'needs_action', label: '需要处理', description: '可以审核，或遇到需要解决的问题' },
 	{ id: 'in_progress', label: '进行中', description: '系统正在执行检查和生成预览' },
@@ -26,12 +35,25 @@ function resourceLabel(run: AdminPublishRunDto) {
 		return run.kind === 'direct' ? '直接发布' : '站点配置'
 	return run.resourcePath.split('/').at(-1) || run.resourcePath
 }
+
+function requestMore() {
+	if (!props.loading && !props.loadingMore && props.hasMore)
+		emit('loadMore')
+}
+
+useIntersectionObserver(loadMoreTrigger, ([entry]) => {
+	if (entry?.isIntersecting)
+		requestMore()
+}, { root: queueRoot, threshold: 0.1 })
 </script>
 
 <template>
-<section class="admin-panel admin-release-queue" aria-label="发布队列">
+<section ref="queueRoot" class="admin-panel admin-release-queue" aria-label="发布队列">
 	<header class="admin-panel-header">
-		<div><h2>发布队列</h2><p>{{ runs.length }} 项记录</p></div>
+		<div>
+			<h2>发布队列</h2>
+			<p>已加载 {{ runs.length }}/{{ total }} 项记录</p>
+		</div>
 	</header>
 	<div v-if="loading" class="admin-action-list">
 		<div v-for="index in 6" :key="index" class="admin-skeleton admin-list-skeleton" />
@@ -58,6 +80,16 @@ function resourceLabel(run: AdminPublishRunDto) {
 				这个分组暂时为空。
 			</p>
 		</section>
+
+		<div v-if="hasMore" ref="loadMoreTrigger" class="admin-release-load-more">
+			<button class="admin-button" type="button" :disabled="loadingMore" @click="requestMore">
+				<Icon name="tabler:history" />{{ loadingMore ? '正在加载…' : '加载更多历史记录' }}
+			</button>
+			<small>继续向下滚动会自动加载</small>
+		</div>
+		<p v-else class="admin-release-end">
+			已加载全部 {{ total }} 项记录
+		</p>
 	</div>
 	<AdminEmptyState v-else icon="tabler:history-off" title="还没有发布记录" description="文章或配置提交后，会在这里显示检查和预览进度。" />
 </section>
@@ -68,8 +100,14 @@ function resourceLabel(run: AdminPublishRunDto) {
 	display: grid;
 	align-content: start;
 	gap: 0.9rem;
+	position: sticky;
+	overflow-y: auto;
+	top: 1rem;
+	width: 100%;
 	min-width: 0;
+	max-height: min(42rem, calc(100dvh - 8rem));
 	padding: 1rem;
+	scrollbar-width: thin;
 }
 
 .admin-release-groups,
@@ -155,5 +193,32 @@ function resourceLabel(run: AdminPublishRunDto) {
 
 .admin-release-next {
 	grid-column: 1 / -1;
+}
+
+.admin-release-load-more {
+	display: grid;
+	justify-items: center;
+	gap: 0.4rem;
+	padding: 0.55rem 0 0.2rem;
+}
+
+.admin-release-load-more small,
+.admin-release-end {
+	font-size: 0.65rem;
+	text-align: center;
+	color: var(--admin-muted);
+}
+
+.admin-release-end {
+	margin: 0;
+	padding: 0.55rem 0 0.2rem;
+}
+
+@media (max-width: 980px) {
+	.admin-release-queue {
+		position: static;
+		overflow: visible;
+		max-height: none;
+	}
 }
 </style>

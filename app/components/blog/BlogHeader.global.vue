@@ -5,6 +5,12 @@ withDefaults(defineProps<{
 	tag: 'div',
 })
 const appConfig = useAppConfig()
+const { data: aboutProfile } = await useAsyncData('about:header-avatar', () =>
+	queryCollection('content').path('/about/profile').first())
+const profileAvatar = computed(() =>
+	String((aboutProfile.value as Record<string, unknown> | null)?.avatar || ''),
+)
+const headerLogo = computed(() => profileAvatar.value || appConfig.header.logo)
 </script>
 
 <template>
@@ -19,12 +25,17 @@ const appConfig = useAppConfig()
 		/>
 	</div>
 
-	<NuxtImg
-		:src="appConfig.header.logo"
-		class="blog-logo round-cobblestone"
-		:class="{ circle: appConfig.header.showTitle }"
-		:alt="appConfig.title"
-	/>
+	<span class="blog-logo-shell round-cobblestone" :class="{ circle: appConfig.header.showTitle }">
+		<img
+			:src="headerLogo"
+			class="blog-logo"
+			:class="{ 'is-profile-avatar': profileAvatar }"
+			:alt="appConfig.title"
+			width="96"
+			height="96"
+			decoding="async"
+		>
+	</span>
 
 	<div v-if="appConfig.header.showTitle" class="blog-text">
 		<component :is="tag" class="header-title">
@@ -59,7 +70,7 @@ const appConfig = useAppConfig()
 	user-select: none;
 }
 
-.blog-logo,
+.blog-logo-shell,
 .blog-text {
 	position: relative;
 	z-index: 1;
@@ -146,7 +157,10 @@ const appConfig = useAppConfig()
 	}
 }
 
-.blog-logo {
+.blog-logo-shell {
+	display: block;
+	flex: 0 0 auto;
+	overflow: hidden;
 	height: 3em;
 
 	&.circle {
@@ -157,6 +171,22 @@ const appConfig = useAppConfig()
 			inset 0 0 0 1px var(--c-surface-line),
 			inset 0 1px 0 var(--c-surface-highlight);
 	}
+}
+
+.blog-logo {
+	display: block;
+	width: 100%;
+	height: 100%;
+	transition: transform 0.35s ease;
+	object-fit: cover;
+}
+
+.blog-logo.is-profile-avatar {
+	transform: scale(1.35);
+}
+
+.blog-header:hover .blog-logo.is-profile-avatar {
+	transform: scale(1.42) rotate(-1deg);
 }
 
 @font-face {
@@ -240,6 +270,10 @@ const appConfig = useAppConfig()
 	:global(.dynamic .blog-header::before),
 	.blog-header::after {
 		animation: none;
+	}
+
+	.blog-logo {
+		transition: none;
 	}
 }
 </style>
