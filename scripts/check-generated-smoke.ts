@@ -3,15 +3,34 @@ import { join, resolve } from 'node:path'
 
 const outputRoot = resolve('.output/public')
 
+async function fileExists(path: string) {
+	try {
+		await access(path)
+		return true
+	}
+	catch {
+		return false
+	}
+}
+
 async function requireFile(relativePath: string) {
 	const path = join(outputRoot, relativePath)
 	await access(path)
 	return path
 }
 
+async function requireOneOf(relativePaths: string[]) {
+	for (const relativePath of relativePaths) {
+		const path = join(outputRoot, relativePath)
+		if (await fileExists(path))
+			return path
+	}
+	throw new Error(`Generated output is missing all expected paths: ${relativePaths.join(', ')}`)
+}
+
 async function main() {
 	const indexPath = await requireFile('index.html')
-	const adminMediaPath = await requireFile('admin/media/index.html')
+	const adminMediaPath = await requireOneOf(['admin/media/index.html', 'admin/media.html'])
 	const [indexHtml, adminMediaHtml, assets] = await Promise.all([
 		readFile(indexPath, 'utf8'),
 		readFile(adminMediaPath, 'utf8'),
