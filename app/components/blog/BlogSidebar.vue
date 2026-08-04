@@ -13,7 +13,7 @@ const debouncedSelection = refDebounced(text)
 <template>
 <BlogMask
 	:show="layoutStore.state === 'sidebar'"
-	class="mobile-only"
+	class="sidebar-mask mobile-only"
 	@click="layoutStore.close()"
 />
 
@@ -70,18 +70,23 @@ const debouncedSelection = refDebounced(text)
 		max-width: 100%;
 		padding-bottom: env(safe-area-inset-bottom);
 		box-shadow: inset -1px 0 0 var(--c-surface-line);
-		background-color: var(--c-surface-fill);
+		background-color: var(--c-bg-1);
+		background-color: color-mix(in srgb, var(--c-bg-1) 96%, transparent);
 		backdrop-filter: blur(18px) saturate(116%);
 		color: currentcolor;
 		transform: var(--transform-start-far);
 		transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1);
-		z-index: var(--z-index-popover);
+		z-index: calc(var(--z-index-popover) + 5);
 
 		&.show {
 			box-shadow: 18px 0 48px var(--c-surface-shadow), inset -1px 0 0 var(--c-surface-line);
 			transform: none;
 		}
 	}
+}
+
+.sidebar-mask {
+	z-index: calc(var(--z-index-popover) + 4);
 }
 
 .sidebar-nav {

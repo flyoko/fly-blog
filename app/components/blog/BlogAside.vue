@@ -5,7 +5,7 @@ const layoutStore = useLayoutStore()
 <template>
 <BlogMask
 	:show="layoutStore.state === 'aside'"
-	class="widescreen-only"
+	class="aside-mask widescreen-only"
 	@click="layoutStore.close()"
 />
 
@@ -23,7 +23,7 @@ const layoutStore = useLayoutStore()
 	gap: 1rem;
 	overflow: auto;
 	padding: 0.5rem;
-	z-index: var(--z-index-popover);
+	z-index: calc(var(--z-index-popover) + 5);
 
 	@media (max-width: $breakpoint-widescreen) {
 		position: fixed;
@@ -34,6 +34,8 @@ const layoutStore = useLayoutStore()
 		max-width: 100%;
 		max-height: 100dvh;
 		padding-bottom: calc(5rem + env(safe-area-inset-bottom));
+		background-color: var(--c-bg-1);
+		background-color: color-mix(in srgb, var(--c-bg-1) 96%, transparent);
 		transform: var(--transform-end-far);
 		transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1);
 
@@ -56,6 +58,10 @@ const layoutStore = useLayoutStore()
 	&:empty {
 		display: none;
 	}
+}
+
+.aside-mask {
+	z-index: calc(var(--z-index-popover) + 4);
 }
 
 @media (prefers-reduced-transparency: reduce) {

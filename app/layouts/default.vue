@@ -39,7 +39,10 @@ const hasAside = computed(() => routeAsideVisible.value)
 	min-width: 0;
 	isolation: isolate;
 
-	> :not(.blog-atmosphere, .reading-progress, .storyboard-layer, #blog-panel, .music-player) {
+	// 只把正文抬到氛围背景之上。抽屉、遮罩和固定控件保留各自的层级，
+	// 避免通配选择器覆盖组件内更高的 z-index。
+	> #content {
+		position: relative;
 		z-index: 1;
 	}
 }
