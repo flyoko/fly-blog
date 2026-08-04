@@ -26,6 +26,11 @@ const basicConfig = {
 	timeZone: 'Asia/Shanghai',
 	url: 'https://flyovo.cc.cd/',
 	defaultCategory: '未分类',
+	domainRegistration: {
+		status: '正常',
+		registeredAt: '2026-08-02T17:31:00+08:00',
+		expiresAt: '2027-08-02T17:31:00+08:00',
+	},
 }
 
 // 存储 nuxt.config 和 app.config 共用的配置
