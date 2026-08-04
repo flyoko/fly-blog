@@ -360,6 +360,20 @@ function cleanZaihuaBodyHtml(bodyHtml: string, source: HtmlLink | null): string 
 	})
 }
 
+const ZAIHUA_PROMOTION_SUFFIX = /(?: ?🌸\uFE0F?)? ?在花频道 ?[·•・|｜] ?茶馆水群 ?[·•・|｜] ?投稿通道(?: ?[↗→])?[。.!！]?$/u
+
+export function cleanZaihuaText(value: string): string {
+	return value
+		.split(/\n{2,}/u)
+		.map(paragraph => paragraph
+			.replace(/\s+/gu, ' ')
+			.trim()
+			.replace(ZAIHUA_PROMOTION_SUFFIX, '')
+			.trim())
+		.filter(Boolean)
+		.join('\n\n')
+}
+
 export function htmlToReadableText(input: string): string {
 	let html = stripCdata(input || '')
 	for (const tag of REMOVED_TAGS)

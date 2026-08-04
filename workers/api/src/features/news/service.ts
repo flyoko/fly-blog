@@ -9,6 +9,7 @@ import { isPublicHttpUrl } from '../../../../../shared/utils/public-url'
 import { detectAllowedMedia } from '../media/file-signatures'
 import {
 	cleanAiHotBodyText,
+	cleanZaihuaText,
 	extractAiHotArticle,
 	extractZaihuaArticle,
 	parseAiHotDaily,
@@ -72,10 +73,12 @@ interface DocumentRow extends NewsRow {
 interface ExistingZaihuaRow {
 	id: string
 	title: string
+	summary: string | null
 	original_url: string | null
 	metadata_json: string
 	document_item_id: string | null
 	document_images_json: string | null
+	document_content_mode: NewsDocumentDto['contentMode'] | null
 }
 
 export interface NewsSyncSourceResult {
@@ -103,6 +106,7 @@ class SourceRequestError extends Error {
 const sourcesConfig = newsSourcesConfigSchema.parse(newsSourcesRaw)
 const AIHOT_HOST = 'aihot.virxact.com'
 const ZAIHUA_HOST = 'www.zaihua.news'
+const STATION_NEWS_SOURCE_ID = 'station-news'
 const MAX_NEWS_IMAGES = 6
 const MAX_NEWS_IMAGE_CANDIDATES = 24
 const MAX_NEWS_IMAGE_BYTES = 8 * 1024 * 1024
@@ -421,12 +425,15 @@ export class NewsService {
 		const publicUrlValue = isIntermediaryUrl(row.url)
 			? originalUrl || `${this.env.PUBLIC_ORIGIN}${readerPath || '/ai.news'}`
 			: row.url
+		const summary = row.source_id === STATION_NEWS_SOURCE_ID && row.summary
+			? cleanZaihuaText(row.summary) || null
+			: row.summary
 		return {
 			id: row.id,
 			sourceId: row.source_id,
 			kind: row.kind,
 			title: row.title,
-			summary: row.summary,
+			summary,
 			url: publicUrlValue,
 			originalUrl,
 			category: row.category,
@@ -842,10 +849,12 @@ export class NewsService {
 			SELECT
 				n.id,
 				n.title,
+				n.summary,
 				n.original_url,
 				n.metadata_json,
 				d.item_id AS document_item_id,
-				d.images_json AS document_images_json
+				d.images_json AS document_images_json,
+				d.content_mode AS document_content_mode
 			FROM news_items n
 			LEFT JOIN news_documents d ON d.item_id = n.id
 			WHERE n.source_id = ?
@@ -857,6 +866,7 @@ export class NewsService {
 			const existing = existingById.get(itemId)
 			const previousMetadata = safeMetadata(existing?.metadata_json)
 			const rssHash = await sha256(entry.descriptionText)
+			const cleanedDescription = cleanZaihuaText(entry.descriptionText)
 			const shouldRefresh = isZaihuaReaderUrl(entry.link) && (
 				index < 5
 				|| !existing?.document_item_id
@@ -867,7 +877,7 @@ export class NewsService {
 				|| isIntermediaryUrl(existing?.original_url)
 			)
 			const article = shouldRefresh ? await this.fetchZaihuaArticle(entry.link) : null
-			return { entry, itemId, existing, previousMetadata, rssHash, article, shouldRefresh }
+			return { entry, itemId, existing, previousMetadata, rssHash, cleanedDescription, article, shouldRefresh }
 		})))
 		await this.env.DB.prepare('UPDATE news_items SET selected = 0, updated_at = ? WHERE source_id = ?')
 			.bind(fetchedAt, source.id)
@@ -896,12 +906,18 @@ export class NewsService {
 						originalUrl,
 						sourceName,
 					}
+			const existingSummary = cleanZaihuaText(value.existing?.summary || '')
+			const summary = value.article?.bodyText.slice(0, 5_000)
+				|| (value.existing?.document_content_mode === 'full' ? existingSummary : '')
+				|| value.cleanedDescription
+				|| existingSummary
+				|| null
 			await this.upsertItem({
 				id: value.itemId,
 				sourceId: source.id,
 				kind: 'rss',
 				title,
-				summary: value.article?.bodyText.slice(0, 5_000) || value.entry.descriptionText || null,
+				summary,
 				url,
 				originalUrl,
 				category: '站长资讯',
@@ -928,14 +944,14 @@ export class NewsService {
 						fetchedAt,
 					})
 				}
-				else if (!existingDocument && value.entry.descriptionText) {
+				else if (value.cleanedDescription && (!existingDocument || value.existing?.document_content_mode === 'summary')) {
 					await this.upsertDocument({
 						itemId: value.itemId,
 						sourceId: source.id,
 						sourceUrl: url,
 						originalUrl,
 						title,
-						bodyText: value.entry.descriptionText,
+						bodyText: value.cleanedDescription,
 						contentMode: 'summary',
 						attributionName: sourceName,
 						attributionUrl: originalUrl || this.env.PUBLIC_ORIGIN,
@@ -1131,10 +1147,13 @@ export class NewsService {
 			row.kind === 'rss' ? '站长资讯' : '原文来源',
 		)
 		const publicSourceUrl = originalUrl || `${this.env.PUBLIC_ORIGIN}/ai.news`
+		const bodyText = row.source_id === STATION_NEWS_SOURCE_ID
+			? cleanZaihuaText(row.body_text)
+			: row.body_text
 		return {
 			item: this.dto(row),
 			readerKey: row.reader_key,
-			bodyText: row.body_text,
+			bodyText,
 			images: safeImages(row.images_json, this.env.MEDIA_ORIGIN),
 			contentMode: row.content_mode,
 			attribution: {
