@@ -20,11 +20,42 @@ const popoverInputEl = useTemplateRef('popover-input')
 const showUndo = ref(false)
 const loadState = ref<CommentLoadState>('idle')
 const loadError = ref('')
+const commentLength = ref(0)
+const commentFocused = ref(false)
 let twikooObserver: MutationObserver | null = null
 let initController: AbortController | null = null
 let stopPathWatch: (() => void) | null = null
 
 const popoverBind = ref<TippyComponent['$props']>({})
+const mascotState = computed(() => {
+	if (commentLength.value >= 450)
+		return 'nearly-full'
+	if (commentLength.value > 0)
+		return 'typing'
+	if (commentFocused.value)
+		return 'focused'
+	return 'idle'
+})
+
+function isCommentTextarea(target: EventTarget | null): target is HTMLTextAreaElement {
+	return target instanceof HTMLTextAreaElement
+		&& target.matches('#twikoo .tk-input .el-textarea__inner')
+}
+
+useEventListener(commentEl, 'focusin', (event) => {
+	if (isCommentTextarea(event.target))
+		commentFocused.value = true
+})
+
+useEventListener(commentEl, 'focusout', (event) => {
+	if (isCommentTextarea(event.target))
+		commentFocused.value = false
+})
+
+useEventListener(commentEl, 'input', (event) => {
+	if (isCommentTextarea(event.target))
+		commentLength.value = event.target.value.length
+})
 
 /** 评论区链接守卫 */
 useEventListener(commentEl, 'click', (e) => {
@@ -210,7 +241,11 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-<section ref="comment" class="z-comment">
+<section
+	ref="comment"
+	class="z-comment"
+	:data-mascot-state="mascotState"
+>
 	<header class="comment-header">
 		<h3 class="text-creative">
 			评论区
@@ -528,19 +563,15 @@ onBeforeUnmount(() => {
 		&::after {
 			content: "";
 			position: absolute;
-			opacity: 0.88;
-			inset-inline-end: 1.2rem;
-			bottom: 0.7rem;
-			width: 3.2rem;
-			height: 2.25rem;
-			border: 1px solid var(--c-surface-border);
-			border-radius: 55% 45% 42% 58% / 62% 52% 48% 38%;
-			box-shadow: inset 0 0.45rem 0.8rem color-mix(in srgb, white 22%, transparent), 0 0.45rem 1rem var(--c-surface-glow);
-			background:
-				radial-gradient(circle at 68% 32%, var(--c-bg) 0 0.16rem, transparent 0.2rem),
-				linear-gradient(135deg, color-mix(in srgb, var(--c-primary) 85%, white), var(--c-flow-cyan));
-			transform: rotate(-5deg);
-			animation: comment-mascot-float 3.6s ease-in-out infinite;
+			opacity: 0.94;
+			inset-inline-end: 0.2rem;
+			bottom: 0.05rem;
+			width: 7.25rem;
+			height: 5.45rem;
+			background: url("/assets/comment/mascot.gif") right bottom / contain no-repeat;
+			transform-origin: right bottom;
+			transition: opacity 0.22s, filter 0.22s, transform 0.22s;
+			filter: drop-shadow(0 0.35rem 0.55rem var(--c-surface-glow));
 			pointer-events: none;
 			z-index: 2;
 		}
@@ -548,7 +579,7 @@ onBeforeUnmount(() => {
 
 	.tk-input .el-textarea__inner {
 		min-height: 7.25rem !important;
-		padding: 1rem 5.4rem 1rem 1rem;
+		padding: 1rem 7.75rem 1rem 1rem;
 		border: 1px solid var(--c-surface-line);
 		border-radius: 0.9rem;
 		box-shadow: inset 0 1px 0 var(--c-surface-highlight);
@@ -901,6 +932,36 @@ onBeforeUnmount(() => {
 	}
 }
 
+.z-comment[data-mascot-state="focused"] :deep(#twikoo .tk-input::before) {
+	content: "准备记录";
+}
+
+.z-comment[data-mascot-state="focused"] :deep(#twikoo .tk-input::after) {
+	transform: translateY(-0.08rem) scale(1.025);
+	filter: drop-shadow(0 0.45rem 0.75rem var(--c-surface-glow));
+}
+
+.z-comment[data-mascot-state="typing"] :deep(#twikoo .tk-input::before) {
+	content: "输入中";
+}
+
+.z-comment[data-mascot-state="typing"] :deep(#twikoo .tk-input::after) {
+	transform: translateY(-0.12rem) scale(1.055);
+	filter: drop-shadow(0 0.5rem 0.85rem var(--c-surface-glow));
+}
+
+.z-comment[data-mascot-state="nearly-full"] :deep(#twikoo .tk-input::before) {
+	content: "快写满啦";
+	border-color: color-mix(in srgb, var(--c-warning) 55%, var(--c-surface-line));
+	background: var(--c-warning-soft);
+	color: var(--c-warning);
+}
+
+.z-comment[data-mascot-state="nearly-full"] :deep(#twikoo .tk-input::after) {
+	transform: translateY(-0.16rem) scale(1.08);
+	filter: drop-shadow(0 0.55rem 0.95rem color-mix(in srgb, var(--c-warning) 22%, transparent));
+}
+
 :deep(:where(.tk-preview-container,.tk-content)) {
 	pre {
 		overflow: auto;
@@ -978,7 +1039,7 @@ onBeforeUnmount(() => {
 	:deep(#twikoo) {
 		.tk-input .el-textarea__inner {
 			min-height: 8.4rem !important;
-			padding: 3rem 1rem 3.2rem;
+			padding: 3rem 6.6rem 3.2rem 1rem;
 		}
 
 		.tk-input::before {
@@ -986,8 +1047,10 @@ onBeforeUnmount(() => {
 		}
 
 		.tk-input::after {
-			inset-inline-end: 0.9rem;
-			bottom: 0.65rem;
+			inset-inline-end: 0.05rem;
+			bottom: 0.05rem;
+			width: 6.25rem;
+			height: 4.7rem;
 		}
 
 		.tk-meta-input {
@@ -1047,6 +1110,11 @@ onBeforeUnmount(() => {
 		animation: none;
 	}
 
+	:deep(#twikoo .tk-input::after) {
+		background-image: url("/assets/comment/mascot-static.png");
+		transition: none;
+	}
+
 	.privacy-btn,
 	:deep(#twikoo *) {
 		transition-duration: 0.01ms !important;
@@ -1080,16 +1148,6 @@ onBeforeUnmount(() => {
 	from {
 		opacity: 0;
 		transform: translateY(0.5rem);
-	}
-}
-
-@keyframes comment-mascot-float {
-	0%, 100% {
-		transform: translateY(0) rotate(-5deg);
-	}
-
-	50% {
-		transform: translateY(-0.3rem) rotate(1deg);
 	}
 }
 
