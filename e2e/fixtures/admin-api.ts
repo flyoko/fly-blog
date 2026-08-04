@@ -7,6 +7,7 @@ export interface AdminApiMockOptions {
 	articleConflict?: boolean
 	mediaPartialFailure?: boolean
 	sessionExpiresAfterLoad?: boolean
+	analyticsStatusFailure?: boolean
 }
 
 export interface AdminApiCapture {
@@ -21,6 +22,8 @@ export interface AdminApiCapture {
 	mediaUploads: number
 	mediaUploadBodies: string[]
 	logoutCount: number
+	analyticsIpViews: number
+	analyticsExports: number
 }
 
 const momentId = '11111111-1111-4111-8111-111111111111'
@@ -246,6 +249,43 @@ function publishRun() {
 	}
 }
 
+function analyticsSummary() {
+	return {
+		pageviews: { value: 248, previousValue: 196, changePercent: 26.5 },
+		visitors: { value: 91, previousValue: 78, changePercent: 16.7 },
+		sessions: { value: 112, previousValue: 95, changePercent: 17.9 },
+		newVisitors: { value: 34, previousValue: 29, changePercent: 17.2 },
+		averageDepth: { value: 2.21, previousValue: 2.06, changePercent: 7.3 },
+	}
+}
+
+function analyticsVisitors(trafficType: string | null) {
+	const automated = trafficType === 'bot' || trafficType === 'suspected'
+	return {
+		items: [{
+			eventId: automated ? 202 : 101,
+			visitorId: automated ? 'bot:google' : 'visitor-8a1f',
+			maskedIp: automated ? '66.249.66.xxx' : '203.0.113.xxx',
+			firstSeenAt: '2026-08-04T06:10:00.000Z',
+			lastSeenAt: '2026-08-04T08:30:00.000Z',
+			lastPath: automated ? '/robots.txt' : '/2026/welcome',
+			totalPageviews: automated ? 12 : 6,
+			totalSessions: automated ? 0 : 2,
+			country: 'US',
+			region: 'California',
+			city: 'San Francisco',
+			device: automated ? 'desktop' : 'mobile',
+			browser: automated ? null : 'Safari',
+			os: automated ? null : 'iOS',
+			trafficType: automated ? trafficType : 'human',
+			isNewVisitor: !automated,
+		}],
+		total: 1,
+		page: 1,
+		pageSize: 20,
+	}
+}
+
 async function respond(route: Route, options: AdminApiMockOptions, capture: AdminApiCapture, state: { sessionCalls: number }) {
 	const request = route.request()
 	const url = new URL(request.url())
@@ -270,6 +310,105 @@ async function respond(route: Route, options: AdminApiMockOptions, capture: Admi
 	if (path === '/api/auth/logout' && method === 'POST') {
 		capture.logoutCount += 1
 		await route.fulfill({ status: 204, body: '' })
+		return
+	}
+
+	if (path === '/api/admin/analytics/status' && method === 'GET') {
+		if (options.analyticsStatusFailure) {
+			await route.fulfill(failure('UPSTREAM_UNAVAILABLE', 'Analytics status is temporarily unavailable', 503))
+			return
+		}
+		await route.fulfill(success({
+			enabled: true,
+			lastEventAt: '2026-08-04T08:30:00.000Z',
+			lastMaintenanceAt: '2026-08-04T07:31:00.000Z',
+			rawIpRetentionDays: 30,
+			eventRetentionDays: 180,
+		}))
+		return
+	}
+
+	if (path === '/api/admin/analytics/summary' && method === 'GET') {
+		await route.fulfill(success(analyticsSummary()))
+		return
+	}
+
+	if (path === '/api/admin/analytics/timeseries' && method === 'GET') {
+		await route.fulfill(success([
+			{ bucket: '2026-08-01', pageviews: 31, visitors: 14, sessions: 17 },
+			{ bucket: '2026-08-02', pageviews: 44, visitors: 19, sessions: 21 },
+			{ bucket: '2026-08-03', pageviews: 76, visitors: 28, sessions: 34 },
+			{ bucket: '2026-08-04', pageviews: 97, visitors: 30, sessions: 40 },
+		]))
+		return
+	}
+
+	if (path === '/api/admin/analytics/realtime' && method === 'GET') {
+		await route.fulfill(success({
+			activeVisitors: 3,
+			pageviews: 8,
+			pages: [{ label: '/2026/welcome', count: 4 }, { label: '/moments', count: 3 }],
+			cities: [{ label: 'San Francisco', count: 2 }, { label: 'Hangzhou', count: 1 }],
+		}))
+		return
+	}
+
+	if (path === '/api/admin/analytics/pages' && method === 'GET') {
+		await route.fulfill(success([
+			{ path: '/2026/welcome', title: '欢迎来到 fly living', pageviews: 106, visitors: 49 },
+			{ path: '/moments', title: '瞬间', pageviews: 72, visitors: 31 },
+		]))
+		return
+	}
+
+	if (path === '/api/admin/analytics/geo' && method === 'GET') {
+		await route.fulfill(success([
+			{ country: 'US', region: 'California', city: 'San Francisco', pageviews: 88, visitors: 34 },
+			{ country: 'CN', region: 'Zhejiang', city: 'Hangzhou', pageviews: 61, visitors: 22 },
+		]))
+		return
+	}
+
+	if (path === '/api/admin/analytics/devices' && method === 'GET') {
+		await route.fulfill(success({
+			devices: [
+				{ label: 'mobile', pageviews: 132, visitors: 55 },
+				{ label: 'desktop', pageviews: 101, visitors: 43 },
+				{ label: 'tablet', pageviews: 15, visitors: 7 },
+			],
+			browsers: [{ label: 'Safari', pageviews: 116, visitors: 48 }, { label: 'Chrome', pageviews: 97, visitors: 39 }],
+			operatingSystems: [{ label: 'iOS', pageviews: 102, visitors: 43 }, { label: 'macOS', pageviews: 72, visitors: 31 }],
+		}))
+		return
+	}
+
+	if (path === '/api/admin/analytics/visitors' && method === 'GET') {
+		await route.fulfill(success(analyticsVisitors(url.searchParams.get('trafficType'))))
+		return
+	}
+
+	if (path === '/api/admin/analytics/bots' && method === 'GET') {
+		await route.fulfill(success([
+			{ name: 'Googlebot', category: 'search', classificationSource: 'verified', pageviews: 12, lastSeenAt: '2026-08-04T08:20:00.000Z', trafficType: 'bot' },
+			{ name: '可疑自动流量', category: 'score', classificationSource: 'cloudflare-score', pageviews: 4, lastSeenAt: '2026-08-04T07:55:00.000Z', trafficType: 'suspected' },
+		]))
+		return
+	}
+
+	if (/^\/api\/admin\/analytics\/events\/\d+\/ip$/u.test(path) && method === 'GET') {
+		capture.analyticsIpViews += 1
+		await route.fulfill(success({ ip: '203.0.113.42' }))
+		return
+	}
+
+	if (path === '/api/admin/analytics/export' && method === 'GET') {
+		capture.analyticsExports += 1
+		await route.fulfill({
+			status: 200,
+			contentType: 'text/csv; charset=utf-8',
+			headers: { 'content-disposition': 'attachment; filename="fly-living-analytics.csv"' },
+			body: 'occurred_at,masked_ip,path\n2026-08-04T08:30:00.000Z,203.0.113.xxx,/2026/welcome\n',
+		})
 		return
 	}
 
@@ -599,6 +738,8 @@ export async function mockAdminApi(page: Page, options: AdminApiMockOptions = {}
 		mediaUploads: 0,
 		mediaUploadBodies: [],
 		logoutCount: 0,
+		analyticsIpViews: 0,
+		analyticsExports: 0,
 	}
 	const state = { sessionCalls: 0 }
 	await page.route('**/api/**', route => respond(route, options, capture, state))

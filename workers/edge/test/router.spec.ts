@@ -6,7 +6,7 @@ function service(fetcher: (request: Request) => Promise<Response> | Response): F
 }
 
 function env(api: Fetcher): Env {
-	return { API: api, PAGES_ORIGIN: 'https://fly-living.pages.dev' }
+	return { API: api, PAGES_ORIGIN: 'https://fly-living.pages.dev', ANALYTICS_ENABLED: 'true' }
 }
 
 afterEach(() => {

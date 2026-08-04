@@ -23,9 +23,10 @@ describe('admin shell contracts', () => {
 		expect(resolveAdminAuthNavigation({ authenticated: true }, '/admin/articles')).toBeNull()
 	})
 
-	it('contains all ten confirmed navigation entries in the approved order', () => {
+	it('contains all eleven confirmed navigation entries in the approved order', () => {
 		expect(adminNavigation.map(item => item.label)).toEqual([
 			'概览',
+			'访问分析',
 			'文章',
 			'瞬间',
 			'AI 阅闻',
