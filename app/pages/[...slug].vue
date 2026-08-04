@@ -28,13 +28,21 @@ else {
 <template v-if="post">
 	<PostHeader v-bind="post" />
 	<PostExcerpt v-if="excerpt" :excerpt />
-	<!-- 使用 float-in 动画会导致搜索跳转不准确 -->
-	<ContentRenderer
-		class="article"
-		:class="getPostTypeClassName(post?.type, { prefix: 'md' })"
-		:value="post"
-		tag="article"
-	/>
+	<div class="article-window">
+		<div class="article-window-bar" aria-hidden="true">
+			<span class="article-window-dot article-window-dot-close" />
+			<span class="article-window-dot article-window-dot-minimize" />
+			<span class="article-window-dot article-window-dot-expand" />
+		</div>
+
+		<!-- 使用 float-in 动画会导致搜索跳转不准确 -->
+		<ContentRenderer
+			class="article"
+			:class="getPostTypeClassName(post?.type, { prefix: 'md' })"
+			:value="post"
+			tag="article"
+		/>
+	</div>
 
 	<PostFooter v-bind="post" />
 	<PostSurround />
