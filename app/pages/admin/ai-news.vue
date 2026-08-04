@@ -1,26 +1,41 @@
 <script setup lang="ts">
 import type { NewsItemDto } from '#shared/admin/news'
+import AdminNewsInbox from '~/components/admin/news/AdminNewsInbox.vue'
+import AdminNewsManualForm from '~/components/admin/news/AdminNewsManualForm.vue'
+import AdminNewsSourceHealth from '~/components/admin/news/AdminNewsSourceHealth.vue'
+
+interface NewsSourceState {
+	source_id: string
+	status: string
+	item_count: number
+	last_success_at: string | null
+	last_error: string | null
+}
 
 interface NewsAdminData {
 	items: NewsItemDto[]
 	total: number
 	briefing: Record<string, unknown> | null
-	sources: Array<{
-		source_id: string
-		status: string
-		item_count: number
-		last_success_at: string | null
-		last_error: string | null
-	}>
+	sources: NewsSourceState[]
 }
+
+const tabs = [
+	{ id: 'content', label: '内容管理', description: '筛选、检查和移除公开卡片', icon: 'tabler:news' },
+	{ id: 'manual', label: '手动精选', description: '添加一条自己的精选内容', icon: 'tabler:edit' },
+	{ id: 'sources', label: '来源健康', description: '查看同步状态和失败原因', icon: 'tabler:heartbeat' },
+]
+const activeTab = ref('content')
 const data = ref<NewsAdminData | null>(null)
 const loading = ref(true)
-const working = ref(false)
-const error = ref('')
-const success = ref('')
-const pendingDelete = ref<NewsItemDto | null>(null)
+const syncing = ref(false)
+const adding = ref(false)
 const deleting = ref(false)
-const manualOpen = ref(false)
+const loadError = ref<string | null>(null)
+const syncError = ref<string | null>(null)
+const manualError = ref<string | null>(null)
+const deleteError = ref<string | null>(null)
+const success = ref<string | null>(null)
+const pendingDelete = ref<NewsItemDto | null>(null)
 const candidateQuery = ref('')
 const sourceFilter = ref('')
 const form = reactive({
@@ -29,82 +44,75 @@ const form = reactive({
 	url: '',
 	category: '手动精选',
 })
-const sourceOptions = computed(() => [...new Set(data.value?.items.map(item => item.sourceId) ?? [])])
-const filteredItems = computed(() => {
-	const normalized = candidateQuery.value.trim().toLowerCase()
-	return (data.value?.items ?? []).filter((item) => {
-		if (sourceFilter.value && item.sourceId !== sourceFilter.value)
-			return false
-		if (!normalized)
-			return true
-		return [item.title, item.summary, item.category, item.sourceId].filter(Boolean).some(value => value!.toLowerCase().includes(normalized))
-	})
+const tabItems = computed(() => tabs.map(tab => ({
+	...tab,
+	count: tab.id === 'content'
+		? data.value?.items.length ?? 0
+		: tab.id === 'sources'
+			? data.value?.sources.length ?? 0
+			: undefined,
+})))
+const unhealthySources = computed(() => data.value?.sources.filter(source => source.status !== 'success').length ?? 0)
+const taskStatus = computed(() => {
+	if (loading.value)
+		return '正在加载 AI 阅闻…'
+	if (syncing.value)
+		return '正在同步全部来源，当前内容仍可查看'
+	if (unhealthySources.value)
+		return `${unhealthySources.value} 个来源需要处理`
+	return `${data.value?.items.length ?? 0} 条内容 · 来源运行正常`
 })
+const taskTone = computed(() => loadError.value || syncError.value ? 'danger' : unhealthySources.value ? 'warning' : 'positive')
 
-function sourceLabel(sourceId: string) {
-	if (sourceId.startsWith('ai-hot'))
-		return 'AI HOT'
-	if (sourceId === 'station-news')
-		return '站长资讯'
-	if (sourceId === 'manual')
-		return '手动精选'
-	return sourceId
-}
-
-function sourceStatusLabel(status: string) {
-	if (status === 'success')
-		return '同步正常'
-	if (status === 'pending' || status === 'running')
-		return '同步中'
-	return '需要处理'
-}
 useSeoMeta({ title: 'AI 阅闻管理', robots: 'noindex, nofollow' })
 
-async function load() {
-	loading.value = true
-	error.value = ''
+async function load(background = false) {
+	if (!background)
+		loading.value = true
+	loadError.value = null
 	try {
 		data.value = await useAdminApi<NewsAdminData>('/api/admin/news')
 	}
 	catch (cause) {
-		error.value = cause instanceof Error ? cause.message : 'AI 阅闻数据加载失败'
+		loadError.value = cause instanceof Error ? cause.message : 'AI 阅闻数据加载失败'
 	}
 	finally {
-		loading.value = false
+		if (!background)
+			loading.value = false
 	}
 }
+
 async function sync() {
-	working.value = true
-	error.value = ''
-	success.value = ''
+	if (syncing.value)
+		return
+	syncing.value = true
+	syncError.value = null
+	success.value = null
 	try {
 		await useAdminApi('/api/admin/news/sync', { method: 'POST' })
-		success.value = '来源同步完成。'
-		await load()
+		success.value = '来源同步完成，内容列表已刷新。'
+		await load(true)
 	}
 	catch (cause) {
-		error.value
-			= cause instanceof Error ? cause.message : '同步失败，已保留上次快照。'
+		syncError.value = cause instanceof Error ? cause.message : '同步失败，已保留上次成功快照。'
 	}
 	finally {
-		working.value = false
+		syncing.value = false
 	}
-}
-function itemHref(item: NewsItemDto) {
-	return item.readerPath || item.originalUrl || item.url
 }
 
 function requestDelete(item: NewsItemDto) {
 	pendingDelete.value = item
+	deleteError.value = null
 }
 
 async function confirmDelete() {
 	const item = pendingDelete.value
-	if (!item)
+	if (!item || deleting.value)
 		return
 	deleting.value = true
-	error.value = ''
-	success.value = ''
+	deleteError.value = null
+	success.value = null
 	try {
 		await useAdminApi<void>('/api/admin/news/items', {
 			method: 'DELETE',
@@ -112,12 +120,12 @@ async function confirmDelete() {
 		})
 		pendingDelete.value = null
 		success.value = item.kind === 'manual'
-			? `已删除手动精选“${item.title}”。`
-			: `已删除“${item.title}”。自动来源后续同步时也不会重新展示该条目。`
-		await load()
+			? `已永久删除手动精选“${item.title}”。`
+			: `已移除“${item.title}”，后续自动同步不会重新展示。`
+		await load(true)
 	}
 	catch (cause) {
-		error.value = cause instanceof Error ? cause.message : 'AI 阅闻条目删除失败'
+		deleteError.value = cause instanceof Error ? cause.message : 'AI 阅闻条目删除失败'
 	}
 	finally {
 		deleting.value = false
@@ -125,9 +133,11 @@ async function confirmDelete() {
 }
 
 async function addManual() {
-	working.value = true
-	error.value = ''
-	success.value = ''
+	if (adding.value || !form.title.trim() || !form.url.trim())
+		return
+	adding.value = true
+	manualError.value = null
+	success.value = null
 	try {
 		await useAdminApi('/api/admin/news/manual', {
 			method: 'POST',
@@ -139,147 +149,88 @@ async function addManual() {
 			url: '',
 			category: '手动精选',
 		})
-		success.value = '手动精选卡片已添加。'
-		manualOpen.value = false
-		await load()
+		success.value = '手动精选已添加到内容列表。'
+		await load(true)
+		activeTab.value = 'content'
 	}
 	catch (cause) {
-		error.value = cause instanceof Error ? cause.message : '手动卡片保存失败'
+		manualError.value = cause instanceof Error ? cause.message : '手动精选保存失败'
 	}
 	finally {
-		working.value = false
+		adding.value = false
 	}
 }
+
 onMounted(load)
 </script>
 
 <template>
 <section>
-	<header class="admin-page-heading">
-		<div>
-			<span class="admin-badge">CRON · D1 · SOURCES</span>
-			<h1>AI 阅闻</h1>
-			<p>聚合站长资讯与 AI 精选，也可添加手动精选。</p>
-		</div>
-		<div class="admin-heading-actions">
-			<button class="admin-button" type="button" @click="manualOpen = !manualOpen">
-				<Icon name="tabler:plus" />{{ manualOpen ? '收起精选表单' : '添加手动精选' }}
+	<AdminTaskHeader
+		eyebrow="内容聚合"
+		title="AI 阅闻"
+		description="分别管理公开内容、手动精选和来源健康。同步失败时继续使用最后成功快照，不会影响访客阅读。"
+		:status="taskStatus"
+		:status-tone="taskTone"
+	>
+		<template #actions>
+			<a class="admin-button" href="/ai.news" target="_blank" rel="noopener">
+				<Icon name="tabler:external-link" />查看公开页面
+			</a>
+			<button class="admin-button admin-button-primary" type="button" :disabled="syncing" @click="sync">
+				<Icon name="tabler:refresh" />{{ syncing ? '同步中…' : '立即同步' }}
 			</button>
-			<a class="admin-button" href="/ai.news" target="_blank" rel="noopener"><Icon name="tabler:external-link" />查看页面</a><button
-				class="admin-button admin-button-primary"
-				type="button"
-				:disabled="working"
-				@click="sync"
-			>
-				<Icon name="tabler:refresh" />立即同步
-			</button>
-		</div>
-	</header>
-	<p v-if="error" class="admin-error">
-		{{ error }}
+		</template>
+	</AdminTaskHeader>
+
+	<p v-if="loadError" class="admin-error" role="alert">
+		{{ loadError }}
+		<button class="admin-button" type="button" @click="load()">
+			重新加载
+		</button>
+	</p>
+	<p v-if="syncError" class="admin-error" role="alert">
+		同步失败：{{ syncError }}
+	</p>
+	<p v-if="deleteError" class="admin-error" role="alert">
+		删除失败：{{ deleteError }}
 	</p>
 	<p v-if="success" class="admin-success">
 		{{ success }}
 	</p>
-	<div class="admin-news-layout">
-		<section v-if="manualOpen" class="admin-panel admin-news-manual">
-			<header class="admin-panel-header">
-				<div>
-					<h2>手动精选</h2>
-					<p>保存摘要与原文链接，并生成站内摘要阅读页。</p>
-				</div>
-			</header>
-			<label class="admin-field"><span>标题</span><input v-model="form.title" maxlength="500"></label><label class="admin-field"><span>摘要</span><textarea v-model="form.summary" rows="5" maxlength="5000" /></label><label class="admin-field"><span>原文链接</span><input
-				v-model="form.url"
-				type="url"
-				placeholder="https://..."
-			></label><label class="admin-field"><span>分类</span><input v-model="form.category" maxlength="120"></label><button
-				class="admin-button admin-button-primary"
-				type="button"
-				:disabled="working || !form.title || !form.url"
-				@click="addManual"
-			>
-				添加卡片
-			</button>
-		</section>
-		<section class="admin-panel admin-news-sources">
-			<header class="admin-panel-header">
-				<div>
-					<h2>来源状态</h2>
-					<p>失败时前台继续使用最后成功快照。</p>
-				</div>
-			</header>
-			<div v-if="loading" class="admin-skeleton admin-list-skeleton" />
-			<ul v-else class="admin-action-list">
-				<li
-					v-for="source in data?.sources"
-					:key="source.source_id"
-					class="admin-service-row"
-				>
-					<div>
-						<strong>{{ sourceLabel(source.source_id) }}</strong><span>{{ source.item_count }} 条 ·
-							{{ source.last_success_at || "尚未成功" }}</span>
-					</div>
-					<AdminStatusPill
-						:tone="source.status === 'success' ? 'positive' : 'danger'"
-					>
-						{{ sourceStatusLabel(source.status) }}
-					</AdminStatusPill>
-				</li>
-			</ul>
-		</section>
-	</div>
-	<section class="admin-panel admin-news-items">
-		<header class="admin-panel-header">
-			<div>
-				<h2>当前候选池</h2>
-				<p>{{ data?.total || 0 }} 条公开卡片</p>
-			</div>
-		</header>
-		<div class="admin-toolbar admin-toolbar-wrap">
-			<label class="admin-search-field admin-search-field-wide"><Icon name="tabler:search" /><input v-model="candidateQuery" type="search" placeholder="搜索标题、摘要或分类"></label>
-			<label class="admin-select-field"><span>来源</span><select v-model="sourceFilter"><option value="">全部来源</option><option v-for="source in sourceOptions" :key="source" :value="source">{{ sourceLabel(source) }}</option></select></label>
-			<span class="admin-muted-copy">显示 {{ filteredItems.length }} 条</span>
-		</div>
-		<div v-if="loading" class="admin-action-list">
-			<div
-				v-for="i in 6"
-				:key="i"
-				class="admin-skeleton admin-list-skeleton"
-			/>
-		</div>
-		<div v-else class="admin-content-list">
-			<article
-				v-for="item in filteredItems"
-				:key="item.id"
-				class="admin-news-item"
-			>
-				<a
-					class="admin-news-item-link"
-					:href="itemHref(item)"
-					target="_blank"
-					rel="noopener noreferrer"
-				>
-					<span>{{ item.category || item.kind }}</span><strong>{{ item.title }}</strong><small>{{ sourceLabel(item.sourceId) }} ·
-						{{ item.publishedAt || item.fetchedAt }}</small>
-				</a>
-				<button
-					class="admin-button admin-button-danger"
-					type="button"
-					:disabled="deleting"
-					:aria-label="`删除 ${item.title}`"
-					@click="requestDelete(item)"
-				>
-					<Icon name="tabler:trash" />删除
-				</button>
-			</article>
-		</div>
-	</section>
+
+	<AdminSectionTabs v-model="activeTab" :tabs="tabItems" label="AI 阅闻任务分区" />
+
+	<AdminNewsInbox
+		v-if="activeTab === 'content'"
+		:items="data?.items ?? []"
+		:loading="loading"
+		:query="candidateQuery"
+		:source-filter="sourceFilter"
+		:deleting="deleting"
+		@update:query="candidateQuery = $event"
+		@update:source-filter="sourceFilter = $event"
+		@delete="requestDelete"
+	/>
+	<AdminNewsManualForm
+		v-else-if="activeTab === 'manual'"
+		v-model="form"
+		:adding="adding"
+		:error="manualError"
+		@submit="addManual"
+	/>
+	<AdminNewsSourceHealth
+		v-else
+		:sources="data?.sources ?? []"
+		:loading="loading"
+		:error="syncError"
+		@sync="sync"
+	/>
 
 	<AdminConfirmDialog
 		:open="Boolean(pendingDelete)"
 		title="删除 AI 阅闻条目"
-		:description="pendingDelete ? (pendingDelete.kind === 'manual' ? `“${pendingDelete.title}”将从公开列表中永久删除。` : `“${pendingDelete.title}”将从公开列表中删除，自动同步不会再次展示它。`) : ''"
+		:description="pendingDelete ? (pendingDelete.kind === 'manual' ? `“${pendingDelete.title}”将从公开列表中永久删除。` : `“${pendingDelete.title}”将从公开列表中移除，并加入排除记录，自动同步不会再次展示它。`) : ''"
 		confirm-label="删除条目"
 		:busy="deleting"
 		danger
@@ -288,64 +239,3 @@ onMounted(load)
 	/>
 </section>
 </template>
-
-<style scoped lang="scss">
-.admin-news-layout {
-	display: grid;
-	grid-template-columns: minmax(0, 1fr) minmax(18rem, 0.8fr);
-	gap: 1rem;
-}
-
-.admin-news-manual,
-.admin-news-sources,
-.admin-news-items {
-	padding: 1rem;
-}
-
-.admin-news-items {
-	margin-top: 1rem;
-}
-
-.admin-news-item {
-	display: grid;
-	grid-template-columns: minmax(0, 1fr) auto;
-	align-items: center;
-	gap: 0.7rem;
-	padding: 0.55rem;
-	border: 1px solid var(--admin-border);
-	border-radius: 0.8rem;
-}
-
-.admin-news-item-link {
-	display: grid;
-	grid-template-columns: 7rem minmax(0, 1fr) auto;
-	align-items: center;
-	gap: 0.7rem;
-	min-width: 0;
-	padding: 0.25rem;
-}
-
-.admin-news-item span {
-	font-size: 0.68rem;
-	color: var(--admin-accent-strong);
-}
-
-.admin-news-item small {
-	color: var(--admin-muted);
-}
-
-@media (max-width: 900px) {
-	.admin-news-layout {
-		grid-template-columns: 1fr;
-	}
-
-	.admin-news-item,
-	.admin-news-item-link {
-		grid-template-columns: 1fr;
-	}
-
-	.admin-news-item .admin-button {
-		width: 100%;
-	}
-}
-</style>

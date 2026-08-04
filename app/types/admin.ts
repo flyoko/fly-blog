@@ -121,6 +121,30 @@ export interface AdminPublishRunDto {
 	updatedAt: string
 }
 
+export type AdminPublishRunGroup = 'needs_action' | 'in_progress' | 'completed'
+
+export function publishRunGroup(run: Pick<AdminPublishRunDto, 'status'>): AdminPublishRunGroup {
+	if (['preview_ready', 'failed', 'conflict'].includes(run.status))
+		return 'needs_action'
+	if (['merged', 'published', 'closed'].includes(run.status))
+		return 'completed'
+	return 'in_progress'
+}
+
+export function publishNextAction(run: Pick<AdminPublishRunDto, 'status'>) {
+	if (run.status === 'preview_ready')
+		return '查看预览并确认上线'
+	if (run.status === 'failed')
+		return '查看失败原因'
+	if (run.status === 'conflict')
+		return '处理内容冲突'
+	if (run.status === 'merged' || run.status === 'published')
+		return '已经上线'
+	if (run.status === 'closed')
+		return '已关闭'
+	return '等待自动检查和预览'
+}
+
 export interface AdminOverviewDto {
 	counts: {
 		articles: number | null

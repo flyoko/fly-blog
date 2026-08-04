@@ -519,6 +519,12 @@ async function respond(route: Route, options: AdminApiMockOptions, capture: Admi
 		return
 	}
 
+	if (path === '/api/admin/news/items' && method === 'DELETE') {
+		capture.newsWrites.push({ action: 'delete', ...request.postDataJSON() })
+		await route.fulfill({ status: 204, body: '' })
+		return
+	}
+
 	if (path === '/api/moments' && method === 'GET') {
 		await route.fulfill(success({ items: [momentItem()], total: 1, page: 1, pageSize: 12 }))
 		return

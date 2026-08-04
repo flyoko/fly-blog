@@ -31,6 +31,11 @@ watch(() => props.open, async (open) => {
 	}
 })
 
+function close() {
+	if (!props.busy)
+		emit('close')
+}
+
 function submit() {
 	if (canConfirm.value)
 		emit('confirm')
@@ -40,7 +45,7 @@ function submit() {
 <template>
 <Teleport to="body">
 	<div v-if="open" class="admin-modal" role="dialog" aria-modal="true" :aria-labelledby="`${$attrs.id || 'admin-confirm'}-title`">
-		<button class="admin-modal-backdrop" type="button" aria-label="取消操作" :disabled="busy" @click="emit('close')" />
+		<div class="admin-modal-backdrop" aria-hidden="true" @click="close" />
 		<section class="admin-modal-panel admin-confirm-dialog">
 			<div class="admin-confirm-dialog-icon" :data-danger="danger" aria-hidden="true">
 				<Icon :name="danger ? 'tabler:alert-triangle' : 'tabler:help-circle'" />
@@ -63,7 +68,7 @@ function submit() {
 				</label>
 			</div>
 			<div class="admin-confirm-dialog-actions">
-				<button class="admin-button" type="button" :disabled="busy" @click="emit('close')">
+				<button class="admin-button" type="button" :disabled="busy" @click="close">
 					取消
 				</button>
 				<button

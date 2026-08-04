@@ -29,12 +29,19 @@ describe('cycle 5 humanized admin contracts', () => {
 
 	it('turns repository configuration into visual, task-oriented editors', async () => {
 		const settings = await source('app/pages/admin/settings.vue')
+		const modules = await source('app/components/admin/settings/AdminModuleWorkbench.vue')
 
 		expect(settings).toContain('导航菜单')
 		expect(settings).toContain('页脚内容')
 		expect(settings).toContain('添加导航项')
 		expect(settings).toContain('添加页脚链接')
-		expect(settings).toContain('前往模块管理')
+		expect(modules).toContain('前往模块管理')
+		expect(settings).toContain('v-show="selected === \'modules\'"')
+		expect(settings).toContain('@dirty-change="moduleUnsaved = $event"')
+		expect(settings).toContain('reloadDeployedConfigs')
+		expect(modules).toContain('active?: boolean')
+		expect(modules).toContain('requestReload')
+		expect(modules).toContain('if (!props.embedded)')
 		expect(settings).not.toContain('结构化 JSON')
 		expect(settings).not.toContain('admin-json-editor')
 	})
@@ -95,7 +102,7 @@ describe('cycle 5 humanized admin contracts', () => {
 
 	it('loads production configuration and prevents duplicate submissions', async () => {
 		const settings = await source('app/pages/admin/settings.vue')
-		const modules = await source('app/pages/admin/modules.vue')
+		const modules = await source('app/components/admin/settings/AdminModuleWorkbench.vue')
 		const reviews = await source('app/pages/admin/reviews.vue')
 		const news = await source('app/pages/admin/ai-news.vue')
 

@@ -56,12 +56,12 @@ test.describe('cycle 2 desktop workflows', () => {
 		await page.goto('/admin/ai-news')
 		await page.getByRole('button', { name: '立即同步' }).click()
 		await expect.poll(() => capture.newsWrites.length).toBe(1)
-		await page.getByRole('button', { name: '添加手动精选' }).click()
+		await page.getByRole('tab', { name: /手动精选/u }).click()
 		await page.getByLabel('标题').fill('Manual news card')
 		await page.getByLabel('原文链接').fill('https://example.com/manual')
-		await page.getByRole('button', { name: '添加卡片' }).click()
+		await page.getByRole('button', { name: '添加到内容列表' }).click()
 		await expect.poll(() => capture.newsWrites.length).toBe(2)
-		await expect(page.getByText('手动精选卡片已添加。')).toBeVisible()
+		await expect(page.getByText('手动精选已添加到内容列表。')).toBeVisible()
 	})
 
 	test('public moments render, like, and open a stable detail route', async ({ page }) => {
