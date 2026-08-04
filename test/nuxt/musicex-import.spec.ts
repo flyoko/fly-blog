@@ -5,6 +5,7 @@ import { createMusicImportController } from '../../app/composables/useMusicImpor
 import { buildSyntheticQTag, parseMusicExFooter } from '../../app/utils/music-import/musicex'
 import { parseQmcKeyBundle, parseQmcKeyFile, parseQmcMmkv } from '../../app/utils/music-import/qmc-key-file'
 import { decryptQmc, qmcDecryptChunkBytes } from '../../app/utils/music-import/qmc-wasm'
+import { maxQmcKeyFileBytes } from '../../app/utils/music-import/types'
 import { handleQmcDecryptRequest } from '../../app/workers/qmc-decrypt.worker'
 
 function ascii(value: string) {
@@ -233,6 +234,38 @@ describe('musicEx WASM compatibility layer', () => {
 })
 
 describe('musicEx import orchestration', () => {
+	it('accepts a valid key file larger than the previous 5 MiB limit', async () => {
+		const controller = createMusicImportController()
+		const bundle = JSON.stringify({
+			version: 1,
+			source: 'qqmusic-mmkv',
+			keys: { 'F0M0000HJUZs40wWgK.mflac': sampleEkey },
+		})
+		const file = new File([
+			bundle,
+			' '.repeat(5 * 1024 * 1024),
+		], 'qqmusic-qmc-keys.json', { type: 'application/json' })
+
+		expect(file.size).toBeGreaterThan(5 * 1024 * 1024)
+		await expect(controller.loadKeyFile(file)).resolves.toBe(1)
+		expect(controller.keyCount.value).toBe(1)
+	})
+
+	it('rejects an oversized key file before reading it into memory', async () => {
+		const arrayBuffer = vi.fn()
+		const file = {
+			name: 'MMKVStreamEncryptId',
+			size: maxQmcKeyFileBytes + 1,
+			arrayBuffer,
+		} as unknown as File
+		const controller = createMusicImportController()
+
+		await expect(controller.loadKeyFile(file))
+			.rejects
+			.toMatchObject({ code: 'INVALID_KEY_BUNDLE' })
+		expect(arrayBuffer).not.toHaveBeenCalled()
+	})
+
 	it('returns QMC_KEY_REQUIRED from the Worker when the exact key is absent', async () => {
 		const decryptor = vi.fn()
 		const workerFactory = vi.fn(() => new FakeWorker((message, worker) => {

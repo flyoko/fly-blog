@@ -74,3 +74,4 @@ export interface MusicImportFileResult {
 
 export const maxMusicFileBytes = 80 * 1024 * 1024
 export const maxMusicBatchBytes = 100 * 1024 * 1024
+export const maxQmcKeyFileBytes = 64 * 1024 * 1024

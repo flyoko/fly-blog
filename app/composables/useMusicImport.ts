@@ -8,7 +8,7 @@ import { getCurrentScope, onScopeDispose, readonly, ref } from 'vue'
 import { audioSignatureBytes, detectStandardAudio, sanitizeAudioFileName } from '../utils/music-import/audio-signatures'
 import { getQmcFormat } from '../utils/music-import/qmc-formats'
 import { parseQmcKeyFile } from '../utils/music-import/qmc-key-file'
-import { maxMusicBatchBytes, maxMusicFileBytes, MusicImportError } from '../utils/music-import/types'
+import { maxMusicBatchBytes, maxMusicFileBytes, maxQmcKeyFileBytes, MusicImportError } from '../utils/music-import/types'
 
 export type MusicImportStage = 'idle' | 'parsing' | 'decrypting'
 
@@ -61,8 +61,8 @@ export function createMusicImportController(options: MusicImportControllerOption
 	}
 
 	async function loadKeyFile(file: File) {
-		if (file.size > 5 * 1024 * 1024)
-			throw new MusicImportError('INVALID_KEY_BUNDLE', 'QQ 音乐密钥文件不能超过 5 MiB。')
+		if (file.size > maxQmcKeyFileBytes)
+			throw new MusicImportError('INVALID_KEY_BUNDLE', 'QQ 音乐密钥文件不能超过 64 MiB。')
 		const parsed = await parseQmcKeyFile(file)
 		mediaKeys = parsed
 		keyCount.value = parsed.size
