@@ -205,12 +205,16 @@ test.describe('public route switch stability', () => {
 			}
 		})
 
-		for (const path of ['/moments', '/link', '/archive', '/ai.news', '/']) {
+		for (const [index, path] of ['/moments', '/link', '/archive', '/ai.news', '/'].entries()) {
 			await page.locator(`.sidebar-nav-item[href="${path}"]`).click()
 			await expect(page).toHaveURL(path)
 			await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))))
 			const first = await page.locator('.atmosphere-flow').evaluate(element => getComputedStyle(element).transform)
-			await page.waitForTimeout(120)
+			// macOS Chromium can synthesize a pointermove for a stationary cursor when
+			// the layout underneath it is replaced. Reproduce that event inside the
+			// route-settling window and verify it cannot wake the full-screen RAF.
+			await page.mouse.move(360 + index * 4, 240)
+			await page.waitForTimeout(220)
 			const second = await page.locator('.atmosphere-flow').evaluate(element => getComputedStyle(element).transform)
 			expect(second).toBe(first)
 		}

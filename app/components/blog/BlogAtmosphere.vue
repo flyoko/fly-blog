@@ -19,6 +19,7 @@ let targetX = 50
 let targetY = 26
 let currentX = 50
 let currentY = 26
+let pointerResumeAt = 0
 
 const { isActive, pause, resume } = useRafFn(() => {
 	const element = root.value
@@ -57,6 +58,8 @@ function resetPointer() {
 useEventListener('pointermove', (event) => {
 	if (!isFinePointer.value || prefersReducedMotion.value || isMobilePerformanceMode.value)
 		return
+	if (performance.now() < pointerResumeAt)
+		return
 
 	targetX = event.clientX / window.innerWidth * 100
 	targetY = event.clientY / window.innerHeight * 100
@@ -76,6 +79,7 @@ watch(() => route.fullPath, () => {
 	pause()
 	targetX = currentX
 	targetY = currentY
+	pointerResumeAt = performance.now() + 320
 })
 
 watch([isFinePointer, prefersReducedMotion, isMobilePerformanceMode], ([fine, reduced, mobile]) => {

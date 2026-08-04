@@ -102,6 +102,8 @@ describe('motion v2 production integration', () => {
 		expect(header).not.toContain('animation-play-state: running')
 		expect(atmosphere).toContain('watch(() => route.fullPath')
 		expect(atmosphere).toContain('targetX = currentX')
+		expect(atmosphere).toContain('performance.now() < pointerResumeAt')
+		expect(atmosphere).toContain('pointerResumeAt = performance.now() + 320')
 		expect(main).not.toMatch(/\.atmosphere-flow \{[\s\S]*?transition: transform/u)
 	})
 
