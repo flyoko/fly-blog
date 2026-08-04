@@ -2,6 +2,7 @@
 import { useEventListener, useMediaQuery, useRafFn } from '@vueuse/core'
 
 const route = useRoute()
+const nuxtApp = useNuxtApp()
 const colorMode = useColorMode()
 const root = useTemplateRef<HTMLElement>('root')
 const isFinePointer = useMediaQuery('(pointer: fine)')
@@ -19,6 +20,8 @@ let targetX = 50
 let targetY = 26
 let currentX = 50
 let currentY = 26
+const routePointerSettleMs = 1_200
+
 let pointerResumeAt = 0
 
 const { isActive, pause, resume } = useRafFn(() => {
@@ -55,6 +58,26 @@ function resetPointer() {
 	resumePointerAnimation()
 }
 
+function freezePointerAnimation(resumeAt = Number.POSITIVE_INFINITY) {
+	pause()
+	targetX = currentX
+	targetY = currentY
+	pointerResumeAt = resumeAt
+}
+
+const unhookLoadingStart = nuxtApp.hook('page:loading:start', () => {
+	freezePointerAnimation()
+})
+const unhookLoadingEnd = nuxtApp.hook('page:loading:end', () => {
+	freezePointerAnimation(performance.now() + routePointerSettleMs)
+})
+const unhookPageStart = nuxtApp.hook('page:start', () => {
+	freezePointerAnimation()
+})
+const unhookPageFinish = nuxtApp.hook('page:finish', () => {
+	freezePointerAnimation(performance.now() + routePointerSettleMs)
+})
+
 useEventListener('pointermove', (event) => {
 	if (!isFinePointer.value || prefersReducedMotion.value || isMobilePerformanceMode.value)
 		return
@@ -76,10 +99,7 @@ watch(() => route.fullPath, () => {
 	// pointer chase on that frame so macOS browsers do not recompose both the
 	// background and the incoming page at the same time. The next real pointer
 	// movement resumes the RAF loop normally.
-	pause()
-	targetX = currentX
-	targetY = currentY
-	pointerResumeAt = performance.now() + 320
+	freezePointerAnimation(Math.max(pointerResumeAt, performance.now() + routePointerSettleMs))
 })
 
 watch([isFinePointer, prefersReducedMotion, isMobilePerformanceMode], ([fine, reduced, mobile]) => {
@@ -98,6 +118,10 @@ watch([isFinePointer, prefersReducedMotion, isMobilePerformanceMode], ([fine, re
 }, { immediate: true })
 
 onBeforeUnmount(() => {
+	unhookLoadingStart()
+	unhookLoadingEnd()
+	unhookPageStart()
+	unhookPageFinish()
 	pause()
 })
 </script>

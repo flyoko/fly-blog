@@ -134,6 +134,16 @@ test.describe('public route switch stability', () => {
 	})
 
 	test('keeps avatar hover compositor-local while switching routes in macOS Chrome', async ({ page }) => {
+		let delayNextMePayload = false
+		let delayedMePayloadStarted = false
+		await page.route('**/me/_payload.json*', async (route) => {
+			if (delayNextMePayload) {
+				delayNextMePayload = false
+				delayedMePayloadStarted = true
+				await new Promise(resolve => setTimeout(resolve, 900))
+			}
+			await route.continue()
+		})
 		await page.goto('/2026/welcome', { waitUntil: 'domcontentloaded' })
 		const header = page.locator('.sidebar-header')
 		const logo = header.locator('.blog-logo')
@@ -204,6 +214,22 @@ test.describe('public route switch stability', () => {
 				record()
 			}
 		})
+
+		delayNextMePayload = true
+		await page.locator('.sidebar-nav-item[href="/me"]').click()
+		await expect.poll(() => delayedMePayloadStarted).toBe(true)
+		const loadingTransform = await page.locator('.atmosphere-flow').evaluate(element => getComputedStyle(element).transform)
+		await page.mouse.move(320, 240)
+		await page.waitForTimeout(450)
+		const loadingTransformAfterMove = await page.locator('.atmosphere-flow').evaluate(element => getComputedStyle(element).transform)
+		expect(loadingTransformAfterMove).toBe(loadingTransform)
+		await expect(page).toHaveURL('/me')
+		await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))))
+		const loadingTailTransform = await page.locator('.atmosphere-flow').evaluate(element => getComputedStyle(element).transform)
+		await page.mouse.move(700, 360)
+		await page.waitForTimeout(220)
+		const loadingTailTransformAfterMove = await page.locator('.atmosphere-flow').evaluate(element => getComputedStyle(element).transform)
+		expect(loadingTailTransformAfterMove).toBe(loadingTailTransform)
 
 		for (const [index, path] of ['/moments', '/link', '/archive', '/ai.news', '/'].entries()) {
 			await page.locator(`.sidebar-nav-item[href="${path}"]`).click()
