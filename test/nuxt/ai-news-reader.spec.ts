@@ -26,6 +26,13 @@ describe('ai 阅闻站内阅读界面', () => {
 		expect(page).toContain('class="news-row-image"')
 		expect(page).toContain('loading="lazy"')
 		expect(page).toContain('@error="hideBrokenImage(item.coverImage.url)"')
+		expect(page).toContain('class="news-owned-cover"')
+		expect(page).toContain('news-owned-cover-brand">fly living')
+		expect(page).toContain('AI 阅闻 · {{ sourceLabel(item) }}')
+		expect(page).toContain('formatOwnedCoverDate(item.publishedAt)')
+		const ownedCover = page.slice(page.indexOf('<div v-else class="news-owned-cover"'), page.indexOf('</div>', page.indexOf('<div v-else class="news-owned-cover"')))
+		expect(ownedCover).not.toContain('categoryLabel')
+		expect(ownedCover).not.toContain('originalUrl')
 		expect(page).not.toContain('background-image')
 	})
 

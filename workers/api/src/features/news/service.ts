@@ -752,9 +752,9 @@ export class NewsService {
 			)
 			let bodyText = entry.bodyText
 			let contentMode = entry.contentMode
-			let imageCandidates: ParsedNewsImage[] | undefined = entry.images.length ? entry.images : undefined
+			let imageCandidates: ParsedNewsImage[] | undefined
 			const needsPageBody = entry.contentMode === 'summary' && existingDocument?.content_mode !== 'full'
-			const needsPageImages = existingImages.length === 0 && entry.images.length === 0
+			const needsPageImages = existingImages.length === 0
 			const pageArticle = needsPageBody || needsPageImages
 				? await this.fetchAiHotArticle(sourceUrl)
 				: null
@@ -766,9 +766,8 @@ export class NewsService {
 				bodyText = pageArticle.bodyText
 				contentMode = 'full'
 			}
-			const mergedImages = mergeParsedImages(pageArticle?.images, entry.images)
-			if (mergedImages.length)
-				imageCandidates = mergedImages
+			if (pageArticle?.images.length)
+				imageCandidates = pageArticle.images
 			return {
 				entry,
 				existing,
@@ -921,7 +920,7 @@ export class NewsService {
 						originalUrl,
 						title: value.article.title,
 						bodyText: value.article.bodyText,
-						imageCandidates: mergeParsedImages(value.article.images, value.entry.images),
+						imageCandidates: value.article.images,
 						contentMode: 'full',
 						attributionName: sourceName,
 						attributionUrl: originalUrl || this.env.PUBLIC_ORIGIN,
@@ -937,7 +936,6 @@ export class NewsService {
 						originalUrl,
 						title,
 						bodyText: value.entry.descriptionText,
-						imageCandidates: value.entry.images,
 						contentMode: 'summary',
 						attributionName: sourceName,
 						attributionUrl: originalUrl || this.env.PUBLIC_ORIGIN,

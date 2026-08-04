@@ -70,6 +70,12 @@ const dateTimeFormatter = new Intl.DateTimeFormat('zh-CN', {
 	hour12: false,
 })
 
+const ownedCoverDateFormatter = new Intl.DateTimeFormat('zh-CN', {
+	year: 'numeric',
+	month: '2-digit',
+	day: '2-digit',
+})
+
 const data = ref<NewsPayload | null>(null)
 const loading = ref(true)
 const error = ref('')
@@ -177,6 +183,19 @@ function formatDateTime(value: string | null) {
 	if (Number.isNaN(date.getTime()))
 		return '时间未知'
 	return dateTimeFormatter.format(date).replaceAll('/', '.')
+}
+
+function formatOwnedCoverDate(value: string | null) {
+	if (!value)
+		return '最近收录'
+	const date = new Date(value)
+	if (Number.isNaN(date.getTime()))
+		return '最近收录'
+	return ownedCoverDateFormatter.format(date).replaceAll('/', '.')
+}
+
+function hasUsableCover(item: NewsItemDto) {
+	return Boolean(item.coverImage && !failedImageUrls.value.has(item.coverImage.url))
 }
 
 function clearSearch() {
@@ -291,7 +310,7 @@ onMounted(load)
 					</div>
 					<div
 						class="news-row-body"
-						:class="{ 'has-image': item.coverImage && !failedImageUrls.has(item.coverImage.url) }"
+						:class="{ 'has-image': hasUsableCover(item), 'has-owned-cover': !hasUsableCover(item) }"
 					>
 						<div class="news-row-copy">
 							<header class="news-row-meta">
@@ -337,7 +356,7 @@ onMounted(load)
 							</footer>
 						</div>
 						<img
-							v-if="item.coverImage && !failedImageUrls.has(item.coverImage.url)"
+							v-if="item.coverImage && hasUsableCover(item)"
 							class="news-row-image"
 							:src="item.coverImage.url"
 							:alt="item.coverImage.alt || ''"
@@ -346,6 +365,12 @@ onMounted(load)
 							referrerpolicy="no-referrer"
 							@error="hideBrokenImage(item.coverImage.url)"
 						>
+						<div v-else class="news-owned-cover" aria-hidden="true">
+							<span class="news-owned-cover-brand">fly living</span>
+							<span class="news-owned-cover-kicker">AI 阅闻 · {{ sourceLabel(item) }}</span>
+							<strong>{{ item.title }}</strong>
+							<time>{{ formatOwnedCoverDate(item.publishedAt) }}</time>
+						</div>
 					</div>
 				</article>
 			</div>
@@ -671,21 +696,80 @@ onMounted(load)
 	min-width: 0;
 }
 
-.news-row-body.has-image {
+.news-row-body.has-image,
+.news-row-body.has-owned-cover {
 	display: grid;
 	grid-template-columns: minmax(0, 1fr) clamp(6.8rem, 15vw, 8.6rem);
 	align-items: start;
 	gap: 1rem;
 }
 
-.news-row-image {
+.news-row-image,
+.news-owned-cover {
 	display: block;
 	width: 100%;
 	aspect-ratio: 4 / 3;
 	border: 1px solid var(--c-border);
 	border-radius: 0.65rem;
 	background: var(--c-primary-soft);
+}
+
+.news-row-image {
 	object-fit: cover;
+}
+
+.news-owned-cover {
+	display: flex;
+	flex-direction: column;
+	justify-content: space-between;
+	gap: 0.4rem;
+	position: relative;
+	overflow: hidden;
+	padding: 0.65rem;
+	background:
+		radial-gradient(circle at 88% 12%, color-mix(in srgb, var(--c-primary) 18%, transparent), transparent 38%),
+		linear-gradient(145deg, var(--c-primary-soft), var(--ld-bg-card));
+}
+
+.news-owned-cover::after {
+	content: "AI";
+	position: absolute;
+	right: -0.08em;
+	bottom: -0.28em;
+	font: 800 3.8rem / 1 var(--font-creative);
+	letter-spacing: -0.08em;
+	color: color-mix(in srgb, var(--c-primary) 10%, transparent);
+}
+
+.news-owned-cover-brand,
+.news-owned-cover-kicker,
+.news-owned-cover time {
+	position: relative;
+	font: 0.5rem var(--font-monospace);
+	letter-spacing: 0.05em;
+	z-index: 1;
+}
+
+.news-owned-cover-brand {
+	font-weight: 800;
+	text-transform: uppercase;
+	color: var(--c-primary);
+}
+
+.news-owned-cover-kicker,
+.news-owned-cover time {
+	color: var(--c-text-3);
+}
+
+.news-owned-cover strong {
+	display: -webkit-box;
+	position: relative;
+	overflow: hidden;
+	font: 700 0.69rem / 1.4 var(--font-creative);
+	-webkit-line-clamp: 3;
+	color: var(--c-text-1);
+	z-index: 1;
+	-webkit-box-orient: vertical;
 }
 
 .news-row-meta {
@@ -989,7 +1073,8 @@ onMounted(load)
 		font-size: 1rem;
 	}
 
-	.news-row-body.has-image {
+	.news-row-body.has-image,
+	.news-row-body.has-owned-cover {
 		grid-template-columns: minmax(0, 1fr) 5.6rem;
 		gap: 0.65rem;
 	}

@@ -236,19 +236,6 @@ function rssMediaImages(block: string, baseUrl: string): ParsedNewsImage[] {
 	return images
 }
 
-function pageMetaImages(html: string, baseUrl: string): ParsedNewsImage[] {
-	const images: ParsedNewsImage[] = []
-	const seen = new Set<string>()
-	for (const value of [
-		metaContent(html, 'property', 'og:image'),
-		metaContent(html, 'property', 'og:image:secure_url'),
-		metaContent(html, 'name', 'twitter:image'),
-	]) {
-		pushUniqueImage(images, seen, value, baseUrl, null)
-	}
-	return images
-}
-
 function mergeImages(...groups: ParsedNewsImage[][]): ParsedNewsImage[] {
 	const images: ParsedNewsImage[] = []
 	const seen = new Set<string>()
@@ -311,6 +298,17 @@ function isZaihuaIntermediaryLink(value: string): boolean {
 			|| hostname === 't.me'
 			|| hostname === 'telegram.me'
 			|| hostname.endsWith('.telegram.me')
+	}
+	catch {
+		return true
+	}
+}
+
+function isZaihuaDecorativeImage(image: ParsedNewsImage): boolean {
+	try {
+		const url = new URL(image.url)
+		return url.hostname.toLowerCase().endsWith('.zaihua.news')
+			&& url.pathname.includes('/emojis/custom/')
 	}
 	catch {
 		return true
@@ -487,7 +485,7 @@ export function extractAiHotArticle(
 ): { bodyText: string, images: ParsedNewsImage[] } | null {
 	const bodyHtml = divInnerHtmlByClass(html, 'm-detail-html')
 	const bodyText = cleanAiHotBodyText(htmlToReadableText(bodyHtml))
-	const images = mergeImages(extractHtmlImages(bodyHtml, baseUrl), pageMetaImages(html, baseUrl))
+	const images = extractHtmlImages(bodyHtml, baseUrl)
 	return bodyText || images.length
 		? { bodyText, images }
 		: null
@@ -507,6 +505,7 @@ export function extractZaihuaArticle(html: string, baseUrl = 'https://www.zaihua
 	const bodyText = htmlToReadableText(cleanZaihuaBodyHtml(bodyHtml, source))
 	if (!bodyText)
 		return null
+	const images = extractHtmlImages(bodyHtml, baseUrl).filter(image => !isZaihuaDecorativeImage(image))
 	const title = (
 		metaContent(html, 'property', 'og:title')
 		|| htmlToReadableText(html.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/iu)?.[1] || '')
@@ -515,7 +514,7 @@ export function extractZaihuaArticle(html: string, baseUrl = 'https://www.zaihua
 		? {
 				title,
 				bodyText,
-				images: mergeImages(extractHtmlImages(bodyHtml, baseUrl), pageMetaImages(html, baseUrl)),
+				images,
 				originalUrl: source?.url || null,
 				sourceName: source?.label || null,
 			}

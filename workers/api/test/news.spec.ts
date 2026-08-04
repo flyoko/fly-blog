@@ -242,7 +242,7 @@ describe('news service', () => {
 		}
 	})
 
-	it('backfills AI HOT metadata images without replacing existing full text', async () => {
+	it('ignores AI HOT metadata cards without replacing existing full text', async () => {
 		let metadataOnlyPage = false
 		const imageUrl = 'https://aihot.virxact.com/items/cms-backfill/opengraph-image'
 		vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
@@ -298,12 +298,16 @@ describe('news service', () => {
 			await service.sync({ force: true })
 			const after = (await service.list()).items.find(item => item.id === 'ai-hot:cms-backfill')!
 			const afterDocument = await service.read(after.readerPath!.split('/').at(-1)!)
-			expect(after.coverImage).toMatchObject({ mime: 'image/png' })
+			expect(after.coverImage).toBeNull()
 			expect(afterDocument).toMatchObject({
 				bodyText: '已保存的完整正文。',
 				contentMode: 'full',
-				images: [expect.objectContaining({ mime: 'image/png' })],
+				images: [],
 			})
+			expect(vi.mocked(globalThis.fetch).mock.calls.some(([input]) => {
+				const url = typeof input === 'string' ? input : input instanceof Request ? input.url : input.toString()
+				return url === imageUrl
+			})).toBe(false)
 		}
 		finally {
 			vi.restoreAllMocks()
@@ -325,8 +329,16 @@ describe('news service', () => {
 					</item></channel></rss>
 				`, { status: 200 })
 			}
-			if (url === 'https://www.zaihua.news/article/budget/')
-				return new Response('<article><p>结构不匹配</p></article>', { status: 200 })
+			if (url === 'https://www.zaihua.news/article/budget/') {
+				return new Response(`
+					<meta property="og:title" content="站长图片预算">
+					<div class="msg-prose">
+						<img src="https://cdn.example.com/station-budget.png" alt="站长正文配图">
+						<p>站长正文。</p>
+						<p><a href="https://example.com/station-original">原文</a></p>
+					</div>
+				`, { status: 200 })
+			}
 			if (url === 'https://cdn.example.com/station-budget.png') {
 				logicalNow += 46_000
 				return new Response(Uint8Array.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x11]), { status: 200 })
@@ -352,8 +364,11 @@ describe('news service', () => {
 			}
 			if (url === 'https://aihot.virxact.com/items/cms-budget') {
 				return new Response(`
-					<head><meta property="og:image" content="https://cdn.example.com/aihot-budget.png"></head>
-					<body><main>仅图片元数据</main></body>
+					<head><meta property="og:image" content="https://cdn.example.com/aihot-brand-card.png"></head>
+					<div class="m-detail-html">
+						<img src="https://cdn.example.com/aihot-budget.png" alt="正文配图">
+						<p>AI HOT 正文。</p>
+					</div>
 				`, { status: 200 })
 			}
 			if (url === 'https://cdn.example.com/aihot-budget.png') {
@@ -371,6 +386,10 @@ describe('news service', () => {
 			const items = (await service.list()).items
 			expect(items.find(item => item.kind === 'rss')?.coverImage).toMatchObject({ mime: 'image/png' })
 			expect(items.find(item => item.kind === 'hot')?.coverImage).toMatchObject({ mime: 'image/png' })
+			expect(vi.mocked(globalThis.fetch).mock.calls.some(([input]) => {
+				const url = typeof input === 'string' ? input : input instanceof Request ? input.url : input.toString()
+				return url === 'https://cdn.example.com/aihot-brand-card.png'
+			})).toBe(false)
 		}
 		finally {
 			vi.restoreAllMocks()
@@ -583,43 +602,50 @@ describe('news source parsers', () => {
 		])
 	})
 
-	it('extracts the readable Zaihua article body, true source, and removes channel promotion', () => {
+	it('extracts Zaihua body images but rejects the source metadata card', () => {
 		const article = extractZaihuaArticle(`
-			<html><head><meta property="og:title" content="站长资讯标题"></head><body>
+			<html><head>
+				<meta property="og:title" content="站长资讯标题">
+				<meta property="og:image" content="/article/1/opengraph-image">
+			</head><body>
 				<article><h1><strong>站长资讯标题</strong></h1>
 				<div class="msg-prose text-[18px]">
+					<img src="/images/content-photo.png" alt="正文现场图片">
+					<img src="https://cdn.zaihua.news/emojis/custom/5861941673918994174.webp" alt="装饰表情">
 					<p>第一段。</p><p>第二段。</p>
 					<p><a href="https://news.example.com/story">腾讯新闻</a></p>
 					<p>🌸 <a href="https://t.me/ZaiHuaPd">在花频道</a> · <a href="https://t.me/zaihuachat">茶馆水群</a> · <a href="https://t.me/ZaiHuabot">投稿通道</a></p>
 				</div>
 				</article>
 			</body></html>
-		`)
+		`, 'https://www.zaihua.news/article/1/')
 		expect(article).toEqual({
 			title: '站长资讯标题',
 			bodyText: '第一段。\n\n第二段。',
-			images: [],
+			images: [{ url: 'https://www.zaihua.news/images/content-photo.png', alt: '正文现场图片' }],
 			originalUrl: 'https://news.example.com/story',
 			sourceName: '腾讯新闻',
 		})
 		expect(extractZaihuaArticle('<article><p>结构已变化</p></article>')).toBeNull()
 	})
 
-	it('extracts the full translated body from an AI HOT detail page', () => {
+	it('extracts AI HOT body images but rejects source metadata cards', () => {
 		expect(extractAiHotArticle(`
+			<head><meta property="og:image" content="/items/cms1/opengraph-image"></head>
 			<div class="m-detail-summary"><p>摘要不应被当作正文。</p></div>
 			<div id="article-body"><div class="m-detail-html">
+				<img src="/images/article-photo.webp" alt="正文产品图片">
 				<p>完整正文第一段。</p><h2>小标题</h2><p>完整正文第二段。</p>
 				<p>—— 本文由 AI HOT 聚合整理，完整版与更多 AI 动态见 https://aihot.virxact.com/items/cms1</p>
 			</div></div>
-		`)).toEqual({ bodyText: '完整正文第一段。\n\n小标题\n\n完整正文第二段。', images: [] })
+		`, 'https://aihot.virxact.com/items/cms1')).toEqual({
+			bodyText: '完整正文第一段。\n\n小标题\n\n完整正文第二段。',
+			images: [{ url: 'https://aihot.virxact.com/images/article-photo.webp', alt: '正文产品图片' }],
+		})
 		expect(extractAiHotArticle(`
 			<head><meta property="og:image" content="/items/cms1/opengraph-image"></head>
 			<body><div>没有正文结构</div></body>
-		`, 'https://aihot.virxact.com/items/cms1')).toEqual({
-			bodyText: '',
-			images: [{ url: 'https://aihot.virxact.com/items/cms1/opengraph-image', alt: null }],
-		})
+		`, 'https://aihot.virxact.com/items/cms1')).toBeNull()
 		expect(extractAiHotArticle('<div>没有正文结构</div>')).toBeNull()
 	})
 

@@ -82,6 +82,8 @@ describe('admin management UI boundaries', () => {
 		expect(news).toContain('class="news-row-image"')
 		expect(news).toContain('loading="lazy"')
 		expect(news).toContain('@error="hideBrokenImage(item.coverImage.url)"')
+		expect(news).toContain('class="news-owned-cover"')
+		expect(news).toContain('news-owned-cover-brand">fly living')
 	})
 
 	it('shows per-file partial upload results and trash restoration', async () => {
