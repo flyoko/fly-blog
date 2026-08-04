@@ -12,6 +12,7 @@ import type {
 	AnalyticsTrafficType,
 	AnalyticsVisitorsDto,
 } from '#shared/admin/analytics'
+import { formatAnalyticsLocation, localizeAnalyticsCity } from '~/utils/analytics-location'
 
 interface PanelState<T> {
 	data: T | null
@@ -114,10 +115,6 @@ function metricChange(metric: AnalyticsMetricDto | undefined): string {
 	if (metric.changePercent === 0)
 		return '与上一周期持平'
 	return `${metric.changePercent > 0 ? '↑' : '↓'} ${formatNumber(Math.abs(metric.changePercent), 1)}%`
-}
-
-function locationLabel(country: string | null, region: string | null, city: string | null): string {
-	return [country, region, city].filter(Boolean).join(' · ') || '未知地区'
 }
 
 function trafficLabel(type: AnalyticsTrafficType): string {
@@ -494,7 +491,7 @@ onBeforeUnmount(() => {
 				<div>
 					<h3>所在城市</h3><ol>
 						<li v-for="item in realtimePanel.data?.cities.slice(0, 5)" :key="item.label">
-							<span>{{ item.label }}</span><strong>{{ item.count }}</strong>
+							<span>{{ localizeAnalyticsCity(null, item.label) }}</span><strong>{{ item.count }}</strong>
 						</li>
 					</ol>
 				</div>
@@ -540,7 +537,7 @@ onBeforeUnmount(() => {
 				<table>
 					<thead><tr><th>地区</th><th>PV</th><th>UV</th></tr></thead><tbody>
 						<tr v-for="item in geoPanel.data" :key="`${item.country}-${item.region}-${item.city}`">
-							<td>{{ locationLabel(item.country, item.region, item.city) }}</td><td>{{ formatNumber(item.pageviews) }}</td><td>{{ formatNumber(item.visitors) }}</td>
+							<td>{{ formatAnalyticsLocation(item.country, item.region, item.city) }}</td><td>{{ formatNumber(item.pageviews) }}</td><td>{{ formatNumber(item.visitors) }}</td>
 						</tr>
 					</tbody>
 				</table>
@@ -613,7 +610,7 @@ onBeforeUnmount(() => {
 									{{ trafficLabel(item.trafficType) }}
 								</AdminStatusPill>
 							</div>
-						</td><td>{{ locationLabel(item.country, item.region, item.city) }}</td><td><code>{{ item.lastPath }}</code></td><td>{{ [item.device, item.browser, item.os].filter(Boolean).join(' · ') || '未知' }}</td><td>{{ item.totalPageviews }} PV<span v-if="item.trafficType === 'human'"> · {{ item.totalSessions }} 会话</span></td><td>
+						</td><td>{{ formatAnalyticsLocation(item.country, item.region, item.city) }}</td><td><code>{{ item.lastPath }}</code></td><td>{{ [item.device, item.browser, item.os].filter(Boolean).join(' · ') || '未知' }}</td><td>{{ item.totalPageviews }} PV<span v-if="item.trafficType === 'human'"> · {{ item.totalSessions }} 会话</span></td><td>
 							<div class="admin-analytics-ip-action">
 								<button class="admin-button" type="button" :disabled="ipState(item.eventId)?.loading" @click="revealIp(item.eventId)">
 									{{ ipState(item.eventId)?.value ? '隐藏完整 IP' : ipState(item.eventId)?.loading ? '读取中' : '查看完整 IP' }}

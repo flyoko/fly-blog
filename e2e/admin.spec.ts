@@ -388,7 +388,8 @@ test.describe('admin desktop workflows', () => {
 		await expect(kpiGrid.getByText('91', { exact: true }).first()).toBeVisible()
 		await expect(page.getByRole('img', { name: /访问趋势/u })).toBeVisible()
 		await expect(page.getByText('欢迎来到 fly living')).toBeVisible()
-		await expect(page.getByText('San Francisco').first()).toBeVisible()
+		await expect(page.getByText('美国 · 加利福尼亚州 · 旧金山', { exact: true }).first()).toBeVisible()
+		await expect(page.getByText('中国 · 浙江省 · 杭州市', { exact: true }).first()).toBeVisible()
 		await expect(page.getByText('203.0.113.xxx')).toBeVisible()
 
 		await page.getByRole('button', { name: '查看完整 IP' }).click()
