@@ -76,6 +76,8 @@ describe('cycle 4 polish contracts', () => {
 		expect(comment).toContain('textarea.setAttribute(\'aria-label\', \'评论内容\')')
 		expect(comment).toContain('link.setAttribute(\'aria-label\'')
 		expect(comment).toContain('new MutationObserver(enhanceTwikooAccessibility)')
+		expect(comment).toContain('.OwO-item img:not([alt])')
+		expect(comment).toContain('image.setAttribute(\'alt\', label || \'表情\')')
 		expect(toc).toMatch(/\.no-toc[\s\S]*?color: var\(--c-text-1\)/u)
 		expect(about).toMatch(/\.about-timeline time[\s\S]*?color: var\(--c-text-1\)/u)
 		expect(moments).toMatch(/\.moments-filter span[\s\S]*?color: var\(--c-text-1\)/u)

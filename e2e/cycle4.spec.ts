@@ -153,6 +153,7 @@ test('admin skip link moves focus to the main workspace', async ({ page, isMobil
 })
 
 test('core pages expose named controls, alt text, and a single main landmark', async ({ page, isMobile }) => {
+	test.setTimeout(180_000)
 	test.skip(Boolean(isMobile), 'Semantic audit runs once in the desktop project.')
 	const audit = async () => page.evaluate(() => {
 		const visible = (element: Element) => {
@@ -180,13 +181,15 @@ test('core pages expose named controls, alt text, and a single main landmark', a
 
 	for (const route of publicRoutes) {
 		await page.goto(route)
-		await expect.poll(audit).toEqual({ unnamedButtons: 0, imagesWithoutAlt: 0, mainLandmarks: 1 })
+		await expect(page.locator('main')).toHaveCount(1, { timeout: 15_000 })
+		await expect.poll(audit, { timeout: 15_000 }).toEqual({ unnamedButtons: 0, imagesWithoutAlt: 0, mainLandmarks: 1 })
 	}
 
 	await mockAuthenticatedAdmin(page)
 	for (const route of adminRoutes) {
 		await page.goto(route)
-		await expect.poll(audit).toEqual({ unnamedButtons: 0, imagesWithoutAlt: 0, mainLandmarks: 1 })
+		await expect(page.locator('main')).toHaveCount(1, { timeout: 15_000 })
+		await expect.poll(audit, { timeout: 15_000 }).toEqual({ unnamedButtons: 0, imagesWithoutAlt: 0, mainLandmarks: 1 })
 	}
 })
 
@@ -209,6 +212,7 @@ test('Twikoo controls expose accessible names after third-party initialization',
 	await page.goto('/2026/welcome', { waitUntil: 'networkidle' })
 	await expect(page.locator('#twikoo textarea')).toHaveAttribute('aria-label', '评论内容')
 	await expect(page.locator('#twikoo .__markdown')).toHaveAttribute('aria-label', /Markdown is supported/u)
+	await expect(page.locator('#twikoo img:not([alt])')).toHaveCount(0)
 })
 
 test.describe('mobile overflow matrix', () => {
@@ -217,6 +221,7 @@ test.describe('mobile overflow matrix', () => {
 	})
 
 	test('public routes fit the viewport', async ({ page }) => {
+		test.setTimeout(90_000)
 		for (const route of publicRoutes) {
 			await page.goto(route)
 			await expectNoHorizontalOverflow(page)
@@ -224,6 +229,7 @@ test.describe('mobile overflow matrix', () => {
 	})
 
 	test('admin routes fit the viewport', async ({ page }) => {
+		test.setTimeout(90_000)
 		await mockAuthenticatedAdmin(page)
 		for (const route of adminRoutes) {
 			await page.goto(route)

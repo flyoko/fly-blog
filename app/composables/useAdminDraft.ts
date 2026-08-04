@@ -1,4 +1,5 @@
 import type { ArticleDocument } from '#shared/admin/articles'
+import { toRaw } from 'vue'
 import { articleSaveRequestSchema } from '#shared/admin/articles'
 
 const draftDatabaseName = 'fly-living-admin'
@@ -71,6 +72,10 @@ export function buildArticleSaveRequest(
 	})
 }
 
+export function cloneArticleDocument(document: ArticleDocument): ArticleDocument {
+	return structuredClone(toRaw(document))
+}
+
 function openDraftDatabase(): Promise<IDBDatabase> {
 	if (!import.meta.client || !('indexedDB' in globalThis))
 		return Promise.reject(new Error('当前浏览器不支持本地草稿'))
@@ -123,12 +128,12 @@ export function useAdminDraft() {
 	async function save(document: ArticleDocument) {
 		saving.value = true
 		error.value = null
-		const draft: AdminArticleDraft = {
-			key: adminDraftKey(document.path, document.sha),
-			document: structuredClone(document),
-			updatedAt: new Date().toISOString(),
-		}
 		try {
+			const draft: AdminArticleDraft = {
+				key: adminDraftKey(document.path, document.sha),
+				document: cloneArticleDocument(document),
+				updatedAt: new Date().toISOString(),
+			}
 			await withDraftStore<IDBValidKey>('readwrite', store => store.put(draft))
 			lastSavedAt.value = draft.updatedAt
 		}

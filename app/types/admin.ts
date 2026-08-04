@@ -27,6 +27,36 @@ export function buildConfigPullRequest(
 	}
 }
 
+export function reviewCheckMeta(status: string) {
+	if (status === 'success')
+		return { label: '检查通过', tone: 'positive' as const }
+	if (status === 'pending' || status === 'queued' || status === 'in_progress')
+		return { label: '检查进行中', tone: 'warning' as const }
+	if (status === 'failure' || status === 'failed' || status === 'error')
+		return { label: '检查未通过', tone: 'danger' as const }
+	return { label: '等待检查', tone: 'neutral' as const }
+}
+
+export function reviewDeploymentMeta(status: string | null | undefined) {
+	if (status === 'success' || status === 'ready')
+		return { label: '预览可用', tone: 'positive' as const }
+	if (status === 'pending' || status === 'queued' || status === 'in_progress' || status === 'building')
+		return { label: '正在生成预览', tone: 'warning' as const }
+	if (status === 'failure' || status === 'failed' || status === 'error')
+		return { label: '预览生成失败', tone: 'danger' as const }
+	return { label: '等待预览', tone: 'neutral' as const }
+}
+
+export function reviewFileStatusLabel(status: string) {
+	if (status === 'added')
+		return '新增'
+	if (status === 'removed' || status === 'deleted')
+		return '删除'
+	if (status === 'renamed')
+		return '重命名'
+	return '修改'
+}
+
 export function publishStatusMeta(status: string) {
 	if (status === 'checks_pending')
 		return { label: '检查中', tone: 'warning' as const }

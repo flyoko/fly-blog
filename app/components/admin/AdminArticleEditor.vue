@@ -50,6 +50,15 @@ const tagsText = computed({
 	}),
 })
 
+const contentLength = computed(() => documentModel.value.body
+	.replace(/```[\s\S]*?```/gu, '')
+	.replace(/[#>*_`[\]()!~-]/gu, '')
+	.replace(/\s/gu, '')
+	.length)
+const readingMinutes = computed(() => Math.max(1, Math.ceil(contentLength.value / 400)))
+const canSave = computed(() => Boolean(documentModel.value.frontmatter.title?.trim() && documentModel.value.body.trim()))
+const directSaveLabel = computed(() => documentModel.value.frontmatter.draft ? '保存草稿' : '发布文章')
+
 function updateBody(body: string) {
 	documentModel.value = { ...documentModel.value, body }
 }
@@ -114,6 +123,16 @@ function refreshPreview(body: string) {
 	}
 }
 
+function onSaveShortcut(event: KeyboardEvent) {
+	if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 's')
+		return
+	event.preventDefault()
+	if (!props.saving && canSave.value)
+		emit('save', 'direct')
+}
+
+onMounted(() => window.addEventListener('keydown', onSaveShortcut))
+
 watch(() => documentModel.value.body, (body) => {
 	if (previewTimer)
 		clearTimeout(previewTimer)
@@ -122,6 +141,7 @@ watch(() => documentModel.value.body, (body) => {
 }, { immediate: true })
 
 onBeforeUnmount(() => {
+	window.removeEventListener('keydown', onSaveShortcut)
 	if (previewTimer)
 		clearTimeout(previewTimer)
 })
@@ -180,20 +200,26 @@ onBeforeUnmount(() => {
 		</div>
 
 		<header class="admin-editor-toolbar">
-			<div>
+			<div class="admin-editor-state">
 				<span class="admin-badge">{{ isNew ? '新文章' : '编辑文章' }}</span>
-				<small v-if="draftStatus">{{ draftStatus }}</small>
+				<span class="admin-editor-state-copy">
+					<strong>{{ documentModel.frontmatter.draft ? '仅自己可见' : '准备公开' }}</strong>
+					<small>{{ draftStatus }}</small>
+				</span>
+				<span class="admin-editor-metrics">{{ contentLength }} 字 · 约 {{ readingMinutes }} 分钟</span>
 			</div>
-			<div>
+			<div class="admin-editor-actions">
 				<button class="admin-button" type="button" @click="mediaPickerOpen = true">
 					<Icon name="tabler:photo-plus" />
 					插入媒体
 				</button>
-				<button class="admin-button" type="button" :disabled="saving" @click="emit('save', 'pull_request')">
-					创建 PR
+				<button class="admin-button" type="button" :disabled="saving || !canSave" @click="emit('save', 'pull_request')">
+					<Icon name="tabler:git-pull-request" />
+					提交审核
 				</button>
-				<button class="admin-button admin-button-primary" type="button" :disabled="saving" @click="emit('save', 'direct')">
-					{{ saving ? '正在发布…' : '直接发布' }}
+				<button class="admin-button admin-button-primary" type="button" :disabled="saving || !canSave" title="快捷键：⌘/Ctrl + S" @click="emit('save', 'direct')">
+					<Icon :name="documentModel.frontmatter.draft ? 'tabler:device-floppy' : 'tabler:send'" />
+					{{ saving ? '正在保存…' : directSaveLabel }}
 				</button>
 			</div>
 		</header>

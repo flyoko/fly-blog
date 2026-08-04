@@ -1,15 +1,19 @@
 <script setup lang="ts">
+import type {
+	CategoriesConfig,
+	FooterConfig,
+	NavigationConfig,
+	WeatherConfig,
+} from '#shared/admin/site-config'
 import type { WeatherCity } from '#shared/admin/weather'
 import type { AdminConfigKind } from '~/types/admin'
 import footerSource from '~~/config/site/footer.json'
-import modulesSource from '~~/config/site/modules.json'
 import navigationSource from '~~/config/site/navigation.json'
 import weatherSource from '~~/config/site/weather.json'
 import categoriesSource from '~~/config/taxonomy/categories.json'
 import {
 	categoriesConfigSchema,
 	footerConfigSchema,
-	modulesConfigSchema,
 	navigationConfigSchema,
 	weatherConfigSchema,
 } from '#shared/admin/site-config'
@@ -22,22 +26,23 @@ interface PullRequestResult {
 	resourcePath: string
 }
 
-const tabs: Array<{ kind: AdminConfigKind, label: string, description: string }> = [
-	{ kind: 'categories', label: '分类', description: '文章分类名称、图标和颜色。' },
-	{ kind: 'navigation', label: '导航', description: '公开博客左侧导航结构。' },
-	{ kind: 'footer', label: '页脚', description: '社交、主题和源码入口开关。' },
-	{ kind: 'modules', label: '模块', description: '公开模块的显示状态与顺序。' },
-	{ kind: 'weather', label: '天气', description: '搜索并选择站长固定城市，不读取访客定位。' },
+type SettingsKind = Extract<AdminConfigKind, 'categories' | 'navigation' | 'footer' | 'modules' | 'weather'>
+type NavigationItem = NavigationConfig[number]['items'][number]
+type FooterItem = FooterConfig['iconNav'][number]
+
+const tabs: Array<{ kind: SettingsKind, label: string, description: string, icon: string }> = [
+	{ kind: 'categories', label: '分类', description: '整理文章使用的分类名称、图标和颜色。', icon: 'tabler:category' },
+	{ kind: 'navigation', label: '导航', description: '决定访客在左侧菜单里看到什么。', icon: 'tabler:menu-2' },
+	{ kind: 'footer', label: '页脚', description: '维护社交方式、订阅和站点信息。', icon: 'tabler:layout-bottombar' },
+	{ kind: 'modules', label: '模块', description: '控制天气、音乐等功能的启用与顺序。', icon: 'tabler:layout-grid' },
+	{ kind: 'weather', label: '天气', description: '选择公开展示的固定城市。', icon: 'ri:sun-cloudy-line' },
 ]
 
-const selected = ref<AdminConfigKind>('categories')
-const categories = ref(categoriesConfigSchema.parse(structuredClone(categoriesSource) as unknown))
-const weather = reactive(weatherConfigSchema.parse(structuredClone(weatherSource) as unknown))
-const rawConfigs = reactive<Record<string, string>>({
-	navigation: JSON.stringify(navigationSource, null, 2),
-	footer: JSON.stringify(footerSource, null, 2),
-	modules: JSON.stringify(modulesSource, null, 2),
-})
+const selected = ref<SettingsKind>('categories')
+const categories = ref<CategoriesConfig>(categoriesConfigSchema.parse(structuredClone(categoriesSource) as unknown))
+const navigation = ref<NavigationConfig>(navigationConfigSchema.parse(structuredClone(navigationSource) as unknown))
+const footer = ref<FooterConfig>(footerConfigSchema.parse(structuredClone(footerSource) as unknown))
+const weather = reactive<WeatherConfig>(weatherConfigSchema.parse(structuredClone(weatherSource) as unknown))
 const saving = ref(false)
 const error = ref<string | null>(null)
 const result = ref<PullRequestResult | null>(null)
@@ -46,27 +51,105 @@ const cityResults = ref<WeatherCity[]>([])
 const citySearching = ref(false)
 const citySearchError = ref<string | null>(null)
 
+const currentTab = computed(() => tabs.find(tab => tab.kind === selected.value) ?? tabs[0]!)
+const createButtonLabel = computed(() => ({
+	categories: '创建分类 PR',
+	navigation: '创建导航 PR',
+	footer: '创建页脚 PR',
+	weather: '创建天气 PR',
+	modules: '前往模块管理',
+})[selected.value])
+
 useSeoMeta({ title: '站点设置', robots: 'noindex, nofollow' })
+
+watch(selected, () => {
+	error.value = null
+	result.value = null
+})
+
+function newConfigId(prefix: string) {
+	return `${prefix}-${crypto.randomUUID().slice(0, 8).toLowerCase()}`
+}
 
 function addCategory() {
 	categories.value.push({ name: '新分类', icon: 'tabler:folder', color: '#5f9ea0' })
 }
 
 function removeCategory(index: number) {
-	categories.value.splice(index, 1)
+	if (categories.value.length > 1)
+		categories.value.splice(index, 1)
+}
+
+function move<T>(items: T[], index: number, direction: -1 | 1) {
+	const target = index + direction
+	if (target < 0 || target >= items.length)
+		return
+	const item = items[index]!
+	items[index] = items[target]!
+	items[target] = item
+}
+
+function addNavigationGroup() {
+	navigation.value.push({
+		id: newConfigId('nav-group'),
+		title: '新分组',
+		items: [],
+	})
+}
+
+function addNavigationItem(groupIndex: number) {
+	const item: NavigationItem = {
+		id: newConfigId('nav-item'),
+		icon: 'tabler:link',
+		text: '新入口',
+		url: '/',
+	}
+	navigation.value[groupIndex]?.items.push(item)
+}
+
+function addFooterIcon() {
+	const item: FooterItem = {
+		id: newConfigId('footer-icon'),
+		icon: 'tabler:link',
+		text: '新快捷入口',
+		url: '/',
+	}
+	footer.value.iconNav.push(item)
+}
+
+function addFooterGroup() {
+	footer.value.nav.push({
+		id: newConfigId('footer-group'),
+		title: '新分组',
+		items: [],
+	})
+}
+
+function addFooterLink(groupIndex: number) {
+	const item: FooterItem = {
+		id: newConfigId('footer-link'),
+		icon: 'tabler:link',
+		text: '新链接',
+		url: '/',
+	}
+	footer.value.nav[groupIndex]?.items.push(item)
 }
 
 async function searchCities() {
+	if (cityQuery.value.trim().length < 2) {
+		citySearchError.value = '至少输入两个字，再开始搜索。'
+		return
+	}
 	citySearching.value = true
 	citySearchError.value = null
 	cityResults.value = []
 	try {
-		const result = await useAdminApi<{ items: WeatherCity[] }>('/api/admin/weather/search', {
+		const response = await useAdminApi<{ items: WeatherCity[] }>('/api/admin/weather/search', {
 			query: { query: cityQuery.value },
 		})
-		cityResults.value = result.items
-		if (!result.items.length)
-			citySearchError.value = '没有找到匹配城市，请尝试更完整的名称。'
+		cityResults.value = response.items
+		if (!response.items.length)
+			citySearchError.value = '没有找到匹配城市，换一个更完整的名称试试。'
 	}
 	catch (cause) {
 		citySearchError.value = cause instanceof Error ? cause.message : '城市搜索失败'
@@ -89,22 +172,20 @@ function chooseCity(city: WeatherCity) {
 function currentContent() {
 	if (selected.value === 'categories')
 		return categoriesConfigSchema.parse(categories.value)
+	if (selected.value === 'navigation')
+		return navigationConfigSchema.parse(navigation.value)
+	if (selected.value === 'footer')
+		return footerConfigSchema.parse(footer.value)
 	if (selected.value === 'weather')
 		return weatherConfigSchema.parse(weather)
-	const raw = rawConfigs[selected.value] as string | undefined
-	if (typeof raw !== 'string')
-		throw new Error('当前配置暂不可编辑')
-	const parsed = JSON.parse(raw)
-	if (selected.value === 'navigation')
-		return navigationConfigSchema.parse(parsed)
-	if (selected.value === 'footer')
-		return footerConfigSchema.parse(parsed)
-	if (selected.value === 'modules')
-		return modulesConfigSchema.parse(parsed)
-	throw new Error('当前配置暂不可编辑')
+	throw new Error('模块配置请在“模块管理”中调整。')
 }
 
 async function createPullRequest() {
+	if (selected.value === 'modules') {
+		await navigateTo('/admin/modules')
+		return
+	}
 	saving.value = true
 	error.value = null
 	result.value = null
@@ -132,13 +213,13 @@ async function createPullRequest() {
 <section>
 	<header class="admin-page-heading">
 		<div>
-			<span class="admin-badge">高影响配置</span>
+			<span class="admin-badge">站点外观与入口</span>
 			<h1>站点设置</h1>
-			<p>这些修改不会直接写入生产分支，而是创建 Pull Request 并等待预览和检查。</p>
+			<p>像整理内容一样调整站点。创建配置 PR 后，可以先看预览，再决定是否合并。</p>
 		</div>
 		<button class="admin-button admin-button-primary" type="button" :disabled="saving" @click="createPullRequest">
-			<Icon name="tabler:git-pull-request" />
-			{{ saving ? '正在创建…' : '创建配置 PR' }}
+			<Icon :name="selected === 'modules' ? 'tabler:arrow-right' : 'tabler:git-pull-request'" />
+			{{ saving ? '正在创建…' : createButtonLabel }}
 		</button>
 	</header>
 
@@ -148,7 +229,7 @@ async function createPullRequest() {
 	<div v-if="result" class="admin-success admin-pr-result">
 		<div>
 			<strong>Pull Request #{{ result.pullRequestNumber }} 已创建</strong>
-			<span>{{ result.resourcePath }} · {{ result.branch }}</span>
+			<span>{{ result.resourcePath }} · {{ result.branch }} · 可以前往发布与审核查看预览</span>
 		</div>
 		<a class="admin-button" :href="result.pullRequestUrl" target="_blank" rel="noopener">查看 PR</a>
 	</div>
@@ -163,16 +244,16 @@ async function createPullRequest() {
 				type="button"
 				@click="selected = tab.kind"
 			>
-				<strong>{{ tab.label }}</strong>
-				<span>{{ tab.description }}</span>
+				<Icon :name="tab.icon" />
+				<span><strong>{{ tab.label }}</strong><small>{{ tab.description }}</small></span>
 			</button>
 		</nav>
 
 		<section class="admin-panel admin-settings-editor">
 			<header class="admin-panel-header">
 				<div>
-					<h2>{{ tabs.find(tab => tab.kind === selected)?.label }}</h2>
-					<p>{{ tabs.find(tab => tab.kind === selected)?.description }}</p>
+					<h2>{{ currentTab.label }}</h2>
+					<p>{{ currentTab.description }}</p>
 				</div>
 			</header>
 
@@ -181,7 +262,7 @@ async function createPullRequest() {
 					<label class="admin-field"><span>名称</span><input v-model="category.name" type="text"></label>
 					<label class="admin-field"><span>图标</span><input v-model="category.icon" type="text"></label>
 					<label class="admin-field"><span>颜色</span><input v-model="category.color" type="text"></label>
-					<button class="admin-icon-button" type="button" aria-label="删除分类" @click="removeCategory(index)">
+					<button class="admin-icon-button" type="button" aria-label="删除分类" :disabled="categories.length <= 1" @click="removeCategory(index)">
 						<Icon name="tabler:trash" />
 					</button>
 				</div>
@@ -191,10 +272,156 @@ async function createPullRequest() {
 				</button>
 			</div>
 
-			<div v-else-if="selected === 'weather'" class="admin-weather-editor">
+			<div v-else-if="selected === 'navigation'" class="admin-visual-config">
+				<div class="admin-config-intro">
+					<div><Icon name="tabler:route" /><span><strong>导航菜单</strong><small>按访客浏览网站时的顺序排列。</small></span></div>
+					<button class="admin-button" type="button" @click="addNavigationGroup">
+						<Icon name="tabler:plus" />添加分组
+					</button>
+				</div>
+				<section v-for="(group, groupIndex) in navigation" :key="group.id" class="admin-config-group">
+					<header>
+						<label class="admin-field"><span>分组标题</span><input v-model="group.title" type="text" placeholder="主导航可留空"></label>
+						<div class="admin-config-order">
+							<button class="admin-icon-button" type="button" aria-label="上移导航分组" :disabled="groupIndex === 0" @click="move(navigation, groupIndex, -1)">
+								<Icon name="tabler:arrow-up" />
+							</button>
+							<button class="admin-icon-button" type="button" aria-label="下移导航分组" :disabled="groupIndex === navigation.length - 1" @click="move(navigation, groupIndex, 1)">
+								<Icon name="tabler:arrow-down" />
+							</button>
+							<button class="admin-icon-button" type="button" aria-label="删除导航分组" :disabled="navigation.length <= 1" @click="navigation.splice(groupIndex, 1)">
+								<Icon name="tabler:trash" />
+							</button>
+						</div>
+					</header>
+					<div class="admin-config-items">
+						<article v-for="(item, itemIndex) in group.items" :key="item.id" class="admin-config-item">
+							<div class="admin-config-item-icon">
+								<Icon :name="item.icon" />
+							</div>
+							<label class="admin-field"><span>显示文字</span><input v-model="item.text" type="text"></label>
+							<label class="admin-field"><span>链接地址</span><input v-model="item.url" type="text"></label>
+							<label class="admin-field"><span>图标</span><input v-model="item.icon" type="text"></label>
+							<div class="admin-config-order">
+								<button class="admin-icon-button" type="button" aria-label="上移导航项" :disabled="itemIndex === 0" @click="move(group.items, itemIndex, -1)">
+									<Icon name="tabler:arrow-up" />
+								</button>
+								<button class="admin-icon-button" type="button" aria-label="下移导航项" :disabled="itemIndex === group.items.length - 1" @click="move(group.items, itemIndex, 1)">
+									<Icon name="tabler:arrow-down" />
+								</button>
+								<button class="admin-icon-button" type="button" aria-label="删除导航项" @click="group.items.splice(itemIndex, 1)">
+									<Icon name="tabler:trash" />
+								</button>
+							</div>
+						</article>
+					</div>
+					<button class="admin-button" type="button" @click="addNavigationItem(groupIndex)">
+						<Icon name="tabler:plus" />添加导航项
+					</button>
+				</section>
+			</div>
+
+			<div v-else-if="selected === 'footer'" class="admin-visual-config">
+				<div class="admin-config-intro">
+					<div><Icon name="tabler:layout-bottombar" /><span><strong>页脚内容</strong><small>维护访客能找到的联系方式和站点入口。</small></span></div>
+				</div>
+				<div class="admin-config-switches">
+					<label class="admin-switch-row"><input v-model="footer.showPersonalGitHub" type="checkbox"><span><strong>显示个人 GitHub</strong><small>保留个人主页快捷入口</small></span></label>
+					<label class="admin-switch-row"><input v-model="footer.showThemeSource" type="checkbox"><span><strong>显示主题来源</strong><small>在信息分组展示主题仓库</small></span></label>
+					<label class="admin-switch-row"><input v-model="footer.showSiteSource" type="checkbox"><span><strong>显示本站源码</strong><small>在信息分组展示博客仓库</small></span></label>
+				</div>
+
+				<section class="admin-config-group">
+					<header><div><strong>侧栏快捷入口</strong><small>显示在主题切换按钮下方。</small></div></header>
+					<div class="admin-config-items">
+						<article v-for="(item, itemIndex) in footer.iconNav" :key="item.id" class="admin-config-item">
+							<div class="admin-config-item-icon">
+								<Icon :name="item.icon" />
+							</div>
+							<label class="admin-field"><span>显示文字</span><input v-model="item.text" type="text"></label>
+							<label class="admin-field"><span>链接地址</span><input v-model="item.url" type="text"></label>
+							<label class="admin-field"><span>图标</span><input v-model="item.icon" type="text"></label>
+							<div class="admin-config-order">
+								<button class="admin-icon-button" type="button" aria-label="上移快捷入口" :disabled="itemIndex === 0" @click="move(footer.iconNav, itemIndex, -1)">
+									<Icon name="tabler:arrow-up" />
+								</button>
+								<button class="admin-icon-button" type="button" aria-label="下移快捷入口" :disabled="itemIndex === footer.iconNav.length - 1" @click="move(footer.iconNav, itemIndex, 1)">
+									<Icon name="tabler:arrow-down" />
+								</button>
+								<button class="admin-icon-button" type="button" aria-label="删除快捷入口" @click="footer.iconNav.splice(itemIndex, 1)">
+									<Icon name="tabler:trash" />
+								</button>
+							</div>
+						</article>
+					</div>
+					<button class="admin-button" type="button" @click="addFooterIcon">
+						<Icon name="tabler:plus" />添加快捷入口
+					</button>
+				</section>
+
+				<div class="admin-config-intro admin-config-intro-compact">
+					<div><span><strong>页脚分组</strong><small>每个分组可以放订阅、社交或其他链接。</small></span></div>
+					<button class="admin-button" type="button" @click="addFooterGroup">
+						<Icon name="tabler:plus" />添加分组
+					</button>
+				</div>
+				<section v-for="(group, groupIndex) in footer.nav" :key="group.id" class="admin-config-group">
+					<header>
+						<label class="admin-field"><span>分组标题</span><input v-model="group.title" type="text"></label>
+						<div class="admin-config-order">
+							<button class="admin-icon-button" type="button" aria-label="上移页脚分组" :disabled="groupIndex === 0" @click="move(footer.nav, groupIndex, -1)">
+								<Icon name="tabler:arrow-up" />
+							</button>
+							<button class="admin-icon-button" type="button" aria-label="下移页脚分组" :disabled="groupIndex === footer.nav.length - 1" @click="move(footer.nav, groupIndex, 1)">
+								<Icon name="tabler:arrow-down" />
+							</button>
+							<button class="admin-icon-button" type="button" aria-label="删除页脚分组" @click="footer.nav.splice(groupIndex, 1)">
+								<Icon name="tabler:trash" />
+							</button>
+						</div>
+					</header>
+					<div class="admin-config-items">
+						<article v-for="(item, itemIndex) in group.items" :key="item.id" class="admin-config-item">
+							<div class="admin-config-item-icon">
+								<Icon :name="item.icon" />
+							</div>
+							<label class="admin-field"><span>显示文字</span><input v-model="item.text" type="text"></label>
+							<label class="admin-field"><span>链接地址</span><input v-model="item.url" type="text"></label>
+							<label class="admin-field"><span>图标</span><input v-model="item.icon" type="text"></label>
+							<div class="admin-config-order">
+								<button class="admin-icon-button" type="button" aria-label="上移页脚链接" :disabled="itemIndex === 0" @click="move(group.items, itemIndex, -1)">
+									<Icon name="tabler:arrow-up" />
+								</button>
+								<button class="admin-icon-button" type="button" aria-label="下移页脚链接" :disabled="itemIndex === group.items.length - 1" @click="move(group.items, itemIndex, 1)">
+									<Icon name="tabler:arrow-down" />
+								</button>
+								<button class="admin-icon-button" type="button" aria-label="删除页脚链接" @click="group.items.splice(itemIndex, 1)">
+									<Icon name="tabler:trash" />
+								</button>
+							</div>
+						</article>
+					</div>
+					<button class="admin-button" type="button" @click="addFooterLink(groupIndex)">
+						<Icon name="tabler:plus" />添加页脚链接
+					</button>
+				</section>
+			</div>
+
+			<div v-else-if="selected === 'modules'" class="admin-settings-guidance">
+				<div class="admin-settings-guidance-icon">
+					<Icon name="tabler:layout-grid" />
+				</div>
+				<h2>模块有自己的可视化工作台</h2>
+				<p>在那里可以启用天气和随心听、调整公开导航顺序，并在部署后重新读取生产状态。</p>
+				<NuxtLink class="admin-button admin-button-primary" to="/admin/modules">
+					<Icon name="tabler:arrow-right" />前往模块管理
+				</NuxtLink>
+			</div>
+
+			<div v-else class="admin-weather-editor">
 				<label class="admin-weather-toggle">
 					<input v-model="weather.enabled" type="checkbox">
-					<div><strong>启用城市天气</strong><span>公开博客只展示这个固定城市，不请求访客定位。</span></div>
+					<div><strong>启用城市天气</strong><span>公开博客只展示这个固定城市，不读取访客定位。</span></div>
 				</label>
 
 				<form class="admin-weather-search" @submit.prevent="searchCities">
@@ -225,20 +452,161 @@ async function createPullRequest() {
 					<div><span>数据源</span><strong>Open-Meteo</strong></div>
 				</div>
 			</div>
-
-			<label v-else class="admin-field admin-field-grow">
-				<span>结构化 JSON</span>
-				<textarea v-model="rawConfigs[selected]" class="admin-json-editor" spellcheck="false" />
-			</label>
 		</section>
 	</div>
 </section>
 </template>
 
 <style scoped lang="scss">
+.admin-settings-nav-item {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr);
+	align-items: start;
+	gap: 0.65rem;
+}
+
+.admin-settings-nav-item > .iconify {
+	margin-top: 0.1rem;
+	font-size: 1.05rem;
+}
+
+.admin-settings-nav-item small {
+	display: block;
+	margin-top: 0.28rem;
+	font-size: 0.65rem;
+	font-weight: 400;
+	line-height: 1.5;
+}
+
+.admin-visual-config,
+.admin-config-items,
 .admin-weather-editor {
 	display: grid;
 	gap: 1rem;
+}
+
+.admin-config-intro,
+.admin-config-group > header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+}
+
+.admin-config-intro > div,
+.admin-config-group > header > div:first-child {
+	display: flex;
+	align-items: center;
+	gap: 0.65rem;
+}
+
+.admin-config-intro strong,
+.admin-config-intro small,
+.admin-config-group header strong,
+.admin-config-group header small {
+	display: block;
+}
+
+.admin-config-intro small,
+.admin-config-group header small {
+	margin-top: 0.2rem;
+	font-size: 0.7rem;
+	color: var(--admin-muted);
+}
+
+.admin-config-intro-compact {
+	margin-top: 0.5rem;
+}
+
+.admin-config-group {
+	display: grid;
+	gap: 0.85rem;
+	padding: 1rem;
+	border: 1px solid var(--admin-border);
+	border-radius: 1rem;
+	background: var(--admin-surface-soft);
+}
+
+.admin-config-group > header > .admin-field {
+	flex: 1;
+	margin: 0;
+}
+
+.admin-config-item {
+	display: grid;
+	grid-template-columns: auto minmax(7rem, 0.8fr) minmax(10rem, 1.4fr) minmax(8rem, 1fr) auto;
+	align-items: end;
+	gap: 0.65rem;
+	padding: 0.8rem;
+	border: 1px solid var(--admin-border);
+	border-radius: 0.85rem;
+	background: var(--admin-surface);
+}
+
+.admin-config-item .admin-field {
+	margin: 0;
+}
+
+.admin-config-item-icon {
+	display: grid;
+	place-items: center;
+	width: 2.7rem;
+	height: 2.7rem;
+	border-radius: 0.75rem;
+	background: var(--admin-accent-soft);
+	font-size: 1.15rem;
+	color: var(--admin-accent-strong);
+}
+
+.admin-config-order {
+	display: flex;
+	gap: 0.3rem;
+}
+
+.admin-config-order .admin-icon-button {
+	width: 2.25rem;
+	height: 2.25rem;
+}
+
+.admin-config-switches {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 0.65rem;
+}
+
+.admin-config-switches .admin-switch-row {
+	margin: 0;
+}
+
+.admin-settings-guidance {
+	display: grid;
+	place-items: center;
+	min-height: 28rem;
+	text-align: center;
+}
+
+.admin-settings-guidance-icon {
+	display: grid;
+	place-items: center;
+	width: 4rem;
+	height: 4rem;
+	border-radius: 1.2rem;
+	background: var(--admin-accent-soft);
+	font-size: 2rem;
+	color: var(--admin-accent-strong);
+}
+
+.admin-settings-guidance h2 {
+	margin: 1rem 0 0;
+	font-family: "Noto Serif SC", serif;
+}
+
+.admin-settings-guidance p {
+	max-width: 34rem;
+	margin: 0.65rem 0 1.2rem;
+	font-size: 0.82rem;
+	line-height: 1.7;
+	color: var(--admin-muted);
 }
 
 .admin-weather-toggle {
@@ -269,7 +637,8 @@ async function createPullRequest() {
 	gap: 0.75rem;
 }
 
-.admin-weather-results {
+.admin-weather-results,
+.admin-weather-selected {
 	display: grid;
 	grid-template-columns: repeat(2, minmax(0, 1fr));
 	gap: 0.6rem;
@@ -282,6 +651,7 @@ async function createPullRequest() {
 	border: 1px solid var(--admin-border);
 	border-radius: 0.8rem;
 	background: var(--admin-surface);
+	font: inherit;
 	text-align: start;
 	color: inherit;
 	cursor: pointer;
@@ -292,12 +662,6 @@ async function createPullRequest() {
 	border-color: var(--admin-accent);
 }
 
-.admin-weather-selected {
-	display: grid;
-	grid-template-columns: repeat(2, minmax(0, 1fr));
-	gap: 0.75rem;
-}
-
 .admin-weather-selected > div {
 	display: grid;
 	gap: 0.25rem;
@@ -306,15 +670,37 @@ async function createPullRequest() {
 	background: var(--admin-surface-soft);
 }
 
-@media (max-width: 720px) {
+@media (max-width: 1180px) {
+	.admin-config-item {
+		grid-template-columns: auto 1fr 1.4fr;
+	}
+
+	.admin-config-item > :nth-child(4) {
+		grid-column: 2 / 3;
+	}
+}
+
+@media (max-width: 760px) {
+	.admin-config-intro,
+	.admin-config-group > header,
 	.admin-weather-search {
 		flex-direction: column;
 		align-items: stretch;
 	}
 
+	.admin-config-item,
+	.admin-config-switches,
 	.admin-weather-results,
 	.admin-weather-selected {
 		grid-template-columns: 1fr;
+	}
+
+	.admin-config-item-icon {
+		display: none;
+	}
+
+	.admin-config-item > :nth-child(4) {
+		grid-column: auto;
 	}
 }
 </style>

@@ -6,6 +6,7 @@ import type {
 	PullRequestFileDto,
 } from '#shared/admin/publishing'
 import type { AdminPublishRunDto } from '~/types/admin'
+import { reviewCheckMeta, reviewDeploymentMeta, reviewFileStatusLabel } from '~/types/admin'
 
 interface PullRequestDetail {
 	run: AdminPublishRunDto | null
@@ -26,11 +27,21 @@ const mergeConfirmOpen = ref(false)
 const error = ref<string | null>(null)
 const selected = ref<AdminPublishRunDto | null>(null)
 const detail = ref<PullRequestDetail | null>(null)
+const lastUpdatedAt = ref<string | null>(null)
+let refreshTimer: ReturnType<typeof setInterval> | undefined
+
+const checkMeta = computed(() => reviewCheckMeta(detail.value?.checks.status ?? ''))
+const deploymentMeta = computed(() => reviewDeploymentMeta(detail.value?.deployment?.status))
+const hasPendingRuns = computed(() => runs.value.some(run => ['checks_pending', 'queued', 'in_progress', 'pending'].includes(run.status)))
+const updateLabel = computed(() => lastUpdatedAt.value
+	? `最近更新 ${new Date(lastUpdatedAt.value).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`
+	: '正在读取最新状态')
 
 useSeoMeta({ title: '发布与审核', robots: 'noindex, nofollow' })
 
-async function load() {
-	loading.value = true
+async function load(silent = false) {
+	if (!silent)
+		loading.value = true
 	error.value = null
 	try {
 		const result = await useAdminApi<{ items: AdminPublishRunDto[], total: number }>('/api/admin/publishing/runs', {
@@ -38,15 +49,16 @@ async function load() {
 		})
 		runs.value = result.items
 		total.value = result.total
-		if (selected.value) {
+		if (selected.value)
 			selected.value = runs.value.find(run => run.id === selected.value?.id) ?? null
-		}
+		lastUpdatedAt.value = new Date().toISOString()
 	}
 	catch (cause) {
 		error.value = cause instanceof Error ? cause.message : '发布记录加载失败'
 	}
 	finally {
-		loading.value = false
+		if (!silent)
+			loading.value = false
 	}
 }
 
@@ -66,6 +78,12 @@ async function inspect(run: AdminPublishRunDto) {
 	finally {
 		detailLoading.value = false
 	}
+}
+
+async function refreshStatus(silent = false) {
+	await load(silent)
+	if (selected.value?.pullNumber)
+		await inspect(selected.value)
 }
 
 function requestMerge() {
@@ -99,7 +117,18 @@ async function merge() {
 	}
 }
 
-onMounted(load)
+onMounted(() => {
+	void load()
+	refreshTimer = setInterval(() => {
+		if (hasPendingRuns.value && document.visibilityState === 'visible')
+			void refreshStatus(true)
+	}, 15_000)
+})
+
+onBeforeUnmount(() => {
+	if (refreshTimer)
+		clearInterval(refreshTimer)
+})
 </script>
 
 <template>
@@ -108,12 +137,15 @@ onMounted(load)
 		<div>
 			<span class="admin-badge">发布流水线</span>
 			<h1>发布与审核</h1>
-			<p>查看直接发布、配置 Pull Request、检查结果和预览部署。</p>
+			<p>系统会自动跟进检查和预览，只有全部通过后才会允许合并。</p>
 		</div>
-		<button class="admin-button" type="button" @click="load">
-			<Icon name="tabler:refresh" />
-			刷新状态
-		</button>
+		<div class="admin-review-heading-actions">
+			<small>{{ updateLabel }}{{ hasPendingRuns ? ' · 自动跟进中' : '' }}</small>
+			<button class="admin-button" type="button" :disabled="loading" @click="refreshStatus()">
+				<Icon name="tabler:refresh" />
+				{{ loading ? '正在更新…' : '立即更新' }}
+			</button>
+		</div>
 	</header>
 
 	<p v-if="error" class="admin-error">
@@ -150,8 +182,8 @@ onMounted(load)
 			<template v-else-if="detail">
 				<div class="admin-review-summary">
 					<div><span>Pull Request</span><strong>#{{ detail.pullRequest.number }}</strong></div>
-					<div><span>检查</span><strong>{{ detail.checks.status }}</strong></div>
-					<div><span>预览</span><strong>{{ detail.deployment?.status || '缺失' }}</strong></div>
+					<div><span>自动检查</span><strong class="admin-status-pill" :data-tone="checkMeta.tone">{{ checkMeta.label }}</strong></div>
+					<div><span>预览站点</span><strong class="admin-status-pill" :data-tone="deploymentMeta.tone">{{ deploymentMeta.label }}</strong></div>
 				</div>
 				<div class="admin-review-meta">
 					<div><span>目标分支</span><code>{{ detail.pullRequest.baseBranch }}</code></div>
@@ -166,7 +198,7 @@ onMounted(load)
 					<article v-for="file in detail.files" :key="file.filename" class="admin-review-file">
 						<div class="admin-review-file-header">
 							<code>{{ file.filename }}</code>
-							<span>{{ file.status }} · <b>+{{ file.additions }}</b> / <i>-{{ file.deletions }}</i></span>
+							<span>{{ reviewFileStatusLabel(file.status) }} · <b>+{{ file.additions }}</b> / <i>-{{ file.deletions }}</i></span>
 						</div>
 						<pre v-if="file.patch">{{ file.patch }}</pre>
 						<p v-else>
@@ -180,9 +212,13 @@ onMounted(load)
 				</div>
 				<p v-if="!detail.canMerge" class="admin-review-blocked">
 					<Icon name="tabler:shield-x" />
-					检查与预览尚未通过，当前不能合并。{{ detail.reason ? `原因：${detail.reason}` : '' }}
+					<span><strong>还需要等待</strong>检查与预览尚未通过，当前不能合并。{{ detail.reason ? `原因：${detail.reason}` : '' }}</span>
 				</p>
-				<button v-else class="admin-button admin-button-primary admin-merge-button" type="button" :disabled="merging" @click="requestMerge">
+				<p v-else class="admin-review-ready">
+					<Icon name="tabler:shield-check" />
+					<span><strong>可以安全合并</strong>自动检查和预览都已通过，下一步会把这次变更发布到正式站点。</span>
+				</p>
+				<button v-if="detail.canMerge" class="admin-button admin-button-primary admin-merge-button" type="button" :disabled="merging" @click="requestMerge">
 					<Icon name="tabler:git-merge" />
 					{{ merging ? '正在合并…' : '确认合并' }}
 				</button>
