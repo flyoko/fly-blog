@@ -55,12 +55,16 @@ export interface PublishingRepositoryPort extends ArticleRepositoryPort {
 	getPullRequest: (number: number) => Promise<PullRequestDto>
 	getPullRequestFiles: (number: number) => Promise<PullRequestFileDto[]>
 	getChecks: (ref: string) => Promise<CheckSummaryDto>
+	getCommitChangeCount: (ref: string) => Promise<number>
 	getDeployment: (ref: string) => Promise<DeploymentDto | null>
 	mergePullRequest: (number: number, expectedHeadSha: string) => Promise<{ merged: boolean, sha?: string }>
 }
 
-export interface PullRequestStatusRepositoryPort {
+export interface PublishingStatusRepositoryPort {
 	getPullRequest: (number: number) => Promise<PullRequestDto>
+	getChecks: (ref: string) => Promise<CheckSummaryDto>
+	getCommitChangeCount: (ref: string) => Promise<number>
+	getDeployment: (ref: string) => Promise<DeploymentDto | null>
 }
 
 export interface PullRequestPublishResult {
@@ -97,10 +101,93 @@ export type MergeBlockReason
 		| 'merge_rejected'
 
 const activePullRequestStatuses = new Set(['created', 'commit_created', 'checks_pending', 'preview_ready'])
+const activeDirectStatuses = new Set(['created', 'commit_created', 'checks_pending'])
 
-async function reconcilePublishRun(
+async function updateReconciledRun(
 	publishRepository: PublishRepository,
-	repository: PullRequestStatusRepositoryPort,
+	run: PublishRunRow,
+	input: {
+		status: string
+		deploymentUrl?: string | null
+		errorCode?: string | null
+		errorMessage?: string | null
+	},
+): Promise<PublishRunRow> {
+	const deploymentUrl = 'deploymentUrl' in input ? input.deploymentUrl ?? null : run.deploymentUrl
+	const errorCode = 'errorCode' in input ? input.errorCode ?? null : run.errorCode
+	const errorMessage = 'errorMessage' in input ? input.errorMessage ?? null : run.errorMessage
+	if (
+		run.status === input.status
+		&& run.deploymentUrl === deploymentUrl
+		&& run.errorCode === errorCode
+		&& run.errorMessage === errorMessage
+	) {
+		return run
+	}
+	const updatedAt = new Date().toISOString()
+	await publishRepository.updateRun(run.id, {
+		status: input.status,
+		deploymentUrl,
+		errorCode,
+		errorMessage,
+		updatedAt,
+	})
+	return { ...run, ...input, deploymentUrl, errorCode, errorMessage, updatedAt }
+}
+
+async function reconcileDirectPublishRun(
+	publishRepository: PublishRepository,
+	repository: PublishingStatusRepositoryPort,
+	run: PublishRunRow,
+): Promise<PublishRunRow> {
+	if (run.kind !== 'direct' || !run.commitSha || !activeDirectStatuses.has(run.status))
+		return run
+
+	const [checks, deployment] = await Promise.all([
+		repository.getChecks(run.commitSha),
+		repository.getDeployment(run.commitSha),
+	])
+	if (deployment?.status === 'success') {
+		return updateReconciledRun(publishRepository, run, {
+			status: 'published',
+			deploymentUrl: deployment.url,
+			errorCode: null,
+			errorMessage: null,
+		})
+	}
+	if (deployment?.status === 'failure') {
+		return updateReconciledRun(publishRepository, run, {
+			status: 'failed',
+			deploymentUrl: deployment.url,
+			errorCode: 'DEPLOYMENT_FAILED',
+			errorMessage: 'Production deployment failed',
+		})
+	}
+	if (checks.status === 'failure') {
+		return updateReconciledRun(publishRepository, run, {
+			status: 'failed',
+			deploymentUrl: deployment?.url ?? run.deploymentUrl,
+			errorCode: 'CHECKS_FAILED',
+			errorMessage: 'Repository checks failed',
+		})
+	}
+	if (checks.total === 0 && !deployment) {
+		const changeCount = await repository.getCommitChangeCount(run.commitSha)
+		if (changeCount === 0) {
+			return updateReconciledRun(publishRepository, run, {
+				status: 'published',
+				deploymentUrl: null,
+				errorCode: null,
+				errorMessage: null,
+			})
+		}
+	}
+	return updateReconciledRun(publishRepository, run, { status: 'checks_pending' })
+}
+
+async function reconcilePullRequestRun(
+	publishRepository: PublishRepository,
+	repository: PublishingStatusRepositoryPort,
 	run: PublishRunRow,
 	pullRequest?: PullRequestDto,
 ): Promise<PublishRunRow> {
@@ -118,17 +205,25 @@ async function reconcilePublishRun(
 		: current.state === 'closed'
 			? 'closed'
 			: null
-	if (!status || status === run.status)
+	if (!status)
 		return run
+	return updateReconciledRun(publishRepository, run, { status })
+}
 
-	const updatedAt = new Date().toISOString()
-	await publishRepository.updateRun(run.id, { status, updatedAt })
-	return { ...run, status, updatedAt }
+async function reconcilePublishRun(
+	publishRepository: PublishRepository,
+	repository: PublishingStatusRepositoryPort,
+	run: PublishRunRow,
+	pullRequest?: PullRequestDto,
+): Promise<PublishRunRow> {
+	if (run.kind === 'direct')
+		return reconcileDirectPublishRun(publishRepository, repository, run)
+	return reconcilePullRequestRun(publishRepository, repository, run, pullRequest)
 }
 
 export async function reconcileActivePublishRuns(
 	db: D1Database,
-	repository: PullRequestStatusRepositoryPort,
+	repository: PublishingStatusRepositoryPort,
 	pageSize = 30,
 ): Promise<PublishRunRow[]> {
 	const publishRepository = new PublishRepository(db)

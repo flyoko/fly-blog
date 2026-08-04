@@ -1,5 +1,5 @@
 import type { D1Migration } from '@cloudflare/vitest-pool-workers'
-import type { PullRequestDto } from '../../../shared/admin/publishing'
+import type { CheckSummaryDto, DeploymentDto, PullRequestDto } from '../../../shared/admin/publishing'
 import type { AppEnvironment, Env } from '../src/env'
 import type { ArticleRepositoryPort } from '../src/features/articles/article-service'
 import type { OverviewProbe } from '../src/features/overview/routes'
@@ -53,6 +53,25 @@ class FakeArticleRepository implements ArticleRepositoryPort {
 			baseBranch: 'main',
 			mergeable: this.pullRequestState === 'open',
 			merged: this.pullRequestMerged,
+		}
+	}
+
+	async getChecks(_ref: string): Promise<CheckSummaryDto> {
+		return { status: 'success', total: 1, successful: 1, failed: 0, pending: 0 }
+	}
+
+	async getCommitChangeCount(_ref: string): Promise<number> {
+		return 1
+	}
+
+	async getDeployment(ref: string): Promise<DeploymentDto> {
+		return {
+			id: 'deployment-1',
+			ref,
+			environment: 'production',
+			url: 'https://production.example.test',
+			status: 'success',
+			updatedAt: '2026-08-03T02:00:00.000Z',
 		}
 	}
 

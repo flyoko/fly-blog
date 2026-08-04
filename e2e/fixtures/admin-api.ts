@@ -8,6 +8,7 @@ export interface AdminApiMockOptions {
 	mediaPartialFailure?: boolean
 	sessionExpiresAfterLoad?: boolean
 	analyticsStatusFailure?: boolean
+	publishRunScenario?: 'pull_request' | 'direct_pending' | 'direct_published'
 }
 
 export interface AdminApiCapture {
@@ -248,6 +249,25 @@ function publishRun() {
 		errorMessage: null,
 		createdAt: '2026-08-03T00:00:00.000Z',
 		updatedAt: '2026-08-03T00:01:00.000Z',
+	}
+}
+
+function directPublishRun(status: 'checks_pending' | 'published') {
+	return {
+		id: `direct-${status}`,
+		kind: 'direct',
+		status,
+		repositoryRef: 'main',
+		resourcePath: 'content/about/profile.md',
+		commitSha: 'a'.repeat(40),
+		pullNumber: null,
+		pullRequestUrl: null,
+		workflowRunId: null,
+		deploymentUrl: status === 'published' ? 'https://deployment.example' : null,
+		errorCode: null,
+		errorMessage: null,
+		createdAt: '2026-08-04T12:00:00.000Z',
+		updatedAt: '2026-08-04T12:05:00.000Z',
 	}
 }
 
@@ -742,7 +762,12 @@ async function respond(route: Route, options: AdminApiMockOptions, capture: Admi
 	}
 
 	if (path === '/api/admin/publishing/runs') {
-		await route.fulfill(success({ items: [publishRun()], total: 1, page: 1, pageSize: 30 }))
+		const run = options.publishRunScenario === 'direct_pending'
+			? directPublishRun('checks_pending')
+			: options.publishRunScenario === 'direct_published'
+				? directPublishRun('published')
+				: publishRun()
+		await route.fulfill(success({ items: [run], total: 1, page: 1, pageSize: 30 }))
 		return
 	}
 

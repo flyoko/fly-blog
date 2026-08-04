@@ -9,7 +9,7 @@ import type { AdminPublishRunDto } from '~/types/admin'
 import AdminReleaseChecklist from '~/components/admin/reviews/AdminReleaseChecklist.vue'
 import AdminReleaseQueue from '~/components/admin/reviews/AdminReleaseQueue.vue'
 import AdminReleaseTechnicalDetails from '~/components/admin/reviews/AdminReleaseTechnicalDetails.vue'
-import { publishRunGroup } from '~/types/admin'
+import { publishNextAction, publishRunGroup, publishStatusMeta } from '~/types/admin'
 
 interface PullRequestDetail {
 	run: AdminPublishRunDto | null
@@ -38,6 +38,20 @@ let refreshTimer: ReturnType<typeof setInterval> | undefined
 
 const hasPendingRuns = computed(() => runs.value.some(run => publishRunGroup(run) === 'in_progress'))
 const visibleDetail = computed(() => detailOwnerId.value === selected.value?.id ? detail.value : null)
+const selectedDirect = computed(() => selected.value?.kind === 'direct' ? selected.value : null)
+
+function directStatusDescription(run: AdminPublishRunDto) {
+	if (run.status === 'published') {
+		return run.deploymentUrl
+			? '该提交的自动检查与正式部署都已成功，不需要再手动合并。'
+			: '这次提交没有产生内容差异，不需要重新部署，线上内容已经是最新版本。'
+	}
+	if (run.status === 'failed')
+		return '自动检查或正式部署未通过。修复原因后重新提交内容即可。'
+	if (run.status === 'conflict')
+		return '提交时发现线上版本已变化，因此没有覆盖线上内容。'
+	return '内容已经直接提交到 main，系统正在核对这个提交的自动检查和正式部署，完成后会自动更新为“已发布”。'
+}
 const taskStatus = computed(() => {
 	if (loading.value)
 		return '正在读取发布状态…'
@@ -219,7 +233,30 @@ onBeforeUnmount(() => {
 				</button>
 			</p>
 
-			<template v-if="visibleDetail">
+			<section v-if="selectedDirect" class="admin-release-direct-status" aria-live="polite">
+				<div class="admin-release-direct-heading">
+					<div>
+						<span>直接发布</span>
+						<h3>{{ publishNextAction(selectedDirect) }}</h3>
+					</div>
+					<AdminStatusPill :tone="publishStatusMeta(selectedDirect.status).tone">
+						{{ publishStatusMeta(selectedDirect.status).label }}
+					</AdminStatusPill>
+				</div>
+				<p>{{ directStatusDescription(selectedDirect) }}</p>
+				<p v-if="selectedDirect.errorMessage" class="admin-error" role="alert">
+					{{ selectedDirect.errorMessage }}
+				</p>
+				<div class="admin-release-direct-meta">
+					<div><span>内容</span><code>{{ selectedDirect.resourcePath || '直接发布内容' }}</code></div>
+					<div><span>提交</span><code>{{ selectedDirect.commitSha?.slice(0, 12) || '等待提交' }}</code></div>
+				</div>
+				<a v-if="selectedDirect.deploymentUrl" class="admin-button" :href="selectedDirect.deploymentUrl" target="_blank" rel="noopener">
+					<Icon name="tabler:external-link" />打开部署结果
+				</a>
+			</section>
+
+			<template v-else-if="visibleDetail">
 				<AdminReleaseChecklist
 					:run="selected!"
 					:checks="visibleDetail.checks"
@@ -281,6 +318,65 @@ onBeforeUnmount(() => {
 	gap: 0.6rem;
 }
 
+.admin-release-direct-status {
+	display: grid;
+	gap: 1rem;
+	padding: 1rem;
+	border: 1px solid var(--admin-border);
+	border-radius: 1rem;
+	background: var(--admin-surface-soft);
+}
+
+.admin-release-direct-heading {
+	display: flex;
+	align-items: start;
+	justify-content: space-between;
+	gap: 1rem;
+}
+
+.admin-release-direct-heading span,
+.admin-release-direct-meta span {
+	display: block;
+	font-size: 0.65rem;
+	color: var(--admin-muted);
+}
+
+.admin-release-direct-heading h3 {
+	margin: 0.25rem 0 0;
+	font-size: 1rem;
+}
+
+.admin-release-direct-status > p {
+	margin: 0;
+	line-height: 1.7;
+	color: var(--admin-muted);
+}
+
+.admin-release-direct-meta {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 0.75rem;
+}
+
+.admin-release-direct-meta div {
+	min-width: 0;
+	padding: 0.75rem;
+	border-radius: 0.75rem;
+	background: var(--admin-surface);
+}
+
+.admin-release-direct-meta code {
+	display: block;
+	overflow: hidden;
+	margin-top: 0.3rem;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.admin-release-direct-status > .admin-button {
+	justify-self: start;
+}
+
 @media (max-width: 980px) {
 	.admin-release-workbench {
 		grid-template-columns: 1fr;
@@ -288,6 +384,10 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 560px) {
+	.admin-release-direct-meta {
+		grid-template-columns: 1fr;
+	}
+
 	.admin-release-primary-actions,
 	.admin-release-primary-actions .admin-button {
 		width: 100%;

@@ -1,6 +1,6 @@
 import type { AppEnvironment, Env } from '../../env'
 import type { ArticleRepositoryPort } from '../articles/article-service'
-import type { PullRequestStatusRepositoryPort } from '../publishing/publishing-service'
+import type { PublishingStatusRepositoryPort } from '../publishing/publishing-service'
 import { Hono } from 'hono'
 import { success } from '../../lib/api-error'
 import { requireSession } from '../../middleware/session'
@@ -31,7 +31,7 @@ export type OverviewProbe = (context: OverviewProbeContext) => Promise<{
 
 export interface OverviewRoutesOptions {
 	articleRepositoryFactory?: (env: Env) => ArticleRepositoryPort
-	publishingRepositoryFactory?: (env: Env) => PullRequestStatusRepositoryPort
+	publishingRepositoryFactory?: (env: Env) => PublishingStatusRepositoryPort
 	probes?: Partial<Record<ServiceName, OverviewProbe>>
 	timeoutMs?: number
 	now?: () => Date

@@ -329,13 +329,25 @@ export class GitHubRepository {
 		}
 	}
 
+	async getCommitChangeCount(ref: string): Promise<number> {
+		const payload = await this.request<{ files?: unknown[] }>(
+			`/commits/${encodeURIComponent(assertBranchName(ref))}`,
+		)
+		if (!Array.isArray(payload.files))
+			throw new ApiError('UPSTREAM_FAILED', 502, 'GitHub returned invalid commit details')
+		return payload.files.length
+	}
+
 	async getDeployment(ref: string): Promise<DeploymentDto | null> {
+		const validRef = assertBranchName(ref)
+		const queryKey = /^[a-f0-9]{40}$/iu.test(validRef) ? 'sha' : 'ref'
 		const deployments = await this.request<Array<{
 			id?: number
 			ref?: string
 			environment?: string
 			created_at?: string
-		}>>(`/deployments?ref=${encodeURIComponent(assertBranchName(ref))}&per_page=20`)
+		}>>(`/deployments?${queryKey}=${encodeURIComponent(validRef)}&per_page=20`)
+		let healthFallback: DeploymentDto | null = null
 		for (const deployment of deployments) {
 			if (typeof deployment.id !== 'number')
 				continue
@@ -344,17 +356,20 @@ export class GitHubRepository {
 				environment_url?: string
 				target_url?: string
 				updated_at?: string
-			}>>(`/deployments/${deployment.id}/statuses?per_page=1`)
-			const latest = statuses[0]
+			}>>(`/deployments/${deployment.id}/statuses?per_page=10`)
+			const latest = statuses.find((status) => {
+				const url = status.environment_url || status.target_url
+				return status.state !== 'inactive' && Boolean(url)
+			})
 			const url = latest?.environment_url || latest?.target_url
 			if (!latest || !url)
 				continue
 			const status: DeploymentDto['status'] = latest.state === 'success'
 				? 'success'
-				: ['error', 'failure', 'inactive'].includes(latest.state ?? '')
+				: ['error', 'failure'].includes(latest.state ?? '')
 						? 'failure'
 						: 'pending'
-			return {
+			const result: DeploymentDto = {
 				id: deployment.id.toString(),
 				ref: deployment.ref ?? ref,
 				environment: deployment.environment ?? 'unknown',
@@ -362,8 +377,13 @@ export class GitHubRepository {
 				status,
 				updatedAt: latest.updated_at ?? deployment.created_at ?? new Date(0).toISOString(),
 			}
+			if (new URL(url).pathname === '/api/health') {
+				healthFallback ??= result
+				continue
+			}
+			return result
 		}
-		return null
+		return healthFallback
 	}
 
 	private async request<T = unknown>(

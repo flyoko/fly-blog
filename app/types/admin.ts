@@ -131,7 +131,7 @@ export function publishRunGroup(run: Pick<AdminPublishRunDto, 'status'>): AdminP
 	return 'in_progress'
 }
 
-export function publishNextAction(run: Pick<AdminPublishRunDto, 'status'>) {
+export function publishNextAction(run: Pick<AdminPublishRunDto, 'kind' | 'status'>) {
 	if (run.status === 'preview_ready')
 		return '查看预览并确认上线'
 	if (run.status === 'failed')
@@ -139,10 +139,12 @@ export function publishNextAction(run: Pick<AdminPublishRunDto, 'status'>) {
 	if (run.status === 'conflict')
 		return '处理内容冲突'
 	if (run.status === 'merged' || run.status === 'published')
-		return '已经上线'
+		return run.kind === 'direct' ? '正式站点已部署' : '已经上线'
 	if (run.status === 'closed')
 		return '已关闭'
-	return '等待自动检查和预览'
+	return run.kind === 'direct'
+		? '直接提交已完成，正在确认检查与正式部署'
+		: '等待自动检查和预览'
 }
 
 export interface AdminOverviewDto {

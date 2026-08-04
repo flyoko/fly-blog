@@ -38,20 +38,22 @@ async function load() {
 	loading.value = true
 	error.value = ''
 	try {
-		data.value = await useAdminApi<AboutPayload>('/api/admin/about')
+		const payload = await useAdminApi<AboutPayload>('/api/admin/about')
+		data.value = payload
 		const editableKeys = new Set(['title', 'summary', 'body', 'avatar', 'updatedAt', 'sha'])
 		profileExtras.value = Object.fromEntries(
-			Object.entries(data.value.profile).filter(([key]) => !editableKeys.has(key)),
+			Object.entries(payload.profile).filter(([key]) => !editableKeys.has(key)),
 		)
 		Object.assign(profile, {
-			title: data.value.profile.title,
-			summary: data.value.profile.summary,
-			body: data.value.profile.body,
-			avatar: data.value.profile.avatar,
-			updatedAt: data.value.profile.updatedAt,
+			title: payload.profile.title,
+			summary: payload.profile.summary,
+			body: payload.profile.body,
+			avatar: payload.profile.avatar,
+			updatedAt: payload.profile.updatedAt,
 		})
-		timeline.value = structuredClone(data.value.timeline.items)
-		links.value = structuredClone(data.value.links.items)
+		// Zod parsing validates and materializes plain editable arrays before Vue wraps payload in proxies.
+		timeline.value = aboutTimelineSchema.parse(payload.timeline.items)
+		links.value = aboutLinksSchema.parse(payload.links.items)
 	}
 	catch (cause) {
 		error.value = cause instanceof Error ? cause.message : '自述加载失败'

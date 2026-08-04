@@ -211,7 +211,7 @@ describe('gitHubRepository reviews and status', () => {
 	})
 
 	it('aggregates check runs and extracts the latest deployment URL', async () => {
-		const { repository } = createRepository([
+		const { repository, requests } = createRepository([
 			json({
 				total_count: 3,
 				check_runs: [
@@ -238,5 +238,41 @@ describe('gitHubRepository reviews and status', () => {
 			status: 'success',
 			updatedAt: '2026-08-03T01:00:00Z',
 		})
+		expect(requests[1]!.url).toContain('/deployments?ref=feature&per_page=20')
+	})
+
+	it('queries deployments by sha, ignores inactive states, and prefers the site over health checks', async () => {
+		const sha = 'a'.repeat(40)
+		const { repository, requests } = createRepository([
+			json([
+				{ id: 10, ref: 'main', environment: 'production', created_at: '2026-08-03T00:02:00Z' },
+				{ id: 11, ref: 'main', environment: 'production', created_at: '2026-08-03T00:01:00Z' },
+			]),
+			json([
+				{ state: 'inactive', environment_url: 'https://github.test/actions/health', updated_at: '2026-08-03T02:00:00Z' },
+				{ state: 'success', environment_url: 'https://blog.example.test/api/health', updated_at: '2026-08-03T01:00:00Z' },
+			]),
+			json([
+				{ state: 'inactive', environment_url: 'https://github.test/actions/pages', updated_at: '2026-08-03T02:00:00Z' },
+				{ state: 'success', environment_url: 'https://production.example.test', updated_at: '2026-08-03T01:00:00Z' },
+			]),
+		])
+
+		await expect(repository.getDeployment(sha)).resolves.toMatchObject({
+			id: '11',
+			ref: 'main',
+			environment: 'production',
+			url: 'https://production.example.test',
+			status: 'success',
+		})
+		expect(requests[0]!.url).toContain(`/deployments?sha=${sha}&per_page=20`)
+		expect(requests[1]!.url).toContain('/deployments/10/statuses?per_page=10')
+	})
+
+	it('reads commit change counts for no-op direct publishes', async () => {
+		const sha = 'b'.repeat(40)
+		const { repository, requests } = createRepository([json({ files: [] })])
+		await expect(repository.getCommitChangeCount(sha)).resolves.toBe(0)
+		expect(requests[0]!.url).toContain(`/commits/${sha}`)
 	})
 })
