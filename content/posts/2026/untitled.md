@@ -6,10 +6,14 @@ draft: true
 tags: []
 title: ether，属于你的第一张虚拟卡
 ---
-ether，今天开放中国护照认证，权益如图，需要的佬可以冲，https://ether.fi/@22ea5aa0 ![xnk.webp](https://flyovo.cc.cd/media/public/articles/2026/08/727de31c-493a-4131-91fd-b28ce12aadfa.webp)
-ether.fi Cash 免费档 Core
+ether，今天开放中国护照认证，权益如图，需要的佬可以冲。
 
-规则是：
+https://ether.fi/@22ea5aa0 
+
+![xnk.webp](https://flyovo.cc.cd/media/public/articles/2026/08/727de31c-493a-4131-91fd-b28ce12aadfa.webp)
+ether.fi Cash 
+
+免费档 Core 规则是：
 
 每月前 2,000 美元：3%
 接着的 1,000 美元，也就是 2,000～3,000 美元部分：1%
@@ -22,6 +26,7 @@ ether.fi Cash 免费档 Core
 例如：
 
 当月消费	返现计算	总返现
+
 $500	$500 × 3%	$15
 $2,000	$2,000 × 3%	$60
 $2,500	$2,000 × 3% + $500 × 1%	$65
