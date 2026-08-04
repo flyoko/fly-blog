@@ -1,3 +1,4 @@
+import type { Ref } from 'vue'
 import type {
 	MusicImportFileResult,
 	PreparedMusicFile,
@@ -19,10 +20,25 @@ export interface MusicImportWorker {
 	terminate: () => void
 }
 
+export interface MusicImportKeyStore {
+	keyCount: Ref<number>
+	mediaKeys: Map<string, string>
+}
+
 export interface MusicImportControllerOptions {
 	workerFactory?: () => MusicImportWorker
 	createTaskId?: () => string
+	keyStore?: MusicImportKeyStore
 }
+
+export function createMusicImportKeyStore(): MusicImportKeyStore {
+	return {
+		keyCount: ref(0),
+		mediaKeys: new Map<string, string>(),
+	}
+}
+
+const clientMusicImportKeyStore = createMusicImportKeyStore()
 
 function defaultWorkerFactory(): MusicImportWorker {
 	if (!import.meta.client)
@@ -45,14 +61,14 @@ export function createMusicImportController(options: MusicImportControllerOption
 	const activeFileName = ref<string | null>(null)
 	const stage = ref<MusicImportStage>('idle')
 	const progress = ref<Record<string, number>>({})
-	const keyCount = ref(0)
+	const keyStore = options.keyStore ?? createMusicImportKeyStore()
+	const keyCount = keyStore.keyCount
 	const workerFactory = options.workerFactory ?? defaultWorkerFactory
 	const createTaskId = options.createTaskId ?? (() => crypto.randomUUID())
 	let batchVersion = 0
 	let running = false
 	let activeWorker: MusicImportWorker | null = null
 	let rejectActive: ((error: MusicImportError) => void) | null = null
-	let mediaKeys = new Map<string, string>()
 
 	function terminateActiveWorker() {
 		activeWorker?.terminate()
@@ -65,14 +81,13 @@ export function createMusicImportController(options: MusicImportControllerOption
 			throw new MusicImportError('INVALID_KEY_BUNDLE', 'QQ 音乐密钥文件不能超过 64 MiB。')
 		const parsed = await parseQmcKeyFile(file)
 		for (const [fileName, mediaKey] of parsed)
-			mediaKeys.set(fileName, mediaKey)
-		keyCount.value = mediaKeys.size
-		return mediaKeys.size
+			keyStore.mediaKeys.set(fileName, mediaKey)
+		keyCount.value = keyStore.mediaKeys.size
+		return keyStore.mediaKeys.size
 	}
 
 	function clearMediaKeys() {
-		mediaKeys.clear()
-		mediaKeys = new Map<string, string>()
+		keyStore.mediaKeys.clear()
 		keyCount.value = 0
 	}
 
@@ -152,7 +167,7 @@ export function createMusicImportController(options: MusicImportControllerOption
 				fileName: file.name,
 				inputExtension,
 				file,
-				mediaKeys: mediaKeys.size ? Array.from(mediaKeys) : undefined,
+				mediaKeys: keyStore.mediaKeys.size ? Array.from(keyStore.mediaKeys) : undefined,
 			}
 			worker.postMessage(request, [])
 		})
@@ -272,7 +287,10 @@ export function createMusicImportController(options: MusicImportControllerOption
 }
 
 export function useMusicImport(options: MusicImportControllerOptions = {}) {
-	const controller = createMusicImportController(options)
+	const keyStore = options.keyStore ?? (import.meta.client
+		? clientMusicImportKeyStore
+		: createMusicImportKeyStore())
+	const controller = createMusicImportController({ ...options, keyStore })
 	if (getCurrentScope())
 		onScopeDispose(controller.cancel)
 	return controller

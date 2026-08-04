@@ -51,6 +51,18 @@ describe('qMCv2 music import UI contracts', () => {
 		}
 	})
 
+	it('keeps imported MusicEx keys for the browser tab until explicitly removed', () => {
+		const picker = read('app/components/admin/AdminMediaPicker.vue')
+		const mediaPage = read('app/pages/admin/media.vue')
+		const composable = read('app/composables/useMusicImport.ts')
+
+		expect(picker.match(/clearMediaKeys\(\)/g)).toHaveLength(1)
+		expect(mediaPage.match(/clearMediaKeys\(\)/g)).toHaveLength(1)
+		expect(composable).toContain('clientMusicImportKeyStore')
+		expect(picker).toContain('当前浏览器标签页内存')
+		expect(mediaPage).toContain('当前浏览器标签页内存')
+	})
+
 	it('exposes an in-memory MusicEx MMKV and JSON key workflow at both music upload entrypoints', () => {
 		const picker = read('app/components/admin/AdminMediaPicker.vue')
 		const media = read('app/pages/admin/media.vue')
@@ -63,7 +75,7 @@ describe('qMCv2 music import UI contracts', () => {
 			expect(source).toContain('选择 QQ 音乐 MMKV 或 JSON 密钥文件（不是音乐文件）')
 			expect(source).toContain('MMKVStreamEncryptId')
 			expect(source).toContain('filenameEkeyMap')
-			expect(source).toContain('仅保留在当前页面内存')
+			expect(source).toContain('仅保留在当前浏览器标签页内存')
 			expect(source).toContain('可连续导入多份密钥数据库')
 			expect(source).toContain('移除本机密钥')
 		}

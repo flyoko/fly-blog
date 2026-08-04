@@ -1,7 +1,7 @@
 import type { QmcCryptoModule } from '../../app/utils/music-import/qmc-wasm'
 import type { QmcWorkerRequest, QmcWorkerResponse } from '../../app/utils/music-import/types'
 import { describe, expect, it, vi } from 'vitest'
-import { createMusicImportController } from '../../app/composables/useMusicImport'
+import { createMusicImportController, createMusicImportKeyStore } from '../../app/composables/useMusicImport'
 import { buildSyntheticQTag, parseMusicExFooter } from '../../app/utils/music-import/musicex'
 import { parseQmcKeyBundle, parseQmcKeyFile, parseQmcMmkv } from '../../app/utils/music-import/qmc-key-file'
 import { decryptQmc, qmcDecryptChunkBytes } from '../../app/utils/music-import/qmc-wasm'
@@ -268,6 +268,45 @@ describe('musicEx import orchestration', () => {
 		expect(file.size).toBeGreaterThan(5 * 1024 * 1024)
 		await expect(controller.loadKeyFile(file)).resolves.toBe(1)
 		expect(controller.keyCount.value).toBe(1)
+	})
+
+	it('shares one tab-memory key store across independent upload controllers', async () => {
+		const keyStore = createMusicImportKeyStore()
+		const mediaPageController = createMusicImportController({ keyStore })
+		const pickerController = createMusicImportController({ keyStore })
+		const keyFile = new File([JSON.stringify({
+			version: 1,
+			source: 'qqmusic-mmkv',
+			keys: { 'O8M0004Th6td4LaoZs.mgg': sampleEkey },
+		})], 'filenameEkeyMap.json', { type: 'application/json' })
+
+		await expect(mediaPageController.loadKeyFile(keyFile)).resolves.toBe(1)
+		expect(pickerController.keyCount.value).toBe(1)
+
+		let request: QmcWorkerRequest | undefined
+		const uploadController = createMusicImportController({
+			keyStore,
+			workerFactory: () => new FakeWorker((message, worker) => {
+				request = message
+				queueMicrotask(() => worker.emit({
+					type: 'success',
+					id: message.id,
+					buffer: ascii('OggS\u0000').buffer,
+					songId: '638781692',
+					usedMediaKey: true,
+				}))
+			}),
+		})
+		await uploadController.prepareFiles([new File([musicExFixture({
+			songId: 638781692,
+			mediaId: '004Th6td4LaoZs',
+			mediaFileName: 'O8M0004Th6td4LaoZs.mgg',
+		})], '白慕寒-海屿你 (破碎版).mgg')])
+		expect(request?.mediaKeys).toEqual([['O8M0004Th6td4LaoZs.mgg', sampleEkey]])
+
+		pickerController.clearMediaKeys()
+		expect(mediaPageController.keyCount.value).toBe(0)
+		expect(uploadController.keyCount.value).toBe(0)
 	})
 
 	it('accumulates keys from multiple local databases instead of replacing earlier imports', async () => {
