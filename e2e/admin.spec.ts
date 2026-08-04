@@ -519,6 +519,24 @@ test('visitor analytics stays contained across target widths and themes', async 
 	await mockAuthenticatedAdmin(page)
 	await page.goto('/admin/analytics')
 	await expect(page.getByRole('heading', { name: '访问分析', exact: true })).toBeVisible()
+	await page.setViewportSize({ width: 1440, height: 900 })
+	const insightLayout = await page.evaluate(() => {
+		const grid = document.querySelector<HTMLElement>('.admin-analytics-insight-grid')
+		const stack = document.querySelector<HTMLElement>('.admin-analytics-insight-stack')
+		const panels = stack?.querySelectorAll<HTMLElement>(':scope > .admin-panel')
+		if (!grid || !stack || !panels || panels.length !== 2)
+			return null
+		const geo = panels[0].getBoundingClientRect()
+		const device = panels[1].getBoundingClientRect()
+		return {
+			columns: getComputedStyle(grid).gridTemplateColumns.split(' ').length,
+			stackGap: device.top - geo.bottom,
+		}
+	})
+	expect(insightLayout).not.toBeNull()
+	expect(insightLayout?.columns).toBe(2)
+	expect(insightLayout?.stackGap).toBeGreaterThanOrEqual(8)
+	expect(insightLayout?.stackGap).toBeLessThanOrEqual(24)
 	for (const width of [320, 390, 768, 1024, 1440]) {
 		await page.setViewportSize({ width, height: 900 })
 		const dimensions = await page.evaluate(() => ({

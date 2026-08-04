@@ -523,57 +523,59 @@ onBeforeUnmount(() => {
 			</div>
 		</section>
 
-		<section class="admin-panel">
-			<header class="admin-panel-header">
-				<div><h2>地域分布</h2><p>城市信息为近似定位，可能为空或存在偏差。</p></div>
-			</header>
-			<div v-if="geoPanel.loading && !geoPanel.data" class="admin-skeleton admin-list-skeleton" />
-			<div v-else-if="geoPanel.error" class="admin-analytics-panel-message">
-				<p>{{ geoPanel.error }}</p><button class="admin-button" type="button" @click="loadGeo">
-					重试
-				</button>
-			</div>
-			<AdminEmptyState v-else-if="!geoPanel.data?.length" icon="tabler:map-pin" title="暂无地域数据" description="Cloudflare 地域字段可用后会显示在这里。" />
-			<div v-else class="admin-analytics-table-wrap">
-				<table>
-					<thead><tr><th>地区</th><th>PV</th><th>UV</th></tr></thead><tbody>
-						<tr v-for="item in geoPanel.data" :key="`${item.country}-${item.region}-${item.city}`">
-							<td>{{ formatAnalyticsLocation(item.country, item.region, item.city) }}</td><td>{{ formatNumber(item.pageviews) }}</td><td>{{ formatNumber(item.visitors) }}</td>
-						</tr>
-					</tbody>
-				</table>
-			</div>
-		</section>
+		<div class="admin-analytics-insight-stack">
+			<section class="admin-panel">
+				<header class="admin-panel-header">
+					<div><h2>地域分布</h2><p>城市信息为近似定位，可能为空或存在偏差。</p></div>
+				</header>
+				<div v-if="geoPanel.loading && !geoPanel.data" class="admin-skeleton admin-list-skeleton" />
+				<div v-else-if="geoPanel.error" class="admin-analytics-panel-message">
+					<p>{{ geoPanel.error }}</p><button class="admin-button" type="button" @click="loadGeo">
+						重试
+					</button>
+				</div>
+				<AdminEmptyState v-else-if="!geoPanel.data?.length" icon="tabler:map-pin" title="暂无地域数据" description="Cloudflare 地域字段可用后会显示在这里。" />
+				<div v-else class="admin-analytics-table-wrap">
+					<table>
+						<thead><tr><th>地区</th><th>PV</th><th>UV</th></tr></thead><tbody>
+							<tr v-for="item in geoPanel.data" :key="`${item.country}-${item.region}-${item.city}`">
+								<td>{{ formatAnalyticsLocation(item.country, item.region, item.city) }}</td><td>{{ formatNumber(item.pageviews) }}</td><td>{{ formatNumber(item.visitors) }}</td>
+							</tr>
+						</tbody>
+					</table>
+				</div>
+			</section>
 
-		<section class="admin-panel admin-analytics-device-panel">
-			<header class="admin-panel-header">
-				<div><h2>设备与环境</h2><p>轻量解析 User-Agent，不进行设备指纹识别。</p></div>
-			</header>
-			<div v-if="devicesPanel.loading && !devicesPanel.data" class="admin-skeleton admin-analytics-device-skeleton" />
-			<div v-else-if="devicesPanel.error" class="admin-analytics-panel-message">
-				<p>{{ devicesPanel.error }}</p><button class="admin-button" type="button" @click="loadDevices">
-					重试
-				</button>
-			</div>
-			<AdminEmptyState v-else-if="!devicesPanel.data?.devices.length" icon="tabler:devices" title="暂无设备数据" description="真人访问产生后会统计设备、浏览器和操作系统。" />
-			<div v-else class="admin-analytics-device-content">
-				<AdminAnalyticsDonut :items="devicesPanel.data.devices" /><div class="admin-analytics-environment-lists">
-					<div>
-						<h3>浏览器</h3><ol>
-							<li v-for="item in devicesPanel.data.browsers.slice(0, 6)" :key="item.label">
-								<span>{{ item.label }}</span><strong>{{ item.pageviews }}</strong>
-							</li>
-						</ol>
-					</div><div>
-						<h3>操作系统</h3><ol>
-							<li v-for="item in devicesPanel.data.operatingSystems.slice(0, 6)" :key="item.label">
-								<span>{{ item.label }}</span><strong>{{ item.pageviews }}</strong>
-							</li>
-						</ol>
+			<section class="admin-panel admin-analytics-device-panel">
+				<header class="admin-panel-header">
+					<div><h2>设备与环境</h2><p>轻量解析 User-Agent，不进行设备指纹识别。</p></div>
+				</header>
+				<div v-if="devicesPanel.loading && !devicesPanel.data" class="admin-skeleton admin-analytics-device-skeleton" />
+				<div v-else-if="devicesPanel.error" class="admin-analytics-panel-message">
+					<p>{{ devicesPanel.error }}</p><button class="admin-button" type="button" @click="loadDevices">
+						重试
+					</button>
+				</div>
+				<AdminEmptyState v-else-if="!devicesPanel.data?.devices.length" icon="tabler:devices" title="暂无设备数据" description="真人访问产生后会统计设备、浏览器和操作系统。" />
+				<div v-else class="admin-analytics-device-content">
+					<AdminAnalyticsDonut :items="devicesPanel.data.devices" /><div class="admin-analytics-environment-lists">
+						<div>
+							<h3>浏览器</h3><ol>
+								<li v-for="item in devicesPanel.data.browsers.slice(0, 6)" :key="item.label">
+									<span>{{ item.label }}</span><strong>{{ item.pageviews }}</strong>
+								</li>
+							</ol>
+						</div><div>
+							<h3>操作系统</h3><ol>
+								<li v-for="item in devicesPanel.data.operatingSystems.slice(0, 6)" :key="item.label">
+									<span>{{ item.label }}</span><strong>{{ item.pageviews }}</strong>
+								</li>
+							</ol>
+						</div>
 					</div>
 				</div>
-			</div>
-		</section>
+			</section>
+		</div>
 	</div>
 
 	<section class="admin-panel admin-analytics-visitors-panel">

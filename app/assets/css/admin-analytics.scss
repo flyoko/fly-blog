@@ -139,6 +139,7 @@
 .admin-analytics-pulse-panel,
 .admin-analytics-live-panel,
 .admin-analytics-insight-grid > .admin-panel,
+.admin-analytics-insight-stack > .admin-panel,
 .admin-analytics-visitors-panel,
 .admin-analytics-bots-panel {
 	min-width: 0;
@@ -268,7 +269,15 @@
 
 .admin-analytics-insight-grid {
 	display: grid;
-	grid-template-columns: repeat(3, minmax(0, 1fr));
+	grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
+	align-items: start;
+	gap: 1rem;
+	min-width: 0;
+}
+
+.admin-analytics-insight-stack {
+	display: grid;
+	align-content: start;
 	gap: 1rem;
 	min-width: 0;
 }
@@ -623,11 +632,7 @@
 	}
 
 	.admin-analytics-insight-grid {
-		grid-template-columns: repeat(2, minmax(0, 1fr));
-	}
-
-	.admin-analytics-device-panel {
-		grid-column: 1 / -1;
+		grid-template-columns: 1fr;
 	}
 
 	.admin-analytics-device-content {
