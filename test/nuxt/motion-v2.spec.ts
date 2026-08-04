@@ -68,7 +68,8 @@ describe('motion v2 production integration', () => {
 
 	it('renders condition-specific weather scenes from the production API response', () => {
 		const weather = read('app/components/widget/Weather.vue')
-		expect(weather).toContain('$fetch<ApiSuccess<PublicWeather>>(\'/api/weather\')')
+		expect(weather).toContain('$fetch<ApiSuccess<PublicWeather>>(weatherUrl)')
+		expect(weather).toContain('resolvePublicApiUrl(\'/api/weather\', globalThis.location.hostname)')
 		expect(weather).toContain('toWeatherMotionState(weather.value.weatherCode)')
 		expect(weather).toContain('if (configuredEnabled.value)')
 		for (const scene of ['weather-sun', 'weather-moon', 'weather-cloud', 'weather-rain', 'weather-lightning', 'weather-fog', 'weather-snow'])
