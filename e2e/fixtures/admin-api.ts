@@ -24,6 +24,7 @@ export interface AdminApiCapture {
 	logoutCount: number
 	analyticsIpViews: number
 	analyticsExports: number
+	analyticsVisitorPageSizes: number[]
 	mergeCount: number
 }
 
@@ -260,7 +261,7 @@ function analyticsSummary() {
 	}
 }
 
-function analyticsVisitors(trafficType: string | null) {
+function analyticsVisitors(trafficType: string | null, pageSize: number) {
 	const automated = trafficType === 'bot' || trafficType === 'suspected'
 	return {
 		items: [{
@@ -283,7 +284,7 @@ function analyticsVisitors(trafficType: string | null) {
 		}],
 		total: 1,
 		page: 1,
-		pageSize: 20,
+		pageSize,
 	}
 }
 
@@ -384,7 +385,9 @@ async function respond(route: Route, options: AdminApiMockOptions, capture: Admi
 	}
 
 	if (path === '/api/admin/analytics/visitors' && method === 'GET') {
-		await route.fulfill(success(analyticsVisitors(url.searchParams.get('trafficType'))))
+		const pageSize = Number(url.searchParams.get('pageSize'))
+		capture.analyticsVisitorPageSizes.push(pageSize)
+		await route.fulfill(success(analyticsVisitors(url.searchParams.get('trafficType'), pageSize)))
 		return
 	}
 
@@ -788,6 +791,7 @@ export async function mockAdminApi(page: Page, options: AdminApiMockOptions = {}
 		logoutCount: 0,
 		analyticsIpViews: 0,
 		analyticsExports: 0,
+		analyticsVisitorPageSizes: [],
 		mergeCount: 0,
 	}
 	const state = { sessionCalls: 0 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import footerConfig from '../../config/site/footer.json'
 import weatherConfig from '../../config/site/weather.json'
+import { analyticsVisitorQuerySchema } from '../../shared/admin/analytics'
 import {
 	articleDocumentSchema,
 	decodeArticleId,
@@ -37,6 +38,15 @@ describe('admin contracts', () => {
 			body: '',
 			frontmatter: {},
 		})).toThrow()
+	})
+
+	it('defaults recent visitor pagination to ten rows', () => {
+		const parsed = analyticsVisitorQuerySchema.parse({
+			from: '2026-08-01T00:00:00.000Z',
+			to: '2026-08-04T00:00:00.000Z',
+		})
+		expect(parsed.page).toBe(1)
+		expect(parsed.pageSize).toBe(10)
 	})
 
 	it('rejects duplicate category names', () => {

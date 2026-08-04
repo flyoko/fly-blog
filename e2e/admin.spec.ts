@@ -392,6 +392,7 @@ test.describe('admin desktop workflows', () => {
 		await page.goto('/admin/analytics')
 
 		await expect(page.getByRole('heading', { name: '访问分析', exact: true })).toBeVisible()
+		await expect.poll(() => capture.analyticsVisitorPageSizes[0]).toBe(10)
 		const kpiGrid = page.locator('.admin-analytics-kpis')
 		await expect(kpiGrid.getByText('248', { exact: true }).first()).toBeVisible()
 		await expect(kpiGrid.getByText('91', { exact: true }).first()).toBeVisible()

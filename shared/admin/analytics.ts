@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+export const ANALYTICS_VISITOR_PAGE_SIZE = 10
+
 export const analyticsTrafficTypeSchema = z.enum(['human', 'bot', 'suspected'])
 export const analyticsGranularitySchema = z.enum(['hour', 'day'])
 export const analyticsTimezoneSchema = z.union([
@@ -31,7 +33,7 @@ export const analyticsQuerySchema = analyticsRangeSchema
 
 export const analyticsPaginationSchema = z.object({
 	page: z.coerce.number().int().min(1).max(10_000).default(1),
-	pageSize: z.coerce.number().int().min(1).max(100).default(20),
+	pageSize: z.coerce.number().int().min(1).max(100).default(ANALYTICS_VISITOR_PAGE_SIZE),
 })
 
 export const analyticsVisitorQuerySchema = analyticsQuerySchema

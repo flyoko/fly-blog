@@ -12,6 +12,7 @@ import type {
 	AnalyticsTrafficType,
 	AnalyticsVisitorsDto,
 } from '#shared/admin/analytics'
+import { ANALYTICS_VISITOR_PAGE_SIZE } from '#shared/admin/analytics'
 import { formatAnalyticsLocation, localizeAnalyticsCity } from '~/utils/analytics-location'
 
 interface PanelState<T> {
@@ -183,7 +184,7 @@ const kpis = computed(() => [
 	{ label: '平均浏览深度', value: formatNumber(summaryPanel.data?.averageDepth.value, 1), note: '每次会话页面数', icon: 'tabler:layers-subtract' },
 ])
 
-const visitorTotalPages = computed(() => Math.max(1, Math.ceil((visitorsPanel.data?.total ?? 0) / (visitorsPanel.data?.pageSize ?? 20))))
+const visitorTotalPages = computed(() => Math.max(1, Math.ceil((visitorsPanel.data?.total ?? 0) / (visitorsPanel.data?.pageSize ?? ANALYTICS_VISITOR_PAGE_SIZE))))
 
 function queryString(extra: Record<string, string | number | undefined> = {}): string {
 	const params = new URLSearchParams({ from: range.value.from, to: range.value.to, timezone: range.value.timezone })
@@ -197,7 +198,7 @@ function queryString(extra: Record<string, string | number | undefined> = {}): s
 function visitorQuery(): string {
 	return queryString({
 		page: visitorPage.value,
-		pageSize: 20,
+		pageSize: ANALYTICS_VISITOR_PAGE_SIZE,
 		path: visitorFilters.path.trim() || undefined,
 		country: visitorFilters.country.trim().toUpperCase() || undefined,
 		city: visitorFilters.city.trim() || undefined,
