@@ -98,7 +98,7 @@ onMounted(load)
 
 <template>
 <div class="mobile-only">
-	<BlogHeader to="/ai.news" suffix="AI 阅闻详情" tag="h1" />
+	<BlogHeader to="/ai.news" />
 </div>
 <section class="reader-page">
 	<NuxtLink class="reader-back" to="/ai.news">

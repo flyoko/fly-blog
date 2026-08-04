@@ -24,13 +24,16 @@ async function expectNoHorizontalOverflow(page: import('@playwright/test').Page)
 	expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth + 1)
 }
 
-test('disabled weather and music do not start their public runtimes', async ({ page }) => {
+test('enabled weather and music initialize their public runtimes once', async ({ page }) => {
 	await page.addInitScript(() => {
-		const originalLoad = HTMLMediaElement.prototype.load
 		Object.defineProperty(window, '__mediaLoadCount', { configurable: true, writable: true, value: 0 })
+		Object.defineProperty(HTMLMediaElement.prototype, 'duration', { configurable: true, get: () => 120 })
 		HTMLMediaElement.prototype.load = function load() {
 			Object.assign(window, { __mediaLoadCount: Number((window as unknown as { __mediaLoadCount?: number }).__mediaLoadCount || 0) + 1 })
-			return originalLoad.call(this)
+			queueMicrotask(() => {
+				this.dispatchEvent(new Event('loadedmetadata'))
+				this.dispatchEvent(new Event('canplay'))
+			})
 		}
 	})
 	let weatherRequests = 0
@@ -39,25 +42,54 @@ test('disabled weather and music do not start their public runtimes', async ({ p
 		weatherRequests++
 		await route.fulfill({
 			contentType: 'application/json',
-			body: JSON.stringify({ ok: true, data: { available: false, reason: 'disabled', city: null, fetchedAt: null, message: 'disabled', sourceName: 'Open-Meteo', sourceUrl: 'https://open-meteo.com/' } }),
+			body: JSON.stringify({
+				ok: true,
+				data: {
+					available: true,
+					city: '杭州',
+					timezone: 'Asia/Shanghai',
+					temperature: 29.4,
+					weatherCode: 1,
+					condition: '少云',
+					icon: 'ri:sun-cloudy-line',
+					isDay: true,
+					high: 34,
+					low: 25,
+					windSpeed: 8.2,
+					precipitationProbability: 20,
+					tip: '适合安排一次轻松的户外活动。',
+					observedAt: '2026-08-04T04:00',
+					fetchedAt: '2026-08-03T20:00:00.000Z',
+					stale: false,
+					sourceName: 'Open-Meteo',
+					sourceUrl: 'https://open-meteo.com/',
+				},
+			}),
 		})
 	})
 	await page.route('**/api/music/playlist', async (route) => {
 		musicRequests++
 		await route.fulfill({
 			contentType: 'application/json',
-			body: JSON.stringify({ ok: true, data: { enabled: false, title: '随心听', description: '', tracks: [] } }),
+			body: JSON.stringify({
+				ok: true,
+				data: {
+					enabled: true,
+					title: '随心听',
+					description: 'E2E playlist',
+					tracks: [{ id: 'cycle4-track', title: 'Cycle 4 Song', artist: 'fly', audioUrl: 'https://media.example.com/cycle4.wav', coverUrl: null, duration: 120, enabled: true, order: 0 }],
+				},
+			}),
 		})
 	})
-	await page.goto('/')
-	await page.waitForTimeout(250)
-	await expect(page.locator('.music-player')).toHaveCount(0)
-	await expect(page.locator('.weather-card')).toHaveCount(0)
-	await expect(page.locator('.weather-unavailable')).toHaveCount(0)
-	expect(weatherRequests).toBe(0)
-	expect(musicRequests).toBe(0)
+	await page.goto('/', { waitUntil: 'networkidle' })
+	await expect(page.locator('.weather-card')).toBeVisible()
+	await expect(page.getByRole('region', { name: '随心听播放器' })).toBeVisible()
+	await expect(page.getByText('Cycle 4 Song')).toBeVisible()
+	expect(weatherRequests).toBe(1)
+	expect(musicRequests).toBe(1)
 	const mediaLoads = await page.evaluate(() => Number((window as unknown as { __mediaLoadCount?: number }).__mediaLoadCount || 0))
-	expect(mediaLoads).toBe(0)
+	expect(mediaLoads).toBe(1)
 })
 
 test('sidebar search is a keyboard-operable button with visible focus', async ({ page, isMobile }) => {

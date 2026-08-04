@@ -40,7 +40,7 @@ const appConfig = useAppConfig()
 			font: inherit;
 			font-size: 0.78em;
 			letter-spacing: 0.06em;
-			color: var(--c-text-3);
+			color: var(--c-text-1);
 		}
 
 		a {

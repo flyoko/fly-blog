@@ -376,7 +376,7 @@ onBeforeUnmount(() => timer && clearTimeout(timer))
 			</div>
 			<AdminEmptyState
 				v-else
-				icon="tabler:sparkles-off"
+				icon="tabler:sparkles"
 				title="还没有瞬间"
 				description="从右侧编辑器创建第一条瞬间。"
 			/>

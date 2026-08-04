@@ -63,7 +63,7 @@ onMounted(() => load(true))
 
 <template>
 <div class="mobile-only">
-	<BlogHeader to="/" suffix="瞬间" tag="h1" />
+	<BlogHeader to="/" />
 </div>
 <section class="moments-page">
 	<header class="moments-hero card">
@@ -153,7 +153,7 @@ onMounted(() => load(true))
 .moments-hero span {
 	font: 0.72rem var(--font-monospace);
 	letter-spacing: 0.16em;
-	color: var(--c-primary);
+	color: var(--c-text-1);
 }
 
 .moments-hero h1 {

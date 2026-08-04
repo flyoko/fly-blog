@@ -50,9 +50,12 @@ onMounted(load)
 
 <template>
 <div class="mobile-only">
-	<BlogHeader to="/moments" suffix="瞬间详情" tag="h1" />
+	<BlogHeader to="/moments" />
 </div>
 <section class="moment-detail-page">
+	<h1 class="visually-hidden">
+		瞬间详情
+	</h1>
 	<NuxtLink class="moment-back" to="/moments">
 		<Icon name="tabler:arrow-left" />返回瞬间
 	</NuxtLink>

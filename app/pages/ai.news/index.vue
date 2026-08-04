@@ -226,7 +226,7 @@ onMounted(load)
 
 <template>
 <div class="mobile-only">
-	<BlogHeader to="/" suffix="AI 阅闻" tag="h1" />
+	<BlogHeader to="/" />
 </div>
 <section class="news-workbench">
 	<header class="news-header">
@@ -778,12 +778,12 @@ onMounted(load)
 	align-items: center;
 	gap: 0.4rem 0.65rem;
 	font: 0.64rem var(--font-monospace);
-	color: var(--c-text-3);
+	color: var(--c-text-1);
 }
 
 .news-row-meta > :first-child {
 	font-weight: 700;
-	color: var(--c-primary);
+	color: var(--c-text);
 }
 
 .news-content-mode {
@@ -791,7 +791,7 @@ onMounted(load)
 	border: 1px solid color-mix(in srgb, var(--c-primary) 25%, var(--c-border));
 	border-radius: 0.35rem;
 	background: var(--c-primary-soft);
-	color: var(--c-primary);
+	color: var(--c-text-1);
 }
 
 .news-row h3 {
@@ -832,7 +832,7 @@ onMounted(load)
 }
 
 .news-source-action {
-	color: var(--c-text-3);
+	color: var(--c-text-1);
 }
 
 .news-empty {
@@ -944,7 +944,7 @@ onMounted(load)
 
 .news-digest-list small {
 	font-size: 0.62rem;
-	color: var(--c-text-3);
+	color: var(--c-text-1);
 }
 
 .news-digest-list strong {

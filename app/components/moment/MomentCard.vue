@@ -91,7 +91,7 @@ const formatted = computed(() =>
 	gap: 0.7rem;
 	font-family: var(--font-monospace);
 	font-size: 0.72rem;
-	color: var(--c-text-3);
+	color: var(--c-text-1);
 }
 
 .moment-card header span {
