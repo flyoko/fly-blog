@@ -371,7 +371,7 @@ onBeforeUnmount(() => {
 		<div>
 			<strong>MusicEx 本机密钥</strong>
 			<span v-if="keyCount">已加载 {{ keyCount }} 条本机媒体密钥，仅保留在当前页面内存。</span>
-			<span v-else>尚未加载本机密钥。这里导入的是密钥数据库，不是 .mflac/.mgg 音乐文件；音乐文件请使用上方上传入口。支持 Mac/iOS 的 MMKVStreamEncryptId、filenameEkeyMap、.mmkv，或版本化 JSON 密钥包。</span>
+			<span v-else>尚未加载本机密钥。这里导入的是密钥数据库，不是 .mflac/.mgg 音乐文件；音乐文件请使用上方上传入口。支持 Mac/iOS 的 MMKVStreamEncryptId、filenameEkeyMap、.mmkv，或版本化 JSON 密钥包。可连续导入多份密钥数据库，密钥只会在当前页面内存中合并。</span>
 		</div>
 		<div class="admin-music-key-file-actions">
 			<button class="admin-button" type="button" :disabled="uploadBusy" @click="openKeyFilePicker">

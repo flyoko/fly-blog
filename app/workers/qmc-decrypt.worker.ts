@@ -5,7 +5,7 @@ import type {
 	QmcWorkerResponse,
 } from '../utils/music-import/types'
 import { parseMusicExFooter } from '../utils/music-import/musicex'
-import { normalizeQmcMediaFileName } from '../utils/music-import/qmc-key-file'
+import { resolveQmcMediaKey } from '../utils/music-import/qmc-key-file'
 import { decryptQmc } from '../utils/music-import/qmc-wasm'
 import { MusicImportError } from '../utils/music-import/types'
 
@@ -27,13 +27,16 @@ export async function handleQmcDecryptRequest(
 	try {
 		const input = await request.file.arrayBuffer()
 		const musicEx = parseMusicExFooter(new Uint8Array(input))
-		const mediaKey = musicEx
-			? new Map(request.mediaKeys ?? []).get(normalizeQmcMediaFileName(musicEx.mediaFileName))
-			: undefined
+		const mediaKeys = request.mediaKeys ?? []
+		const mediaKeyMatch = musicEx ? resolveQmcMediaKey(mediaKeys, musicEx) : null
+		const mediaKey = mediaKeyMatch?.mediaKey
 		if (musicEx && !mediaKey) {
+			const loadedKeyMessage = mediaKeys.length
+				? `当前已加载 ${mediaKeys.length} 条本机媒体密钥，但未包含 ${musicEx.mediaFileName}。`
+				: `当前尚未加载 ${musicEx.mediaFileName} 对应的本机媒体密钥。`
 			throw new MusicImportError(
 				'QMC_KEY_REQUIRED',
-				`缺少该 MusicEx 文件的本机媒体密钥：${musicEx.mediaFileName}`,
+				`${loadedKeyMessage} 请从下载该歌曲的同一 QQ 音乐客户端和账号导出更新后的 MMKVStreamEncryptId 或 filenameEkeyMap，再继续导入。`,
 			)
 		}
 

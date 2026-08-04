@@ -270,6 +270,19 @@ describe('musicEx import orchestration', () => {
 		expect(controller.keyCount.value).toBe(1)
 	})
 
+	it('accumulates keys from multiple local databases instead of replacing earlier imports', async () => {
+		const controller = createMusicImportController()
+		const keyFile = (name: string, keyName: string) => new File([JSON.stringify({
+			version: 1,
+			source: 'qqmusic-mmkv',
+			keys: { [keyName]: sampleEkey },
+		})], name, { type: 'application/json' })
+
+		await expect(controller.loadKeyFile(keyFile('mac-keys.json', 'F0M0000HJUZs40wWgK.mflac'))).resolves.toBe(1)
+		await expect(controller.loadKeyFile(keyFile('ios-keys.json', 'O8M0004Th6td4LaoZs.mgg'))).resolves.toBe(2)
+		expect(controller.keyCount.value).toBe(2)
+	})
+
 	it('rejects an oversized key file before reading it into memory', async () => {
 		const arrayBuffer = vi.fn()
 		const file = {
@@ -325,6 +338,50 @@ describe('musicEx import orchestration', () => {
 		expect(request?.mediaKeys).toEqual([['F0M0000HJUZs40wWgK.mflac', sampleEkey]])
 		controller.clearMediaKeys()
 		expect(controller.keyCount.value).toBe(0)
+	})
+
+	it('uses a same-media-id key candidate when the exact MusicEx filename is absent', async () => {
+		const responses: QmcWorkerResponse[] = []
+		const decryptor = vi.fn(async () => ({ bytes: ascii('OggS\u0000'), songId: '638781692' }))
+		await handleQmcDecryptRequest({
+			type: 'decrypt',
+			id: 'musicex-media-id-fallback',
+			fileName: '白慕寒-海屿你 (破碎版).mgg',
+			inputExtension: 'mgg',
+			file: new File([musicExFixture({
+				songId: 638781692,
+				mediaId: '004Th6td4LaoZs',
+				mediaFileName: 'O8M0004Th6td4LaoZs.mgg',
+			})], '白慕寒-海屿你 (破碎版).mgg'),
+			mediaKeys: [['O4M0004Th6td4LaoZs.mgg', sampleEkey]],
+		}, response => responses.push(response), decryptor)
+
+		expect(decryptor).toHaveBeenCalledWith(expect.any(ArrayBuffer), 'mgg', expect.any(Function), undefined, sampleEkey)
+		expect(responses).toContainEqual(expect.objectContaining({ type: 'success', usedMediaKey: true }))
+	})
+
+	it('explains how to refresh the key database when no exact or media-id key exists', async () => {
+		const responses: QmcWorkerResponse[] = []
+		const decryptor = vi.fn()
+		await handleQmcDecryptRequest({
+			type: 'decrypt',
+			id: 'musicex-key-missing-guidance',
+			fileName: '白慕寒-海屿你 (破碎版).mgg',
+			inputExtension: 'mgg',
+			file: new File([musicExFixture({
+				songId: 638781692,
+				mediaId: '004Th6td4LaoZs',
+				mediaFileName: 'O8M0004Th6td4LaoZs.mgg',
+			})], '白慕寒-海屿你 (破碎版).mgg'),
+			mediaKeys: [['F0M0000HJUZs40wWgK.mflac', sampleEkey]],
+		}, response => responses.push(response), decryptor)
+
+		expect(decryptor).not.toHaveBeenCalled()
+		expect(responses).toContainEqual(expect.objectContaining({
+			type: 'error',
+			code: 'QMC_KEY_REQUIRED',
+			message: expect.stringContaining('下载该歌曲的同一 QQ 音乐客户端'),
+		}))
 	})
 
 	it('forwards the media key to the decryptor without including it in responses', async () => {

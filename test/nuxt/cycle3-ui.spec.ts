@@ -64,6 +64,7 @@ describe('qMCv2 music import UI contracts', () => {
 			expect(source).toContain('MMKVStreamEncryptId')
 			expect(source).toContain('filenameEkeyMap')
 			expect(source).toContain('仅保留在当前页面内存')
+			expect(source).toContain('可连续导入多份密钥数据库')
 			expect(source).toContain('移除本机密钥')
 		}
 	})

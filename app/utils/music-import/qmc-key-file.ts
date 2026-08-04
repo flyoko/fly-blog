@@ -1,3 +1,4 @@
+import type { MusicExFooter } from './musicex'
 import { fileExtension, getQmcFormat } from './qmc-formats'
 import { MusicImportError } from './types'
 
@@ -20,6 +21,48 @@ function invalidBundle(message: string, cause?: unknown): never {
 
 export function normalizeQmcMediaFileName(fileName: string) {
 	return fileName.normalize('NFC')
+}
+
+export interface QmcMediaKeyMatch {
+	mediaKey: string
+	mediaFileName: string
+	match: 'exact' | 'media-id'
+}
+
+export function resolveQmcMediaKey(
+	entries: Iterable<[string, string]>,
+	musicEx: Pick<MusicExFooter, 'mediaFileName' | 'mediaId'>,
+): QmcMediaKeyMatch | null {
+	const keys = new Map(Array.from(entries, ([name, mediaKey]) => [normalizeQmcMediaFileName(name), mediaKey]))
+	const targetName = normalizeQmcMediaFileName(musicEx.mediaFileName)
+	const exact = keys.get(targetName)
+	if (exact) {
+		return {
+			mediaKey: exact,
+			mediaFileName: targetName,
+			match: 'exact',
+		}
+	}
+
+	const mediaId = musicEx.mediaId.normalize('NFC')
+	if (!/^[A-Za-z0-9]{8,32}$/u.test(mediaId))
+		return null
+	const targetExtension = fileExtension(targetName)
+	const candidates = Array.from(keys.entries())
+		.filter(([name]) => normalizeQmcMediaFileName(name).includes(mediaId))
+		.sort(([left], [right]) => {
+			const leftExtensionPenalty = fileExtension(left) === targetExtension ? 0 : 1
+			const rightExtensionPenalty = fileExtension(right) === targetExtension ? 0 : 1
+			return leftExtensionPenalty - rightExtensionPenalty || left.localeCompare(right)
+		})
+	const candidate = candidates[0]
+	if (!candidate)
+		return null
+	return {
+		mediaKey: candidate[1],
+		mediaFileName: candidate[0],
+		match: 'media-id',
+	}
 }
 
 function baseName(fileName: string) {

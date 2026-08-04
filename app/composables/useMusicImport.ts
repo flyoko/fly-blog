@@ -64,9 +64,10 @@ export function createMusicImportController(options: MusicImportControllerOption
 		if (file.size > maxQmcKeyFileBytes)
 			throw new MusicImportError('INVALID_KEY_BUNDLE', 'QQ 音乐密钥文件不能超过 64 MiB。')
 		const parsed = await parseQmcKeyFile(file)
-		mediaKeys = parsed
-		keyCount.value = parsed.size
-		return parsed.size
+		for (const [fileName, mediaKey] of parsed)
+			mediaKeys.set(fileName, mediaKey)
+		keyCount.value = mediaKeys.size
+		return mediaKeys.size
 	}
 
 	function clearMediaKeys() {
