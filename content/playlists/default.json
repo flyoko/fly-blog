@@ -23,6 +23,17 @@
       "duration": null,
       "enabled": true,
       "order": 1
+    },
+    {
+      "id": "track-3284442e",
+      "title": "The Rain (映画「菊次郎の夏」より)",
+      "artist": "久石让",
+      "source": "",
+      "audioUrl": "https://flyovo.cc.cd/media/public/music/audio/40dc1159-b42c-4c43-ae6a-db9f270f05f8.mp3",
+      "coverUrl": "https://flyovo.cc.cd/media/public/music/covers/3f9313a6-d502-406e-a301-d201c60d0fa4.png",
+      "duration": null,
+      "enabled": true,
+      "order": 2
     }
   ]
 }
