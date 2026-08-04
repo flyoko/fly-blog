@@ -1,5 +1,17 @@
 {
   "title": "随心听",
   "description": "收藏获得授权或可以合法公开播放的声音。",
-  "tracks": []
+  "tracks": [
+    {
+      "id": "track-fff9ea3e",
+      "title": "123我哈你（哈基米之歌）",
+      "artist": "ALPHAZ",
+      "source": "",
+      "audioUrl": "https://flyovo.cc.cd/media/public/music/audio/3278e9cd-a310-444c-b641-46c285e65ec9.mp3",
+      "coverUrl": "https://flyovo.cc.cd/media/public/music/covers/5515046d-368b-495e-9eca-fe1ffd48ceed.jpg",
+      "duration": null,
+      "enabled": true,
+      "order": 0
+    }
+  ]
 }
