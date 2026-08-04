@@ -5,6 +5,7 @@ import type {
 	AboutTimeline,
 } from '#shared/admin/about'
 import type { MediaObjectDto } from '#shared/admin/media'
+import { aboutLinksSchema, aboutTimelineSchema } from '#shared/admin/about'
 import { insertMarkdownImage } from '~/composables/useAdminDraft'
 import { buildConfigPullRequest } from '~/types/admin'
 import { renderAdminMarkdown } from '~/utils/admin-markdown'
@@ -22,8 +23,8 @@ const error = ref('')
 const success = ref('')
 const profile = reactive<AboutProfile>({ title: '', summary: '', body: '' })
 const profileExtras = ref<Record<string, unknown>>({})
-const timelineText = ref('[]')
-const linksText = ref('[]')
+const timeline = ref<AboutTimeline>([])
+const links = ref<AboutLinks>([])
 const bodyTextarea = ref<HTMLTextAreaElement | null>(null)
 const mediaPickerOpen = ref(false)
 const previewError = ref<string | null>(null)
@@ -49,8 +50,8 @@ async function load() {
 			avatar: data.value.profile.avatar,
 			updatedAt: data.value.profile.updatedAt,
 		})
-		timelineText.value = JSON.stringify(data.value.timeline.items, null, 2)
-		linksText.value = JSON.stringify(data.value.links.items, null, 2)
+		timeline.value = structuredClone(data.value.timeline.items)
+		links.value = structuredClone(data.value.links.items)
 	}
 	catch (cause) {
 		error.value = cause instanceof Error ? cause.message : '自述加载失败'
@@ -121,14 +122,35 @@ watch(() => profile.body, (body) => {
 	previewTimer = setTimeout(refreshPreview, 300, body)
 }, { immediate: true })
 
+function newAboutId(prefix: string) {
+	return `${prefix}-${crypto.randomUUID().slice(0, 8).toLowerCase()}`
+}
+
+function moveItem<T>(items: T[], index: number, direction: -1 | 1) {
+	const target = index + direction
+	if (target < 0 || target >= items.length)
+		return
+	const current = items[index]!
+	items[index] = items[target]!
+	items[target] = current
+}
+
+function addTimelineItem() {
+	timeline.value.push({ id: newAboutId('timeline'), date: String(new Date().getFullYear()), title: '新的经历', description: '' })
+}
+
+function addLinkItem() {
+	links.value.push({ id: newAboutId('link'), label: '新链接', url: 'https://example.com', icon: 'tabler:link' })
+}
+
 async function createStructurePr(kind: 'aboutTimeline' | 'aboutLinks') {
 	saving.value = true
 	error.value = ''
 	success.value = ''
 	try {
-		const content = JSON.parse(
-			kind === 'aboutTimeline' ? timelineText.value : linksText.value,
-		)
+		const content = kind === 'aboutTimeline'
+			? aboutTimelineSchema.parse(timeline.value)
+			: aboutLinksSchema.parse(links.value)
 		const result = await useAdminApi<{
 			pullRequestNumber: number
 			pullRequestUrl: string
@@ -146,7 +168,7 @@ async function createStructurePr(kind: 'aboutTimeline' | 'aboutLinks') {
 		error.value
 			= cause instanceof Error
 				? cause.message
-				: '结构变更提交失败，请检查 JSON 格式。'
+				: '结构变更提交失败，请检查填写内容。'
 	}
 	finally {
 		saving.value = false
@@ -220,42 +242,71 @@ onBeforeUnmount(() => {
 		<div class="admin-about-structures">
 			<section class="admin-panel">
 				<header class="admin-panel-header">
-					<div>
-						<h2>时间线</h2>
-						<p>结构变更走 PR。</p>
-					</div>
+					<div><h2>时间线</h2><p>按访客看到的顺序整理经历。</p></div>
+					<button class="admin-button" type="button" @click="addTimelineItem">
+						<Icon name="tabler:plus" />添加经历
+					</button>
 				</header>
-				<label class="admin-field"><span>JSON</span><textarea
-					v-model="timelineText"
-					rows="16"
-					spellcheck="false"
-				/></label><button
-					class="admin-button"
-					type="button"
-					:disabled="saving"
-					@click="createStructurePr('aboutTimeline')"
-				>
-					创建时间线 PR
+				<div class="admin-about-item-list">
+					<article v-for="(item, index) in timeline" :key="item.id" class="admin-about-item">
+						<div class="admin-about-item-order">
+							<button class="admin-icon-button" type="button" aria-label="上移经历" :disabled="index === 0" @click="moveItem(timeline, index, -1)">
+								<Icon name="tabler:arrow-up" />
+							</button>
+							<button class="admin-icon-button" type="button" aria-label="下移经历" :disabled="index === timeline.length - 1" @click="moveItem(timeline, index, 1)">
+								<Icon name="tabler:arrow-down" />
+							</button>
+							<button class="admin-icon-button" type="button" aria-label="删除经历" @click="timeline.splice(index, 1)">
+								<Icon name="tabler:trash" />
+							</button>
+						</div>
+						<div class="admin-form-grid">
+							<label class="admin-field"><span>时间</span><input v-model="item.date" maxlength="32" placeholder="2026 或 2024—至今"></label>
+							<label class="admin-field"><span>标题</span><input v-model="item.title" maxlength="160"></label>
+						</div>
+						<label class="admin-field"><span>说明</span><textarea v-model="item.description" rows="3" maxlength="1000" /></label>
+						<label class="admin-field"><span>相关链接（可选）</span><input v-model="item.link" type="url" placeholder="https://..."></label>
+					</article>
+					<AdminEmptyState v-if="!timeline.length" icon="tabler:timeline-event" title="还没有时间线" description="添加一段经历，让访客更容易了解你。" />
+				</div>
+				<button class="admin-button admin-button-primary admin-about-structure-save" type="button" :disabled="saving" @click="createStructurePr('aboutTimeline')">
+					<Icon name="tabler:git-pull-request" />保存时间线并预览
 				</button>
 			</section>
+
 			<section class="admin-panel">
 				<header class="admin-panel-header">
-					<div>
-						<h2>外部链接</h2>
-						<p>仅允许 HTTP(S) 地址。</p>
-					</div>
+					<div><h2>外部链接</h2><p>主页、社交账号和作品入口。</p></div>
+					<button class="admin-button" type="button" @click="addLinkItem">
+						<Icon name="tabler:plus" />添加链接
+					</button>
 				</header>
-				<label class="admin-field"><span>JSON</span><textarea
-					v-model="linksText"
-					rows="16"
-					spellcheck="false"
-				/></label><button
-					class="admin-button"
-					type="button"
-					:disabled="saving"
-					@click="createStructurePr('aboutLinks')"
-				>
-					创建链接 PR
+				<div class="admin-about-item-list">
+					<article v-for="(item, index) in links" :key="item.id" class="admin-about-item admin-about-link-item">
+						<div class="admin-about-link-preview">
+							<Icon :name="item.icon || 'tabler:link'" /><strong>{{ item.label || '未命名链接' }}</strong>
+						</div>
+						<div class="admin-about-item-order">
+							<button class="admin-icon-button" type="button" aria-label="上移链接" :disabled="index === 0" @click="moveItem(links, index, -1)">
+								<Icon name="tabler:arrow-up" />
+							</button>
+							<button class="admin-icon-button" type="button" aria-label="下移链接" :disabled="index === links.length - 1" @click="moveItem(links, index, 1)">
+								<Icon name="tabler:arrow-down" />
+							</button>
+							<button class="admin-icon-button" type="button" aria-label="删除链接" @click="links.splice(index, 1)">
+								<Icon name="tabler:trash" />
+							</button>
+						</div>
+						<div class="admin-form-grid">
+							<label class="admin-field"><span>显示文字</span><input v-model="item.label" maxlength="80"></label>
+							<label class="admin-field"><span>图标</span><input v-model="item.icon" maxlength="120" placeholder="tabler:link"></label>
+						</div>
+						<label class="admin-field"><span>链接地址</span><input v-model="item.url" type="url" placeholder="https://..."></label>
+					</article>
+					<AdminEmptyState v-if="!links.length" icon="tabler:link-off" title="还没有外部链接" description="添加 GitHub、邮箱或其他个人主页。" />
+				</div>
+				<button class="admin-button admin-button-primary admin-about-structure-save" type="button" :disabled="saving" @click="createStructurePr('aboutLinks')">
+					<Icon name="tabler:git-pull-request" />保存链接并预览
 				</button>
 			</section>
 		</div>
@@ -285,6 +336,51 @@ onBeforeUnmount(() => {
 .admin-about-structures {
 	display: grid;
 	gap: 1rem;
+}
+
+.admin-about-item-list {
+	display: grid;
+	gap: 0.75rem;
+}
+
+.admin-about-item {
+	position: relative;
+	padding: 0.85rem;
+	border: 1px solid var(--admin-border);
+	border-radius: 0.85rem;
+	background: var(--admin-surface-soft);
+}
+
+.admin-about-item-order {
+	display: flex;
+	justify-content: flex-end;
+	gap: 0.35rem;
+}
+
+.admin-about-link-item {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	gap: 0.65rem;
+}
+
+.admin-about-link-item > :not(.admin-about-item-order, .admin-about-link-preview) {
+	grid-column: 1 / -1;
+}
+
+.admin-about-link-preview {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+}
+
+.admin-about-structure-save {
+	width: 100%;
+	margin-top: 0.85rem;
+}
+
+.admin-about-item-list .admin-empty-state {
+	min-height: 12rem;
+	padding: 1.5rem;
 }
 
 .admin-about-editor-workspace {

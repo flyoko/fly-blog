@@ -14,6 +14,12 @@ const result = ref<{ items: ArticleSummary[], total: number, page: number, pageS
 	pageSize: 20,
 })
 const categories = categoriesRaw.map(item => item.name)
+const hasFilters = computed(() => Boolean(query.value || category.value || draft.value))
+const statusFilters = [
+	{ value: '', label: '全部' },
+	{ value: 'false', label: '已发布' },
+	{ value: 'true', label: '草稿' },
+] as const
 let searchTimer: ReturnType<typeof setTimeout> | undefined
 
 useSeoMeta({ title: '文章管理', robots: 'noindex, nofollow' })
@@ -38,6 +44,12 @@ async function load() {
 	finally {
 		loading.value = false
 	}
+}
+
+function clearFilters() {
+	query.value = ''
+	category.value = ''
+	draft.value = ''
 }
 
 watch([query, category, draft], () => {
@@ -77,14 +89,23 @@ onBeforeUnmount(() => searchTimer && clearTimeout(searchTimer))
 				<option v-for="item in categories" :key="item" :value="item">{{ item }}</option>
 			</select>
 		</label>
-		<label class="admin-select-field">
-			<span>状态</span>
-			<select v-model="draft">
-				<option value="">全部状态</option>
-				<option value="false">已发布</option>
-				<option value="true">草稿</option>
-			</select>
-		</label>
+		<div class="admin-tab-list" role="group" aria-label="文章状态">
+			<button
+				v-for="item in statusFilters"
+				:key="item.value"
+				class="admin-tab"
+				:class="{ 'is-active': draft === item.value }"
+				type="button"
+				:aria-pressed="draft === item.value"
+				@click="draft = item.value"
+			>
+				{{ item.label }}
+			</button>
+		</div>
+		<button v-if="hasFilters" class="admin-button" type="button" @click="clearFilters">
+			<Icon name="tabler:filter-off" />清空筛选
+		</button>
+		<span class="admin-muted-copy">{{ loading ? '正在查找…' : `找到 ${result.total} 篇` }}</span>
 		<button class="admin-icon-button" type="button" aria-label="刷新文章列表" @click="load">
 			<Icon name="tabler:refresh" />
 		</button>

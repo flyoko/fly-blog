@@ -2,6 +2,7 @@
 import type { MediaObjectDto } from '#shared/admin/media'
 import type { MomentDto, MomentStatus } from '#shared/admin/moments'
 
+const route = useRoute()
 const items = ref<MomentDto[]>([])
 const media = ref<MediaObjectDto[]>([])
 const loading = ref(true)
@@ -9,6 +10,9 @@ const saving = ref(false)
 const error = ref('')
 const success = ref('')
 const selectedId = ref<string | null>(null)
+const contentInput = ref<HTMLTextAreaElement | null>(null)
+const extrasOpen = ref(false)
+const backupOpen = ref(false)
 const statusFilter = ref<'' | MomentStatus>('')
 const query = ref('')
 const form = reactive({
@@ -24,6 +28,23 @@ const form = reactive({
 const selected = computed(
 	() => items.value.find(item => item.id === selectedId.value) ?? null,
 )
+const hasExtras = computed(() => Boolean(
+	form.tags.trim()
+	|| form.city.trim()
+	|| form.mediaIds.length
+	|| form.musicTitle.trim()
+	|| form.musicArtist.trim()
+	|| form.musicUrl.trim(),
+))
+const contentCount = computed(() => form.content.length)
+
+function momentStatusLabel(status: MomentStatus) {
+	if (status === 'published')
+		return '已公开'
+	if (status === 'withdrawn')
+		return '已撤回'
+	return '草稿'
+}
 
 interface MomentBackupStatus {
 	state: {
@@ -60,6 +81,7 @@ useSeoMeta({ title: '瞬间管理', robots: 'noindex, nofollow' })
 
 function resetForm() {
 	selectedId.value = null
+	extrasOpen.value = false
 	Object.assign(form, {
 		content: '',
 		status: 'draft',
@@ -70,10 +92,12 @@ function resetForm() {
 		musicArtist: '',
 		musicUrl: '',
 	})
+	nextTick(() => contentInput.value?.focus())
 }
 
 function edit(moment: MomentDto) {
 	selectedId.value = moment.id
+	extrasOpen.value = Boolean(moment.tags.length || moment.city || moment.music || moment.media.length)
 	Object.assign(form, {
 		content: moment.content,
 		status: moment.status,
@@ -182,6 +206,11 @@ async function save() {
 	finally {
 		saving.value = false
 	}
+}
+
+async function saveWithStatus(status: MomentStatus) {
+	form.status = status
+	await save()
 }
 
 async function transition(kind: 'publish' | 'withdraw' | 'restore') {
@@ -313,7 +342,11 @@ watch(backupPath, (path) => {
 		backupPreview.value = null
 	restoreConfirmation.value = ''
 })
-onMounted(() => Promise.all([load(), loadBackup()]))
+onMounted(async () => {
+	await Promise.all([load(), loadBackup()])
+	if (route.query.compose === '1')
+		resetForm()
+})
 onBeforeUnmount(() => timer && clearTimeout(timer))
 </script>
 
@@ -325,13 +358,14 @@ onBeforeUnmount(() => timer && clearTimeout(timer))
 			<h1>瞬间</h1>
 			<p>发布短内容、图片、地点和正在听的声音。</p>
 		</div>
-		<button
-			class="admin-button admin-button-primary"
-			type="button"
-			@click="resetForm"
-		>
-			<Icon name="tabler:plus" />新建瞬间
-		</button>
+		<div class="admin-heading-actions">
+			<button class="admin-button" type="button" @click="backupOpen = !backupOpen">
+				<Icon name="tabler:database" />{{ backupOpen ? '收起备份' : '备份与恢复' }}
+			</button>
+			<button class="admin-button admin-button-primary" type="button" @click="resetForm">
+				<Icon name="tabler:plus" />新建瞬间
+			</button>
+		</div>
 	</header>
 	<p v-if="error" class="admin-error">
 		{{ error }}
@@ -370,7 +404,7 @@ onBeforeUnmount(() => timer && clearTimeout(timer))
 					type="button"
 					@click="edit(item)"
 				>
-					<strong>{{ item.content }}</strong><span>{{ item.status }} · v{{ item.version }} ·
+					<strong>{{ item.content }}</strong><span>{{ momentStatusLabel(item.status) }} · v{{ item.version }} ·
 						{{ item.likeCount }} 赞</span>
 				</button>
 			</div>
@@ -387,95 +421,58 @@ onBeforeUnmount(() => timer && clearTimeout(timer))
 					<h2>{{ selected ? "编辑瞬间" : "新建瞬间" }}</h2>
 					<p>
 						{{
-							selected ? `版本 ${selected.version}` : "保存为草稿或直接发布"
+							selected ? `${momentStatusLabel(selected.status)} · 版本 ${selected.version}` : "写完后直接选择保存草稿或公开"
 						}}
 					</p>
 				</div>
 			</header>
-			<label class="admin-field"><span>内容</span><textarea
+			<label class="admin-field admin-moment-content"><span>内容 <small>{{ contentCount }} / 10000</small></span><textarea
+				ref="contentInput"
 				v-model="form.content"
 				rows="8"
 				maxlength="10000"
 				placeholder="此刻在想什么？"
 			/>
 			</label>
-			<div class="admin-form-grid">
-				<label class="admin-field"><span>状态</span><select v-model="form.status">
-					<option value="draft">草稿</option>
-					<option value="published">已发布</option>
-					<option value="withdrawn">已撤回</option>
-				</select></label>
-				<label class="admin-field"><span>城市</span><input
-					v-model="form.city"
-					maxlength="80"
-					placeholder="仅城市级，例如 Shanghai"
-				></label>
-			</div>
-			<label class="admin-field"><span>标签（逗号分隔）</span><input v-model="form.tags" placeholder="生活, 随笔"></label>
-			<div class="admin-form-grid">
-				<label class="admin-field"><span>音乐标题</span><input v-model="form.musicTitle" placeholder="可选"></label>
-				<label class="admin-field"><span>音乐作者</span><input v-model="form.musicArtist" placeholder="可选"></label>
-			</div>
-			<label class="admin-field"><span>音乐公开链接</span><input v-model="form.musicUrl" type="url" placeholder="https://..."></label>
-			<fieldset class="admin-field admin-moment-media">
-				<legend>媒体（最多 9 张）</legend>
-				<p v-if="!media.length" class="admin-muted-copy">
-					媒体库中还没有可用图片。
-				</p>
-				<label v-for="item in media" :key="item.id"><input
-					v-model="form.mediaIds"
-					type="checkbox"
-					:value="item.id"
-					:disabled="
-						!form.mediaIds.includes(item.id) && form.mediaIds.length >= 9
-					"
-				><img :src="item.url" :alt="item.originalName" loading="lazy" decoding="async"><span>{{
-					item.originalName
-				}}</span></label>
-			</fieldset>
+			<details class="admin-moment-extras" :open="extrasOpen" @toggle="extrasOpen = ($event.target as HTMLDetailsElement).open">
+				<summary>
+					<span><Icon name="tabler:adjustments-horizontal" /><strong>补充信息</strong></span>
+					<small>{{ hasExtras ? '已填写地点、标签、音乐或图片' : '地点、标签、音乐、图片均为可选' }}</small>
+				</summary>
+				<div class="admin-moment-extras-content">
+					<div class="admin-form-grid">
+						<label class="admin-field"><span>城市</span><input v-model="form.city" maxlength="80" placeholder="仅城市级，例如 杭州"></label>
+						<label class="admin-field"><span>标签</span><input v-model="form.tags" placeholder="生活, 随笔"></label>
+					</div>
+					<div class="admin-form-grid">
+						<label class="admin-field"><span>音乐标题</span><input v-model="form.musicTitle" placeholder="可选"></label>
+						<label class="admin-field"><span>音乐作者</span><input v-model="form.musicArtist" placeholder="可选"></label>
+					</div>
+					<label class="admin-field"><span>音乐公开链接</span><input v-model="form.musicUrl" type="url" placeholder="https://..."></label>
+					<fieldset class="admin-field admin-moment-media">
+						<legend>图片（最多 9 张）</legend>
+						<p v-if="!media.length" class="admin-muted-copy">
+							媒体库中还没有可用图片。
+						</p>
+						<label v-for="item in media" :key="item.id"><input v-model="form.mediaIds" type="checkbox" :value="item.id" :disabled="!form.mediaIds.includes(item.id) && form.mediaIds.length >= 9"><img :src="item.url" :alt="item.originalName" loading="lazy" decoding="async"><span>{{ item.originalName }}</span></label>
+					</fieldset>
+				</div>
+			</details>
 			<footer class="admin-moment-actions">
-				<button
-					class="admin-button admin-button-primary"
-					type="button"
-					:disabled="saving"
-					@click="save"
-				>
-					<Icon name="tabler:device-floppy" />{{
-						saving ? "保存中…" : "保存"
-					}}
+				<button class="admin-button" type="button" :disabled="saving || !form.content.trim()" @click="saveWithStatus('draft')">
+					<Icon name="tabler:device-floppy" />{{ saving ? '保存中…' : selected?.status === 'draft' ? '更新草稿' : '保存为草稿' }}
 				</button>
-				<button
-					v-if="selected && selected.status !== 'published'"
-					class="admin-button"
-					type="button"
-					:disabled="saving"
-					@click="transition('publish')"
-				>
-					发布
+				<button class="admin-button admin-button-primary" type="button" :disabled="saving || !form.content.trim()" @click="saveWithStatus('published')">
+					<Icon name="tabler:send" />{{ saving ? '发布中…' : selected?.status === 'published' ? '更新公开内容' : '立即发布' }}
 				</button>
-				<button
-					v-if="selected?.status === 'published'"
-					class="admin-button admin-button-danger"
-					type="button"
-					:disabled="saving"
-					@click="transition('withdraw')"
-				>
-					撤回
-				</button>
-				<button
-					v-if="selected?.status === 'withdrawn'"
-					class="admin-button"
-					type="button"
-					:disabled="saving"
-					@click="transition('restore')"
-				>
-					恢复草稿
+				<button v-if="selected?.status === 'published'" class="admin-button admin-button-danger" type="button" :disabled="saving" @click="transition('withdraw')">
+					<Icon name="tabler:eye-off" />撤回
 				</button>
 			</footer>
 		</section>
 	</div>
 
-	<section class="admin-panel admin-moment-backup">
+	<section v-if="backupOpen" class="admin-panel admin-moment-backup">
 		<header class="admin-panel-header">
 			<div>
 				<h2>Git 快照与恢复</h2>
@@ -563,6 +560,54 @@ onBeforeUnmount(() => timer && clearTimeout(timer))
 .admin-moment-list-panel,
 .admin-moment-editor {
 	padding: 1rem;
+}
+
+.admin-moment-content > span {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
+
+.admin-moment-content small {
+	font-weight: 400;
+	color: var(--admin-muted);
+}
+
+.admin-moment-extras {
+	margin-top: 1rem;
+	border: 1px solid var(--admin-border);
+	border-radius: 0.85rem;
+	background: var(--admin-surface-soft);
+}
+
+.admin-moment-extras > summary {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+	padding: 0.85rem;
+	list-style: none;
+	cursor: pointer;
+}
+
+.admin-moment-extras > summary::-webkit-details-marker {
+	display: none;
+}
+
+.admin-moment-extras > summary span {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+}
+
+.admin-moment-extras > summary small {
+	font-size: 0.68rem;
+	color: var(--admin-muted);
+}
+
+.admin-moment-extras-content {
+	padding: 0 0.85rem 0.85rem;
+	border-top: 1px solid var(--admin-border);
 }
 
 .admin-moment-list-item {

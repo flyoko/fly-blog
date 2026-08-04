@@ -64,6 +64,50 @@ describe('cycle 5 humanized admin contracts', () => {
 		expect(reviewDeploymentMeta(null)).toEqual({ label: '等待预览', tone: 'neutral' })
 	})
 
+	it('keeps frequent mobile actions one tap away', async () => {
+		const layout = await source('app/layouts/admin.vue')
+		const dock = await source('app/components/admin/AdminMobileDock.vue')
+
+		expect(layout).toContain('<AdminMobileDock')
+		expect(dock).toContain('常用后台操作')
+		expect(dock).toContain('写文章')
+		expect(dock).toContain('发瞬间')
+	})
+
+	it('reduces moments, media, music, and about to task-first workflows', async () => {
+		const moments = await source('app/pages/admin/moments.vue')
+		const media = await source('app/pages/admin/media.vue')
+		const music = await source('app/pages/admin/music.vue')
+		const about = await source('app/pages/admin/about.vue')
+
+		expect(moments).toContain('立即发布')
+		expect(moments).toContain('补充信息')
+		expect(moments).not.toContain('<span>状态</span><select v-model="form.status">')
+		expect(media).toContain('拖文件到这里，或点击选择')
+		expect(media).toContain('复制链接')
+		expect(music).toContain('从媒体库添加')
+		expect(music).toContain('hasChanges')
+		expect(about).toContain('添加经历')
+		expect(about).toContain('保存时间线并预览')
+		expect(about).not.toContain('timelineText')
+		expect(about).not.toContain('linksText')
+	})
+
+	it('loads production configuration and prevents duplicate submissions', async () => {
+		const settings = await source('app/pages/admin/settings.vue')
+		const modules = await source('app/pages/admin/modules.vue')
+		const reviews = await source('app/pages/admin/reviews.vue')
+		const news = await source('app/pages/admin/ai-news.vue')
+
+		expect(settings).toContain('/api/admin/publishing/configs/categories')
+		expect(settings).toContain('重新读取线上配置')
+		expect(settings).toContain('没有改动')
+		expect(modules).toContain('hasChanges')
+		expect(modules).toContain('没有改动')
+		expect(reviews).not.toContain('verification-text="MERGE"')
+		expect(news).not.toContain('verification-text="DELETE"')
+	})
+
 	it('keeps nested admin routes transition-safe and declares page language', async () => {
 		const adminRoot = await source('app/pages/admin.vue')
 		const nuxtConfig = await source('nuxt.config.ts')

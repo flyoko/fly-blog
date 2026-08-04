@@ -26,6 +26,13 @@ interface PullRequestResult {
 	resourcePath: string
 }
 
+interface ConfigResult {
+	kind: string
+	path: string
+	sha: string
+	content: unknown
+}
+
 type SettingsKind = Extract<AdminConfigKind, 'categories' | 'navigation' | 'footer' | 'modules' | 'weather'>
 type NavigationItem = NavigationConfig[number]['items'][number]
 type FooterItem = FooterConfig['iconNav'][number]
@@ -44,6 +51,10 @@ const navigation = ref<NavigationConfig>(navigationConfigSchema.parse(structured
 const footer = ref<FooterConfig>(footerConfigSchema.parse(structuredClone(footerSource) as unknown))
 const weather = reactive<WeatherConfig>(weatherConfigSchema.parse(structuredClone(weatherSource) as unknown))
 const saving = ref(false)
+const loadingDeployed = ref(false)
+const syncedAt = ref<string | null>(null)
+const baselineFingerprints = reactive<Record<string, string>>({})
+const submittedFingerprints = reactive<Record<string, string>>({})
 const error = ref<string | null>(null)
 const result = ref<PullRequestResult | null>(null)
 const cityQuery = ref('')
@@ -52,14 +63,6 @@ const citySearching = ref(false)
 const citySearchError = ref<string | null>(null)
 
 const currentTab = computed(() => tabs.find(tab => tab.kind === selected.value) ?? tabs[0]!)
-const createButtonLabel = computed(() => ({
-	categories: '创建分类 PR',
-	navigation: '创建导航 PR',
-	footer: '创建页脚 PR',
-	weather: '创建天气 PR',
-	modules: '前往模块管理',
-})[selected.value])
-
 useSeoMeta({ title: '站点设置', robots: 'noindex, nofollow' })
 
 watch(selected, () => {
@@ -181,7 +184,68 @@ function currentContent() {
 	throw new Error('模块配置请在“模块管理”中调整。')
 }
 
+function contentFor(kind: Exclude<SettingsKind, 'modules'>) {
+	if (kind === 'categories')
+		return categoriesConfigSchema.parse(categories.value)
+	if (kind === 'navigation')
+		return navigationConfigSchema.parse(navigation.value)
+	if (kind === 'footer')
+		return footerConfigSchema.parse(footer.value)
+	return weatherConfigSchema.parse(weather)
+}
+
+function fingerprint(value: unknown) {
+	return JSON.stringify(value)
+}
+
+const currentFingerprint = computed(() => selected.value === 'modules' ? '' : fingerprint(contentFor(selected.value)))
+const selectedChanged = computed(() => selected.value !== 'modules' && baselineFingerprints[selected.value] !== currentFingerprint.value)
+const canSubmit = computed(() => selected.value === 'modules' || (
+	selectedChanged.value
+	&& submittedFingerprints[selected.value] !== currentFingerprint.value
+))
+
+const createButtonLabel = computed(() => {
+	if (selected.value === 'modules')
+		return '前往模块管理'
+	if (!selectedChanged.value)
+		return '没有改动'
+	if (submittedFingerprints[selected.value] === currentFingerprint.value)
+		return '这版已提交'
+	return ({ categories: '保存分类并预览', navigation: '保存导航并预览', footer: '保存页脚并预览', weather: '保存天气并预览' })[selected.value]
+})
+
+async function loadDeployedConfigs() {
+	loadingDeployed.value = true
+	error.value = null
+	result.value = null
+	try {
+		const [categoryConfig, navigationConfig, footerConfig, weatherConfig] = await Promise.all([
+			useAdminApi<ConfigResult>('/api/admin/publishing/configs/categories'),
+			useAdminApi<ConfigResult>('/api/admin/publishing/configs/navigation'),
+			useAdminApi<ConfigResult>('/api/admin/publishing/configs/footer'),
+			useAdminApi<ConfigResult>('/api/admin/publishing/configs/weather'),
+		])
+		categories.value = categoriesConfigSchema.parse(categoryConfig.content)
+		navigation.value = navigationConfigSchema.parse(navigationConfig.content)
+		footer.value = footerConfigSchema.parse(footerConfig.content)
+		Object.assign(weather, weatherConfigSchema.parse(weatherConfig.content))
+		for (const kind of ['categories', 'navigation', 'footer', 'weather'] as const)
+			baselineFingerprints[kind] = fingerprint(contentFor(kind))
+		Object.keys(submittedFingerprints).forEach(key => delete submittedFingerprints[key])
+		syncedAt.value = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+	}
+	catch (cause) {
+		error.value = cause instanceof Error ? cause.message : '线上配置读取失败，当前保留页面内置配置。'
+	}
+	finally {
+		loadingDeployed.value = false
+	}
+}
+
 async function createPullRequest() {
+	if (selected.value !== 'modules' && !canSubmit.value)
+		return
 	if (selected.value === 'modules') {
 		await navigateTo('/admin/modules')
 		return
@@ -199,6 +263,7 @@ async function createPullRequest() {
 			method: 'POST',
 			body: payload,
 		})
+		submittedFingerprints[selected.value] = currentFingerprint.value
 	}
 	catch (cause) {
 		error.value = cause instanceof Error ? cause.message : '配置 Pull Request 创建失败'
@@ -207,6 +272,8 @@ async function createPullRequest() {
 		saving.value = false
 	}
 }
+
+onMounted(loadDeployedConfigs)
 </script>
 
 <template>
@@ -217,12 +284,19 @@ async function createPullRequest() {
 			<h1>站点设置</h1>
 			<p>像整理内容一样调整站点。创建配置 PR 后，可以先看预览，再决定是否合并。</p>
 		</div>
-		<button class="admin-button admin-button-primary" type="button" :disabled="saving" @click="createPullRequest">
-			<Icon :name="selected === 'modules' ? 'tabler:arrow-right' : 'tabler:git-pull-request'" />
-			{{ saving ? '正在创建…' : createButtonLabel }}
-		</button>
+		<div class="admin-heading-actions">
+			<button class="admin-button" type="button" :disabled="loadingDeployed" @click="loadDeployedConfigs">
+				<Icon name="tabler:refresh" />{{ loadingDeployed ? '读取中…' : '重新读取线上配置' }}
+			</button>
+			<button class="admin-button admin-button-primary" type="button" :disabled="saving || loadingDeployed || !canSubmit" @click="createPullRequest">
+				<Icon :name="selected === 'modules' ? 'tabler:arrow-right' : 'tabler:git-pull-request'" />{{ saving ? '正在创建…' : createButtonLabel }}
+			</button>
+		</div>
 	</header>
 
+	<p v-if="syncedAt" class="admin-config-sync-note">
+		<Icon name="tabler:cloud-check" />已读取线上配置 · {{ syncedAt }}<span v-if="selectedChanged"> · 当前页面有未提交改动</span>
+	</p>
 	<p v-if="error" class="admin-error">
 		{{ error }}
 	</p>
@@ -702,5 +776,16 @@ async function createPullRequest() {
 	.admin-config-item > :nth-child(4) {
 		grid-column: auto;
 	}
+}
+</style>
+
+<style scoped lang="scss">
+.admin-config-sync-note {
+	display: flex;
+	align-items: center;
+	gap: 0.45rem;
+	margin: -0.5rem 0 1rem;
+	font-size: 0.72rem;
+	color: var(--admin-muted);
 }
 </style>

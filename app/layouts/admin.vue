@@ -34,6 +34,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onGlobalKeydown))
 				<slot />
 			</main>
 		</div>
+		<AdminMobileDock @command="commandOpen = true" />
 		<AdminCommandPalette :open="commandOpen" @close="commandOpen = false" />
 	</div>
 </div>

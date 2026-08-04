@@ -20,12 +20,44 @@ const error = ref('')
 const success = ref('')
 const pendingDelete = ref<NewsItemDto | null>(null)
 const deleting = ref(false)
+const manualOpen = ref(false)
+const candidateQuery = ref('')
+const sourceFilter = ref('')
 const form = reactive({
 	title: '',
 	summary: '',
 	url: '',
 	category: '手动精选',
 })
+const sourceOptions = computed(() => [...new Set(data.value?.items.map(item => item.sourceId) ?? [])])
+const filteredItems = computed(() => {
+	const normalized = candidateQuery.value.trim().toLowerCase()
+	return (data.value?.items ?? []).filter((item) => {
+		if (sourceFilter.value && item.sourceId !== sourceFilter.value)
+			return false
+		if (!normalized)
+			return true
+		return [item.title, item.summary, item.category, item.sourceId].filter(Boolean).some(value => value!.toLowerCase().includes(normalized))
+	})
+})
+
+function sourceLabel(sourceId: string) {
+	if (sourceId.startsWith('ai-hot'))
+		return 'AI HOT'
+	if (sourceId === 'station-news')
+		return '站长资讯'
+	if (sourceId === 'manual')
+		return '手动精选'
+	return sourceId
+}
+
+function sourceStatusLabel(status: string) {
+	if (status === 'success')
+		return '同步正常'
+	if (status === 'pending' || status === 'running')
+		return '同步中'
+	return '需要处理'
+}
 useSeoMeta({ title: 'AI 阅闻管理', robots: 'noindex, nofollow' })
 
 async function load() {
@@ -108,6 +140,7 @@ async function addManual() {
 			category: '手动精选',
 		})
 		success.value = '手动精选卡片已添加。'
+		manualOpen.value = false
 		await load()
 	}
 	catch (cause) {
@@ -129,6 +162,9 @@ onMounted(load)
 			<p>聚合站长资讯与 AI 精选，也可添加手动精选。</p>
 		</div>
 		<div class="admin-heading-actions">
+			<button class="admin-button" type="button" @click="manualOpen = !manualOpen">
+				<Icon name="tabler:plus" />{{ manualOpen ? '收起精选表单' : '添加手动精选' }}
+			</button>
 			<a class="admin-button" href="/ai.news" target="_blank" rel="noopener"><Icon name="tabler:external-link" />查看页面</a><button
 				class="admin-button admin-button-primary"
 				type="button"
@@ -146,7 +182,7 @@ onMounted(load)
 		{{ success }}
 	</p>
 	<div class="admin-news-layout">
-		<section class="admin-panel admin-news-manual">
+		<section v-if="manualOpen" class="admin-panel admin-news-manual">
 			<header class="admin-panel-header">
 				<div>
 					<h2>手动精选</h2>
@@ -181,13 +217,13 @@ onMounted(load)
 					class="admin-service-row"
 				>
 					<div>
-						<strong>{{ source.source_id }}</strong><span>{{ source.item_count }} 条 ·
+						<strong>{{ sourceLabel(source.source_id) }}</strong><span>{{ source.item_count }} 条 ·
 							{{ source.last_success_at || "尚未成功" }}</span>
 					</div>
 					<AdminStatusPill
 						:tone="source.status === 'success' ? 'positive' : 'danger'"
 					>
-						{{ source.status }}
+						{{ sourceStatusLabel(source.status) }}
 					</AdminStatusPill>
 				</li>
 			</ul>
@@ -200,6 +236,11 @@ onMounted(load)
 				<p>{{ data?.total || 0 }} 条公开卡片</p>
 			</div>
 		</header>
+		<div class="admin-toolbar admin-toolbar-wrap">
+			<label class="admin-search-field admin-search-field-wide"><Icon name="tabler:search" /><input v-model="candidateQuery" type="search" placeholder="搜索标题、摘要或分类"></label>
+			<label class="admin-select-field"><span>来源</span><select v-model="sourceFilter"><option value="">全部来源</option><option v-for="source in sourceOptions" :key="source" :value="source">{{ sourceLabel(source) }}</option></select></label>
+			<span class="admin-muted-copy">显示 {{ filteredItems.length }} 条</span>
+		</div>
 		<div v-if="loading" class="admin-action-list">
 			<div
 				v-for="i in 6"
@@ -209,7 +250,7 @@ onMounted(load)
 		</div>
 		<div v-else class="admin-content-list">
 			<article
-				v-for="item in data?.items"
+				v-for="item in filteredItems"
 				:key="item.id"
 				class="admin-news-item"
 			>
@@ -219,7 +260,7 @@ onMounted(load)
 					target="_blank"
 					rel="noopener noreferrer"
 				>
-					<span>{{ item.category || item.kind }}</span><strong>{{ item.title }}</strong><small>{{ item.sourceId }} ·
+					<span>{{ item.category || item.kind }}</span><strong>{{ item.title }}</strong><small>{{ sourceLabel(item.sourceId) }} ·
 						{{ item.publishedAt || item.fetchedAt }}</small>
 				</a>
 				<button
@@ -240,7 +281,6 @@ onMounted(load)
 		title="删除 AI 阅闻条目"
 		:description="pendingDelete ? (pendingDelete.kind === 'manual' ? `“${pendingDelete.title}”将从公开列表中永久删除。` : `“${pendingDelete.title}”将从公开列表中删除，自动同步不会再次展示它。`) : ''"
 		confirm-label="删除条目"
-		verification-text="DELETE"
 		:busy="deleting"
 		danger
 		@close="pendingDelete = null"

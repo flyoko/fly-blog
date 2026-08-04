@@ -32,6 +32,10 @@ const labels: Record<ModulesConfig[number]['id'], { title: string, description: 
 
 const sortModules = (value: unknown) => modulesConfigSchema.parse(value).toSorted((left, right) => left.order - right.order)
 const modules = ref<ModulesConfig>(sortModules(structuredClone(modulesSource) as unknown))
+const baselineFingerprint = ref(JSON.stringify(modules.value))
+const submittedFingerprint = ref('')
+const currentFingerprint = computed(() => JSON.stringify(modules.value))
+const hasChanges = computed(() => baselineFingerprint.value !== currentFingerprint.value && submittedFingerprint.value !== currentFingerprint.value)
 const saving = ref(false)
 const syncing = ref(false)
 const error = ref<string | null>(null)
@@ -65,6 +69,8 @@ async function loadDeployedModules() {
 			useAdminApi<ConfigResult>('/api/admin/publishing/configs/weather'),
 		])
 		modules.value = sortModules(moduleConfig.content)
+		baselineFingerprint.value = JSON.stringify(modules.value)
+		submittedFingerprint.value = ''
 		const deployedWeather = weatherConfigSchema.parse(weatherConfig.content)
 		weatherCity.value = deployedWeather.city
 		weatherReady.value = Boolean(
@@ -125,6 +131,8 @@ function move(index: number, direction: -1 | 1) {
 onMounted(loadDeployedModules)
 
 async function save() {
+	if (!hasChanges.value)
+		return
 	saving.value = true
 	error.value = null
 	result.value = null
@@ -135,6 +143,7 @@ async function save() {
 			method: 'POST',
 			body: buildConfigPullRequest('modules', content, `modules-${crypto.randomUUID()}`),
 		})
+		submittedFingerprint.value = currentFingerprint.value
 	}
 	catch (cause) {
 		error.value = cause instanceof Error ? cause.message : '模块配置 Pull Request 创建失败'
@@ -158,9 +167,9 @@ async function save() {
 				<Icon name="tabler:refresh" />
 				{{ syncing ? '读取中…' : '重新读取已部署配置' }}
 			</button>
-			<button class="admin-button admin-button-primary" type="button" :disabled="saving" @click="save">
+			<button class="admin-button admin-button-primary" type="button" :disabled="saving || !hasChanges" @click="save">
 				<Icon name="tabler:git-pull-request" />
-				{{ saving ? '正在创建…' : '创建模块 PR' }}
+				{{ saving ? '正在创建…' : hasChanges ? '保存模块并预览' : submittedFingerprint === currentFingerprint ? '这版已提交' : '没有改动' }}
 			</button>
 		</div>
 	</header>
@@ -182,7 +191,12 @@ async function save() {
 			<strong>Pull Request #{{ result.pullRequestNumber }} 已创建</strong>
 			<span>{{ result.resourcePath }} · {{ result.branch }} · 合并并部署后生效</span>
 		</div>
-		<a class="admin-button" :href="result.pullRequestUrl" target="_blank" rel="noopener">查看 PR</a>
+		<div class="admin-heading-actions">
+			<NuxtLink class="admin-button" to="/admin/reviews">
+				前往发布与审核
+			</NuxtLink>
+			<a class="admin-button" :href="result.pullRequestUrl" target="_blank" rel="noopener">查看 PR</a>
+		</div>
 	</div>
 
 	<div class="module-grid">

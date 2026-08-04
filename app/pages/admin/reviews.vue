@@ -232,7 +232,6 @@ onBeforeUnmount(() => {
 		title="确认合并 Pull Request"
 		:description="`Pull Request #${detail?.pullRequest.number ?? '—'} 将合并到生产分支。系统会在服务器端再次校验 Head SHA、检查与预览状态。`"
 		confirm-label="确认合并"
-		verification-text="MERGE"
 		:busy="merging"
 		danger
 		@close="mergeConfirmOpen = false"

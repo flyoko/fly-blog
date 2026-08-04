@@ -24,6 +24,7 @@ export interface AdminApiCapture {
 	logoutCount: number
 	analyticsIpViews: number
 	analyticsExports: number
+	mergeCount: number
 }
 
 const momentId = '11111111-1111-4111-8111-111111111111'
@@ -638,6 +639,52 @@ async function respond(route: Route, options: AdminApiMockOptions, capture: Admi
 		return
 	}
 
+	if (path === '/api/admin/publishing/configs/categories' && method === 'GET') {
+		await route.fulfill(success({
+			kind: 'categories',
+			path: 'config/taxonomy/categories.json',
+			sha: 'categories-config-main-sha',
+			content: [
+				{ name: '未分类', icon: 'tabler:circle-dashed' },
+				{ name: '技术', icon: 'tabler:mouse', color: '#33aaff' },
+			],
+		}))
+		return
+	}
+
+	if (path === '/api/admin/publishing/configs/navigation' && method === 'GET') {
+		await route.fulfill(success({
+			kind: 'navigation',
+			path: 'config/site/navigation.json',
+			sha: 'navigation-config-main-sha',
+			content: [{
+				id: 'main',
+				title: '',
+				items: [
+					{ id: 'articles', icon: 'tabler:files', text: '文章', url: '/' },
+					{ id: 'moments', icon: 'tabler:sparkles', text: '瞬间', url: '/moments' },
+				],
+			}],
+		}))
+		return
+	}
+
+	if (path === '/api/admin/publishing/configs/footer' && method === 'GET') {
+		await route.fulfill(success({
+			kind: 'footer',
+			path: 'config/site/footer.json',
+			sha: 'footer-config-main-sha',
+			content: {
+				showPersonalGitHub: true,
+				showThemeSource: false,
+				showSiteSource: false,
+				iconNav: [{ id: 'atom', icon: 'tabler:rss', text: 'Atom 订阅', url: '/atom.xml' }],
+				nav: [{ id: 'social', title: '社交', items: [{ id: 'github', icon: 'tabler:brand-github', text: 'flyoko', url: 'https://github.com/flyoko' }] }],
+			},
+		}))
+		return
+	}
+
 	if (path === '/api/admin/publishing/configs/modules' && method === 'GET') {
 		await route.fulfill(success({
 			kind: 'modules',
@@ -718,6 +765,7 @@ async function respond(route: Route, options: AdminApiMockOptions, capture: Admi
 	}
 
 	if (path === '/api/admin/publishing/pull-requests/42/merge' && method === 'POST') {
+		capture.mergeCount += 1
 		await route.fulfill(success({ merged: true }))
 		return
 	}
@@ -740,6 +788,7 @@ export async function mockAdminApi(page: Page, options: AdminApiMockOptions = {}
 		logoutCount: 0,
 		analyticsIpViews: 0,
 		analyticsExports: 0,
+		mergeCount: 0,
 	}
 	const state = { sessionCalls: 0 }
 	await page.route('**/api/**', route => respond(route, options, capture, state))

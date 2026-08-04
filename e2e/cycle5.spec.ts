@@ -1,4 +1,5 @@
 import type { Page } from '@playwright/test'
+import { Buffer } from 'node:buffer'
 import { expect, test } from '@playwright/test'
 import { mockAuthenticatedAdmin } from './fixtures/admin-api'
 
@@ -64,17 +65,101 @@ test.describe('cycle 5 humanized admin', () => {
 	test('navigation settings are edited as content cards instead of raw JSON', async ({ page }) => {
 		const capture = await mockAuthenticatedAdmin(page)
 		await page.goto('/admin/settings')
+		await expect(page.getByText(/已读取线上配置/u)).toBeVisible()
 		await page.getByRole('button', { name: /^导航 /u }).click()
+		await expect(page.getByRole('button', { name: '没有改动' })).toBeDisabled()
 		await expect(page.getByText('导航菜单', { exact: true })).toBeVisible()
 		await expect(page.getByText('结构化 JSON')).toHaveCount(0)
 		await page.getByRole('button', { name: '添加导航项' }).click()
 		const items = page.locator('.admin-config-item')
 		await items.last().getByLabel('显示文字').fill('新入口')
 		await items.last().getByLabel('链接地址').fill('/new-entry')
-		await page.getByRole('button', { name: '创建导航 PR' }).click()
+		await page.getByRole('button', { name: '保存导航并预览' }).click()
 		await expect.poll(() => capture.configWrites.some(write => write.kind === 'navigation')).toBe(true)
 		const write = capture.configWrites.find(item => item.kind === 'navigation')
 		expect(write?.content[0].items.at(-1)).toMatchObject({ text: '新入口', url: '/new-entry' })
+	})
+
+	test('moment composer keeps optional fields out of the way and publishes in one step', async ({ page }) => {
+		const capture = await mockAuthenticatedAdmin(page)
+		await page.goto('/admin/moments?compose=1')
+		await expect(page.getByText('地点、标签、音乐、图片均为可选')).toBeVisible()
+		await expect(page.getByLabel('城市')).toBeHidden()
+		await page.getByPlaceholder('此刻在想什么？').fill('直接从一个输入框发布的瞬间。')
+		await page.getByRole('button', { name: '立即发布' }).click()
+		await expect.poll(() => capture.momentWrites.length).toBe(1)
+		expect(capture.momentWrites[0]).toMatchObject({ moment: { content: '直接从一个输入框发布的瞬间。', status: 'published' } })
+	})
+
+	test('about timeline and links are edited as cards instead of JSON', async ({ page }) => {
+		const capture = await mockAuthenticatedAdmin(page)
+		await page.goto('/admin/about')
+		await expect(page.getByText('JSON', { exact: true })).toHaveCount(0)
+		await page.getByRole('button', { name: '添加经历' }).click()
+		const timelineCard = page.locator('.admin-about-item').first()
+		await timelineCard.getByLabel('时间').fill('2026')
+		await timelineCard.getByLabel('标题').fill('完成拟人化后台')
+		await page.getByRole('button', { name: '保存时间线并预览' }).click()
+		await expect.poll(() => capture.configWrites.some(write => write.kind === 'aboutTimeline')).toBe(true)
+		expect(capture.configWrites.find(write => write.kind === 'aboutTimeline')?.content).toContainEqual(expect.objectContaining({ title: '完成拟人化后台' }))
+	})
+
+	test('media upload and reuse stay on one page', async ({ page, context }) => {
+		const capture = await mockAuthenticatedAdmin(page)
+		await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+		await page.goto('/admin/media')
+		await page.getByRole('button', { name: '瞬间图片' }).click()
+		await page.getByLabel('选择要上传的媒体文件').setInputFiles({
+			name: 'moment.webp',
+			mimeType: 'image/webp',
+			buffer: Buffer.from('image-data'),
+		})
+		await expect.poll(() => capture.mediaUploads).toBe(1)
+		expect(capture.mediaUploadBodies[0]).toContain('moment')
+		await page.getByRole('button', { name: '复制链接' }).first().click()
+		await expect(page.getByRole('button', { name: '已复制' })).toBeVisible()
+		await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe('https://media.example/sample.webp')
+	})
+
+	test('music can be created directly from an uploaded audio file', async ({ page }) => {
+		const capture = await mockAuthenticatedAdmin(page)
+		await page.goto('/admin/music')
+		await page.getByRole('button', { name: '从媒体库添加', exact: true }).click()
+		const picker = page.getByRole('dialog')
+		await picker.getByRole('button', { name: /sample\.mp3/u }).click()
+		await expect(page.getByLabel('标题', { exact: true })).toHaveValue('sample')
+		await expect(page.getByLabel('在公开播放器中启用')).toBeChecked()
+		await page.getByRole('button', { name: '保存歌单' }).click()
+		await expect.poll(() => capture.musicWrites.length).toBe(1)
+		expect(capture.musicWrites[0]).toMatchObject({ playlist: { tracks: [expect.objectContaining({ title: 'sample', enabled: true, audioUrl: 'https://flyovo.cc.cd/media/music/sample.mp3' })] } })
+	})
+
+	test('AI news uses on-demand forms, human labels, and simple deletion confirmation', async ({ page }) => {
+		const capture = await mockAuthenticatedAdmin(page)
+		await page.goto('/admin/ai-news')
+		await expect(page.getByLabel('标题')).toHaveCount(0)
+		await expect(page.getByText('AI HOT', { exact: true }).first()).toBeVisible()
+		await page.getByRole('button', { name: '添加手动精选' }).click()
+		await page.getByLabel('标题').fill('人工精选')
+		await page.getByLabel('原文链接').fill('https://example.com/pick')
+		await page.getByRole('button', { name: '添加卡片' }).click()
+		await expect.poll(() => capture.newsWrites.length).toBe(1)
+		await page.getByPlaceholder('搜索标题、摘要或分类').fill('外部精选')
+		await page.getByRole('button', { name: /删除 外部精选测试/u }).click()
+		const dialog = page.getByRole('dialog')
+		await expect(dialog.getByRole('textbox')).toHaveCount(0)
+		await dialog.getByRole('button', { name: '删除条目' }).click()
+	})
+
+	test('merge confirmation is explicit without requiring a memorized command', async ({ page }) => {
+		const capture = await mockAuthenticatedAdmin(page)
+		await page.goto('/admin/reviews')
+		await page.getByRole('button').filter({ hasText: 'config/taxonomy/categories.json' }).click()
+		await page.getByRole('button', { name: '确认合并' }).click()
+		const dialog = page.getByRole('dialog')
+		await expect(dialog.getByRole('textbox')).toHaveCount(0)
+		await dialog.getByRole('button', { name: '确认合并' }).click()
+		await expect.poll(() => capture.mergeCount).toBe(1)
 	})
 
 	test('review detail speaks in publishing language rather than raw provider states', async ({ page }) => {
@@ -91,7 +176,10 @@ test('cycle 5 quick start remains usable as a mobile bottom sheet', async ({ pag
 	test.skip(!isMobile, 'Mobile quick-start coverage runs in the mobile project.')
 	await mockAuthenticatedAdmin(page)
 	await page.goto('/admin')
-	await page.getByRole('button', { name: '快速开始' }).click()
+	const dock = page.getByRole('navigation', { name: '常用后台操作' })
+	await expect(dock).toBeVisible()
+	await expect(dock.getByRole('link', { name: '写文章' })).toBeVisible()
+	await dock.getByRole('button', { name: '打开更多操作' }).click()
 	const palette = page.getByRole('dialog', { name: '快速开始' })
 	await expect(palette).toBeVisible()
 	await expect(palette.getByPlaceholder('搜索要做的事')).toBeFocused()

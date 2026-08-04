@@ -14,7 +14,7 @@ interface PublishResponse {
 	commitSha: string
 }
 
-type PickerTarget = { index: number, field: 'audioUrl' | 'coverUrl' } | null
+type PickerTarget = { kind: 'field', index: number, field: 'audioUrl' | 'coverUrl' } | { kind: 'new-audio' } | null
 
 const playlist = ref<MusicPlaylist>(musicPlaylistSchema.parse(structuredClone(playlistFallback) as unknown))
 const sha = ref('')
@@ -23,6 +23,9 @@ const saving = ref(false)
 const error = ref<string | null>(null)
 const success = ref<PublishResponse | null>(null)
 const pickerTarget = ref<PickerTarget>(null)
+const savedFingerprint = ref('')
+const hasChanges = computed(() => savedFingerprint.value !== JSON.stringify(playlist.value))
+const pickerKind = computed(() => pickerTarget.value?.kind === 'field' && pickerTarget.value.field === 'coverUrl' ? 'image' : 'audio')
 
 useSeoMeta({ title: '随心听', robots: 'noindex, nofollow' })
 
@@ -40,6 +43,7 @@ async function load() {
 		playlist.value = musicPlaylistSchema.parse(result.playlist)
 		playlist.value.tracks = playlist.value.tracks.toSorted((left, right) => left.order - right.order)
 		sha.value = result.sha
+		savedFingerprint.value = JSON.stringify(playlist.value)
 	}
 	catch (cause) {
 		error.value = cause instanceof Error ? cause.message : '歌单加载失败'
@@ -49,22 +53,30 @@ async function load() {
 	}
 }
 
-function createTrack(): MusicTrack {
+function trackTitleFromMedia(media: MediaObjectDto) {
+	return media.originalName.replace(/\.[^.]+$/u, '') || '新歌曲'
+}
+
+function createTrack(media?: MediaObjectDto): MusicTrack {
 	return {
 		id: `track-${crypto.randomUUID().slice(0, 8)}`,
-		title: '新歌曲',
+		title: media ? trackTitleFromMedia(media) : '新歌曲',
 		artist: '',
 		source: '',
-		audioUrl: 'https://media.example.com/audio.mp3',
+		audioUrl: media?.url ?? '',
 		coverUrl: null,
 		duration: null,
-		enabled: false,
+		enabled: Boolean(media),
 		order: playlist.value.tracks.length,
 	}
 }
 
-function addTrack() {
+function addBlankTrack() {
 	playlist.value.tracks.push(createTrack())
+}
+
+function addFromMedia() {
+	pickerTarget.value = { kind: 'new-audio' }
 }
 
 function removeTrack(index: number) {
@@ -83,20 +95,28 @@ function moveTrack(index: number, direction: -1 | 1) {
 }
 
 function openPicker(index: number, field: 'audioUrl' | 'coverUrl') {
-	pickerTarget.value = { index, field }
+	pickerTarget.value = { kind: 'field', index, field }
 }
 
 function applyMedia(media: MediaObjectDto) {
-	if (!pickerTarget.value)
+	const target = pickerTarget.value
+	if (!target)
 		return
-	const track = playlist.value.tracks[pickerTarget.value.index]
+	if (target.kind === 'new-audio') {
+		playlist.value.tracks.push(createTrack(media))
+		pickerTarget.value = null
+		return
+	}
+	const track = playlist.value.tracks[target.index]
 	if (!track)
 		return
-	track[pickerTarget.value.field] = media.url
+	track[target.field] = media.url
 	pickerTarget.value = null
 }
 
 async function save() {
+	if (!hasChanges.value || saving.value || loading.value)
+		return
 	saving.value = true
 	error.value = null
 	success.value = null
@@ -121,7 +141,18 @@ async function save() {
 	}
 }
 
-onMounted(load)
+function handleSaveShortcut(event: KeyboardEvent) {
+	if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 's')
+		return
+	event.preventDefault()
+	void save()
+}
+
+onMounted(() => {
+	void load()
+	window.addEventListener('keydown', handleSaveShortcut)
+})
+onBeforeUnmount(() => window.removeEventListener('keydown', handleSaveShortcut))
 </script>
 
 <template>
@@ -133,13 +164,14 @@ onMounted(load)
 			<p>管理站长拥有、获授权或可以合法公开播放的音频。不会抓取受保护流媒体地址。</p>
 		</div>
 		<div class="admin-heading-actions">
-			<button class="admin-button" type="button" @click="addTrack">
-				<Icon name="tabler:plus" />
-				添加歌曲
+			<button class="admin-button" type="button" @click="addBlankTrack">
+				<Icon name="tabler:plus" />添加空白歌曲
 			</button>
-			<button class="admin-button admin-button-primary" type="button" :disabled="saving || loading" @click="save">
-				<Icon name="tabler:device-floppy" />
-				{{ saving ? '保存中…' : '直接保存歌单' }}
+			<button class="admin-button" type="button" @click="addFromMedia">
+				<Icon name="tabler:library-plus" />从媒体库添加
+			</button>
+			<button class="admin-button admin-button-primary" type="button" :disabled="saving || loading || !hasChanges" title="快捷键：⌘/Ctrl + S" @click="save">
+				<Icon name="tabler:device-floppy" />{{ saving ? '保存中…' : hasChanges ? '保存歌单' : '已保存' }}
 			</button>
 		</div>
 	</header>
@@ -190,27 +222,31 @@ onMounted(load)
 
 				<div class="music-track-fields">
 					<label class="admin-field"><span>标题</span><input v-model="track.title" type="text" maxlength="160"></label>
-					<label class="admin-field"><span>作者</span><input v-model="track.artist" type="text" maxlength="160"></label>
-					<label class="admin-field"><span>来源说明</span><input v-model="track.source" type="text" maxlength="240"></label>
-					<label class="admin-field"><span>预计时长（秒）</span><input v-model.number="track.duration" type="number" min="0"></label>
+					<label class="admin-field"><span>作者</span><input v-model="track.artist" type="text" maxlength="160" placeholder="可选"></label>
 				</div>
 
-				<div class="music-media-fields">
+				<label class="admin-field admin-field-grow">
+					<span>音频</span>
+					<div class="admin-inline-field">
+						<input v-model="track.audioUrl" type="url" placeholder="从媒体库选择或粘贴公开链接">
+						<button class="admin-button" type="button" @click="openPicker(index, 'audioUrl')">选择音频</button>
+					</div>
+				</label>
+
+				<details class="music-track-advanced">
+					<summary>封面、来源和时长</summary>
+					<div class="music-track-fields">
+						<label class="admin-field"><span>来源说明</span><input v-model="track.source" type="text" maxlength="240" placeholder="可选"></label>
+						<label class="admin-field"><span>预计时长（秒）</span><input v-model.number="track.duration" type="number" min="0"></label>
+					</div>
 					<label class="admin-field admin-field-grow">
-						<span>音频 URL</span>
+						<span>封面</span>
 						<div class="admin-inline-field">
-							<input v-model="track.audioUrl" type="url" placeholder="https://...">
-							<button class="admin-button" type="button" @click="openPicker(index, 'audioUrl')">选择/上传音频</button>
+							<input v-model="track.coverUrl" type="url" placeholder="可选">
+							<button class="admin-button" type="button" @click="openPicker(index, 'coverUrl')">选择封面</button>
 						</div>
 					</label>
-					<label class="admin-field admin-field-grow">
-						<span>封面 URL</span>
-						<div class="admin-inline-field">
-							<input v-model="track.coverUrl" type="url" placeholder="https://...">
-							<button class="admin-button" type="button" @click="openPicker(index, 'coverUrl')">选择/上传封面</button>
-						</div>
-					</label>
-				</div>
+				</details>
 
 				<label class="music-enable-toggle">
 					<input v-model="track.enabled" type="checkbox">
@@ -224,8 +260,8 @@ onMounted(load)
 				title="歌单还是空的"
 				description="添加第一首拥有合法播放权的音频。"
 			>
-				<button class="admin-button admin-button-primary" type="button" @click="addTrack">
-					添加歌曲
+				<button class="admin-button admin-button-primary" type="button" @click="addFromMedia">
+					从媒体库添加歌曲
 				</button>
 			</AdminEmptyState>
 		</section>
@@ -233,7 +269,7 @@ onMounted(load)
 
 	<AdminMediaPicker
 		:open="pickerTarget !== null"
-		:kind="pickerTarget?.field === 'audioUrl' ? 'audio' : 'image'"
+		:kind="pickerKind"
 		upload-purpose="music"
 		@close="pickerTarget = null"
 		@select="applyMedia"
@@ -329,6 +365,32 @@ onMounted(load)
 .music-enable-toggle {
 	gap: 0.5rem;
 	font-size: 0.82rem;
+}
+
+.music-track-advanced {
+	border: 1px solid var(--admin-border);
+	border-radius: 0.75rem;
+	background: var(--admin-surface-soft);
+}
+
+.music-track-advanced > summary {
+	padding: 0.75rem;
+	font-size: 0.72rem;
+	font-weight: 600;
+	color: var(--admin-muted);
+	cursor: pointer;
+}
+
+.music-track-advanced[open] > summary {
+	border-bottom: 1px solid var(--admin-border);
+}
+
+.music-track-advanced > :not(summary) {
+	margin-inline: 0.75rem;
+}
+
+.music-track-advanced > :last-child {
+	margin-bottom: 0.75rem;
 }
 
 @media (max-width: 900px) {

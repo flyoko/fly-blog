@@ -30,6 +30,8 @@ const type = ref<'' | 'image' | 'audio'>('')
 const uploadPurpose = ref<'article' | 'moment' | 'profile' | 'music'>('article')
 const uploadResults = ref<UploadResult[]>([])
 const fileInput = ref<HTMLInputElement | null>(null)
+const dragActive = ref(false)
+const copyStatus = ref<string | null>(null)
 const keyFileInput = ref<HTMLInputElement | null>(null)
 const keyFileStatus = ref<{ kind: 'success' | 'error', message: string } | null>(null)
 const {
@@ -174,9 +176,7 @@ async function prepareUploadFiles(files: File[]): Promise<{
 	}
 }
 
-async function upload(event: Event) {
-	const input = event.target as HTMLInputElement
-	const files = Array.from(input.files ?? [])
+async function uploadFiles(files: File[]) {
 	if (!files.length)
 		return
 	error.value = null
@@ -228,7 +228,33 @@ async function upload(event: Event) {
 	}
 	finally {
 		uploading.value = false
-		input.value = ''
+	}
+}
+
+async function upload(event: Event) {
+	const input = event.target as HTMLInputElement
+	await uploadFiles(Array.from(input.files ?? []))
+	input.value = ''
+}
+
+async function dropUpload(event: DragEvent) {
+	dragActive.value = false
+	if (uploadBusy.value)
+		return
+	await uploadFiles(Array.from(event.dataTransfer?.files ?? []))
+}
+
+async function copyMediaUrl(media: MediaObjectDto) {
+	try {
+		await navigator.clipboard.writeText(media.url)
+		copyStatus.value = media.id
+		setTimeout(() => {
+			if (copyStatus.value === media.id)
+				copyStatus.value = null
+		}, 1800)
+	}
+	catch {
+		error.value = '复制链接失败，请检查浏览器剪贴板权限。'
 	}
 }
 
@@ -335,32 +361,31 @@ onBeforeUnmount(() => {
 			<p>管理文章图片、个人资料、音乐封面和音频文件。</p>
 		</div>
 		<div class="admin-media-upload">
-			<select v-model="uploadPurpose" aria-label="上传用途" :disabled="uploadBusy">
-				<option value="article">
-					文章图片
-				</option>
-				<option value="moment">
-					瞬间图片
-				</option>
-				<option value="profile">
-					个人资料
-				</option>
-				<option value="music">
-					音乐文件
-				</option>
-			</select>
-			<button
-				class="admin-button admin-button-primary"
-				type="button"
-				:disabled="uploadBusy"
-				@click="openFilePicker"
-			>
-				<Icon name="tabler:cloud-upload" />
-				{{ uploadBusy ? `${uploadActivityLabel}…` : '上传媒体' }}
+			<button class="admin-button admin-button-primary" type="button" :disabled="uploadBusy" @click="openFilePicker">
+				<Icon name="tabler:cloud-upload" />{{ uploadBusy ? `${uploadActivityLabel}…` : '选择文件' }}
 			</button>
 			<input ref="fileInput" type="file" multiple :disabled="uploadBusy" :accept="uploadAccept" aria-label="选择要上传的媒体文件" @change="upload">
 		</div>
 	</header>
+
+	<section
+		class="admin-media-dropzone"
+		:class="{ 'is-dragging': dragActive }"
+		@dragenter.prevent="dragActive = true"
+		@dragover.prevent="dragActive = true"
+		@dragleave.prevent="dragActive = false"
+		@drop.prevent="dropUpload"
+	>
+		<div class="admin-media-purpose" role="group" aria-label="上传用途">
+			<button v-for="item in [{ value: 'article', label: '文章图片', icon: 'tabler:file-text' }, { value: 'moment', label: '瞬间图片', icon: 'tabler:sparkles' }, { value: 'profile', label: '个人资料', icon: 'tabler:user-circle' }, { value: 'music', label: '音乐文件', icon: 'tabler:music' }]" :key="item.value" type="button" :class="{ 'is-active': uploadPurpose === item.value }" :disabled="uploadBusy" @click="uploadPurpose = item.value as typeof uploadPurpose">
+				<Icon :name="item.icon" />{{ item.label }}
+			</button>
+		</div>
+		<button class="admin-media-drop-target" type="button" :disabled="uploadBusy" @click="openFilePicker">
+			<Icon name="tabler:cloud-upload" />
+			<span><strong>{{ dragActive ? '松开即可上传' : '拖文件到这里，或点击选择' }}</strong><small>{{ uploadPurpose === 'music' ? '支持常见音频与可本地转换的 QMC 文件' : '支持 PNG、JPEG、WebP、GIF，可一次选择多个' }}</small></span>
+		</button>
+	</section>
 
 	<p v-if="uploadPurpose === 'music'" class="admin-music-legal-note">
 		仅上传本人拥有、已获授权或可合法公开播放的音频。QMCv2 文件只在当前浏览器本地解密，原文件不会上传。
@@ -473,6 +498,9 @@ onBeforeUnmount(() => {
 				<span>引用 {{ media.referenceCount }} 次</span>
 			</div>
 			<div class="admin-media-library-actions">
+				<button v-if="media.status === 'active'" class="admin-button" type="button" @click="copyMediaUrl(media)">
+					<Icon :name="copyStatus === media.id ? 'tabler:check' : 'tabler:copy'" />{{ copyStatus === media.id ? '已复制' : '复制链接' }}
+				</button>
 				<button v-if="media.status === 'active'" class="admin-button" type="button" @click="trash(media)">
 					移入回收站
 				</button>
@@ -500,3 +528,79 @@ onBeforeUnmount(() => {
 	/>
 </section>
 </template>
+
+<style scoped lang="scss">
+.admin-media-dropzone {
+	display: grid;
+	gap: 0.75rem;
+	margin-bottom: 1rem;
+	padding: 0.85rem;
+	border: 1px dashed var(--admin-border);
+	border-radius: 1rem;
+	background: var(--admin-surface);
+}
+
+.admin-media-dropzone.is-dragging {
+	border-color: var(--admin-accent);
+	background: var(--admin-accent-soft);
+}
+
+.admin-media-purpose {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.4rem;
+}
+
+.admin-media-purpose button {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35rem;
+	min-height: 2.2rem;
+	padding: 0 0.65rem;
+	border: 1px solid var(--admin-border);
+	border-radius: 0.65rem;
+	background: transparent;
+	font: inherit;
+	font-size: 0.68rem;
+	color: var(--admin-muted);
+	cursor: pointer;
+}
+
+.admin-media-purpose button.is-active {
+	border-color: var(--admin-accent);
+	background: var(--admin-accent-soft);
+	color: var(--admin-accent-strong);
+}
+
+.admin-media-drop-target {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.8rem;
+	min-height: 7rem;
+	padding: 1rem;
+	border: 0;
+	border-radius: 0.85rem;
+	background: var(--admin-surface-soft);
+	font: inherit;
+	text-align: left;
+	color: var(--admin-text);
+	cursor: pointer;
+}
+
+.admin-media-drop-target > .iconify {
+	font-size: 2rem;
+	color: var(--admin-accent-strong);
+}
+
+.admin-media-drop-target strong,
+.admin-media-drop-target small {
+	display: block;
+}
+
+.admin-media-drop-target small {
+	margin-top: 0.25rem;
+	font-size: 0.68rem;
+	color: var(--admin-muted);
+}
+</style>

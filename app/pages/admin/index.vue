@@ -23,6 +23,20 @@ const greeting = computed(() => {
 	return '晚上好'
 })
 
+const attentionActions = computed(() => {
+	const counts = overview.value?.counts
+	const actions: Array<{ title: string, description: string, to: string, icon: string, tone: 'danger' | 'warning' | 'positive' }> = []
+	if (counts?.failedPublishes)
+		actions.push({ title: `${counts.failedPublishes} 个发布失败`, description: '先查看失败原因，避免继续堆积变更。', to: '/admin/reviews', icon: 'tabler:alert-triangle', tone: 'danger' })
+	if (counts?.pendingPublishes)
+		actions.push({ title: `${counts.pendingPublishes} 个发布正在进行`, description: '系统会自动跟进检查和预览。', to: '/admin/reviews', icon: 'tabler:loader-2', tone: 'warning' })
+	if (counts?.openPullRequests)
+		actions.push({ title: `${counts.openPullRequests} 个变更等待确认`, description: '预览通过后可以直接合并。', to: '/admin/reviews', icon: 'tabler:git-pull-request', tone: 'warning' })
+	if (!actions.length)
+		actions.push({ title: '现在没有需要处理的异常', description: '可以安心继续写作或整理内容。', to: '/admin/articles/new', icon: 'tabler:circle-check', tone: 'positive' })
+	return actions
+})
+
 const stats = computed(() => [
 	{ label: '文章', value: overview.value?.counts.articles ?? null, icon: 'tabler:file-text', note: '仓库内容' },
 	{ label: '瞬间', value: overview.value?.counts.publishedMoments ?? null, icon: 'tabler:sparkles', note: 'D1 已发布' },
@@ -103,6 +117,28 @@ onMounted(refresh)
 	</div>
 
 	<div class="admin-grid admin-grid-dashboard">
+		<section class="admin-panel">
+			<header class="admin-panel-header">
+				<div>
+					<h2>现在先做什么</h2>
+					<p>只显示真正需要你处理的事情。</p>
+				</div>
+			</header>
+			<div class="admin-attention-list">
+				<NuxtLink
+					v-for="action in attentionActions"
+					:key="action.title"
+					:to="action.to"
+					class="admin-attention-item"
+					:data-tone="action.tone"
+				>
+					<Icon :name="action.icon" />
+					<div><strong>{{ action.title }}</strong><span>{{ action.description }}</span></div>
+					<Icon name="tabler:chevron-right" />
+				</NuxtLink>
+			</div>
+		</section>
+
 		<section class="admin-panel">
 			<header class="admin-panel-header">
 				<div>
