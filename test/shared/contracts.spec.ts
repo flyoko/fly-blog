@@ -128,9 +128,9 @@ describe('admin contracts', () => {
 		])).toThrow()
 	})
 
-	it('hides theme and site source links while keeping personal GitHub enabled', () => {
+	it('hides personal GitHub, theme, and site source links by default', () => {
 		const parsed = footerConfigSchema.parse(footerConfig)
-		expect(parsed.showPersonalGitHub).toBe(true)
+		expect(parsed.showPersonalGitHub).toBe(false)
 		expect(parsed.showThemeSource).toBe(false)
 		expect(parsed.showSiteSource).toBe(false)
 		const social = parsed.nav.find(group => group.id === 'social')
