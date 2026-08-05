@@ -936,72 +936,113 @@ watch(() => profileImageSrc.value, () => {
 	}
 
 	.is-about .scene-atmosphere {
-		inset: 45% 0 0;
+		inset: 39% 0 0;
 	}
 
 	.is-about .scene-shooting-star {
-		top: 61%;
-		left: 21%;
-		width: 4.5rem;
+		top: 54%;
+		left: 27%;
+		width: 3.8rem;
 	}
 
 	.is-about .scene-character {
 		right: -0.1rem;
-		bottom: -1%;
-		width: 6.8rem;
+		bottom: -2%;
+		width: 5.4rem;
 	}
 
 	.is-about.has-custom-character .scene-profile-avatar {
-		right: 5.7rem;
-		bottom: 6.2rem;
-		width: 5.5rem;
+		right: 4.5rem;
+		bottom: 4.35rem;
+		width: 4.35rem;
+	}
+
+	.is-about.has-custom-character .scene-profile-avatar::before {
+		inset: 0.4rem;
+	}
+
+	.is-about.has-custom-character .scene-profile-avatar img {
+		inset: 0.5rem;
+		width: calc(100% - 1rem);
+		height: calc(100% - 1rem);
 	}
 
 	.is-about .scene-profile-badge {
-		width: 1.9rem;
-		font-size: 0.72rem;
+		width: 1.45rem;
+		font-size: 0.58rem;
 	}
 
 	.is-about .scene-planet {
-		right: -10%;
-		bottom: -18%;
-		width: 14.5rem;
+		right: -11%;
+		bottom: -24%;
+		width: 11.5rem;
 	}
 
 	.is-about .scene-orbit-one {
-		inset: 48% -34% 5% 17%;
+		inset: 41% -32% 4% 18%;
 	}
 
 	.is-about .scene-orbit-two {
-		inset: 57% -48% -16% 30%;
+		inset: 51% -46% -18% 30%;
 	}
 
 	.is-about .scene-orbit-three {
-		inset: 65% -58% -39% 12%;
+		inset: 60% -56% -44% 13%;
 	}
 
 	.is-about .scene-track {
-		top: 72%;
-		right: -11%;
-		width: 88%;
+		top: 67%;
+		right: -9%;
+		width: 82%;
 	}
 
 	.is-about .scene-avatar-tether {
-		right: 29%;
-		bottom: 27%;
-		width: 35%;
+		right: 27%;
+		bottom: 25%;
+		width: 31%;
 	}
 
 	.is-about .scene-heart {
-		right: 3.2%;
-		bottom: 29%;
+		right: 2.8%;
+		bottom: 27%;
+		font-size: 0.82rem;
 	}
 
 	.is-about .scene-speech {
 		top: auto;
-		right: 0.65rem;
-		bottom: 7.85rem;
-		font-size: 0.66rem;
+		right: 0.52rem;
+		bottom: 5.55rem;
+		padding: 0.32rem 0.48rem;
+		font-size: 0.58rem;
+	}
+
+	.is-about .scene-spark-one {
+		font-size: 0.9rem;
+	}
+
+	.is-about .scene-spark-two,
+	.is-about .scene-spark-three {
+		font-size: 0.78rem;
+	}
+}
+
+@media (max-width: 380px) {
+	.is-about .scene-character {
+		width: 5rem;
+	}
+
+	.is-about.has-custom-character .scene-profile-avatar {
+		right: 4.15rem;
+		bottom: 4.05rem;
+		width: 4rem;
+	}
+
+	.is-about .scene-planet {
+		width: 10.8rem;
+	}
+
+	.is-about .scene-speech {
+		bottom: 5.15rem;
 	}
 }
 

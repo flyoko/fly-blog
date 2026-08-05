@@ -526,29 +526,76 @@ useSeoMeta({
 
 @media (max-width: 600px) {
 	.about-page {
-		width: min(calc(100% - 1.5rem), 72rem);
-		margin: 0.75rem auto;
+		gap: 0.7rem;
+		width: min(calc(100% - 1rem), 72rem);
+		margin: 0.5rem auto 0.8rem;
 	}
 
 	.about-hero {
 		align-items: flex-start;
-		min-height: 27.5rem;
-		padding: 1.35rem 1.15rem 10.75rem;
-		border-radius: 1rem;
+		min-height: 19rem;
+		padding: 1rem 0.95rem 7.8rem;
+		border-radius: 0.95rem;
+	}
+
+	.about-hero::after {
+		background:
+			linear-gradient(to bottom, color-mix(in srgb, var(--c-surface-fill) 97%, white) 0 43%, color-mix(in srgb, var(--c-surface-fill) 76%, transparent) 56%, transparent 76%),
+			linear-gradient(90deg, color-mix(in srgb, var(--c-surface-fill) 58%, transparent), transparent 74%);
+	}
+
+	.about-hero-copy {
+		width: min(100%, 20rem);
+	}
+
+	.about-hero .about-eyebrow {
+		font-size: 0.62rem;
+		letter-spacing: 0.14em;
 	}
 
 	.about-hero h1 {
-		margin-top: 0.45rem;
-		font-size: clamp(2.85rem, 15vw, 3.8rem);
+		margin: 0.28rem 0 0.38rem;
+		font-size: clamp(2.45rem, 13vw, 3.2rem);
+		line-height: 0.96;
 	}
 
 	.about-hero p {
-		font-size: 0.86rem;
-		line-height: 1.55;
+		max-width: 18rem;
+		font-size: 0.8rem;
+		line-height: 1.45;
+	}
+
+	.about-section {
+		padding: 1rem;
+	}
+
+	.about-section-heading h2 {
+		margin-top: 0.16rem;
+	}
+
+	.about-timeline,
+	.about-links {
+		margin-top: 1rem;
 	}
 
 	.about-timeline li {
 		grid-template-columns: 1fr;
+		padding-bottom: 1.15rem;
+	}
+}
+
+@media (max-width: 380px) {
+	.about-hero {
+		min-height: 18.25rem;
+		padding-bottom: 7.25rem;
+	}
+
+	.about-hero h1 {
+		font-size: clamp(2.3rem, 13vw, 2.85rem);
+	}
+
+	.about-hero p {
+		max-width: 16rem;
 	}
 }
 

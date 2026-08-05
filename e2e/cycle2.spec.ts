@@ -1,5 +1,6 @@
 import { Buffer } from 'node:buffer'
 import { expect, test } from '@playwright/test'
+import axe from 'axe-core'
 import { mockAdminApi, mockAuthenticatedAdmin } from './fixtures/admin-api'
 
 test.describe('cycle 2 desktop workflows', () => {
@@ -152,6 +153,15 @@ test.describe('cycle 2 AI news internal reading', () => {
 		await expect(page.getByText('以下内容整理自公开来源，版权与观点归原作者所有。')).toBeVisible()
 		await expect(page.getByRole('link', { name: '查看原始来源' })).toHaveAttribute('href', 'https://example.com/original')
 		await expect(page.getByText('查看聚合来源')).toHaveCount(0)
+
+		await page.addScriptTag({ content: axe.source })
+		const accessibilityViolations = await page.evaluate(async () => {
+			const result = await globalThis.axe.run(document, {
+				runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'] },
+			})
+			return result.violations.map(violation => ({ id: violation.id, nodes: violation.nodes.length }))
+		})
+		expect(accessibilityViolations).toEqual([])
 		await page.getByRole('link', { name: '返回 AI 阅闻' }).click()
 		await expect(page).toHaveURL(/\/ai\.news\/?$/u)
 	})

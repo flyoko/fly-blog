@@ -1,6 +1,8 @@
 const canonicalRuntimePrefixes = ['/moments', '/ai.news']
 
 export default defineNuxtRouteMiddleware((to) => {
+	if (import.meta.server)
+		return
 	if (globalThis.location.hostname !== 'fly-living.pages.dev')
 		return
 
