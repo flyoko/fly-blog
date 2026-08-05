@@ -38,7 +38,7 @@ jobs:
         shell: bash
         run: |
           diff_file=$(mktemp)
-          git diff --name-only HEAD^1...HEAD^2 > "$diff_file"
+          git diff --name-only HEAD^1 HEAD^2 > "$diff_file"
           test "$(wc -l < "$diff_file" | tr -d ' ')" = 1
           path=$(sed -n '1p' "$diff_file")
           [[ "$path" =~ ^content/posts/[0-9]{4}/[a-z0-9]+(-[a-z0-9]+)*\.md$ ]]
