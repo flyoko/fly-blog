@@ -16,6 +16,7 @@ import {
 
 const props = withDefaults(defineProps<{
 	modelValue: ArticleDocument
+	remoteDocument?: ArticleDocument | null
 	articles?: ArticleSummary[]
 	categories: string[]
 	saving?: boolean
@@ -24,7 +25,9 @@ const props = withDefaults(defineProps<{
 	draftStatus?: string
 	diagnostics?: ArticleDiagnostic[]
 	initialDiagnostic?: Pick<ArticleDiagnostic, 'bodyLine' | 'bodyColumn'>
+	rawComparisonOpen?: boolean
 }>(), {
+	remoteDocument: null,
 	articles: () => [],
 	saving: false,
 	conflict: false,
@@ -32,6 +35,7 @@ const props = withDefaults(defineProps<{
 	draftStatus: '',
 	diagnostics: () => [],
 	initialDiagnostic: undefined,
+	rawComparisonOpen: false,
 })
 
 const emit = defineEmits<{
@@ -40,6 +44,7 @@ const emit = defineEmits<{
 	'navigate': [id: string]
 	'reloadRemote': []
 	'compareRaw': []
+	'closeRawComparison': []
 }>()
 
 const textarea = ref<HTMLTextAreaElement | null>(null)
@@ -68,6 +73,16 @@ const contentLength = computed(() => documentModel.value.body
 	.length)
 const readingMinutes = computed(() => Math.max(1, Math.ceil(contentLength.value / 400)))
 const canSave = computed(() => Boolean(documentModel.value.frontmatter.title?.trim() && documentModel.value.body.trim()))
+
+function rawMarkdown(value: ArticleDocument | null | undefined) {
+	if (!value)
+		return '远端版本尚未加载。'
+	const frontmatter = Object.entries(value.frontmatter)
+		.filter(([, field]) => field !== undefined)
+		.map(([key, field]) => `${key}: ${JSON.stringify(field)}`)
+		.join('\n')
+	return `---\n${frontmatter}\n---\n\n${value.body}`
+}
 
 function focusDiagnostic(diagnostic: Pick<ArticleDiagnostic, 'bodyLine' | 'bodyColumn'>) {
 	const lines = documentModel.value.body.split('\n')
@@ -303,18 +318,18 @@ onBeforeUnmount(() => {
 	<section class="admin-editor-center">
 		<div v-if="conflict" class="admin-conflict-banner">
 			<div>
-				<strong>远端文章已经变化</strong>
-				<span>当前草稿仍保留在浏览器中，请选择如何继续。</span>
+				<strong>{{ isNew ? '仓库路径已经存在' : '远端文章已经变化' }}</strong>
+				<span>{{ isNew ? '这个路径已经对应一篇文章。当前草稿仍保留在浏览器中，可先比较内容，再打开已有文章或通过 PR 提交更新。' : '当前草稿仍保留在浏览器中，请选择如何继续。' }}</span>
 			</div>
 			<div class="admin-conflict-actions">
 				<button class="admin-button" type="button" @click="emit('reloadRemote')">
-					重新加载远端
+					{{ isNew ? '在新标签打开已有文章' : '重新加载远端' }}
 				</button>
 				<button class="admin-button" type="button" @click="emit('compareRaw')">
 					比较原始 Markdown
 				</button>
-				<button class="admin-button admin-button-primary" type="button" @click="emit('save', 'pull_request')">
-					改用 PR 发布
+				<button class="admin-button admin-button-primary" type="button" :disabled="saving" @click="emit('save', 'pull_request')">
+					{{ saving ? '正在提交…' : isNew ? '通过 PR 更新已有文章' : '改用 PR 发布' }}
 				</button>
 			</div>
 		</div>
@@ -472,5 +487,99 @@ onBeforeUnmount(() => {
 	</aside>
 
 	<AdminMediaPicker :open="mediaPickerOpen" kind="image" @close="mediaPickerOpen = false" @select="insertMedia" />
+
+	<Teleport to="body">
+		<div v-if="rawComparisonOpen" class="admin-modal" role="dialog" aria-modal="true" aria-labelledby="article-raw-comparison-title">
+			<div class="admin-modal-backdrop" aria-hidden="true" @click="emit('closeRawComparison')" />
+			<section class="admin-modal-panel admin-article-comparison">
+				<header>
+					<div>
+						<span>版本比较</span>
+						<h2 id="article-raw-comparison-title">
+							原始 Markdown
+						</h2>
+					</div>
+					<button class="admin-button" type="button" @click="emit('closeRawComparison')">
+						关闭
+					</button>
+				</header>
+				<div class="admin-article-comparison-grid">
+					<section>
+						<h3>当前草稿</h3>
+						<pre>{{ rawMarkdown(documentModel) }}</pre>
+					</section>
+					<section>
+						<h3>远端版本</h3>
+						<pre>{{ rawMarkdown(remoteDocument) }}</pre>
+					</section>
+				</div>
+			</section>
+		</div>
+	</Teleport>
 </div>
 </template>
+
+<style scoped lang="scss">
+.admin-article-comparison {
+	display: grid;
+	gap: 1rem;
+	width: min(92vw, 76rem);
+	max-height: min(88vh, 54rem);
+	padding: 1rem;
+}
+
+.admin-article-comparison > header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+}
+
+.admin-article-comparison h2,
+.admin-article-comparison h3 {
+	margin: 0;
+}
+
+.admin-article-comparison header span {
+	font-size: 0.75rem;
+	color: var(--admin-muted);
+}
+
+.admin-article-comparison-grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 1rem;
+	min-height: 0;
+}
+
+.admin-article-comparison-grid section {
+	display: grid;
+	gap: 0.6rem;
+	min-width: 0;
+	min-height: 0;
+}
+
+.admin-article-comparison pre {
+	overflow: auto;
+	overflow-wrap: anywhere;
+	min-height: 22rem;
+	max-height: 66vh;
+	margin: 0;
+	padding: 1rem;
+	border: 1px solid var(--admin-border);
+	border-radius: 0.9rem;
+	background: var(--admin-surface-soft);
+	white-space: pre-wrap;
+}
+
+@media (max-width: 820px) {
+	.admin-article-comparison-grid {
+		grid-template-columns: 1fr;
+	}
+
+	.admin-article-comparison pre {
+		min-height: 14rem;
+		max-height: 32vh;
+	}
+}
+</style>
