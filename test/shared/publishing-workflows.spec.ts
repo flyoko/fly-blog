@@ -70,4 +70,19 @@ describe('文章发布工作流', () => {
 		expect(source).toContain('pnpm check:links')
 		expect(source).toContain('pnpm check:secrets')
 	})
+	it('isolates pnpm setup per runner for concurrent self-hosted jobs', async () => {
+		const workflowPaths = [
+			'.github/workflows/quality.yml',
+			'.github/workflows/pages-preview.yml',
+			'.github/workflows/pages-production.yml',
+			'.github/workflows/workers-production.yml',
+		]
+
+		for (const workflowPath of workflowPaths) {
+			const { source } = await workflow(workflowPath)
+			expect(source).toContain('dest: ${{ runner.temp }}/setup-pnpm')
+			expect(source).not.toContain('dest: ~/setup-pnpm')
+		}
+	})
+
 })
