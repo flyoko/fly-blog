@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import type { ArticleDocument, ArticleSummary } from '#shared/admin/articles'
 import type { MediaObjectDto } from '#shared/admin/media'
+import type { MarkdownEdit } from '~/composables/useAdminDraft'
 import {
+	applyMarkdownEdit,
+	insertMacWindowBlock,
 	insertMarkdownImage,
 	updateArticleFrontmatter,
 } from '~/composables/useAdminDraft'
-import { renderAdminMarkdown } from '~/utils/admin-markdown'
 
 const props = withDefaults(defineProps<{
 	modelValue: ArticleDocument
@@ -33,9 +35,8 @@ const emit = defineEmits<{
 
 const textarea = ref<HTMLTextAreaElement | null>(null)
 const mediaPickerOpen = ref(false)
-const previewError = ref<string | null>(null)
 const previewLoading = ref(false)
-const lastSuccessfulPreview = ref('')
+const previewMarkdown = ref('')
 let previewTimer: ReturnType<typeof setTimeout> | undefined
 
 const documentModel = computed({
@@ -58,6 +59,26 @@ const contentLength = computed(() => documentModel.value.body
 const readingMinutes = computed(() => Math.max(1, Math.ceil(contentLength.value / 400)))
 const canSave = computed(() => Boolean(documentModel.value.frontmatter.title?.trim() && documentModel.value.body.trim()))
 const directSaveLabel = computed(() => documentModel.value.frontmatter.draft ? '保存草稿' : '发布文章')
+
+const formattingActions: Array<{
+	label: string
+	ariaLabel?: string
+	icon: string
+	edit: MarkdownEdit | 'mac-window'
+}> = [
+	{ label: '二级标题', ariaLabel: 'H2', icon: 'tabler:h-2', edit: { type: 'line-prefix', prefix: '## ', placeholder: '二级标题' } },
+	{ label: '三级标题', ariaLabel: 'H3', icon: 'tabler:h-3', edit: { type: 'line-prefix', prefix: '### ', placeholder: '三级标题' } },
+	{ label: '粗体', icon: 'tabler:bold', edit: { type: 'wrap', before: '**', after: '**', placeholder: '粗体文本' } },
+	{ label: '斜体', icon: 'tabler:italic', edit: { type: 'wrap', before: '*', after: '*', placeholder: '斜体文本' } },
+	{ label: '链接', icon: 'tabler:link', edit: { type: 'wrap', before: '[', after: '](https://)', placeholder: '链接文字' } },
+	{ label: '引用', icon: 'tabler:blockquote', edit: { type: 'line-prefix', prefix: '> ', placeholder: '引用内容' } },
+	{ label: '行内代码', icon: 'tabler:code', edit: { type: 'wrap', before: '`', after: '`', placeholder: '代码' } },
+	{ label: '代码块', icon: 'tabler:code-dots', edit: { type: 'block', before: '```text\n', after: '\n```', placeholder: '代码' } },
+	{ label: '无序列表', icon: 'tabler:list', edit: { type: 'line-prefix', prefix: '- ', placeholder: '列表项' } },
+	{ label: '有序列表', icon: 'tabler:list-numbers', edit: { type: 'line-prefix', prefix: '1. ', placeholder: '列表项' } },
+	{ label: '分隔线', icon: 'tabler:separator-horizontal', edit: { type: 'insert', value: '\n\n---\n\n' } },
+	{ label: '插入 macOS 窗口', icon: 'tabler:browser', edit: 'mac-window' },
+]
 
 function updateBody(body: string) {
 	documentModel.value = { ...documentModel.value, body }
@@ -110,17 +131,17 @@ function insertMedia(media: MediaObjectDto) {
 	})
 }
 
-function refreshPreview(body: string) {
-	try {
-		lastSuccessfulPreview.value = renderAdminMarkdown(body)
-		previewError.value = null
-	}
-	catch (cause) {
-		previewError.value = cause instanceof Error ? cause.message : 'Markdown 预览失败'
-	}
-	finally {
-		previewLoading.value = false
-	}
+function applyEditorEdit(edit: MarkdownEdit | 'mac-window') {
+	const start = textarea.value?.selectionStart ?? documentModel.value.body.length
+	const end = textarea.value?.selectionEnd ?? start
+	const result = edit === 'mac-window'
+		? insertMacWindowBlock(documentModel.value.body, start, end)
+		: applyMarkdownEdit(documentModel.value.body, start, end, edit)
+	updateBody(result.body)
+	nextTick(() => {
+		textarea.value?.focus()
+		textarea.value?.setSelectionRange(result.selectionStart, result.selectionEnd)
+	})
 }
 
 function onSaveShortcut(event: KeyboardEvent) {
@@ -137,7 +158,10 @@ watch(() => documentModel.value.body, (body) => {
 	if (previewTimer)
 		clearTimeout(previewTimer)
 	previewLoading.value = true
-	previewTimer = setTimeout(refreshPreview, 300, body)
+	previewTimer = setTimeout(() => {
+		previewMarkdown.value = body
+		previewLoading.value = false
+	}, 300)
 }, { immediate: true })
 
 onBeforeUnmount(() => {
@@ -224,6 +248,21 @@ onBeforeUnmount(() => {
 			</div>
 		</header>
 
+		<div class="admin-format-toolbar" role="toolbar" aria-label="Markdown 格式工具">
+			<button
+				v-for="action in formattingActions"
+				:key="action.label"
+				class="admin-format-button"
+				type="button"
+				:aria-label="action.ariaLabel || action.label"
+				:title="action.label"
+				@click="applyEditorEdit(action.edit)"
+			>
+				<Icon :name="action.icon" />
+				<span>{{ action.label }}</span>
+			</button>
+		</div>
+
 		<div class="admin-editor-workspace">
 			<div class="admin-editor-pane">
 				<label class="admin-field admin-field-grow">
@@ -242,14 +281,21 @@ onBeforeUnmount(() => {
 					<span>实时预览</span>
 					<small v-if="previewLoading">解析中…</small>
 				</div>
-				<p v-if="previewError" class="admin-error">
-					预览更新失败，已保留上一次成功结果：{{ previewError }}
-				</p>
-				<article
-					v-if="lastSuccessfulPreview"
-					class="admin-preview-content"
-					v-html="lastSuccessfulPreview"
-				/>
+				<NuxtErrorBoundary
+					v-if="previewMarkdown"
+					:key="previewMarkdown"
+				>
+					<MDC
+						:value="previewMarkdown"
+						tag="article"
+						class="article admin-preview-content"
+					/>
+					<template #error="{ error }">
+						<p class="admin-error">
+							Markdown 预览失败：{{ error?.message || '请检查自定义块或 Markdown 语法。' }}
+						</p>
+					</template>
+				</NuxtErrorBoundary>
 			</div>
 		</div>
 	</section>

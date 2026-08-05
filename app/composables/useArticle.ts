@@ -25,6 +25,7 @@ export function useArticle(path?: MaybeRefOrGetter<string | undefined>) {
  */
 export function getArticleIndexOptions(path = 'posts/%') {
 	return queryCollection('content')
+		.where('draft', '=', false)
 		.where('stem', 'LIKE', path)
 		.select('categories', 'date', 'description', 'image', 'path', 'readingTime', 'recommend', 'tags', 'title', 'type', 'updated')
 		.all()
@@ -34,17 +35,21 @@ interface UseCategoryOptions {
 	bindQuery?: string
 }
 
-export function useCategory(list: MaybeRefOrGetter<ArticleProps[]>, options?: UseCategoryOptions) {
+export function normalizeArticleList(list: ArticleProps[] | null | undefined) {
+	return list ?? []
+}
+
+export function useCategory(list: MaybeRefOrGetter<ArticleProps[] | null | undefined>, options?: UseCategoryOptions) {
 	const { bindQuery } = options || {}
 
 	const category = bindQuery
 		? useRouteQuery(bindQuery, undefined)
 		: ref<string | undefined>()
 
-	const categories = computed(() => [...new Set(toValue(list).map(item => item.categories?.[0]))])
+	const categories = computed(() => [...new Set(normalizeArticleList(toValue(list)).map(item => item.categories?.[0]))])
 
 	const listCategorized = computed(
-		() => toValue(list).filter(
+		() => normalizeArticleList(toValue(list)).filter(
 			item => !category.value || item.categories?.[0] === category.value,
 		),
 	)
@@ -63,7 +68,7 @@ interface UseArticleSortOptions {
 	initialOrder?: ArticleOrderType
 }
 
-export function useArticleSort(list: MaybeRefOrGetter<ArticleProps[]>, options?: UseArticleSortOptions) {
+export function useArticleSort(list: MaybeRefOrGetter<ArticleProps[] | null | undefined>, options?: UseArticleSortOptions) {
 	const appConfig = useAppConfig()
 	const {
 		bindDirectionQuery,
@@ -86,7 +91,7 @@ export function useArticleSort(list: MaybeRefOrGetter<ArticleProps[]>, options?:
 		: ref<boolean>(initialAscend)
 
 	const listSorted = computed(() => orderBy(
-		toValue(list),
+		normalizeArticleList(toValue(list)),
 		[sortOrder.value, 'date'],
 		[isAscending.value ? 'asc' : 'desc'],
 	))

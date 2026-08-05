@@ -13,7 +13,18 @@ import { disabledModulePathPrefixes, isModuleEnabled } from './shared/admin/modu
 import { modulesConfigSchema } from './shared/admin/site-config'
 
 function pluginPath(path: string) {
-	return pathToFileURL(resolve(`./remark-plugins/${path}.ts`)).href
+	return pathToFileURL(resolve(`./remark-plugins/${path}.mjs`)).href
+}
+
+// Content 构建与后台 MDC 预览共用浏览器安全插件，避免格式漂移和 Node 依赖进入客户端。
+const markdownRemarkPlugins = {
+	[pluginPath('remark-music')]: {},
+	[pluginPath('remark-reading-time')]: {},
+	'remark-math': {},
+}
+const markdownRehypePlugins = {
+	[pluginPath('rehype-meta-slots')]: {},
+	'rehype-katex': {},
 }
 
 const cloudflareWebAnalyticsToken = env.NUXT_PUBLIC_CLOUDFLARE_WEB_ANALYTICS_TOKEN?.trim()
@@ -192,23 +203,20 @@ export default defineNuxtConfig({
 		build: {
 			markdown: {
 				highlight: false,
-				// @keep-sorted
-				remarkPlugins: {
-					[pluginPath('remark-music')]: {},
-					'remark-math': {},
-					'remark-reading-time': {},
-				},
-				// @keep-sorted
-				rehypePlugins: {
-					[pluginPath('rehype-meta-slots')]: {},
-					'rehype-katex': {},
-				},
+				remarkPlugins: markdownRemarkPlugins,
+				rehypePlugins: markdownRehypePlugins,
 				toc: { depth: 4, searchDepth: 4 },
 			},
 		},
 		experimental: {
 			sqliteConnector: 'native',
 		},
+	},
+
+	mdc: {
+		highlight: false,
+		remarkPlugins: markdownRemarkPlugins,
+		rehypePlugins: markdownRehypePlugins,
 	},
 
 	dxup: {

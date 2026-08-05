@@ -63,6 +63,7 @@
     "embla-carousel-vue": "catalog:ui",
     "embla-carousel-wheel-gestures": "catalog:ui",
     "es-toolkit": "catalog:util",
+    "h3": "catalog:framework",
     "micromark": "catalog:content",
     "micromark-extension-gfm": "catalog:content",
     "minisearch": "catalog:util",

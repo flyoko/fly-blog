@@ -19,7 +19,7 @@ const emit = defineEmits<{
 	'update:modelValue': [value: string]
 }>()
 
-const buttons = ref<HTMLButtonElement[]>([])
+const buttons = useTemplateRef<HTMLButtonElement[]>('buttons')
 
 function select(id: string) {
 	emit('update:modelValue', id)
@@ -42,7 +42,7 @@ function handleKeydown(event: KeyboardEvent, index: number) {
 	if (!tab)
 		return
 	select(tab.id)
-	nextTick(() => buttons.value[target]?.focus())
+	nextTick(() => buttons.value?.[target]?.focus())
 }
 </script>
 
@@ -51,7 +51,7 @@ function handleKeydown(event: KeyboardEvent, index: number) {
 	<button
 		v-for="(tab, index) in tabs"
 		:key="tab.id"
-		:ref="element => { if (element) buttons[index] = element as HTMLButtonElement }"
+		ref="buttons"
 		class="admin-section-tab"
 		:class="{ 'is-active': modelValue === tab.id }"
 		type="button"

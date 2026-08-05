@@ -96,6 +96,48 @@ test.describe('admin desktop workflows', () => {
 		await expect(page).toHaveURL(/\/admin\/articles\//u)
 	})
 
+	test('article editor inserts repeatable macOS blocks and stays aligned at target widths', async ({ page }) => {
+		await mockAuthenticatedAdmin(page)
+		await page.goto('/admin/articles/new')
+
+		const editor = page.getByLabel('Markdown 正文')
+		await editor.fill('窗口外开头\n\n选中窗口内容\n\n窗口外结尾')
+		await editor.evaluate((element) => {
+			const textarea = element as HTMLTextAreaElement
+			const start = textarea.value.indexOf('选中窗口内容')
+			textarea.focus()
+			textarea.setSelectionRange(start, start + '选中窗口内容'.length)
+		})
+		await page.getByRole('button', { name: '插入 macOS 窗口' }).click()
+
+		await expect(editor).toHaveValue(/::mac-window\n选中窗口内容\n::/u)
+		await editor.fill(`${await editor.inputValue()}\n\n::mac-window\n第二个窗口\n::`)
+		await expect(page.locator('.admin-preview-content .article-window')).toHaveCount(2)
+		await expect(page.locator('.admin-preview-content')).toContainText('窗口外开头')
+		await expect(page.locator('.admin-preview-content')).toContainText('窗口外结尾')
+
+		for (const viewport of [
+			{ width: 1440, height: 900 },
+			{ width: 1024, height: 800 },
+			{ width: 390, height: 844 },
+		]) {
+			await page.setViewportSize(viewport)
+			const dimensions = await page.evaluate(() => {
+				const content = document.querySelector<HTMLElement>('#admin-main-content')
+				const rect = content?.getBoundingClientRect()
+				return {
+					clientWidth: document.documentElement.clientWidth,
+					contentLeft: rect?.left ?? -1,
+					contentRight: rect?.right ?? Number.POSITIVE_INFINITY,
+					scrollWidth: document.documentElement.scrollWidth,
+				}
+			})
+			expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth + 1)
+			expect(dimensions.contentLeft).toBeGreaterThanOrEqual(0)
+			expect(dimensions.contentRight).toBeLessThanOrEqual(dimensions.clientWidth + 1)
+		}
+	})
+
 	test('configuration changes create a controlled pull request', async ({ page }) => {
 		const capture = await mockAuthenticatedAdmin(page)
 		await page.goto('/admin/settings')

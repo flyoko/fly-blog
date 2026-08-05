@@ -23,6 +23,97 @@ export interface ArticleMetadataInput {
 	updated?: string
 }
 
+export type MarkdownEdit
+	= | { type: 'wrap', before: string, after: string, placeholder: string }
+		| { type: 'line-prefix', prefix: string, placeholder: string }
+		| { type: 'block', before: string, after: string, placeholder: string }
+		| { type: 'insert', value: string }
+
+export interface MarkdownEditResult {
+	body: string
+	selectionStart: number
+	selectionEnd: number
+}
+
+function normalizeSelection(body: string, selectionStart: number, selectionEnd: number) {
+	const start = Math.max(0, Math.min(selectionStart, body.length))
+	const end = Math.max(start, Math.min(selectionEnd, body.length))
+	return { start, end }
+}
+
+function replaceMarkdownSelection(
+	body: string,
+	start: number,
+	end: number,
+	replacement: string,
+	selectionStart: number,
+	selectionEnd: number,
+): MarkdownEditResult {
+	return {
+		body: `${body.slice(0, start)}${replacement}${body.slice(end)}`,
+		selectionStart,
+		selectionEnd,
+	}
+}
+
+export function applyMarkdownEdit(
+	body: string,
+	selectionStart: number,
+	selectionEnd: number,
+	edit: MarkdownEdit,
+): MarkdownEditResult {
+	const { start, end } = normalizeSelection(body, selectionStart, selectionEnd)
+	const selected = body.slice(start, end)
+
+	if (edit.type === 'insert') {
+		const cursor = start + edit.value.length
+		return replaceMarkdownSelection(body, start, end, edit.value, cursor, cursor)
+	}
+
+	const content = selected || edit.placeholder
+
+	if (edit.type === 'line-prefix') {
+		const replacement = content
+			.split('\n')
+			.map(line => `${edit.prefix}${line}`)
+			.join('\n')
+		const resultStart = selected ? start : start + edit.prefix.length
+		const resultEnd = selected ? start + replacement.length : resultStart + content.length
+		return replaceMarkdownSelection(body, start, end, replacement, resultStart, resultEnd)
+	}
+
+	if (edit.type === 'wrap') {
+		const replacement = `${edit.before}${content}${edit.after}`
+		const resultStart = start + edit.before.length
+		return replaceMarkdownSelection(body, start, end, replacement, resultStart, resultStart + content.length)
+	}
+
+	const left = body.slice(0, start)
+	const right = body.slice(end)
+	const leading = left && !left.endsWith('\n\n')
+		? (left.endsWith('\n') ? '\n' : '\n\n')
+		: ''
+	const trailing = right && !right.startsWith('\n\n')
+		? (right.startsWith('\n') ? '\n' : '\n\n')
+		: ''
+	const replacement = `${leading}${edit.before}${content}${edit.after}${trailing}`
+	const resultStart = start + leading.length + edit.before.length
+	return replaceMarkdownSelection(body, start, end, replacement, resultStart, resultStart + content.length)
+}
+
+export function insertMacWindowBlock(
+	body: string,
+	selectionStart: number,
+	selectionEnd: number,
+): MarkdownEditResult {
+	return applyMarkdownEdit(body, selectionStart, selectionEnd, {
+		type: 'block',
+		before: '::mac-window\n',
+		after: '\n::',
+		placeholder: '在这里填写窗口内容',
+	})
+}
+
 export function adminDraftKey(path: string, sha: string | null | undefined) {
 	return `${path}::${sha || 'new'}`
 }

@@ -278,6 +278,12 @@
 	padding: 2rem;
 }
 
+.admin-content.admin-content-editor {
+	width: 100%;
+	max-width: none;
+	padding: 0;
+}
+
 .admin-hero {
 	display: grid;
 	align-items: end;
@@ -966,6 +972,10 @@
 @media (max-width: 860px) {
 	.admin-content {
 		padding-bottom: calc(6rem + env(safe-area-inset-bottom));
+	}
+
+	.admin-content.admin-content-editor {
+		padding: 0 0 calc(6rem + env(safe-area-inset-bottom));
 	}
 
 	.admin-mobile-dock {

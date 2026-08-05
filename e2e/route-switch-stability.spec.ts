@@ -419,8 +419,10 @@ test.describe('self-introduction and links route stability', () => {
 				const link = document.querySelector<HTMLElement>('.link-page')
 				const active = about || link
 				const aside = document.querySelector<HTMLElement>('#blog-aside')
+				const asideWidget = aside?.querySelector<HTMLElement>('.blog-widget')
 				window.__contentPageFrames?.push({
-					asideVisible: Boolean(aside && aside.childElementCount > 0 && getComputedStyle(aside).display !== 'none'),
+					// ClientOnly 在水合前可能保留空占位；只有真实小组件才表示侧栏可见。
+					asideVisible: Boolean(asideWidget && getComputedStyle(asideWidget).display !== 'none'),
 					pageKind: about ? 'me' : link ? 'link' : 'none',
 					pageWidth: active?.getBoundingClientRect().width ?? null,
 					path: location.pathname,

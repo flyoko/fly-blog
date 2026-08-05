@@ -41,6 +41,15 @@ const blogConfig = {
 
 	article: {
 		categories: Object.fromEntries(categoriesConfig.map(({ name, ...category }) => [name, category])),
+		/** 文章标题与正文之间的推广位；配置不完整或关闭时不会渲染占位。 */
+		headerAd: {
+			enabled: false,
+			label: '广告',
+			title: '',
+			description: '',
+			image: '',
+			href: '',
+		},
 		/** 文章版式，首个为默认版式 */
 		types: {
 			tech: {},

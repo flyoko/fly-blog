@@ -207,8 +207,9 @@
 	display: grid;
 	grid-template-columns: 13rem minmax(0, 1fr) 17rem;
 	overflow: hidden;
-	min-height: calc(100vh - 8.6rem);
-	margin: -2rem;
+	width: 100%;
+	min-height: calc(100dvh - 4.6rem);
+	margin: 0;
 	border-top: 1px solid var(--admin-border);
 	background: var(--admin-surface);
 }
@@ -319,6 +320,44 @@
 .admin-editor-toolbar small {
 	font-size: 0.65rem;
 	color: var(--admin-muted);
+}
+
+.admin-format-toolbar {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.35rem;
+	padding: 0.55rem 1rem;
+	border-bottom: 1px solid var(--admin-border);
+	background: color-mix(in srgb, var(--admin-surface) 92%, var(--admin-bg));
+}
+
+.admin-format-button {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.32rem;
+	min-height: 2rem;
+	padding: 0.35rem 0.55rem;
+	border: 1px solid transparent;
+	border-radius: 0.55rem;
+	background: transparent;
+	font: inherit;
+	font-size: 0.68rem;
+	color: var(--admin-muted);
+	transition: 0.2s ease;
+	cursor: pointer;
+}
+
+.admin-format-button:hover,
+.admin-format-button:focus-visible {
+	border-color: var(--admin-border);
+	outline: 0;
+	background: var(--admin-accent-soft);
+	color: var(--admin-text);
+}
+
+.admin-format-button .iconify {
+	font-size: 1rem;
 }
 
 .admin-editor-workspace {
@@ -1141,7 +1180,6 @@
 @media (max-width: 900px) {
 	.admin-editor-shell {
 		grid-template-columns: 1fr;
-		margin: -1rem;
 	}
 
 	.admin-editor-meta {
@@ -1154,6 +1192,11 @@
 	.admin-settings-layout,
 	.admin-review-layout {
 		grid-template-columns: 1fr;
+	}
+
+	.admin-editor-pane + .admin-editor-pane {
+		border-top: 1px solid var(--admin-border);
+		border-left: 0;
 	}
 
 	.admin-review-detail {
@@ -1171,6 +1214,10 @@
 }
 
 @media (max-width: 680px) {
+	.admin-editor-shell {
+		min-height: calc(100dvh - 4.2rem);
+	}
+
 	.admin-page-heading,
 	.admin-editor-toolbar,
 	.admin-conflict-banner {
@@ -1187,6 +1234,14 @@
 		max-height: none;
 		border-top: 1px solid var(--admin-border);
 		border-left: 0;
+	}
+
+	.admin-format-toolbar {
+		padding: 0.45rem 0.7rem;
+	}
+
+	.admin-format-button span {
+		display: none;
 	}
 
 	.admin-category-row {

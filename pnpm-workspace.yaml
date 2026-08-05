@@ -52,6 +52,7 @@ catalogs:
   framework:
     '@zinkawaii/tsconfig': ^0.1.0
     ci-info: ^4.4.0
+    h3: ^1.15.11
     nuxt: ^4.4.8
     pinia: ^3.0.4
     sass-embedded: ^1.100.0

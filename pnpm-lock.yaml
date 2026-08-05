@@ -65,6 +65,9 @@ catalogs:
     ci-info:
       specifier: ^4.4.0
       version: 4.4.0
+    h3:
+      specifier: ^1.15.11
+      version: 1.15.11
     nuxt:
       specifier: ^4.4.8
       version: 4.4.8
@@ -312,6 +315,9 @@ importers:
       es-toolkit:
         specifier: catalog:util
         version: 1.48.1
+      h3:
+        specifier: catalog:framework
+        version: 1.15.11
       micromark:
         specifier: catalog:content
         version: 4.0.2

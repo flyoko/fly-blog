@@ -1,8 +1,29 @@
 import type { ReadTimeResults } from 'reading-time'
+import { readdirSync, readFileSync } from 'node:fs'
+import { relative, resolve, sep } from 'node:path'
 import { defineCollection } from '@nuxt/content'
 import { defineSitemapSchema } from '@nuxtjs/sitemap/content'
 import { z } from 'zod'
 import blogConfig from './blog.config'
+import { isDraftFrontmatter } from './shared/content/drafts'
+
+const contentRoot = resolve('./content')
+
+function collectDraftContentFiles(directory = contentRoot): string[] {
+	return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+		const absolutePath = resolve(directory, entry.name)
+		if (entry.isDirectory())
+			return collectDraftContentFiles(absolutePath)
+		if (!entry.isFile() || !entry.name.endsWith('.md'))
+			return []
+		if (!isDraftFrontmatter(readFileSync(absolutePath, 'utf8')))
+			return []
+		return [relative(contentRoot, absolutePath).split(sep).join('/')]
+	})
+}
+
+// 静态站点会公开 Content 数据库，因此草稿必须在入库前排除，而不只是查询时隐藏。
+const draftContentFiles = collectDraftContentFiles()
 
 type ArticleType = keyof typeof blogConfig.article.types
 // 文章类型已在 blog.config 中定义，此处使用 any 类型绕过 zod 类型验证
@@ -65,7 +86,10 @@ const articleSchema = z.object({
 
 export const collections = {
 	content: defineCollection({
-		source: '**',
+		source: {
+			include: '**',
+			exclude: draftContentFiles,
+		},
 		type: 'page',
 		schema: articleSchema.extend({
 			sitemap: defineSitemapSchema({

@@ -3,6 +3,7 @@ const route = useRoute()
 const sidebarOpen = ref(false)
 const commandOpen = ref(false)
 const isLogin = computed(() => route.path === '/admin/login')
+const isArticleEditor = computed(() => /^\/admin\/articles\/[^/]+$/u.test(route.path))
 
 watch(() => route.fullPath, () => {
 	sidebarOpen.value = false
@@ -30,7 +31,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onGlobalKeydown))
 		<AdminSidebar :open="sidebarOpen" @close="sidebarOpen = false" />
 		<div class="admin-main">
 			<AdminTopbar @menu="sidebarOpen = true" @command="commandOpen = true" />
-			<main id="admin-main-content" class="admin-content" tabindex="-1">
+			<main
+				id="admin-main-content"
+				class="admin-content"
+				:class="{ 'admin-content-editor': isArticleEditor }"
+				tabindex="-1"
+			>
 				<slot />
 			</main>
 		</div>

@@ -26,7 +26,7 @@ let twikooObserver: MutationObserver | null = null
 let initController: AbortController | null = null
 let stopPathWatch: (() => void) | null = null
 
-const popoverBind = ref<TippyComponent['$props']>({})
+const popoverBind = shallowRef<TippyComponent['$props']>({})
 const mascotState = computed(() => {
 	if (commentLength.value >= 450)
 		return 'nearly-full'
