@@ -8,7 +8,7 @@ image: https://flyovo.cc.cd/media/public/articles/2026/08/ea0e6aef-4c48-481c-99b
 tags: []
 title: 使用Boss-Helper 批量投递简历 省时间更省力！
 ---
-最近在 BOSS 直聘上面进行投递，最让我头疼的不是岗位少，而是重复操作太多：筛选、点开、沟通、再看下一个。几十个岗位操作下来，时间花了不少，每天下来真正用于修改简历和准备面试的时间反而不多。
+最近在 BOSS 上面进行投递，最让我头疼的不是岗位少，而是重复操作太多：筛选、点开、沟通、再看下一个。几十个岗位操作下来，时间花了不少，每天下来真正用于修改简历和准备面试的时间反而不多。
 
 于是，我在 Google Chrome 中安装了开源项目 **Boss-Helper**：
 https://github.com/Ocyss/boss-helper
