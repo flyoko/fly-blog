@@ -17,7 +17,7 @@
     },
     {
       "id": "atom",
-      "icon": "tabler:rss",
+      "icon": "tabler:rss"
       "text": "Atom订阅",
       "url": "/atom.xml"
     }
