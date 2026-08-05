@@ -27,7 +27,7 @@
 
 同时为四条 Actions 工作流增加 `CI_RUNNER` 仓库变量回退：变量未设置时仍使用 `ubuntu-latest`；托管 Runner 因账单或额度不可用时，可临时切换到受控的仓库级自托管 Runner，完成后删除变量与 Runner。
 
-Quality 与 Pages Preview 的 checkout 深度收敛为 2；文章 PR 快路径比较 GitHub PR 合并提交的两个父提交，保留单文件约束，同时避免自托管 Runner 抓取全部分支与标签。
+Quality 与 Pages Preview 的 checkout 深度收敛为 2；文章 PR 快路径比较 GitHub PR 合并提交的两个父提交，保留单文件约束，同时避免自托管 Runner 抓取全部分支与标签。 两个父树使用直接比较（`git diff HEAD^1 HEAD^2`），不依赖浅克隆中不存在的共同祖先。
 
 ## 下一目标
 

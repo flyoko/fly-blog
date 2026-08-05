@@ -25,7 +25,7 @@ jobs:
       - name: 文章 PR 快路径策略
         if: ${{ github.event_name == 'pull_request' && startsWith(github.head_ref, 'admin/article/') }}
         run: |
-          changed_files="$(git diff --name-only HEAD^1...HEAD^2)"
+          changed_files="$(git diff --name-only HEAD^1 HEAD^2)"
           test "$(printf '%s\n' "$changed_files" | sed '/^$/d' | wc -l | tr -d ' ')" = 1
           printf '%s\n' "$changed_files" | grep -Eq '^content/posts/[0-9]{4}/[a-z0-9]+(-[a-z0-9]+)*\.md$'
       - uses: pnpm/action-setup@v6
