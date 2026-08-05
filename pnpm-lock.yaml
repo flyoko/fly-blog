@@ -49,6 +49,9 @@ catalogs:
     rehype-katex:
       specifier: ^7.0.1
       version: 7.0.1
+    remark-breaks:
+      specifier: ^4.0.0
+      version: 4.0.0
     remark-math:
       specifier: ^6.0.0
       version: 6.0.0
@@ -242,7 +245,7 @@ overrides:
 
 patchedDependencies:
   '@nuxt/image': 579706651997597c070d331e56e6cf9f3deb05477e3696c678c5c49ff614ea9c
-  '@nuxtjs/mdc': b5d48b9dd5e7a491f1fac75b120ebf15f57f1c2fdba5b78336ad337828186d34
+  '@nuxtjs/mdc': e3ab742eee73724ca809fd9725ec3a173b5a476a3e28cb9c520bbe03eaaea9fc
   plain-shiki: 56851d6c1b4dd6fc387d2cd7e584f71d4da7066ca6177e1df1cdae8903dd72be
 
 importers:
@@ -272,7 +275,7 @@ importers:
         version: 4.0.1(magicast@0.5.3)
       '@nuxtjs/mdc':
         specifier: catalog:content
-        version: 0.22.0(patch_hash=b5d48b9dd5e7a491f1fac75b120ebf15f57f1c2fdba5b78336ad337828186d34)(magicast@0.5.3)
+        version: 0.22.0(patch_hash=e3ab742eee73724ca809fd9725ec3a173b5a476a3e28cb9c520bbe03eaaea9fc)(magicast@0.5.3)
       '@nuxtjs/seo':
         specifier: catalog:content
         version: 5.3.0(70ec2b0d3bc16f4902521576aed282a7)
@@ -339,6 +342,9 @@ importers:
       plain-shiki:
         specifier: catalog:content
         version: 0.3.2(patch_hash=56851d6c1b4dd6fc387d2cd7e584f71d4da7066ca6177e1df1cdae8903dd72be)(shiki@4.2.0)
+      remark-breaks:
+        specifier: catalog:content
+        version: 4.0.0
       shiki:
         specifier: catalog:content
         version: 4.2.0
@@ -6131,6 +6137,9 @@ packages:
   mdast-util-math@3.0.0:
     resolution: {integrity: sha512-Tl9GBNeG/AhJnQM221bJR2HPvLOSnLE/T9cJI9tlc6zwQk2nPk/4f0cHkOdEixQPC/j8UtKDdITswvLAy1OZ1w==}
 
+  mdast-util-newline-to-break@2.0.0:
+    resolution: {integrity: sha512-MbgeFca0hLYIEx/2zGsszCSEJJ1JSCdiY5xQxRcLDDGa8EPvlLPupJ4DSajbMPAnC0je8jfb9TiUATnxxrHUog==}
+
   mdast-util-phrasing@4.1.0:
     resolution: {integrity: sha512-TqICwyvJJpBwvGAMZjj4J2n0X8QWp21b9l0o7eXyVJ25YNWYbJDVIyD1bZXE6WtV6RmKJVYmQAKWa0zWOABz2w==}
 
@@ -7154,6 +7163,9 @@ packages:
 
   rehype-sort-attributes@5.0.1:
     resolution: {integrity: sha512-Bxo+AKUIELcnnAZwJDt5zUDDRpt4uzhfz9d0PVGhcxYWsbFj5Cv35xuWxu5r1LeYNFNhgGqsr9Q2QiIOM/Qctg==}
+
+  remark-breaks@4.0.0:
+    resolution: {integrity: sha512-IjEjJOkH4FuJvHZVIW0QCDWxcG96kCq7An/KVH2NfJe6rKZU2AsHeB3OEjPNRxi4QC34Xdx7I2KGYn6IpT7gxQ==}
 
   remark-emoji@5.0.2:
     resolution: {integrity: sha512-IyIqGELcyK5AVdLFafoiNww+Eaw/F+rGrNSXoKucjo95uL267zrddgxGM83GN1wFIb68pyDuAsY3m5t2Cav1pQ==}
@@ -9943,7 +9955,7 @@ snapshots:
   '@nuxt/content@3.14.0(@valibot/to-json-schema@1.7.1(valibot@1.4.1(typescript@6.0.3)))(magicast@0.5.3)(valibot@1.4.1(typescript@6.0.3))':
     dependencies:
       '@nuxt/kit': 4.4.8(magicast@0.5.3)
-      '@nuxtjs/mdc': 0.22.0(patch_hash=b5d48b9dd5e7a491f1fac75b120ebf15f57f1c2fdba5b78336ad337828186d34)(magicast@0.5.3)
+      '@nuxtjs/mdc': 0.22.0(patch_hash=e3ab742eee73724ca809fd9725ec3a173b5a476a3e28cb9c520bbe03eaaea9fc)(magicast@0.5.3)
       '@shikijs/langs': 4.2.0
       '@sqlite.org/sqlite-wasm': 3.50.4-build1
       '@standard-schema/spec': 1.1.0
@@ -10467,7 +10479,7 @@ snapshots:
     transitivePeerDependencies:
       - magicast
 
-  '@nuxtjs/mdc@0.22.0(patch_hash=b5d48b9dd5e7a491f1fac75b120ebf15f57f1c2fdba5b78336ad337828186d34)(magicast@0.5.3)':
+  '@nuxtjs/mdc@0.22.0(patch_hash=e3ab742eee73724ca809fd9725ec3a173b5a476a3e28cb9c520bbe03eaaea9fc)(magicast@0.5.3)':
     dependencies:
       '@nuxt/kit': 4.4.8(magicast@0.5.3)
       '@shikijs/core': 4.2.0
@@ -14455,6 +14467,11 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  mdast-util-newline-to-break@2.0.0:
+    dependencies:
+      '@types/mdast': 4.0.4
+      mdast-util-find-and-replace: 3.0.2
+
   mdast-util-phrasing@4.1.0:
     dependencies:
       '@types/mdast': 4.0.4
@@ -16242,6 +16259,12 @@ snapshots:
     dependencies:
       '@types/hast': 3.0.4
       unist-util-visit: 5.1.0
+
+  remark-breaks@4.0.0:
+    dependencies:
+      '@types/mdast': 4.0.4
+      mdast-util-newline-to-break: 2.0.0
+      unified: 11.0.5
 
   remark-emoji@5.0.2:
     dependencies:

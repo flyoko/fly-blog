@@ -15,6 +15,23 @@
 .article-window-body {
 	padding: clamp(1rem, 2.4vw, 1.45rem);
 
+	:where(strong, b) {
+		background: none;
+		font-weight: 800;
+		color: var(--c-primary);
+		-webkit-text-fill-color: currentcolor;
+	}
+
+	:where(em, i) {
+		font-style: italic;
+		color: color-mix(in srgb, var(--c-text-1) 84%, var(--c-primary));
+	}
+
+	:where(del, s) {
+		text-decoration-color: var(--c-primary);
+		text-decoration-thickness: 0.12em;
+	}
+
 	> :first-child {
 		margin-top: 0;
 	}

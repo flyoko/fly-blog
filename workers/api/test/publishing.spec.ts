@@ -40,6 +40,7 @@ class FakePublishingRepository implements PublishingRepositoryPort {
 	checkRefs: string[] = []
 	deploymentRefs: string[] = []
 	files = new Map<string, { sha: string, content: string }>([
+		['config/site/article.json', { sha: 'article-config-sha', content: JSON.stringify({ headerAds: [] }) }],
 		['config/taxonomy/categories.json', { sha: 'category-sha', content: JSON.stringify(categoryConfig) }],
 		['config/site/modules.json', {
 			sha: 'modules-sha',
@@ -264,6 +265,36 @@ describe('configuration pull requests', () => {
 			{ id: 'articles', enabled: true, order: 0 },
 			{ id: 'ai-news', enabled: true, order: 1 },
 		])
+	})
+
+	it('reads and writes article header ads through the fixed repository path', async () => {
+		const repository = new FakePublishingRepository()
+		const app = createApp(repository)
+		const read = await app.request('https://blog.example.test/api/admin/publishing/configs/article', {
+			headers: { cookie: 'fly_admin_session=publishing-session' },
+		}, runtimeEnv())
+		expect(read.status).toBe(200)
+		expect(await read.json()).toMatchObject({
+			ok: true,
+			data: { kind: 'article', path: 'config/site/article.json', content: { headerAds: [] } },
+		})
+
+		const write = await app.request('https://blog.example.test/api/admin/publishing/pull-requests', {
+			method: 'POST',
+			headers: headers(),
+			body: JSON.stringify({
+				kind: 'article',
+				content: { headerAds: [{ id: 'promo', enabled: true, label: '广告', title: '推荐服务', description: '', image: '', href: 'https://example.com' }] },
+				expectedHeadSha: 'base-head',
+				idempotencyKey: 'article-config-pr-one',
+			}),
+		}, runtimeEnv())
+		expect(write.status).toBe(201)
+		expect(await write.json()).toMatchObject({
+			ok: true,
+			data: { resourcePath: 'config/site/article.json' },
+		})
+		expect(repository.committedPaths).toEqual(['config/site/article.json'])
 	})
 
 	it('maps allowed config keys to fixed paths, creates unique branches, and replays duplicates', async () => {

@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 export const editableConfigKindSchema = z.enum([
+	'article',
 	'categories',
 	'navigation',
 	'footer',

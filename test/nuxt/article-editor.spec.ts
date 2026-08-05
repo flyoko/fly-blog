@@ -8,8 +8,11 @@ import {
 	applyMarkdownEdit,
 	buildArticleSaveRequest,
 	cloneArticleDocument,
+	createMarkdownHistory,
 	insertMacWindowBlock,
 	insertMarkdownImage,
+	recordMarkdownHistory,
+	stepMarkdownHistory,
 	updateArticleFrontmatter,
 } from '../../app/composables/useAdminDraft'
 import { normalizeArticleList } from '../../app/composables/useArticle'
@@ -126,6 +129,18 @@ describe('article editor helpers', () => {
 		})
 	})
 
+	it('records grouped editor history and supports undo and redo', () => {
+		let history = createMarkdownHistory('')
+		history = recordMarkdownHistory(history, { body: '第一行', selectionStart: 3, selectionEnd: 3 }, { group: 'insertText', timestamp: 100 })
+		history = recordMarkdownHistory(history, { body: '第一行文字', selectionStart: 5, selectionEnd: 5 }, { group: 'insertText', timestamp: 200 })
+		history = recordMarkdownHistory(history, { body: '第一行文字\n', selectionStart: 6, selectionEnd: 6 }, { group: 'insertLineBreak', timestamp: 300 })
+
+		const undone = stepMarkdownHistory(history, -1)
+		expect(undone?.snapshot.body).toBe('第一行文字')
+		const redone = undone && stepMarkdownHistory(undone.history, 1)
+		expect(redone?.snapshot.body).toBe('第一行文字\n')
+	})
+
 	it('inserts a macOS window block with stable surrounding spacing', () => {
 		expect(insertMacWindowBlock('前\n\n后', 2, 2)).toEqual({
 			body: '前\n\n::mac-window\n在这里填写窗口内容\n::\n\n后',
@@ -180,9 +195,10 @@ describe('article editor UI boundaries', () => {
 	})
 
 	it('uses the shared MDC renderer and exposes detailed formatting controls', async () => {
-		const [editor, nuxtConfig] = await Promise.all([
+		const [editor, nuxtConfig, mdcPatch] = await Promise.all([
 			source('app/components/admin/AdminArticleEditor.vue'),
 			source('nuxt.config.ts'),
+			source('patches/@nuxtjs__mdc.patch'),
 		])
 
 		expect(editor).toContain('<MDC')
@@ -196,10 +212,14 @@ describe('article editor UI boundaries', () => {
 		expect(editor).not.toContain('renderAdminMarkdown')
 		expect(editor).not.toContain('lastSuccessfulPreview')
 		expect(editor).toContain('<NuxtErrorBoundary')
+		expect(editor).toContain('@keydown="onEditorKeydown"')
 		expect(editor).toContain('Markdown 预览失败')
 		expect(nuxtConfig).toContain('const markdownRemarkPlugins')
 		expect(nuxtConfig).toContain('const markdownRehypePlugins')
+		expect(nuxtConfig).toContain('\'remark-breaks\': {}')
 		expect(nuxtConfig).toContain('\tmdc: {')
+		expect(mdcPatch).toMatch(/instance: \$\{instance\}/u)
+		expect(mdcPatch).not.toContain('{ instance },')
 	})
 
 	it('keeps conflict recovery actions available', async () => {
@@ -223,23 +243,23 @@ describe('article editor UI boundaries', () => {
 		expect(editorStyles).not.toContain('margin: -1rem')
 	})
 
-	it('adds a default-hidden article header advertisement between excerpt and content', async () => {
+	it('adds a backend-managed article header advertisement between the header and excerpt', async () => {
 		const [config, articlePage, headerAd] = await Promise.all([
 			source('blog.config.ts'),
 			source('app/pages/[...slug].vue'),
 			source('app/components/post/PostHeaderAd.vue'),
 		])
 
-		expect(config).toContain('headerAd: {')
-		expect(config).toContain('enabled: false')
-		const excerptIndex = articlePage.indexOf('<PostExcerpt')
+		expect(config).toContain('articlePresentationConfig.headerAds')
+		const headerIndex = articlePage.indexOf('<PostHeader')
 		const adIndex = articlePage.indexOf('<PostHeaderAd')
-		const contentIndex = articlePage.indexOf('<ContentRenderer')
-		expect(adIndex).toBeGreaterThan(excerptIndex)
-		expect(contentIndex).toBeGreaterThan(adIndex)
-		expect(headerAd).toContain('ad.enabled')
-		expect(headerAd).toContain('ad.title.trim()')
-		expect(headerAd).toContain('ad.href.trim()')
+		const excerptIndex = articlePage.indexOf('<PostExcerpt')
+		expect(adIndex).toBeGreaterThan(headerIndex)
+		expect(excerptIndex).toBeGreaterThan(adIndex)
+		expect(headerAd).toContain('visibleAds')
+		expect(headerAd).toContain('activeIndex')
+		expect(headerAd).toContain('上一条广告')
+		expect(headerAd).toContain('下一条广告')
 		expect(headerAd).toContain('const isExternal')
 		expect(headerAd).toContain(':target="isExternal ?')
 		expect(headerAd).toContain(':rel="isExternal ?')

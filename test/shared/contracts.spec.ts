@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import articleConfig from '../../config/site/article.json'
 import footerConfig from '../../config/site/footer.json'
 import weatherConfig from '../../config/site/weather.json'
 import { analyticsVisitorQuerySchema } from '../../shared/admin/analytics'
@@ -8,6 +9,7 @@ import {
 	encodeArticleId,
 } from '../../shared/admin/articles'
 import {
+	articlePresentationConfigSchema,
 	categoriesConfigSchema,
 	footerConfigSchema,
 	modulesConfigSchema,
@@ -47,6 +49,19 @@ describe('admin contracts', () => {
 		})
 		expect(parsed.page).toBe(1)
 		expect(parsed.pageSize).toBe(10)
+	})
+
+	it('validates backend-managed article header ads', () => {
+		expect(articlePresentationConfigSchema.parse(articleConfig)).toEqual({ headerAds: [] })
+		expect(() => articlePresentationConfigSchema.parse({
+			headerAds: [{ id: 'promo', enabled: true, label: '广告', title: '', description: '', image: '', href: '' }],
+		})).toThrow()
+		expect(articlePresentationConfigSchema.parse({
+			headerAds: [{ id: 'promo', enabled: true, label: '广告', title: '推荐服务', description: '', image: '/media/banner.webp', href: 'https://example.com' }],
+		}).headerAds).toHaveLength(1)
+		expect(() => articlePresentationConfigSchema.parse({
+			headerAds: [{ id: 'escape', enabled: true, label: '广告', title: '危险跳转', description: '', image: '', href: '/\\evil.example/path' }],
+		})).toThrow()
 	})
 
 	it('rejects duplicate category names', () => {

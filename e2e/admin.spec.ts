@@ -138,6 +138,54 @@ test.describe('admin desktop workflows', () => {
 		}
 	})
 
+	test('article editor renders single returns and supports undo across macOS formatting', async ({ page }) => {
+		await mockAuthenticatedAdmin(page)
+		await page.goto('/admin/articles/new')
+		const editor = page.getByLabel('Markdown 正文')
+
+		await editor.click()
+		await page.keyboard.type('第一行')
+		await page.keyboard.press('Enter')
+		await page.keyboard.type('第二行')
+		await expect(page.locator('.admin-preview-content br')).toHaveCount(1)
+		await editor.press('Control+z')
+		await expect(editor).toHaveValue('第一行\n')
+		await editor.press('Control+Shift+z')
+		await expect(editor).toHaveValue('第一行\n第二行')
+
+		await editor.fill('::mac-window\n窗口粗体\n::')
+		await editor.evaluate((element) => {
+			const textarea = element as HTMLTextAreaElement
+			const start = textarea.value.indexOf('窗口粗体')
+			textarea.focus()
+			textarea.setSelectionRange(start, start + '窗口粗体'.length)
+		})
+		await page.getByRole('button', { name: '粗体' }).click()
+		const strong = page.locator('.admin-preview-content .article-window strong')
+		await expect(strong).toHaveText('窗口粗体')
+		await expect(strong).toHaveCSS('font-weight', /^(700|750|800)$/u)
+		await editor.press('Control+z')
+		await expect(editor).toHaveValue('::mac-window\n窗口粗体\n::')
+	})
+
+	test('article header ads are configured through site settings', async ({ page }) => {
+		const capture = await mockAuthenticatedAdmin(page)
+		await page.goto('/admin/settings')
+		await page.getByRole('tab', { name: /文章广告/u }).click()
+		await page.getByRole('button', { name: '添加广告' }).click()
+		await page.getByLabel('广告标题').fill('博客推荐')
+		await page.getByLabel('广告链接').fill('https://example.com')
+		await page.getByLabel('启用这条广告').check()
+		await page.getByRole('button', { name: '保存文章展示并预览' }).click()
+		await expect.poll(() => capture.configWrites.length).toBe(1)
+		expect(capture.configWrites[0]).toMatchObject({
+			kind: 'article',
+			content: {
+				headerAds: [expect.objectContaining({ enabled: true, title: '博客推荐', href: 'https://example.com' })],
+			},
+		})
+	})
+
 	test('configuration changes create a controlled pull request', async ({ page }) => {
 		const capture = await mockAuthenticatedAdmin(page)
 		await page.goto('/admin/settings')

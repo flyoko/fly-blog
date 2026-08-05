@@ -668,6 +668,16 @@ async function respond(route: Route, options: AdminApiMockOptions, capture: Admi
 		return
 	}
 
+	if (path === '/api/admin/publishing/configs/article' && method === 'GET') {
+		await route.fulfill(success({
+			kind: 'article',
+			path: 'config/site/article.json',
+			sha: 'article-config-main-sha',
+			content: { headerAds: [] },
+		}))
+		return
+	}
+
 	if (path === '/api/admin/publishing/configs/categories' && method === 'GET') {
 		await route.fulfill(success({
 			kind: 'categories',
@@ -751,12 +761,14 @@ async function respond(route: Route, options: AdminApiMockOptions, capture: Admi
 	}
 
 	if (path === '/api/admin/publishing/pull-requests' && method === 'POST') {
-		capture.configWrites.push(request.postDataJSON())
+		const body = request.postDataJSON() as Record<string, unknown>
+		capture.configWrites.push(body)
+		const articleConfig = body.kind === 'article'
 		await route.fulfill(success({
 			pullRequestNumber: 42,
 			pullRequestUrl: 'https://github.example/pull/42',
-			branch: 'admin/categories-test',
-			resourcePath: 'config/taxonomy/categories.json',
+			branch: articleConfig ? 'admin/article-test' : 'admin/categories-test',
+			resourcePath: articleConfig ? 'config/site/article.json' : 'config/taxonomy/categories.json',
 		}, 201))
 		return
 	}

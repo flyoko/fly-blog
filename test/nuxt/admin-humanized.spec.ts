@@ -107,6 +107,8 @@ describe('cycle 5 humanized admin contracts', () => {
 		const news = await source('app/pages/admin/ai-news.vue')
 
 		expect(settings).toContain('/api/admin/publishing/configs/categories')
+		expect(settings).toContain('/api/admin/publishing/configs/article')
+		expect(settings).toContain('文章广告')
 		expect(settings).toContain('重新读取线上配置')
 		expect(settings).toContain('没有改动')
 		expect(modules).toContain('hasChanges')

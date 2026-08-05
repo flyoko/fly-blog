@@ -1,7 +1,9 @@
 import type { FeedEntry } from './app/types/feed'
-import { categoriesConfigSchema } from '#shared/admin/site-config'
+import { articlePresentationConfigSchema, categoriesConfigSchema } from '#shared/admin/site-config'
+import articlePresentationRaw from './config/site/article.json'
 import categoriesRaw from './config/taxonomy/categories.json'
 
+const articlePresentationConfig = articlePresentationConfigSchema.parse(articlePresentationRaw)
 const categoriesConfig = categoriesConfigSchema.parse(categoriesRaw)
 
 const basicConfig = {
@@ -41,15 +43,8 @@ const blogConfig = {
 
 	article: {
 		categories: Object.fromEntries(categoriesConfig.map(({ name, ...category }) => [name, category])),
-		/** 文章标题与正文之间的推广位；配置不完整或关闭时不会渲染占位。 */
-		headerAd: {
-			enabled: false,
-			label: '广告',
-			title: '',
-			description: '',
-			image: '',
-			href: '',
-		},
+		/** 文章头部推广横幅；由后台站点设置管理，未启用时不渲染占位。 */
+		headerAds: articlePresentationConfig.headerAds,
 		/** 文章版式，首个为默认版式 */
 		types: {
 			tech: {},

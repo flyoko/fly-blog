@@ -71,6 +71,7 @@
     "parse-domain": "catalog:util",
     "pinia": "catalog:framework",
     "plain-shiki": "catalog:content",
+    "remark-breaks": "catalog:content",
     "shiki": "catalog:content",
     "site-config-stack": "catalog:util",
     "temporal-polyfill": "catalog:util",

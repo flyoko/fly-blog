@@ -35,6 +35,26 @@ export interface MarkdownEditResult {
 	selectionEnd: number
 }
 
+export interface MarkdownHistorySnapshot {
+	body: string
+	selectionStart: number
+	selectionEnd: number
+}
+
+export interface MarkdownHistoryState {
+	entries: MarkdownHistorySnapshot[]
+	index: number
+	lastGroup: string | null
+	lastRecordedAt: number
+}
+
+export interface MarkdownHistoryRecordOptions {
+	group?: string | null
+	timestamp?: number
+	mergeWindowMs?: number
+	limit?: number
+}
+
 function normalizeSelection(body: string, selectionStart: number, selectionEnd: number) {
 	const start = Math.max(0, Math.min(selectionStart, body.length))
 	const end = Math.max(start, Math.min(selectionEnd, body.length))
@@ -99,6 +119,104 @@ export function applyMarkdownEdit(
 	const replacement = `${leading}${edit.before}${content}${edit.after}${trailing}`
 	const resultStart = start + leading.length + edit.before.length
 	return replaceMarkdownSelection(body, start, end, replacement, resultStart, resultStart + content.length)
+}
+
+export function createMarkdownHistory(
+	body: string,
+	selectionStart = body.length,
+	selectionEnd = selectionStart,
+): MarkdownHistoryState {
+	const selection = normalizeSelection(body, selectionStart, selectionEnd)
+	return {
+		entries: [{ body, selectionStart: selection.start, selectionEnd: selection.end }],
+		index: 0,
+		lastGroup: null,
+		lastRecordedAt: 0,
+	}
+}
+
+export function updateMarkdownHistorySelection(
+	history: MarkdownHistoryState,
+	selectionStart: number,
+	selectionEnd = selectionStart,
+): MarkdownHistoryState {
+	const current = history.entries[history.index]
+	if (!current)
+		return history
+	const selection = normalizeSelection(current.body, selectionStart, selectionEnd)
+	const entries = history.entries.slice()
+	entries[history.index] = {
+		...current,
+		selectionStart: selection.start,
+		selectionEnd: selection.end,
+	}
+	return { ...history, entries }
+}
+
+export function recordMarkdownHistory(
+	history: MarkdownHistoryState,
+	snapshot: MarkdownHistorySnapshot,
+	options: MarkdownHistoryRecordOptions = {},
+): MarkdownHistoryState {
+	const timestamp = options.timestamp ?? Date.now()
+	const mergeWindowMs = options.mergeWindowMs ?? 800
+	const limit = options.limit ?? 200
+	const group = options.group ?? null
+	const selection = normalizeSelection(snapshot.body, snapshot.selectionStart, snapshot.selectionEnd)
+	const normalizedSnapshot = {
+		body: snapshot.body,
+		selectionStart: selection.start,
+		selectionEnd: selection.end,
+	}
+	const current = history.entries[history.index]
+
+	if (current?.body === normalizedSnapshot.body) {
+		return {
+			...updateMarkdownHistorySelection(history, normalizedSnapshot.selectionStart, normalizedSnapshot.selectionEnd),
+			lastGroup: group,
+			lastRecordedAt: timestamp,
+		}
+	}
+
+	const entries = history.entries.slice(0, history.index + 1)
+	const canMerge = Boolean(
+		group
+		&& group === history.lastGroup
+		&& timestamp - history.lastRecordedAt <= mergeWindowMs
+		&& history.index === history.entries.length - 1,
+	)
+
+	if (canMerge && entries.length > 1)
+		entries[entries.length - 1] = normalizedSnapshot
+	else
+		entries.push(normalizedSnapshot)
+
+	const boundedEntries = entries.length > limit ? entries.slice(entries.length - limit) : entries
+	return {
+		entries: boundedEntries,
+		index: boundedEntries.length - 1,
+		lastGroup: group,
+		lastRecordedAt: timestamp,
+	}
+}
+
+export function stepMarkdownHistory(
+	history: MarkdownHistoryState,
+	direction: -1 | 1,
+): { history: MarkdownHistoryState, snapshot: MarkdownHistorySnapshot } | null {
+	const index = history.index + direction
+	if (index < 0 || index >= history.entries.length)
+		return null
+	const nextHistory = {
+		...history,
+		index,
+		lastGroup: null,
+		lastRecordedAt: 0,
+	}
+	return {
+		history: nextHistory,
+		snapshot: nextHistory.entries[index]!,
+	}
 }
 
 export function insertMacWindowBlock(

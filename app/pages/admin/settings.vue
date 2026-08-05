@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type {
+	ArticlePresentationConfig,
 	CategoriesConfig,
 	FooterConfig,
 	NavigationConfig,
@@ -7,11 +8,13 @@ import type {
 } from '#shared/admin/site-config'
 import type { WeatherCity } from '#shared/admin/weather'
 import type { AdminConfigKind } from '~/types/admin'
+import articleSource from '~~/config/site/article.json'
 import footerSource from '~~/config/site/footer.json'
 import navigationSource from '~~/config/site/navigation.json'
 import weatherSource from '~~/config/site/weather.json'
 import categoriesSource from '~~/config/taxonomy/categories.json'
 import {
+	articlePresentationConfigSchema,
 	categoriesConfigSchema,
 	footerConfigSchema,
 	navigationConfigSchema,
@@ -34,12 +37,14 @@ interface ConfigResult {
 	content: unknown
 }
 
-type SettingsKind = Extract<AdminConfigKind, 'categories' | 'navigation' | 'footer' | 'modules' | 'weather'>
+type SettingsKind = Extract<AdminConfigKind, 'article' | 'categories' | 'navigation' | 'footer' | 'modules' | 'weather'>
+type ArticleHeaderAd = ArticlePresentationConfig['headerAds'][number]
 type NavigationItem = NavigationConfig[number]['items'][number]
 type FooterItem = FooterConfig['iconNav'][number]
 
 const tabs: Array<{ id: SettingsKind, kind: SettingsKind, label: string, description: string, icon: string }> = [
 	{ id: 'categories', kind: 'categories', label: '分类', description: '整理文章使用的分类名称、图标和颜色。', icon: 'tabler:category' },
+	{ id: 'article', kind: 'article', label: '文章广告', description: '管理文章标题下方的横幅广告与推荐位。', icon: 'tabler:ad' },
 	{ id: 'navigation', kind: 'navigation', label: '导航', description: '决定访客在左侧菜单里看到什么。', icon: 'tabler:menu-2' },
 	{ id: 'modules', kind: 'modules', label: '首页模块', description: '控制公开模块、显示状态和导航顺序。', icon: 'tabler:layout-grid' },
 	{ id: 'weather', kind: 'weather', label: '天气', description: '选择公开展示的固定城市。', icon: 'ri:sun-cloudy-line' },
@@ -47,6 +52,7 @@ const tabs: Array<{ id: SettingsKind, kind: SettingsKind, label: string, descrip
 ]
 
 const selected = ref<SettingsKind>('categories')
+const article = ref<ArticlePresentationConfig>(articlePresentationConfigSchema.parse(structuredClone(articleSource) as unknown))
 const categories = ref<CategoriesConfig>(categoriesConfigSchema.parse(structuredClone(categoriesSource) as unknown))
 const navigation = ref<NavigationConfig>(navigationConfigSchema.parse(structuredClone(navigationSource) as unknown))
 const footer = ref<FooterConfig>(footerConfigSchema.parse(structuredClone(footerSource) as unknown))
@@ -74,6 +80,19 @@ watch(selected, () => {
 
 function newConfigId(prefix: string) {
 	return `${prefix}-${crypto.randomUUID().slice(0, 8).toLowerCase()}`
+}
+
+function addArticleAd() {
+	const ad: ArticleHeaderAd = {
+		id: newConfigId('article-ad'),
+		enabled: false,
+		label: '广告',
+		title: '',
+		description: '',
+		image: '',
+		href: '',
+	}
+	article.value.headerAds.push(ad)
 }
 
 function addCategory() {
@@ -175,6 +194,8 @@ function chooseCity(city: WeatherCity) {
 }
 
 function currentContent() {
+	if (selected.value === 'article')
+		return articlePresentationConfigSchema.parse(article.value)
 	if (selected.value === 'categories')
 		return categoriesConfigSchema.parse(categories.value)
 	if (selected.value === 'navigation')
@@ -187,6 +208,8 @@ function currentContent() {
 }
 
 function contentFor(kind: Exclude<SettingsKind, 'modules'>) {
+	if (kind === 'article')
+		return article.value
 	if (kind === 'categories')
 		return categoriesConfigSchema.parse(categories.value)
 	if (kind === 'navigation')
@@ -200,7 +223,7 @@ function fingerprint(value: unknown) {
 	return JSON.stringify(value)
 }
 
-const editableKinds = ['categories', 'navigation', 'footer', 'weather'] as const
+const editableKinds = ['article', 'categories', 'navigation', 'footer', 'weather'] as const
 const currentFingerprint = computed(() => selected.value === 'modules' ? '' : fingerprint(contentFor(selected.value)))
 const selectedChanged = computed(() => selected.value !== 'modules' && Boolean(baselineFingerprints[selected.value]) && baselineFingerprints[selected.value] !== currentFingerprint.value)
 const hasUnsavedEditableSettings = computed(() => editableKinds.some((kind) => {
@@ -220,7 +243,7 @@ const createButtonLabel = computed(() => {
 		return '没有改动'
 	if (selected.value !== 'modules' && submittedFingerprints[selected.value] === currentFingerprint.value)
 		return '这版已提交'
-	return ({ categories: '保存分类并预览', navigation: '保存导航并预览', footer: '保存页脚并预览', weather: '保存天气并预览', modules: '由模块工作台保存' })[selected.value]
+	return ({ article: '保存文章展示并预览', categories: '保存分类并预览', navigation: '保存导航并预览', footer: '保存页脚并预览', weather: '保存天气并预览', modules: '由模块工作台保存' })[selected.value]
 })
 const taskStatus = computed(() => {
 	if (loadingDeployed.value)
@@ -242,17 +265,19 @@ async function loadDeployedConfigs() {
 	error.value = null
 	result.value = null
 	try {
-		const [categoryConfig, navigationConfig, footerConfig, weatherConfig] = await Promise.all([
+		const [articleConfig, categoryConfig, navigationConfig, footerConfig, weatherConfig] = await Promise.all([
+			useAdminApi<ConfigResult>('/api/admin/publishing/configs/article'),
 			useAdminApi<ConfigResult>('/api/admin/publishing/configs/categories'),
 			useAdminApi<ConfigResult>('/api/admin/publishing/configs/navigation'),
 			useAdminApi<ConfigResult>('/api/admin/publishing/configs/footer'),
 			useAdminApi<ConfigResult>('/api/admin/publishing/configs/weather'),
 		])
+		article.value = articlePresentationConfigSchema.parse(articleConfig.content)
 		categories.value = categoriesConfigSchema.parse(categoryConfig.content)
 		navigation.value = navigationConfigSchema.parse(navigationConfig.content)
 		footer.value = footerConfigSchema.parse(footerConfig.content)
 		Object.assign(weather, weatherConfigSchema.parse(weatherConfig.content))
-		for (const kind of ['categories', 'navigation', 'footer', 'weather'] as const)
+		for (const kind of ['article', 'categories', 'navigation', 'footer', 'weather'] as const)
 			baselineFingerprints[kind] = fingerprint(contentFor(kind))
 		Object.keys(submittedFingerprints).forEach(key => delete submittedFingerprints[key])
 		syncedAt.value = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
@@ -309,7 +334,7 @@ onMounted(loadDeployedConfigs)
 	<AdminTaskHeader
 		eyebrow="公开站点"
 		title="站点设置"
-		description="用可视化表单管理分类、导航、首页模块、天气和页脚。保存后先生成预览，不会直接影响线上。"
+		description="用可视化表单管理分类、文章广告、导航、首页模块、天气和页脚。保存后先生成预览，不会直接影响线上。"
 		:status="taskStatus"
 		:status-tone="taskTone"
 	>
@@ -355,7 +380,50 @@ onMounted(loadDeployedConfigs)
 				</div>
 			</header>
 
-			<div v-if="selected === 'categories'" class="admin-category-editor">
+			<div v-if="selected === 'article'" class="admin-visual-config admin-article-ads-editor">
+				<div class="admin-config-intro">
+					<div><Icon name="tabler:ad" /><span><strong>文章头部横幅</strong><small>展示在文章标题和摘要之间；关闭或配置不完整时前台不占位。</small></span></div>
+					<button class="admin-button" type="button" :disabled="article.headerAds.length >= 8" @click="addArticleAd">
+						<Icon name="tabler:plus" />添加广告
+					</button>
+				</div>
+				<p v-if="!article.headerAds.length" class="admin-muted-copy admin-article-ads-empty">
+					当前没有文章广告。前台不会保留空白区域。
+				</p>
+				<section v-for="(ad, adIndex) in article.headerAds" :key="ad.id" class="admin-config-group admin-article-ad-card">
+					<header>
+						<label class="admin-switch-row admin-article-ad-toggle">
+							<input v-model="ad.enabled" type="checkbox">
+							<span><strong>启用这条广告</strong><small>{{ ad.enabled ? '将进入前台轮播' : '仅保留配置，不公开展示' }}</small></span>
+						</label>
+						<div class="admin-config-order">
+							<button class="admin-icon-button" type="button" aria-label="上移广告" :disabled="adIndex === 0" @click="move(article.headerAds, adIndex, -1)">
+								<Icon name="tabler:arrow-up" />
+							</button>
+							<button class="admin-icon-button" type="button" aria-label="下移广告" :disabled="adIndex === article.headerAds.length - 1" @click="move(article.headerAds, adIndex, 1)">
+								<Icon name="tabler:arrow-down" />
+							</button>
+							<button class="admin-icon-button" type="button" aria-label="删除广告" @click="article.headerAds.splice(adIndex, 1)">
+								<Icon name="tabler:trash" />
+							</button>
+						</div>
+					</header>
+					<div class="admin-article-ad-grid">
+						<label class="admin-field"><span>广告标题</span><input v-model="ad.title" type="text" maxlength="120" placeholder="例如：本月推荐服务"></label>
+						<label class="admin-field"><span>广告链接</span><input v-model="ad.href" type="text" maxlength="2000" placeholder="https://example.com 或 /about"></label>
+						<label class="admin-field"><span>角标文字</span><input v-model="ad.label" type="text" maxlength="24" placeholder="广告"></label>
+						<label class="admin-field"><span>横幅图片</span><input v-model="ad.image" type="text" maxlength="2000" placeholder="图片 URL，可留空"></label>
+						<label class="admin-field admin-article-ad-description"><span>广告说明</span><textarea v-model="ad.description" rows="3" maxlength="320" placeholder="简短说明推荐内容" /></label>
+					</div>
+					<div class="admin-article-ad-preview" :class="{ 'has-image': ad.image }">
+						<img v-if="ad.image" :src="ad.image" alt="" loading="lazy">
+						<div><small>{{ ad.label || '广告' }}</small><strong>{{ ad.title || '广告标题预览' }}</strong><span>{{ ad.description || '填写说明后会在这里显示。' }}</span></div>
+						<Icon name="tabler:arrow-up-right" />
+					</div>
+				</section>
+			</div>
+
+			<div v-else-if="selected === 'categories'" class="admin-category-editor">
 				<div v-for="(category, index) in categories" :key="`${category.name}-${index}`" class="admin-category-row">
 					<label class="admin-field"><span>名称</span><input v-model="category.name" type="text"></label>
 					<label class="admin-field"><span>图标</span><input v-model="category.icon" type="text"></label>
@@ -628,6 +696,102 @@ onMounted(loadDeployedConfigs)
 	margin: 0;
 }
 
+.admin-article-ads-empty {
+	padding: 2.5rem 1rem;
+	border: 1px dashed var(--admin-border);
+	border-radius: 1rem;
+	text-align: center;
+}
+
+.admin-article-ad-toggle {
+	margin: 0;
+}
+
+.admin-article-ad-grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 0.75rem;
+}
+
+.admin-article-ad-grid .admin-field {
+	margin: 0;
+}
+
+.admin-article-ad-description {
+	grid-column: 1 / -1;
+}
+
+.admin-article-ad-preview {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	align-items: stretch;
+	position: relative;
+	overflow: hidden;
+	min-height: 8rem;
+	border: 1px solid color-mix(in srgb, var(--admin-accent) 32%, var(--admin-border));
+	border-radius: 1rem;
+	background:
+		radial-gradient(circle at 88% 12%, var(--admin-accent-soft), transparent 42%),
+		var(--admin-surface);
+}
+
+.admin-article-ad-preview.has-image {
+	grid-template-columns: minmax(0, 1fr) minmax(10rem, 34%);
+}
+
+.admin-article-ad-preview > div {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	justify-content: center;
+	gap: 0.4rem;
+	min-width: 0;
+	padding: 1.1rem 3.2rem 1.1rem 1.2rem;
+}
+
+.admin-article-ad-preview small {
+	padding: 0.15rem 0.45rem;
+	border-radius: 999px;
+	background: var(--admin-accent-soft);
+	font-size: 0.62rem;
+	font-weight: 700;
+	color: var(--admin-accent-strong);
+}
+
+.admin-article-ad-preview strong,
+.admin-article-ad-preview span {
+	display: block;
+}
+
+.admin-article-ad-preview strong {
+	font-family: "Noto Serif SC", serif;
+	font-size: 1.05rem;
+}
+
+.admin-article-ad-preview span {
+	font-size: 0.75rem;
+	line-height: 1.6;
+	color: var(--admin-muted);
+}
+
+.admin-article-ad-preview img {
+	grid-column: 2;
+	grid-row: 1;
+	width: 100%;
+	height: 100%;
+	min-height: 8rem;
+	object-fit: cover;
+}
+
+.admin-article-ad-preview > .iconify {
+	position: absolute;
+	inset-inline-end: 1rem;
+	top: 50%;
+	font-size: 1.2rem;
+	color: var(--admin-accent-strong);
+	transform: translateY(-50%);
+}
+
 .admin-config-item {
 	display: grid;
 	grid-template-columns: auto minmax(7rem, 0.8fr) minmax(10rem, 1.4fr) minmax(8rem, 1fr) auto;
@@ -787,8 +951,24 @@ onMounted(loadDeployedConfigs)
 	.admin-config-item,
 	.admin-config-switches,
 	.admin-weather-results,
-	.admin-weather-selected {
+	.admin-weather-selected,
+	.admin-article-ad-grid,
+	.admin-article-ad-preview.has-image {
 		grid-template-columns: 1fr;
+	}
+
+	.admin-article-ad-description {
+		grid-column: auto;
+	}
+
+	.admin-article-ad-preview img {
+		grid-column: 1;
+		grid-row: 1;
+		max-height: 10rem;
+	}
+
+	.admin-article-ad-preview > div {
+		grid-row: 2;
 	}
 
 	.admin-config-item-icon {

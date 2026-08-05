@@ -1,12 +1,16 @@
 <script setup lang="ts">
 import type { ArticleDocument, ArticleSummary } from '#shared/admin/articles'
 import type { MediaObjectDto } from '#shared/admin/media'
-import type { MarkdownEdit } from '~/composables/useAdminDraft'
+import type { MarkdownEdit, MarkdownHistorySnapshot } from '~/composables/useAdminDraft'
 import {
 	applyMarkdownEdit,
+	createMarkdownHistory,
 	insertMacWindowBlock,
 	insertMarkdownImage,
+	recordMarkdownHistory,
+	stepMarkdownHistory,
 	updateArticleFrontmatter,
+	updateMarkdownHistorySelection,
 } from '~/composables/useAdminDraft'
 
 const props = withDefaults(defineProps<{
@@ -37,6 +41,7 @@ const textarea = ref<HTMLTextAreaElement | null>(null)
 const mediaPickerOpen = ref(false)
 const previewLoading = ref(false)
 const previewMarkdown = ref('')
+const editorHistory = ref(createMarkdownHistory(props.modelValue.body))
 let previewTimer: ReturnType<typeof setTimeout> | undefined
 
 const documentModel = computed({
@@ -84,6 +89,58 @@ function updateBody(body: string) {
 	documentModel.value = { ...documentModel.value, body }
 }
 
+function editorSelection() {
+	const start = textarea.value?.selectionStart ?? documentModel.value.body.length
+	const end = textarea.value?.selectionEnd ?? start
+	return { start, end }
+}
+
+function restoreEditorSnapshot(snapshot: MarkdownHistorySnapshot) {
+	updateBody(snapshot.body)
+	nextTick(() => {
+		textarea.value?.focus()
+		textarea.value?.setSelectionRange(snapshot.selectionStart, snapshot.selectionEnd)
+	})
+}
+
+function recordEditorSnapshot(
+	snapshot: MarkdownHistorySnapshot,
+	group: string | null = null,
+) {
+	editorHistory.value = recordMarkdownHistory(editorHistory.value, snapshot, { group })
+	restoreEditorSnapshot(snapshot)
+}
+
+function onEditorInput(event: Event) {
+	const target = event.target as HTMLTextAreaElement
+	const inputEvent = event as InputEvent
+	editorHistory.value = recordMarkdownHistory(editorHistory.value, {
+		body: target.value,
+		selectionStart: target.selectionStart,
+		selectionEnd: target.selectionEnd,
+	}, { group: inputEvent.inputType || 'input' })
+	updateBody(target.value)
+}
+
+function onEditorKeydown(event: KeyboardEvent) {
+	if (!(event.metaKey || event.ctrlKey) || event.altKey)
+		return
+	const key = event.key.toLowerCase()
+	const direction = key === 'y' || (key === 'z' && event.shiftKey)
+		? 1
+		: key === 'z'
+			? -1
+			: null
+	if (!direction)
+		return
+	event.preventDefault()
+	const result = stepMarkdownHistory(editorHistory.value, direction)
+	if (!result)
+		return
+	editorHistory.value = result.history
+	restoreEditorSnapshot(result.snapshot)
+}
+
 function updatePath(path: string) {
 	documentModel.value = { ...documentModel.value, path }
 }
@@ -121,27 +178,23 @@ function toggleCategory(category: string) {
 }
 
 function insertMedia(media: MediaObjectDto) {
-	const start = textarea.value?.selectionStart ?? documentModel.value.body.length
-	const end = textarea.value?.selectionEnd ?? start
+	const { start, end } = editorSelection()
+	editorHistory.value = updateMarkdownHistorySelection(editorHistory.value, start, end)
 	const result = insertMarkdownImage(documentModel.value.body, start, end, media.originalName, media.url)
-	updateBody(result.body)
-	nextTick(() => {
-		textarea.value?.focus()
-		textarea.value?.setSelectionRange(result.cursor, result.cursor)
+	recordEditorSnapshot({
+		body: result.body,
+		selectionStart: result.cursor,
+		selectionEnd: result.cursor,
 	})
 }
 
 function applyEditorEdit(edit: MarkdownEdit | 'mac-window') {
-	const start = textarea.value?.selectionStart ?? documentModel.value.body.length
-	const end = textarea.value?.selectionEnd ?? start
+	const { start, end } = editorSelection()
+	editorHistory.value = updateMarkdownHistorySelection(editorHistory.value, start, end)
 	const result = edit === 'mac-window'
 		? insertMacWindowBlock(documentModel.value.body, start, end)
 		: applyMarkdownEdit(documentModel.value.body, start, end, edit)
-	updateBody(result.body)
-	nextTick(() => {
-		textarea.value?.focus()
-		textarea.value?.setSelectionRange(result.selectionStart, result.selectionEnd)
-	})
+	recordEditorSnapshot(result)
 }
 
 function onSaveShortcut(event: KeyboardEvent) {
@@ -153,6 +206,21 @@ function onSaveShortcut(event: KeyboardEvent) {
 }
 
 onMounted(() => window.addEventListener('keydown', onSaveShortcut))
+
+watch(
+	() => `${documentModel.value.path}::${documentModel.value.sha || 'new'}`,
+	() => {
+		editorHistory.value = createMarkdownHistory(documentModel.value.body)
+	},
+)
+
+watch(() => documentModel.value.body, (body) => {
+	const current = editorHistory.value.entries[editorHistory.value.index]
+	if (current?.body !== body) {
+		const { start, end } = editorSelection()
+		editorHistory.value = createMarkdownHistory(body, start, end)
+	}
+})
 
 watch(() => documentModel.value.body, (body) => {
 	if (previewTimer)
@@ -272,7 +340,8 @@ onBeforeUnmount(() => {
 						:value="documentModel.body"
 						spellcheck="false"
 						placeholder="开始写作…"
-						@input="updateBody(($event.target as HTMLTextAreaElement).value)"
+						@input="onEditorInput"
+						@keydown="onEditorKeydown"
 					/>
 				</label>
 			</div>

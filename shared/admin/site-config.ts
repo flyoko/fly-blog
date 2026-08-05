@@ -10,6 +10,26 @@ function isValidTimeZone(value: string): boolean {
 	}
 }
 
+function isValidPublicResource(value: string): boolean {
+	if (!value)
+		return true
+	if (value.includes('\\') || Array.from(value).some((character) => {
+		const codePoint = character.codePointAt(0) ?? 0
+		return codePoint <= 0x1F || codePoint === 0x7F
+	})) {
+		return false
+	}
+	if (value.startsWith('/'))
+		return !value.startsWith('//')
+	try {
+		const url = new URL(value)
+		return url.protocol === 'http:' || url.protocol === 'https:'
+	}
+	catch {
+		return false
+	}
+}
+
 function addDuplicateIssues<T>(
 	values: T[],
 	getKey: (value: T) => string | number,
@@ -43,6 +63,29 @@ const navGroupSchema = z.object({
 	title: z.string(),
 	items: z.array(navItemSchema).superRefine((items, ctx) => {
 		addDuplicateIssues(items, item => item.id, ctx, 'navigation item id')
+	}),
+})
+
+const articleHeaderAdSchema = z.object({
+	id: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/u),
+	enabled: z.boolean(),
+	label: z.string().max(24),
+	title: z.string().max(120),
+	description: z.string().max(320),
+	image: z.string().max(2_000).refine(isValidPublicResource, 'Image must be an HTTP(S) URL or root-relative path'),
+	href: z.string().max(2_000).refine(isValidPublicResource, 'Link must be an HTTP(S) URL or root-relative path'),
+}).superRefine((ad, ctx) => {
+	if (!ad.enabled)
+		return
+	if (!ad.title.trim())
+		ctx.addIssue({ code: 'custom', path: ['title'], message: 'Enabled ad requires a title' })
+	if (!ad.href.trim())
+		ctx.addIssue({ code: 'custom', path: ['href'], message: 'Enabled ad requires a link' })
+})
+
+export const articlePresentationConfigSchema = z.object({
+	headerAds: z.array(articleHeaderAdSchema).max(8).superRefine((ads, ctx) => {
+		addDuplicateIssues(ads, ad => ad.id, ctx, 'article header ad id')
 	}),
 })
 
@@ -151,6 +194,7 @@ export const newsSourcesConfigSchema = z.object({
 	}),
 })
 
+export type ArticlePresentationConfig = z.infer<typeof articlePresentationConfigSchema>
 export type CategoriesConfig = z.infer<typeof categoriesConfigSchema>
 export type NavigationConfig = z.infer<typeof navigationConfigSchema>
 export type FooterConfig = z.infer<typeof footerConfigSchema>

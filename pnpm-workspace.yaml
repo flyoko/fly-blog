@@ -43,6 +43,7 @@ catalogs:
     nuxt-llms: ^0.2.0
     plain-shiki: ^0.3.2
     rehype-katex: ^7.0.1
+    remark-breaks: ^4.0.0
     remark-math: ^6.0.0
     remark-reading-time: ^2.1.0
     shiki: ^4.2.0

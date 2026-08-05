@@ -1,9 +1,10 @@
 import type { AdminSessionDto } from '#shared/admin/auth'
 import type { ConfigPullRequestRequest } from '#shared/admin/publishing'
 
-export type AdminConfigKind = 'categories' | 'navigation' | 'footer' | 'modules' | 'weather' | 'aboutTimeline' | 'aboutLinks'
+export type AdminConfigKind = 'article' | 'categories' | 'navigation' | 'footer' | 'modules' | 'weather' | 'aboutTimeline' | 'aboutLinks'
 
 const configLabels: Record<AdminConfigKind, string> = {
+	article: '文章展示配置',
 	categories: '分类配置',
 	navigation: '导航配置',
 	footer: '页脚配置',

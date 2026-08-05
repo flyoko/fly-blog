@@ -13,10 +13,10 @@ index fb002e6278f7fb05cca8f2c27b5de9caddbec101..e03ecb075a68c81db3dc2a94df2877cc
 +      const instance = isTsPlugin ? `(await ${instanceName}Loader({ path: ${JSON.stringify(specifier)} })).module` : instanceName;
        if (Object.keys(plugin).length) {
 -        definitions.push(`  '${name}': { instance: ${instanceName}, options: ${JSON.stringify(plugin.options || plugin)} },`);
-+        definitions.push(`  '${name}': { instance, options: ${JSON.stringify(plugin.options || plugin)} },`);
++        definitions.push(`  '${name}': { instance: ${instance}, options: ${JSON.stringify(plugin.options || plugin)} },`);
        } else {
 -        definitions.push(`  '${name}': { instance: ${instanceName} },`);
-+        definitions.push(`  '${name}': { instance },`);
++        definitions.push(`  '${name}': { instance: ${instance} },`);
        }
      } else {
        definitions.push(`  '${name}': false,`);

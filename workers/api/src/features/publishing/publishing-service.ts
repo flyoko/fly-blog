@@ -11,6 +11,7 @@ import type { PublishRunRow } from '../../repositories/publish-repository'
 import type { ArticleActor, ArticleRepositoryPort } from '../articles/article-service'
 import { aboutLinksSchema, aboutTimelineSchema } from '../../../../../shared/admin/about'
 import {
+	articlePresentationConfigSchema,
 	categoriesConfigSchema,
 	footerConfigSchema,
 	modulesConfigSchema,
@@ -33,6 +34,7 @@ import {
 } from '../articles/article-service'
 
 const editableConfigFiles = {
+	article: { path: 'config/site/article.json', schema: articlePresentationConfigSchema },
 	categories: { path: 'config/taxonomy/categories.json', schema: categoriesConfigSchema },
 	navigation: { path: 'config/site/navigation.json', schema: navigationConfigSchema },
 	footer: { path: 'config/site/footer.json', schema: footerConfigSchema },

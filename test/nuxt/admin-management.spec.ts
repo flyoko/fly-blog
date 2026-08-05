@@ -25,6 +25,15 @@ describe('admin management helpers', () => {
 		expect(payload).not.toHaveProperty('path')
 	})
 
+	it('builds the fixed article presentation configuration payload', () => {
+		const payload = buildConfigPullRequest('article', { headerAds: [] }, 'article-config-1')
+		expect(payload).toMatchObject({
+			kind: 'article',
+			content: { headerAds: [] },
+			title: '更新文章展示配置',
+		})
+	})
+
 	it('maps publish states to user-facing status metadata', () => {
 		expect(publishStatusMeta('checks_pending')).toEqual({ label: '检查中', tone: 'warning' })
 		expect(publishStatusMeta('preview_ready')).toEqual({ label: '可审核', tone: 'positive' })

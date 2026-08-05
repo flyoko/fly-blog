@@ -20,6 +20,7 @@ function pluginPath(path: string) {
 const markdownRemarkPlugins = {
 	[pluginPath('remark-music')]: {},
 	[pluginPath('remark-reading-time')]: {},
+	'remark-breaks': {},
 	'remark-math': {},
 }
 const markdownRehypePlugins = {
