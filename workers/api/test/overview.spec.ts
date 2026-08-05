@@ -224,7 +224,7 @@ describe('overview counts and health', () => {
 					articles: 2,
 					activeMedia: 1,
 					openPullRequests: 1,
-					pendingPublishes: 1,
+					pendingPublishes: 0,
 					failedPublishes: 1,
 				},
 				latestPublish: { id: 'failed-1', status: 'failed' },
@@ -235,6 +235,12 @@ describe('overview counts and health', () => {
 					{ service: 'pages', status: 'ok' },
 				],
 			},
+		})
+		expect(await testEnv.DB.prepare('SELECT status, deployment_url FROM publish_runs WHERE id = ?')
+			.bind('pr-1')
+			.first()).toEqual({
+			status: 'preview_ready',
+			deployment_url: 'https://production.example.test',
 		})
 	})
 
