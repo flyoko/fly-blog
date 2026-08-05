@@ -102,8 +102,15 @@ export type MergeBlockReason
 		| 'pull_request_closed'
 		| 'merge_rejected'
 
-const activePullRequestStatuses = new Set(['created', 'commit_created', 'checks_pending', 'preview_ready'])
+const activePullRequestStatuses = new Set(['created', 'commit_created', 'checks_pending', 'preview_ready', 'failed'])
 const activeDirectStatuses = new Set(['created', 'commit_created', 'checks_pending', 'failed'])
+
+function checksFailureMessage(checks: CheckSummaryDto): string {
+	const diagnostic = checks.diagnostics?.[0]
+	if (!diagnostic)
+		return 'Repository checks failed'
+	return `${diagnostic.message}${diagnostic.bodyLine ? `（第 ${diagnostic.bodyLine} 行${diagnostic.bodyColumn ? `，第 ${diagnostic.bodyColumn} 列` : ''}）` : ''}`
+}
 
 async function updateReconciledRun(
 	publishRepository: PublishRepository,
@@ -170,9 +177,7 @@ async function reconcileDirectPublishRun(
 			status: 'failed',
 			deploymentUrl: deployment?.url ?? run.deploymentUrl,
 			errorCode: 'CHECKS_FAILED',
-			errorMessage: checks.diagnostics?.[0]
-				? `${checks.diagnostics[0].message}${checks.diagnostics[0].bodyLine ? `（第 ${checks.diagnostics[0].bodyLine} 行${checks.diagnostics[0].bodyColumn ? `，第 ${checks.diagnostics[0].bodyColumn} 列` : ''}）` : ''}`
-				: 'Repository checks failed',
+			errorMessage: checksFailureMessage(checks),
 		})
 	}
 	if (checks.total === 0 && !deployment) {
@@ -208,14 +213,45 @@ async function reconcilePullRequestRun(
 	}
 
 	const current = pullRequest ?? await repository.getPullRequest(run.pullNumber)
-	const status = current.merged
-		? 'merged'
-		: current.state === 'closed'
-			? 'closed'
-			: null
-	if (!status)
-		return run
-	return updateReconciledRun(publishRepository, run, { status })
+	if (current.merged)
+		return updateReconciledRun(publishRepository, run, { status: 'merged' })
+	if (current.state === 'closed')
+		return updateReconciledRun(publishRepository, run, { status: 'closed' })
+
+	const [checks, deployment] = await Promise.all([
+		repository.getChecks(current.headSha, run.resourcePath ?? undefined),
+		repository.getDeployment(run.repositoryRef),
+	])
+	if (checks.status === 'failure') {
+		return updateReconciledRun(publishRepository, run, {
+			status: 'failed',
+			deploymentUrl: deployment?.url ?? run.deploymentUrl,
+			errorCode: 'CHECKS_FAILED',
+			errorMessage: checksFailureMessage(checks),
+		})
+	}
+	if (deployment?.status === 'failure') {
+		return updateReconciledRun(publishRepository, run, {
+			status: 'failed',
+			deploymentUrl: deployment.url,
+			errorCode: 'PREVIEW_FAILED',
+			errorMessage: 'Preview deployment failed',
+		})
+	}
+	if (checks.status === 'success' && checks.total > 0 && deployment?.status === 'success') {
+		return updateReconciledRun(publishRepository, run, {
+			status: 'preview_ready',
+			deploymentUrl: deployment.url,
+			errorCode: null,
+			errorMessage: null,
+		})
+	}
+	return updateReconciledRun(publishRepository, run, {
+		status: 'checks_pending',
+		deploymentUrl: deployment?.url ?? run.deploymentUrl,
+		errorCode: null,
+		errorMessage: null,
+	})
 }
 
 async function reconcilePublishRun(

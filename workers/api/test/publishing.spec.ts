@@ -410,6 +410,82 @@ describe('pull request status and merge guard', () => {
 		expect(repository.mergeCalls).toBe(0)
 	})
 
+	it('marks an open pull request failed when repository checks fail', async () => {
+		const repository = new FakePublishingRepository()
+		const run = await createRun(repository)
+		repository.checks = {
+			status: 'failure',
+			total: 1,
+			successful: 0,
+			failed: 1,
+			pending: 0,
+			diagnostics: [{ checkName: 'deploy-preview', message: 'Markdown 格式错误', bodyLine: 7, bodyColumn: 16 }],
+		}
+
+		const list = await new PublishingService(runtimeEnv(), repository).listRuns(1, 30)
+
+		expect(list.items[0]).toMatchObject({
+			id: run.publishRunId,
+			status: 'failed',
+			errorCode: 'CHECKS_FAILED',
+			errorMessage: 'Markdown 格式错误（第 7 行，第 16 列）',
+		})
+		expect(repository.checkRefs).toEqual([run.headSha])
+		expect(repository.deploymentRefs).toEqual([run.branch])
+	})
+
+	it('marks an open pull request ready when checks and preview succeed', async () => {
+		const repository = new FakePublishingRepository()
+		const run = await createRun(repository)
+		repository.checks = { status: 'success', total: 1, successful: 1, failed: 0, pending: 0 }
+		repository.deployment = {
+			id: 'preview-deployment',
+			ref: run.branch,
+			environment: 'Preview',
+			url: 'https://preview.example.test/run',
+			status: 'success',
+			updatedAt: '2026-08-05T12:00:00.000Z',
+		}
+
+		const list = await new PublishingService(runtimeEnv(), repository).listRuns(1, 30)
+
+		expect(list.items[0]).toMatchObject({
+			id: run.publishRunId,
+			status: 'preview_ready',
+			deploymentUrl: 'https://preview.example.test/run',
+			errorCode: null,
+			errorMessage: null,
+		})
+	})
+
+	it('recovers a failed pull request after checks and preview succeed', async () => {
+		const repository = new FakePublishingRepository()
+		const run = await createRun(repository)
+		repository.checks = { status: 'failure', total: 1, successful: 0, failed: 1, pending: 0 }
+		const service = new PublishingService(runtimeEnv(), repository)
+		await service.listRuns(1, 30)
+
+		repository.checks = { status: 'success', total: 1, successful: 1, failed: 0, pending: 0 }
+		repository.deployment = {
+			id: 'preview-recovered',
+			ref: run.branch,
+			environment: 'Preview',
+			url: 'https://preview.example.test/recovered',
+			status: 'success',
+			updatedAt: '2026-08-05T12:05:00.000Z',
+		}
+
+		const recovered = await service.listRuns(1, 30)
+
+		expect(recovered.items[0]).toMatchObject({
+			id: run.publishRunId,
+			status: 'preview_ready',
+			deploymentUrl: 'https://preview.example.test/recovered',
+			errorCode: null,
+			errorMessage: null,
+		})
+	})
+
 	it('reconciles a closed pull request in list and detail responses', async () => {
 		const repository = new FakePublishingRepository()
 		const run = await createRun(repository)
