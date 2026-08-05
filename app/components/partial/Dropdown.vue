@@ -33,11 +33,10 @@ function focusFirstOption() {
 	nextTick(() => root.value?.querySelector<HTMLButtonElement>('.dropdown-content button:not(:disabled)')?.focus())
 }
 
-function handleFocusOut() {
-	nextTick(() => {
-		if (open.value && root.value && !root.value.contains(document.activeElement))
-			hide()
-	})
+function handleFocusOut(event: FocusEvent) {
+	const nextTarget = event.relatedTarget as Node | null
+	if (open.value && root.value && (!nextTarget || !root.value.contains(nextTarget)))
+		hide()
 }
 
 function handleDocumentPointer(event: PointerEvent) {

@@ -34,12 +34,17 @@ export default function usePagination<T>(list: MaybeRefOrGetter<T[]>, options?: 
 		return toValue(list).slice(start, start + perPage)
 	})
 
+	function setPage(value: number) {
+		page.value = value
+	}
+
 	// 不应在此处 watch list
 
 	return {
 		totalPages,
 		page,
 		listPaged,
+		setPage,
 	}
 }
 

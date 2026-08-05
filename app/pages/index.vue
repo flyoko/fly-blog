@@ -12,9 +12,9 @@ useSeoMeta({
 })
 
 const { data: listRaw } = await useAsyncData('posts:index', async () => articlesEnabled ? await getArticleIndexOptions() : [], { default: () => [] })
-const { listSorted, isAscending, sortOrder } = useArticleSort(listRaw, { bindDirectionQuery: 'asc', bindOrderQuery: 'sort' })
-const { category, categories, listCategorized } = useCategory(listSorted, { bindQuery: 'category' })
-const { page, totalPages, listPaged } = usePagination(listCategorized, { bindQuery: 'page' })
+const { listSorted, isAscending, sortOrder, setAscending, setSortOrder } = useArticleSort(listRaw, { bindDirectionQuery: 'asc', bindOrderQuery: 'sort' })
+const { category, categories, listCategorized, setCategory } = useCategory(listSorted, { bindQuery: 'category' })
+const { page, totalPages, listPaged, setPage } = usePagination(listCategorized, { bindQuery: 'page' })
 
 watch(category, () => {
 	page.value = 1
@@ -47,10 +47,14 @@ const { data: previewCount } = useAsyncData(
 
 		<div class="post-list">
 			<PostOrderToggle
-				v-model:is-ascending="isAscending"
-				v-model:sort-order="sortOrder"
-				v-model:category="category"
+				:is-ascending="isAscending"
+				:sort-order="sortOrder"
+				:category="category"
 				:categories
+				enable-ascending
+				@update:is-ascending="setAscending"
+				@update:sort-order="setSortOrder"
+				@update:category="setCategory"
 			>
 				<ZSecret>
 					<UtilLink v-if="previewCount" to="/preview" class="preview-entrance">
@@ -71,7 +75,7 @@ const { data: previewCount } = useAsyncData(
 				/>
 			</TransitionGroup>
 
-			<ZPagination v-model="page" sticky avoid :total-pages="totalPages" />
+			<ZPagination :model-value="page" sticky avoid :total-pages="totalPages" @update:model-value="setPage" />
 		</div>
 	</UtilHydrateSafe>
 	<ZError

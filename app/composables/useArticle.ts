@@ -46,7 +46,9 @@ export function useCategory(list: MaybeRefOrGetter<ArticleProps[] | null | undef
 		? useRouteQuery(bindQuery, undefined)
 		: ref<string | undefined>()
 
-	const categories = computed(() => [...new Set(normalizeArticleList(toValue(list)).map(item => item.categories?.[0]))])
+	const categories = computed(() => [...new Set(
+		normalizeArticleList(toValue(list)).flatMap(item => item.categories?.[0] ? [item.categories[0]] : []),
+	)])
 
 	const listCategorized = computed(
 		() => normalizeArticleList(toValue(list)).filter(
@@ -54,10 +56,15 @@ export function useCategory(list: MaybeRefOrGetter<ArticleProps[] | null | undef
 		),
 	)
 
+	function setCategory(value: string | undefined) {
+		category.value = value
+	}
+
 	return {
 		category,
 		categories,
 		listCategorized,
+		setCategory,
 	}
 }
 
@@ -96,10 +103,20 @@ export function useArticleSort(list: MaybeRefOrGetter<ArticleProps[] | null | un
 		[isAscending.value ? 'asc' : 'desc'],
 	))
 
+	function setSortOrder(value: ArticleOrderType) {
+		sortOrder.value = value
+	}
+
+	function setAscending(value: boolean | undefined) {
+		isAscending.value = value ?? false
+	}
+
 	return {
 		sortOrder,
 		isAscending,
 		listSorted,
+		setSortOrder,
+		setAscending,
 	}
 }
 

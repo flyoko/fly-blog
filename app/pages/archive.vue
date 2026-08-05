@@ -18,8 +18,8 @@ const tuningRef = useTemplateRef('tuning-panel')
 useAvoidTarget(tuningRef, showTuning)
 
 const { data: listRaw } = await useAsyncData('posts:index', () => getArticleIndexOptions(), { default: () => [] })
-const { listSorted, isAscending, sortOrder } = useArticleSort(listRaw)
-const { category, categories, listCategorized } = useCategory(listSorted)
+const { listSorted, isAscending, sortOrder, setAscending, setSortOrder } = useArticleSort(listRaw)
+const { category, categories, listCategorized, setCategory } = useCategory(listSorted)
 
 const listGrouped = computed(() => {
 	const groupList = Object.entries(groupBy(listCategorized.value, getArticleYear))
@@ -50,10 +50,13 @@ function getArticleYear(article: ArticleProps) {
 		文章归档
 	</h1>
 	<PostOrderToggle
-		v-model:is-ascending="isAscending"
-		v-model:sort-order="sortOrder"
-		v-model:category="category"
+		:is-ascending="isAscending"
+		:sort-order="sortOrder"
+		:category="category"
 		:categories
+		@update:is-ascending="setAscending"
+		@update:sort-order="setSortOrder"
+		@update:category="setCategory"
 	>
 		<ZSecret>
 			<ZToggle

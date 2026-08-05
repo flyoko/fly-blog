@@ -1,65 +1,107 @@
 <script setup lang="ts">
 import type { ArticleOrderType } from '~/types/article'
 
+type HideDropdown = (restoreFocus?: boolean) => void
+
 const props = defineProps<{
 	// 强制允许或禁止升序
 	enableAscending?: boolean
 	disableAscending?: boolean
-	categories?: (string | undefined)[]
+	categories?: string[]
+	category?: string
+	sortOrder?: ArticleOrderType
+	isAscending?: boolean
 	secretDelay?: string
+}>()
+
+const emit = defineEmits<{
+	'update:category': [value: string | undefined]
+	'update:sortOrder': [value: ArticleOrderType]
+	'update:isAscending': [value: boolean]
 }>()
 
 const appConfig = useAppConfig()
 const orderMap = computed(() => appConfig.article.order)
+const orderEntries = computed(() => Object.entries(orderMap.value) as [ArticleOrderType, string][])
+const currentOrder = computed<ArticleOrderType>(() => props.sortOrder ?? 'date')
+const currentAscending = computed(() => props.isAscending ?? false)
 // 配置文件中允许升序时，且未明确禁用升序时，允许升序
 const allowAscending = computed(() => appConfig.pagination.allowAscending ? !props.disableAscending : props.enableAscending)
+const directionText = computed(() => currentAscending.value ? '最早优先' : '最新优先')
+const directionAction = computed(() => currentAscending.value ? '切换为最新优先' : '切换为最早优先')
 
-const category = defineModel<string>('category')
-const sortOrder = defineModel<ArticleOrderType>('sortOrder', { default: 'date' })
-const isAscending = defineModel<boolean>('isAscending')
+function selectCategory(value: string | undefined, hide: HideDropdown) {
+	emit('update:category', value)
+	hide()
+}
 
-function toggleOrder() {
-	const orderKeys = Object.keys(orderMap.value) as (ArticleOrderType)[]
-	sortOrder.value = orderKeys[(orderKeys.indexOf(sortOrder.value) + 1) % orderKeys.length] || 'date'
+function selectOrder(value: ArticleOrderType, hide: HideDropdown) {
+	emit('update:sortOrder', value)
+	hide()
 }
 
 function toggleDirection() {
 	if (!allowAscending.value)
 		return
-	isAscending.value = !isAscending.value
+	emit('update:isAscending', !currentAscending.value)
 }
 </script>
 
 <template>
-<div class="order-toggle" :style="{ '--secret-delay': secretDelay }">
+<div class="order-toggle" :style="{ '--secret-delay': props.secretDelay }">
 	<slot />
 
-	<ZDropdown :disabled="!categories">
-		<Icon :name="getCategoryIcon(category)" />
-		<span class="order-text">{{ category ?? '全部分类' }}</span>
+	<ZDropdown :disabled="!props.categories?.length">
+		<Icon :name="getCategoryIcon(props.category)" />
+		<span class="order-text">{{ props.category ?? '全部分类' }}</span>
 
 		<template #content="{ hide }">
-			<button :class="{ active: !category }" @click="hide(), category = undefined">
+			<button type="button" :class="{ active: !props.category }" @click="selectCategory(undefined, hide)">
 				<Icon :name="getCategoryIcon()" />
 				<span>全部分类</span>
 			</button>
 
-			<button v-for="item in categories" :key="item" :class="{ active: item === category }" @click="hide(), category = item">
+			<button
+				v-for="item in props.categories"
+				:key="item"
+				type="button"
+				:class="{ active: item === props.category }"
+				@click="selectCategory(item, hide)"
+			>
 				<Icon :name="getCategoryIcon(item)" />
 				<span>{{ item }}</span>
 			</button>
 		</template>
 	</ZDropdown>
 
-	<span>
-		<button v-if="allowAscending" aria-label="切换排序方向" @click="toggleDirection">
-			<Icon name="tabler:sort-descending" class="toggle-direction" :class="{ ascending: isAscending }" />
+	<span class="sort-controls">
+		<button
+			v-if="allowAscending"
+			type="button"
+			:aria-label="directionAction"
+			:title="directionAction"
+			@click="toggleDirection"
+		>
+			<Icon name="tabler:sort-descending" class="toggle-direction" :class="{ ascending: currentAscending }" />
 		</button>
 
-		<button @click="toggleOrder">
+		<ZDropdown>
 			<Icon v-if="!allowAscending" name="tabler:sort-descending" />
-			<span class="order-text">{{ orderMap[sortOrder] || sortOrder }}</span>
-		</button>
+			<span class="order-text">{{ orderMap[currentOrder] || currentOrder }} · {{ directionText }}</span>
+
+			<template #content="{ hide }">
+				<button
+					v-for="[order, label] in orderEntries"
+					:key="order"
+					type="button"
+					:class="{ active: order === currentOrder }"
+					@click="selectOrder(order, hide)"
+				>
+					<Icon :name="order === 'date' ? 'tabler:calendar-plus' : 'tabler:calendar-time'" />
+					<span>{{ label }}</span>
+				</button>
+			</template>
+		</ZDropdown>
 	</span>
 </div>
 </template>
@@ -67,6 +109,7 @@ function toggleDirection() {
 <style lang="scss" scoped>
 .order-toggle {
 	display: flex;
+	align-items: center;
 	gap: 1rem;
 	color: var(--c-text-2);
 
@@ -89,11 +132,28 @@ function toggleDirection() {
 	}
 }
 
+.sort-controls {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.2rem;
+}
+
 :deep(.secret-container) {
 	margin-inline-end: auto;
 }
 
 .iconify + span {
 	margin-inline-start: 0.2em;
+}
+
+@media (max-width: $breakpoint-phone) {
+	.order-toggle {
+		flex-wrap: wrap;
+		gap: 0.65rem 1rem;
+	}
+
+	.order-text {
+		white-space: nowrap;
+	}
 }
 </style>

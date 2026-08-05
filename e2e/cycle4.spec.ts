@@ -114,8 +114,8 @@ test('sidebar search is a keyboard-operable button with visible focus', async ({
 	await expect(page.getByRole('searchbox')).toBeVisible()
 	await page.keyboard.press('Escape')
 	const dropdown = page.locator('.order-toggle .dropdown-trigger')
-	await expect(dropdown).toHaveCount(1)
-	expect(await dropdown.evaluate(element => element.tagName)).toBe('BUTTON')
+	await expect(dropdown).toHaveCount(2)
+	expect(await dropdown.evaluateAll(elements => elements.every(element => element.tagName === 'BUTTON'))).toBe(true)
 	await expect(page.locator('[aria-expanded]:not(button)')).toHaveCount(0)
 })
 

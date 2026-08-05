@@ -52,7 +52,7 @@ const blogConfig = {
 		},
 		/** 分类排序方式，键为排序字段，值为显示名称 */
 		order: {
-			date: '创建日期',
+			date: '创建时间',
 			updated: '更新日期',
 			// title: '标题',
 		},
