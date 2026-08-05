@@ -118,7 +118,7 @@ function openActiveItem() {
 		</form>
 
 		<TransitionGroup name="expand">
-			<div v-if="!debouncedWord && status === 'success'" class="search-empty">
+			<div v-if="!debouncedWord && status !== 'pending'" class="search-empty">
 				<Icon name="tabler:command" aria-hidden="true" />
 				<div>
 					<strong>输入关键词开始探索</strong>

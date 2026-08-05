@@ -54,8 +54,13 @@ describe('cycle 4 polish contracts', () => {
 
 	it('uses a semantic keyboard-operable sidebar search control', () => {
 		const sidebar = read('app/components/blog/BlogSidebar.vue')
+		const search = read('app/components/popover/Search.vue')
 		expect(sidebar).toMatch(/<button[^>]*class="search-btn/u)
 		expect(sidebar).not.toContain('<div class="search-btn')
+		expect(search).toContain('aria-labelledby="site-search-title"')
+		expect(search).toContain('aria-label="关闭站内搜索"')
+		expect(search).toContain('搜索文章标题、正文或页面')
+		expect(search).toContain('!debouncedWord && status !== \'pending\'')
 	})
 
 	it('formats elapsed time against an explicit deterministic reference', () => {
