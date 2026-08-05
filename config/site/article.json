@@ -7,7 +7,24 @@
       "title": "质保 plus月抛封号",
       "description": "95r 质保封号 gpt-plus，更多联系 fly💗",
       "image": "https://flyovo.cc.cd/media/public/articles/2026/08/d113f393-0ad4-4c8a-910e-451da3d4670a.jpg",
-      "href": "/admin/media"
+      "action": "wechat",
+      "href": "",
+      "wechatQr": "https://flyovo.cc.cd/media/public/profile/2d6c33d9-5beb-4129-8cca-2f57b36103af.jpg",
+      "wechatId": "",
+      "wechatNote": "扫码添加微信，联系时请备注“博客广告”。"
+    },
+    {
+      "id": "home-ad-boss-helper",
+      "enabled": true,
+      "label": "博客推荐",
+      "title": "使用Boss-Helper 批量投递简历 省时间更省力！",
+      "description": "减少重复筛选、沟通和投递操作，把时间留给简历与面试准备。",
+      "image": "https://flyovo.cc.cd/media/public/articles/2026/08/ea0e6aef-4c48-481c-99bb-5655895041ce.png",
+      "action": "link",
+      "href": "/2026/boss-helper-job-applications",
+      "wechatQr": "",
+      "wechatId": "",
+      "wechatNote": ""
     }
   ]
 }
