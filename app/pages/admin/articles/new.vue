@@ -23,6 +23,7 @@ useSeoMeta({ title: '新建文章', robots: 'noindex, nofollow' })
 		:categories="categories"
 		:saving="editor.saving.value"
 		:conflict="editor.conflict.value"
+		:diagnostics="editor.diagnostics.value"
 		:draft-status="editor.draftStatus.value"
 		is-new
 		@save="editor.save"

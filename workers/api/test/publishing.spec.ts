@@ -6,6 +6,7 @@ import type { PublishingRepositoryPort } from '../src/features/publishing/publis
 import { applyD1Migrations, env } from 'cloudflare:test'
 import { Hono } from 'hono'
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { serializeArticle } from '../src/features/articles/article-codec'
 import {
 
 	PublishingService,
@@ -28,6 +29,8 @@ const categoryConfig = [
 class FakePublishingRepository implements PublishingRepositoryPort {
 	baseHead = 'base-head'
 	commitCounter = 0
+	atomicCommitCalls = 0
+	fileCommitInputs: Array<Parameters<PublishingRepositoryPort['createFileCommit']>[0]> = []
 	commitChangeCount = 1
 	pullCounter = 0
 	mergeCalls = 0
@@ -99,6 +102,7 @@ class FakePublishingRepository implements PublishingRepositoryPort {
 		message: string
 		files: Array<{ path: string, content: string | null }>
 	}) {
+		this.atomicCommitCalls++
 		if (this.branches.get(input.branch) !== input.expectedHeadSha)
 			throw new ApiError('CONFLICT', 409, 'branch changed')
 		this.commitCounter++
@@ -110,6 +114,16 @@ class FakePublishingRepository implements PublishingRepositoryPort {
 				this.files.set(file.path, { sha, content: file.content })
 		}
 		return { commitSha: sha }
+	}
+
+	async createFileCommit(input: Parameters<PublishingRepositoryPort['createFileCommit']>[0]) {
+		this.fileCommitInputs.push(input)
+		return this.createAtomicCommit({
+			branch: input.branch,
+			expectedHeadSha: input.expectedHeadSha,
+			message: input.message,
+			files: [{ path: input.path, content: input.content }],
+		})
 	}
 
 	async createPullRequest(input: { head: string, base: string, title: string, body: string }) {
@@ -295,6 +309,8 @@ describe('configuration pull requests', () => {
 			data: { resourcePath: 'config/site/article.json' },
 		})
 		expect(repository.committedPaths).toEqual(['config/site/article.json'])
+		expect(repository.fileCommitInputs).toEqual([])
+		expect(repository.atomicCommitCalls).toBe(1)
 	})
 
 	it('maps allowed config keys to fixed paths, creates unique branches, and replays duplicates', async () => {
@@ -706,6 +722,64 @@ describe('article pull requests', () => {
 		})
 		expect(result.resourcePath).toBe(document.path)
 		expect(repository.committedPaths).toContain(document.path)
+		expect(repository.fileCommitInputs).toHaveLength(1)
+		expect(repository.fileCommitInputs[0]).not.toHaveProperty('fileSha')
 		expect(result.pullRequestNumber).toBe(1)
+	})
+
+	it('passes the existing article blob SHA to the PR commit', async () => {
+		const repository = new FakePublishingRepository()
+		const service = new PublishingService(runtimeEnv(), repository)
+		const document: ArticleDocument = {
+			path: 'content/posts/2026/existing.md',
+			sha: 'article-sha',
+			body: '# Changed',
+			frontmatter: { title: 'Changed', categories: ['技术'], tags: [] },
+		}
+
+		await service.publishArticle({
+			document,
+			expectedSha: 'article-sha',
+			idempotencyKey: 'article-pr-existing',
+			actor: { id: '42', login: 'flyoko', requestId: 'request-article-existing' },
+		})
+
+		expect(repository.fileCommitInputs).toHaveLength(1)
+		expect(repository.fileCommitInputs[0]).toMatchObject({
+			path: document.path,
+			fileSha: 'article-sha',
+		})
+	})
+
+	it('rejects an unchanged article before creating a branch, run, or PR', async () => {
+		const repository = new FakePublishingRepository()
+		const service = new PublishingService(runtimeEnv(), repository)
+		const document: ArticleDocument = {
+			path: 'content/posts/2026/existing.md',
+			sha: 'article-sha',
+			body: '# Existing',
+			frontmatter: { title: 'Existing', categories: ['技术'], tags: [] },
+		}
+		repository.files.set(document.path, {
+			sha: 'article-sha',
+			content: serializeArticle(document),
+		})
+
+		await expect(service.publishArticle({
+			document,
+			expectedSha: 'article-sha',
+			idempotencyKey: 'article-pr-no-changes',
+			actor: { id: '42', login: 'flyoko', requestId: 'request-article-no-changes' },
+		})).rejects.toMatchObject({
+			code: 'VALIDATION_FAILED',
+			status: 400,
+			message: '文章内容没有变化，无需重复发布',
+		})
+
+		expect(repository.branches.size).toBe(0)
+		expect(repository.commitCounter).toBe(0)
+		expect(repository.pullCounter).toBe(0)
+		const count = await testEnv.DB.prepare('SELECT COUNT(*) AS count FROM publish_runs').first<{ count: number }>()
+		expect(count?.count).toBe(0)
 	})
 })

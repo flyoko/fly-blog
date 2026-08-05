@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { ArticleDiagnostic } from '#shared/admin/article-validation'
 import type { ArticleDocument, ArticleSummary } from '#shared/admin/articles'
 import type { MediaObjectDto } from '#shared/admin/media'
 import type { MarkdownEdit, MarkdownHistorySnapshot } from '~/composables/useAdminDraft'
@@ -21,12 +22,16 @@ const props = withDefaults(defineProps<{
 	conflict?: boolean
 	isNew?: boolean
 	draftStatus?: string
+	diagnostics?: ArticleDiagnostic[]
+	initialDiagnostic?: Pick<ArticleDiagnostic, 'bodyLine' | 'bodyColumn'>
 }>(), {
 	articles: () => [],
 	saving: false,
 	conflict: false,
 	isNew: false,
 	draftStatus: '',
+	diagnostics: () => [],
+	initialDiagnostic: undefined,
 })
 
 const emit = defineEmits<{
@@ -63,6 +68,18 @@ const contentLength = computed(() => documentModel.value.body
 	.length)
 const readingMinutes = computed(() => Math.max(1, Math.ceil(contentLength.value / 400)))
 const canSave = computed(() => Boolean(documentModel.value.frontmatter.title?.trim() && documentModel.value.body.trim()))
+
+function focusDiagnostic(diagnostic: Pick<ArticleDiagnostic, 'bodyLine' | 'bodyColumn'>) {
+	const lines = documentModel.value.body.split('\n')
+	const lineOffset = lines
+		.slice(0, diagnostic.bodyLine - 1)
+		.reduce((total, line) => total + line.length + 1, 0)
+	const position = lineOffset + diagnostic.bodyColumn - 1
+	nextTick(() => {
+		textarea.value?.focus()
+		textarea.value?.setSelectionRange(position, position)
+	})
+}
 const directSaveLabel = computed(() => documentModel.value.frontmatter.draft ? '保存草稿' : '发布文章')
 
 const formattingActions: Array<{
@@ -222,6 +239,17 @@ watch(() => documentModel.value.body, (body) => {
 	}
 })
 
+watch(
+	() => props.initialDiagnostic,
+	(diagnostic) => {
+		if (diagnostic)
+			focusDiagnostic(diagnostic)
+	},
+	{ immediate: true, flush: 'post' },
+)
+
+defineExpose({ focusDiagnostic })
+
 watch(() => documentModel.value.body, (body) => {
 	if (previewTimer)
 		clearTimeout(previewTimer)
@@ -290,6 +318,12 @@ onBeforeUnmount(() => {
 				</button>
 			</div>
 		</div>
+		<section v-if="diagnostics.length" class="admin-error" role="alert" aria-label="文章诊断">
+			<strong>文章格式需要修正</strong>
+			<button v-for="diagnostic in diagnostics" :key="`${diagnostic.code}-${diagnostic.bodyLine}-${diagnostic.bodyColumn}`" class="admin-button" type="button" @click="focusDiagnostic(diagnostic)">
+				第 {{ diagnostic.bodyLine }} 行：{{ diagnostic.message }}（{{ diagnostic.suggestion }}）
+			</button>
+		</section>
 
 		<header class="admin-editor-toolbar">
 			<div class="admin-editor-state">

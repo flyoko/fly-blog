@@ -6,6 +6,7 @@ import type {
 	PullRequestFileDto,
 } from '#shared/admin/publishing'
 import type { AdminPublishRunDto } from '~/types/admin'
+import { nextPublishRefreshDelay } from '#shared/admin/publishing-refresh'
 import AdminReleaseChecklist from '~/components/admin/reviews/AdminReleaseChecklist.vue'
 import AdminReleaseQueue from '~/components/admin/reviews/AdminReleaseQueue.vue'
 import AdminReleaseTechnicalDetails from '~/components/admin/reviews/AdminReleaseTechnicalDetails.vue'
@@ -37,7 +38,8 @@ const selected = ref<AdminPublishRunDto | null>(null)
 const detail = ref<PullRequestDetail | null>(null)
 const detailOwnerId = ref<string | null>(null)
 const lastUpdatedAt = ref<string | null>(null)
-let refreshTimer: ReturnType<typeof setInterval> | undefined
+let refreshTimer: ReturnType<typeof setTimeout> | undefined
+let refreshStartedAt = 0
 
 const hasPendingRuns = computed(() => runs.value.some(run => publishRunGroup(run) === 'in_progress'))
 const hasMore = computed(() => runs.value.length < total.value)
@@ -189,7 +191,7 @@ async function merge() {
 
 function stopRefreshTimer() {
 	if (refreshTimer)
-		clearInterval(refreshTimer)
+		clearTimeout(refreshTimer)
 	refreshTimer = undefined
 }
 
@@ -197,10 +199,17 @@ function startRefreshTimer() {
 	stopRefreshTimer()
 	if (document.visibilityState !== 'visible')
 		return
-	refreshTimer = setInterval(() => {
-		if (hasPendingRuns.value)
-			void refreshStatus(true)
-	}, 15_000)
+	refreshStartedAt = Date.now()
+	const schedule = () => {
+		refreshTimer = setTimeout(async () => {
+			if (document.visibilityState !== 'visible' || !hasPendingRuns.value)
+				return
+			await refreshStatus(true)
+			if (hasPendingRuns.value && document.visibilityState === 'visible')
+				schedule()
+		}, nextPublishRefreshDelay(Date.now() - refreshStartedAt))
+	}
+	schedule()
 }
 
 function handleVisibilityChange() {

@@ -56,7 +56,7 @@ export interface PublishingRepositoryPort extends ArticleRepositoryPort {
 	createPullRequest: (input: { head: string, base: string, title: string, body: string }) => Promise<{ number: number, url: string }>
 	getPullRequest: (number: number) => Promise<PullRequestDto>
 	getPullRequestFiles: (number: number) => Promise<PullRequestFileDto[]>
-	getChecks: (ref: string) => Promise<CheckSummaryDto>
+	getChecks: (ref: string, resourcePath?: string) => Promise<CheckSummaryDto>
 	getCommitChangeCount: (ref: string) => Promise<number>
 	getDeployment: (ref: string) => Promise<DeploymentDto | null>
 	mergePullRequest: (number: number, expectedHeadSha: string) => Promise<{ merged: boolean, sha?: string }>
@@ -64,7 +64,7 @@ export interface PublishingRepositoryPort extends ArticleRepositoryPort {
 
 export interface PublishingStatusRepositoryPort {
 	getPullRequest: (number: number) => Promise<PullRequestDto>
-	getChecks: (ref: string) => Promise<CheckSummaryDto>
+	getChecks: (ref: string, resourcePath?: string) => Promise<CheckSummaryDto>
 	getCommitChangeCount: (ref: string) => Promise<number>
 	getDeployment: (ref: string) => Promise<DeploymentDto | null>
 }
@@ -146,7 +146,7 @@ async function reconcileDirectPublishRun(
 		return run
 
 	const [checks, deployment] = await Promise.all([
-		repository.getChecks(run.commitSha),
+		repository.getChecks(run.commitSha, run.resourcePath ?? undefined),
 		repository.getDeployment(run.commitSha),
 	])
 	if (deployment?.status === 'success') {
@@ -170,7 +170,9 @@ async function reconcileDirectPublishRun(
 			status: 'failed',
 			deploymentUrl: deployment?.url ?? run.deploymentUrl,
 			errorCode: 'CHECKS_FAILED',
-			errorMessage: 'Repository checks failed',
+			errorMessage: checks.diagnostics?.[0]
+				? `${checks.diagnostics[0].message}${checks.diagnostics[0].bodyLine ? `（第 ${checks.diagnostics[0].bodyLine} 行${checks.diagnostics[0].bodyColumn ? `，第 ${checks.diagnostics[0].bodyColumn} 列` : ''}）` : ''}`
+				: 'Repository checks failed',
 		})
 	}
 	if (checks.total === 0 && !deployment) {
@@ -379,6 +381,7 @@ export class PublishingService {
 					branchKind: input.kind,
 					resourcePath: definition.path,
 					content: `${JSON.stringify(content, null, 2)}\n`,
+					commitMode: 'atomic',
 					expectedHeadSha: input.expectedHeadSha,
 					title: input.title ?? `更新${input.kind}配置`,
 					body: input.body ?? '由 fly living 管理后台创建。',
@@ -403,6 +406,8 @@ export class PublishingService {
 		else if (!current || current.sha !== input.expectedSha) {
 			throw new ApiError('CONFLICT', 409, 'Article changed since it was loaded')
 		}
+		if (current?.content === serializeArticle(document))
+			throw new ApiError('VALIDATION_FAILED', 400, '文章内容没有变化，无需重复发布')
 		return withIdempotency({
 			db: this.env.DB,
 			key: input.idempotencyKey,
@@ -414,6 +419,8 @@ export class PublishingService {
 					branchKind: 'article',
 					resourcePath: document.path,
 					content: serializeArticle(document),
+					commitMode: 'file',
+					fileSha: current?.sha,
 					title: `发布文章: ${document.frontmatter.title}`,
 					body: '文章内容变更，等待预览与检查通过后合并。',
 					actor: input.actor,
@@ -439,11 +446,11 @@ export class PublishingService {
 
 	async getPullRequestDetail(number: number): Promise<PullRequestDetail> {
 		const pullRequest = await this.repository.getPullRequest(number)
-		const [files, checks, deployment, run] = await Promise.all([
+		const run = await this.publishRepository.findByPullNumber(number)
+		const [files, checks, deployment] = await Promise.all([
 			this.repository.getPullRequestFiles(number),
-			this.repository.getChecks(pullRequest.headSha),
+			this.repository.getChecks(pullRequest.headSha, run?.resourcePath ?? undefined),
 			this.repository.getDeployment(pullRequest.headBranch),
-			this.publishRepository.findByPullNumber(number),
 		])
 		const reason = blockReason(pullRequest, files, checks, deployment, run, this.env.GITHUB_DEFAULT_BRANCH)
 		let reconciledRun = run
@@ -509,6 +516,8 @@ export class PublishingService {
 		branchKind: string
 		resourcePath: string
 		content: string
+		commitMode: 'atomic' | 'file'
+		fileSha?: string
 		expectedHeadSha?: string
 		title: string
 		body: string
@@ -530,12 +539,21 @@ export class PublishingService {
 		})
 		try {
 			await this.repository.createBranch({ name: branch, fromSha: baseHead })
-			const commit = await this.repository.createAtomicCommit({
-				branch,
-				expectedHeadSha: baseHead,
-				message: input.title,
-				files: [{ path: input.resourcePath, content: input.content }],
-			})
+			const commit = input.commitMode === 'file'
+				? await this.repository.createFileCommit({
+						branch,
+						expectedHeadSha: baseHead,
+						path: input.resourcePath,
+						content: input.content,
+						...(input.fileSha ? { fileSha: input.fileSha } : {}),
+						message: input.title,
+					})
+				: await this.repository.createAtomicCommit({
+						branch,
+						expectedHeadSha: baseHead,
+						message: input.title,
+						files: [{ path: input.resourcePath, content: input.content }],
+					})
 			await this.publishRepository.updateRun(publishRunId, {
 				status: 'commit_created',
 				commitSha: commit.commitSha,

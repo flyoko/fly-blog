@@ -1,4 +1,5 @@
 import type {
+	CheckDiagnosticDto,
 	CheckSummaryDto,
 	DeploymentDto,
 	PullRequestDto,
@@ -28,6 +29,19 @@ interface GitHubPullResponse {
 	mergeable?: boolean | null
 	merged?: boolean
 }
+
+interface GitHubCheckAnnotation {
+	path?: string
+	start_line?: number
+	start_column?: number
+	annotation_level?: 'notice' | 'warning' | 'failure'
+	title?: string
+	message?: string
+	raw_details?: string
+	blob_href?: string
+}
+
+const maxCheckDiagnostics = 50
 
 const failedCheckConclusions = new Set([
 	'action_required',
@@ -65,6 +79,14 @@ function decodeUtf8Base64(value: string): string {
 	const binary = atob(normalized)
 	const bytes = Uint8Array.from(binary, character => character.charCodeAt(0))
 	return new TextDecoder().decode(bytes)
+}
+
+function encodeUtf8Base64(value: string): string {
+	const bytes = new TextEncoder().encode(value)
+	let binary = ''
+	for (const byte of bytes)
+		binary += String.fromCharCode(byte)
+	return btoa(binary)
 }
 
 function mapPullRequest(payload: GitHubPullResponse): PullRequestDto {
@@ -228,6 +250,21 @@ export class GitHubRepository {
 		}, new Set([409, 422]))
 	}
 
+	async createFileCommit(input: { branch: string, expectedHeadSha: string, path: string, content: string, fileSha?: string, message: string }): Promise<{ commitSha: string }> {
+		const branch = assertBranchName(input.branch)
+		const path = assertRepositoryPath(input.path)
+		const ref = await this.request<{ object?: { sha?: string } }>(`/git/ref/heads/${encodeURIComponent(branch)}`)
+		if (ref.object?.sha !== input.expectedHeadSha)
+			throw new ApiError('CONFLICT', 409, 'Repository branch changed since it was loaded')
+		const payload = await this.request<{ commit?: { sha?: string } }>(`/contents/${path.split('/').map(encodeURIComponent).join('/')}`, {
+			method: 'PUT',
+			body: JSON.stringify({ message: input.message.trim(), content: encodeUtf8Base64(input.content), branch, ...(input.fileSha ? { sha: input.fileSha } : {}) }),
+		}, new Set([409, 422]))
+		if (!payload.commit?.sha)
+			throw new ApiError('UPSTREAM_FAILED', 502, 'GitHub did not return a commit SHA')
+		return { commitSha: payload.commit.sha }
+	}
+
 	async createPullRequest(input: { head: string, base: string, title: string, body: string }): Promise<{ number: number, url: string }> {
 		const payload = await this.request<{ number?: number, html_url?: string }>('/pulls', {
 			method: 'POST',
@@ -294,13 +331,14 @@ export class GitHubRepository {
 		return { merged: payload.merged === true, ...(payload.sha ? { sha: payload.sha } : {}) }
 	}
 
-	async getChecks(ref: string): Promise<CheckSummaryDto> {
+	async getChecks(ref: string, resourcePath?: string): Promise<CheckSummaryDto> {
 		const payload = await this.request<{
 			total_count?: number
-			check_runs?: Array<{ status?: string, conclusion?: string | null }>
+			check_runs?: Array<{ id?: number, name?: string, status?: string, conclusion?: string | null, html_url?: string }>
 		}>(`/commits/${encodeURIComponent(assertBranchName(ref))}/check-runs?per_page=100`)
 		if (!Array.isArray(payload.check_runs))
 			throw new ApiError('UPSTREAM_FAILED', 502, 'GitHub returned invalid check runs')
+
 		let successful = 0
 		let failed = 0
 		let pending = 0
@@ -318,12 +356,84 @@ export class GitHubRepository {
 				pending++
 			}
 		}
+
+		const diagnostics: CheckDiagnosticDto[] = []
+		let frontmatterLines = 0
+		if (failed > 0 && resourcePath) {
+			try {
+				const article = await this.getFile(resourcePath, ref)
+				const lines = article.content.split('\n')
+				if (lines[0]?.trim() === '---') {
+					const end = lines.findIndex((line, index) => index > 0 && line.trim() === '---')
+					frontmatterLines = end >= 0 ? end + 1 : 0
+				}
+			}
+			catch {
+				frontmatterLines = 0
+			}
+		}
+
+		for (const check of payload.check_runs) {
+			if (diagnostics.length >= maxCheckDiagnostics)
+				break
+			if (!check.id || !failedCheckConclusions.has(check.conclusion ?? ''))
+				continue
+			try {
+				let page = 1
+				while (diagnostics.length < maxCheckDiagnostics) {
+					const annotations = await this.request<GitHubCheckAnnotation[]>(
+						`/check-runs/${check.id}/annotations?per_page=100&page=${page}`,
+					)
+					if (!Array.isArray(annotations))
+						throw new ApiError('UPSTREAM_FAILED', 502, 'GitHub returned invalid check annotations')
+
+					for (const annotation of annotations) {
+						if (diagnostics.length >= maxCheckDiagnostics)
+							break
+						if (!annotation.message)
+							continue
+
+						const startLine = annotation.start_line
+						const belongsToArticleBody = annotation.path === resourcePath
+							&& startLine !== undefined
+							&& frontmatterLines > 0
+							&& startLine > frontmatterLines
+						diagnostics.push({
+							checkName: check.name ?? 'GitHub Check',
+							path: annotation.path,
+							line: annotation.start_line,
+							column: annotation.start_column,
+							level: annotation.annotation_level,
+							rule: annotation.title,
+							message: annotation.message,
+							rawDetails: annotation.raw_details,
+							detailsUrl: annotation.blob_href ?? check.html_url,
+							...(belongsToArticleBody
+								? {
+										bodyLine: startLine - frontmatterLines,
+										...(annotation.start_column ? { bodyColumn: annotation.start_column } : {}),
+									}
+								: {}),
+						})
+					}
+
+					if (annotations.length < 100 || diagnostics.length >= maxCheckDiagnostics)
+						break
+					page++
+				}
+			}
+			catch {
+				continue
+			}
+		}
+
 		return {
 			status: failed > 0 ? 'failure' : pending > 0 ? 'pending' : 'success',
 			total: payload.check_runs.length,
 			successful,
 			failed,
 			pending,
+			...(diagnostics.length ? { diagnostics } : {}),
 		}
 	}
 

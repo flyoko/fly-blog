@@ -160,6 +160,30 @@ describe('admin management UI boundaries', () => {
 		expect(reviews).not.toContain('verification-text="MERGE"')
 	})
 
+	it('prevalidates article Markdown and links failed checks back to the editor location', async () => {
+		const composable = await source('app/composables/useAdminArticleEditor.ts')
+		const editor = await source('app/components/admin/AdminArticleEditor.vue')
+		const existingPage = await source('app/pages/admin/articles/[id].vue')
+		const newPage = await source('app/pages/admin/articles/new.vue')
+		const checklist = await source('app/components/admin/reviews/AdminReleaseChecklist.vue')
+
+		const saveSource = composable.slice(
+			composable.indexOf('async function save'),
+			composable.indexOf('async function reloadRemote'),
+		)
+		expect(saveSource).toContain('validateArticleMarkdown(document.value.body)')
+		expect(saveSource.indexOf('validateArticleMarkdown(document.value.body)')).toBeLessThan(saveSource.indexOf('await useAdminApi'))
+		expect(composable).toContain('error.value = \'文章正文存在格式问题，请先修正。\'')
+		expect(editor).toContain('focusDiagnostic')
+		expect(editor).toContain('setSelectionRange(position, position)')
+		expect(existingPage).toContain(':initial-diagnostic="initialDiagnostic"')
+		expect(existingPage).toContain('router.replace({ query })')
+		expect(newPage).toContain(':diagnostics="editor.diagnostics.value"')
+		expect(checklist).toContain('encodeArticleId(run.resourcePath)')
+		expect(checklist).toContain('run.resourcePath === diagnostic.path && diagnostic.bodyLine')
+		expect(checklist).toContain('?line=${diagnostic.bodyLine')
+	})
+
 	it('loads release history in bounded pages with an infinite-scroll fallback', async () => {
 		const reviews = await source('app/pages/admin/reviews.vue')
 		const queue = await source('app/components/admin/reviews/AdminReleaseQueue.vue')

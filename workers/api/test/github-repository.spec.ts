@@ -16,6 +16,19 @@ function json(body: unknown, status = 200) {
 	return Response.json(body, { status })
 }
 
+function encodeUtf8Base64(value: string) {
+	const bytes = new TextEncoder().encode(value)
+	let binary = ''
+	for (const byte of bytes)
+		binary += String.fromCharCode(byte)
+	return btoa(binary)
+}
+
+function decodeUtf8Base64(value: string) {
+	const bytes = Uint8Array.from(atob(value), character => character.charCodeAt(0))
+	return new TextDecoder().decode(bytes)
+}
+
 function createRepository(responses: Array<Response | ((request: Request) => Response | Promise<Response>)>) {
 	const requests: Request[] = []
 	const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -150,6 +163,74 @@ describe('gitHubRepository atomic commits', () => {
 	})
 })
 
+describe('gitHubRepository single-file commits', () => {
+	it('uses the Contents API with UTF-8 Base64 and the existing file SHA', async () => {
+		const content = '你好，emoji 😀\n第二行\n'
+		const { repository, requests } = createRepository([
+			json({ object: { sha: 'head-sha' } }),
+			json({ commit: { sha: 'content-commit' } }, 201),
+		])
+
+		await expect(repository.createFileCommit({
+			branch: 'admin/article/test',
+			expectedHeadSha: 'head-sha',
+			path: 'content/posts/2026/hello.md',
+			content,
+			fileSha: 'existing-blob-sha',
+			message: '发布文章：你好',
+		})).resolves.toEqual({ commitSha: 'content-commit' })
+
+		expect(requests).toHaveLength(2)
+		expect(requests[1]!.method).toBe('PUT')
+		expect(requests[1]!.url).toContain('/contents/content/posts/2026/hello.md')
+		const body = await requests[1]!.json() as {
+			message: string
+			content: string
+			branch: string
+			sha: string
+		}
+		expect(body).toMatchObject({
+			message: '发布文章：你好',
+			branch: 'admin/article/test',
+			sha: 'existing-blob-sha',
+		})
+		expect(decodeUtf8Base64(body.content)).toBe(content)
+	})
+
+	it('omits the file SHA for a new article', async () => {
+		const { repository, requests } = createRepository([
+			json({ object: { sha: 'head-sha' } }),
+			json({ commit: { sha: 'new-commit' } }, 201),
+		])
+
+		await repository.createFileCommit({
+			branch: 'admin/article/new',
+			expectedHeadSha: 'head-sha',
+			path: 'content/posts/2026/new.md',
+			content: '# New',
+			message: '发布文章：New',
+		})
+
+		const body = await requests[1]!.json() as Record<string, unknown>
+		expect(body).not.toHaveProperty('sha')
+	})
+
+	it('rejects a stale branch before writing the file', async () => {
+		const { repository, fetcher } = createRepository([
+			json({ object: { sha: 'newer-head' } }),
+		])
+
+		await expect(repository.createFileCommit({
+			branch: 'main',
+			expectedHeadSha: 'stale-head',
+			path: 'content/posts/2026/hello.md',
+			content: '# Hello',
+			message: '发布文章',
+		})).rejects.toMatchObject({ code: 'CONFLICT', status: 409 })
+		expect(fetcher).toHaveBeenCalledTimes(1)
+	})
+})
+
 describe('gitHubRepository reviews and status', () => {
 	it('creates branches and pull requests', async () => {
 		const { repository, requests } = createRepository([
@@ -239,6 +320,121 @@ describe('gitHubRepository reviews and status', () => {
 			updatedAt: '2026-08-03T01:00:00Z',
 		})
 		expect(requests[1]!.url).toContain('/deployments?ref=feature&per_page=20')
+	})
+
+	it('maps failed check annotations to article-body positions with a bounded payload', async () => {
+		const path = 'content/posts/2026/hello.md'
+		const source = '---\ntitle: Hello\ncategories: []\ntags: []\n---\n第一行\n***标题 ***\n'
+		const annotations = Array.from({ length: 100 }, (_, index) => ({
+			path,
+			start_line: 7,
+			start_column: 7,
+			annotation_level: 'failure' as const,
+			title: `markdown/rule-${index}`,
+			message: `格式错误 ${index}`,
+			raw_details: `修复建议 ${index}`,
+			blob_href: `https://github.test/blob/${index}`,
+		}))
+		const { repository, requests } = createRepository([
+			json({
+				total_count: 1,
+				check_runs: [{
+					id: 77,
+					name: 'deploy-preview',
+					status: 'completed',
+					conclusion: 'failure',
+					html_url: 'https://github.test/actions/jobs/77',
+				}],
+			}),
+			json({ type: 'file', path, sha: 'article-sha', encoding: 'base64', content: encodeUtf8Base64(source) }),
+			json(annotations),
+		])
+
+		const summary = await repository.getChecks('feature', path)
+		expect(summary).toMatchObject({
+			status: 'failure',
+			total: 1,
+			successful: 0,
+			failed: 1,
+			pending: 0,
+		})
+		expect(summary.diagnostics).toHaveLength(50)
+		expect(summary.diagnostics?.at(-1)).toEqual({
+			checkName: 'deploy-preview',
+			path,
+			line: 7,
+			column: 7,
+			bodyLine: 2,
+			bodyColumn: 7,
+			level: 'failure',
+			rule: 'markdown/rule-49',
+			message: '格式错误 49',
+			rawDetails: '修复建议 49',
+			detailsUrl: 'https://github.test/blob/49',
+		})
+		expect(requests).toHaveLength(3)
+		expect(requests[2]!.url).toContain('/check-runs/77/annotations?per_page=100&page=1')
+	})
+
+	it('does not read article source or annotations before a check fails', async () => {
+		const path = 'content/posts/2026/hello.md'
+		const { repository, requests } = createRepository([
+			json({
+				total_count: 2,
+				check_runs: [
+					{ status: 'completed', conclusion: 'success' },
+					{ status: 'in_progress', conclusion: null },
+				],
+			}),
+		])
+
+		await expect(repository.getChecks('feature', path)).resolves.toMatchObject({
+			status: 'pending',
+			failed: 0,
+		})
+		expect(requests).toHaveLength(1)
+	})
+
+	it('keeps frontmatter annotations out of article-body coordinates', async () => {
+		const path = 'content/posts/2026/hello.md'
+		const source = '---\ntitle: Hello\ncategories: []\ntags: []\n---\n正文\n'
+		const { repository } = createRepository([
+			json({
+				total_count: 1,
+				check_runs: [{ id: 79, name: 'verify', status: 'completed', conclusion: 'failure' }],
+			}),
+			json({ type: 'file', path, sha: 'article-sha', encoding: 'base64', content: encodeUtf8Base64(source) }),
+			json([{
+				path,
+				start_line: 2,
+				start_column: 1,
+				annotation_level: 'failure',
+				message: 'Title is invalid',
+			}]),
+		])
+
+		const summary = await repository.getChecks('feature', path)
+		expect(summary.diagnostics?.[0]).toMatchObject({ path, line: 2, column: 1 })
+		expect(summary.diagnostics?.[0]).not.toHaveProperty('bodyLine')
+		expect(summary.diagnostics?.[0]).not.toHaveProperty('bodyColumn')
+	})
+
+	it('keeps the failed status when annotation retrieval is unavailable', async () => {
+		const { repository } = createRepository([
+			json({
+				total_count: 1,
+				check_runs: [{ id: 88, name: 'verify', status: 'completed', conclusion: 'failure' }],
+			}),
+			json({ message: 'temporarily unavailable' }, 500),
+		])
+
+		await expect(repository.getChecks('feature')).resolves.toEqual({
+			status: 'failure',
+			total: 1,
+			successful: 0,
+			failed: 1,
+			pending: 0,
+		})
 	})
 
 	it('keeps cancelled and stale checks pending instead of reporting a false failure', async () => {

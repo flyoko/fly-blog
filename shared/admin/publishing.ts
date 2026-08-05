@@ -64,6 +64,21 @@ export interface CheckSummaryDto {
 	successful: number
 	failed: number
 	pending: number
+	diagnostics?: CheckDiagnosticDto[]
+}
+
+export interface CheckDiagnosticDto {
+	checkName: string
+	path?: string
+	line?: number
+	column?: number
+	bodyLine?: number
+	bodyColumn?: number
+	level?: 'notice' | 'warning' | 'failure'
+	rule?: string
+	message: string
+	rawDetails?: string
+	detailsUrl?: string
 }
 
 export interface DeploymentDto {

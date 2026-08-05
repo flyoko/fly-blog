@@ -60,6 +60,10 @@ class FakeArticleRepository implements ArticleRepositoryPort {
 		return { status: 'success', total: 1, successful: 1, failed: 0, pending: 0 }
 	}
 
+	async createFileCommit(input: Parameters<ArticleRepositoryPort['createFileCommit']>[0]) {
+		return { commitSha: input.expectedHeadSha }
+	}
+
 	async getCommitChangeCount(_ref: string): Promise<number> {
 		return 1
 	}
