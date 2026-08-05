@@ -55,9 +55,11 @@ jobs:
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
           packageManager: pnpm
       - name: Verify controlled production entries
-        timeout-minutes: 5
+        timeout-minutes: 8
         env:
           EXPECTED_PAGES_DEPLOYMENT_URL: ${{ steps.deploy.outputs.deployment-url }}
+          PRODUCTION_PROBE_ATTEMPTS: '20'
+          PRODUCTION_PROBE_DELAY_MS: '5000'
         run: |
           test -n "$EXPECTED_PAGES_DEPLOYMENT_URL"
           pnpm check:production

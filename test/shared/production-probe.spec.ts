@@ -231,7 +231,9 @@ describe('production entry probe', () => {
 			readFile(`${root}/package.json`, 'utf8'),
 		])
 		expect(workflow).toContain('pnpm check:production')
-		expect(workflow).toContain('timeout-minutes: 5')
+		expect(workflow).toContain('timeout-minutes: 8')
+		expect(workflow).toContain('PRODUCTION_PROBE_ATTEMPTS: \'20\'')
+		expect(workflow).toContain('PRODUCTION_PROBE_DELAY_MS: \'5000\'')
 		expect(workflow).toContain('/pages/projects/fly-living')
 		expect(workflow).toContain('production_branch')
 		expect(workflow).toContain('EXPECTED_PAGES_DEPLOYMENT_URL')
