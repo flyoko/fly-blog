@@ -40,6 +40,7 @@ const { data: previewCount } = useAsyncData(
 	<BlogHeader class="mobile-only" to="/" />
 
 	<UtilHydrateSafe v-if="articlesEnabled">
+		<PostHeaderAd v-if="page === 1 && !category" class="home-header-ad" />
 		<PostSlide v-if="listRecommended.length && page === 1 && !category" :list="listRecommended" />
 
 		<div class="post-list">
