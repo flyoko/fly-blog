@@ -25,6 +25,8 @@
 
 定向回归：25/25 Pass；最新主线 Nuxt/共享测试 26 files / 222 tests，API Worker 145 tests，Edge Worker 33 tests。
 
+同时为四条 Actions 工作流增加 `CI_RUNNER` 仓库变量回退：变量未设置时仍使用 `ubuntu-latest`；托管 Runner 因账单或额度不可用时，可临时切换到受控的仓库级自托管 Runner，完成后删除变量与 Runner。
+
 ## 下一目标
 
 继续以“后台高频任务可理解、可恢复、可验证”为优先级，后续新增范围必须先有独立设计/验收标准，避免把未定义功能混入既有周期。
