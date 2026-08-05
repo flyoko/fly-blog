@@ -149,7 +149,7 @@ test.describe('移动端整体体验基线', () => {
 		await page.getByRole('button', { name: '搜索站内内容' }).click()
 		const dialog = page.getByRole('dialog', { name: '站内搜索' })
 		await expect(dialog).toBeVisible()
-		await expect(page.getByPlaceholder('键入开始搜索')).toBeFocused()
+		await expect(page.getByRole('searchbox', { name: '搜索文章标题、正文或页面' })).toBeFocused()
 	})
 
 	test('320px 补充信息抽屉保留遮罩关闭区域', async ({ page }) => {
@@ -228,7 +228,7 @@ test.describe('移动端整体体验基线', () => {
 		await page.getByRole('button', { name: '搜索站内内容' }).click()
 
 		const dialog = page.getByRole('dialog', { name: '站内搜索' })
-		const input = page.getByPlaceholder('键入开始搜索')
+		const input = page.getByRole('searchbox', { name: '搜索文章标题、正文或页面' })
 		await expect(dialog).toBeVisible()
 		await expect(input).toBeFocused()
 		const dialogBox = await dialog.boundingBox()

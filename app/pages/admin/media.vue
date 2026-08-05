@@ -556,8 +556,8 @@ onBeforeUnmount(() => {
 	display: inline-flex;
 	align-items: center;
 	gap: 0.35rem;
-	min-height: 2.2rem;
-	padding: 0 0.65rem;
+	min-height: var(--touch-target);
+	padding: 0 0.75rem;
 	border: 1px solid var(--admin-border);
 	border-radius: 0.65rem;
 	background: transparent;

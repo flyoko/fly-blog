@@ -25,6 +25,14 @@ const listGrouped = computed(() => {
 	const groupList = Object.entries(groupBy(listCategorized.value, getArticleYear))
 	return isAscending.value ? groupList : groupList.reverse()
 })
+const archiveYears = computed(() => listGrouped.value.map(([year]) => year).filter(Boolean))
+const archiveSummary = computed(() => {
+	const count = listCategorized.value.length
+	const words = formatNumber(sumBy(listCategorized.value, article => article.readingTime?.words ?? 0))
+	const years = archiveYears.value.map(Number).filter(Number.isFinite).sort((a, b) => a - b)
+	const range = years.length > 1 ? `${years[0]}—${years.at(-1)}` : years[0]?.toString() || '持续更新'
+	return `${range} · ${count} 篇文章 · ${words} 字`
+})
 
 // 不能使用 /api/stats，因为可能切换分组方式
 const yearlyWordCount = computed(() =>
@@ -45,10 +53,16 @@ function getArticleYear(article: ArticleProps) {
 </script>
 
 <template>
+<div class="mobile-only">
+	<BlogHeader to="/" />
+</div>
+
 <div class="archive proper-height">
-	<h1 class="visually-hidden">
-		文章归档
-	</h1>
+	<header class="archive-intro card">
+		<span>LIBRARY · ARCHIVE</span>
+		<h1>文章归档</h1>
+		<p>{{ archiveSummary }}</p>
+	</header>
 	<PostOrderToggle
 		:is-ascending="isAscending"
 		:sort-order="sortOrder"
@@ -133,6 +147,33 @@ function getArticleYear(article: ArticleProps) {
 	mask-image: linear-gradient(#FFF 50%, #FFF7);
 }
 
+.archive-intro {
+	position: relative;
+	overflow: hidden;
+	margin-bottom: 1rem;
+	padding: clamp(1.4rem, 4vw, 2.5rem);
+	background:
+		radial-gradient(circle at 88% 18%, var(--c-primary-soft), transparent 34%),
+		linear-gradient(135deg, var(--c-surface-fill), color-mix(in srgb, var(--c-surface-fill) 82%, var(--c-flow-blue) 8%));
+
+	> span {
+		font: 0.7rem var(--font-monospace);
+		letter-spacing: 0.16em;
+		color: var(--c-primary);
+	}
+
+	h1 {
+		margin-top: 0.35rem;
+		font: clamp(2.2rem, 7vw, 4.5rem) / 1 var(--font-creative);
+	}
+
+	p {
+		margin-top: 0.65rem;
+		font-variant-numeric: tabular-nums;
+		color: var(--c-text-2);
+	}
+}
+
 .archive-group {
 	margin: 1rem 0 3rem;
 
@@ -203,6 +244,33 @@ function getArticleYear(article: ArticleProps) {
 		flex-wrap: wrap;
 		justify-content: flex-end;
 		column-gap: 0.5em;
+	}
+}
+
+@media (max-width: $breakpoint-phone) {
+	.archive {
+		padding: 0.75rem;
+	}
+
+	.archive-intro {
+		padding: 1.35rem 1.25rem;
+
+		h1 {
+			font-size: clamp(2.7rem, 15vw, 4rem);
+		}
+
+		p {
+			font-size: 0.82rem;
+		}
+	}
+
+	.archive-group {
+		margin-bottom: 2rem;
+	}
+
+	.archive-title {
+		position: relative;
+		top: auto;
 	}
 }
 </style>

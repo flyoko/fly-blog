@@ -708,7 +708,14 @@
 	}
 
 	.admin-analytics-presets button {
+		min-height: var(--touch-target);
 		padding-inline: 0.35rem;
+	}
+
+	.admin-analytics-custom-range input,
+	.admin-analytics-filters input,
+	.admin-analytics-filters select {
+		min-height: var(--touch-target);
 	}
 
 	.admin-analytics-custom-range label {

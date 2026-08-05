@@ -312,9 +312,25 @@ button {
 		bottom: var(--mobile-safe-bottom);
 	}
 
+	#blog-panel {
+		display: flex;
+		gap: 0.15rem;
+		padding: 0.1rem;
+		border: 1px solid color-mix(in srgb, var(--c-border) 82%, transparent);
+		border-radius: 999px;
+		box-shadow: var(--box-shadow-1), 0 0.8rem 2rem color-mix(in srgb, var(--c-bg) 24%, transparent);
+		background-color: color-mix(in srgb, var(--c-bg-2) 82%, transparent);
+	}
+
 	#blog-panel button {
+		display: grid;
+		place-items: center;
+		width: var(--mobile-float-size);
+		height: var(--mobile-float-size);
 		min-width: var(--mobile-float-size);
 		min-height: var(--mobile-float-size);
+		padding: 0;
+		border-radius: 50%;
 	}
 
 	.music-launcher-effect {

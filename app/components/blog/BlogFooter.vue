@@ -66,5 +66,19 @@ const appConfig = useAppConfig()
 		margin: 0.5em;
 		font-variant-numeric: tabular-nums;
 	}
+
+	@media (max-width: $breakpoint-phone) {
+		margin: 2.75rem 0.75rem 1rem;
+
+		.footer-nav {
+			gap: 1rem 1.5rem;
+			padding-block: 0.5rem 1.5rem;
+
+			a {
+				min-height: var(--touch-target);
+				padding: 0.55rem 0.65rem;
+			}
+		}
+	}
 }
 </style>

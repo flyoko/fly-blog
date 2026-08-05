@@ -247,9 +247,40 @@ onMounted(() => load(true))
 }
 
 @media (max-width: 600px) {
+	.moments-page {
+		gap: 0.8rem;
+		margin: 0.75rem;
+	}
+
 	.moments-hero {
-		min-height: 20rem;
-		padding: 1.4rem 1.4rem 9rem;
+		min-height: 16.75rem;
+		padding: 1.35rem 1.25rem 7.25rem;
+	}
+
+	.moments-hero h1 {
+		font-size: clamp(3rem, 16vw, 4.5rem);
+	}
+
+	.moments-hero p {
+		max-width: 18rem;
+		margin-top: 0.55rem;
+		font-size: 0.9rem;
+		line-height: 1.55;
+	}
+
+	.moments-filter {
+		gap: 0.6rem;
+		padding: 0.7rem;
+	}
+
+	.moments-filter label {
+		flex: 1 1 100%;
+		min-height: var(--touch-target);
+	}
+
+	.moments-filter input {
+		flex: 1;
+		min-width: 0;
 	}
 }
 

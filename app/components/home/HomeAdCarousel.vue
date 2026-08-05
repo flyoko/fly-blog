@@ -316,15 +316,16 @@ async function copyWechatId() {
 	align-items: center;
 	justify-content: space-between;
 	gap: 1rem;
-	height: 3rem;
-	margin-bottom: -0.2rem;
-	mask-image: linear-gradient(#FFF, transparent);
-	color: var(--c-text-3);
+	min-height: 3rem;
+	margin-bottom: 0.55rem;
+	padding-inline: 0.15rem;
+	color: var(--c-text-2);
 }
 
 .home-ad-carousel-heading {
-	font-size: 3rem;
-	font-weight: bold;
+	font-size: clamp(1.65rem, 4.5vw, 2.4rem);
+	font-weight: 800;
+	letter-spacing: -0.025em;
 	line-height: 1;
 }
 
@@ -672,11 +673,12 @@ async function copyWechatId() {
 	}
 
 	.home-ad-carousel-header {
-		height: 2.45rem;
+		min-height: 2.35rem;
+		margin-bottom: 0.45rem;
 	}
 
 	.home-ad-carousel-heading {
-		font-size: 2.15rem;
+		font-size: 1.55rem;
 	}
 
 	.home-ad-carousel-hint {
@@ -721,13 +723,20 @@ async function copyWechatId() {
 	}
 
 	.home-ad-carousel-control {
-		width: 1.85rem;
-		height: 1.85rem;
-		border-radius: 0.5rem;
+		width: var(--touch-target);
+		height: var(--touch-target);
+		border-radius: 0.7rem;
 		font-size: 1rem;
 
-		&.is-previous { inset-inline-start: 0.45rem; }
-		&.is-next { inset-inline-end: 0.45rem; }
+		&.is-previous { inset-inline-start: 0.35rem; }
+		&.is-next { inset-inline-end: 0.35rem; }
+	}
+
+	.home-ad-carousel-autoplay {
+		inset-inline-end: 0.35rem;
+		bottom: 0.35rem;
+		width: var(--touch-target);
+		height: var(--touch-target);
 	}
 
 	.home-ad-dialog-backdrop {

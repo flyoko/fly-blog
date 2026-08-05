@@ -360,6 +360,10 @@
 	font-size: 1rem;
 }
 
+.admin-editor-mobile-tabs {
+	display: none;
+}
+
 .admin-editor-workspace {
 	display: grid;
 	flex: 1;
@@ -812,9 +816,9 @@
 }
 
 .admin-media-library-actions .admin-button {
-	min-height: 2.2rem;
-	padding: 0 0.65rem;
-	font-size: 0.65rem;
+	min-height: var(--touch-target);
+	padding: 0 0.75rem;
+	font-size: 0.68rem;
 }
 
 .admin-settings-layout,
@@ -1230,18 +1234,83 @@
 		grid-template-columns: 1fr;
 	}
 
+	.admin-editor-pane {
+		min-height: 24rem;
+		padding: 0.8rem;
+	}
+
 	.admin-editor-preview {
-		max-height: none;
+		min-height: 18rem;
+		max-height: 30rem;
 		border-top: 1px solid var(--admin-border);
 		border-left: 0;
 	}
 
+	.admin-field-grow textarea {
+		min-height: 22rem;
+	}
+
 	.admin-format-toolbar {
+		flex-wrap: nowrap;
+		gap: 0.25rem;
+		overflow-x: auto;
 		padding: 0.45rem 0.7rem;
+		scrollbar-width: thin;
+	}
+
+	.admin-format-button {
+		justify-content: center;
+		width: var(--touch-target);
+		height: var(--touch-target);
+		min-width: var(--touch-target);
+		min-height: var(--touch-target);
+		padding: 0;
 	}
 
 	.admin-format-button span {
 		display: none;
+	}
+
+	.admin-editor-mobile-tabs {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 0.3rem;
+		padding: 0.45rem 0.7rem;
+		border-bottom: 1px solid var(--admin-border);
+		background: color-mix(in srgb, var(--admin-surface) 92%, var(--admin-bg));
+	}
+
+	.admin-editor-mobile-tabs button {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.35rem;
+		min-height: var(--touch-target);
+		padding: 0.45rem 0.75rem;
+		border: 1px solid transparent;
+		border-radius: 0.65rem;
+		background: transparent;
+		font: inherit;
+		font-size: 0.72rem;
+		font-weight: 700;
+		color: var(--admin-muted);
+		cursor: pointer;
+	}
+
+	.admin-editor-mobile-tabs button.is-active {
+		border-color: var(--admin-border);
+		box-shadow: 0 0.4rem 1rem rgb(25 90 84 / 8%);
+		background: var(--admin-surface);
+		color: var(--admin-accent-strong);
+	}
+
+	.admin-editor-workspace:not(.is-preview-active) .admin-editor-preview,
+	.admin-editor-workspace.is-preview-active > .admin-editor-pane:first-child {
+		display: none;
+	}
+
+	.admin-tab {
+		min-height: var(--touch-target);
 	}
 
 	.admin-category-row {
@@ -1462,7 +1531,6 @@
 
 @media (max-width: 680px) {
 	.admin-editor-state,
-	.admin-editor-actions,
 	.admin-review-heading-actions {
 		flex-direction: column;
 		align-items: stretch;
@@ -1473,7 +1541,14 @@
 		border-left: 0;
 	}
 
+	.admin-editor-actions {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		width: 100%;
+	}
+
 	.admin-editor-actions .admin-button {
+		justify-content: center;
 		width: 100%;
 	}
 }

@@ -49,7 +49,8 @@ const tooltip = computed(() => mounted.value && zdt.value
 		v-else
 		:datetime="toInstantString(zdt)"
 		:relative
-		year="2-digit"
+		locale="zh-CN"
+		year="numeric"
 		month="long"
 		day="numeric"
 		numeric="auto"

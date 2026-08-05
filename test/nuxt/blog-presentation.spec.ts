@@ -8,7 +8,8 @@ describe('public blog presentation', () => {
 		const date = read('app/components/util/Date.vue')
 
 		expect(date).toContain('props.relative && !props.absolute')
-		expect(date).toContain('year="2-digit"')
+		expect(date).toContain('locale="zh-CN"')
+		expect(date).toContain('year="numeric"')
 		expect(date).not.toContain('today.since(zdt.value')
 	})
 

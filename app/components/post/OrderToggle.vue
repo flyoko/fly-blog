@@ -159,7 +159,13 @@ function toggleDirection() {
 		min-width: 0;
 
 		> button {
+			display: grid;
+			place-items: center;
+			width: var(--touch-target);
+			height: var(--touch-target);
 			min-width: var(--touch-target);
+			padding: 0;
+			border-radius: var(--interactive-radius);
 		}
 	}
 

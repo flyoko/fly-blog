@@ -53,6 +53,7 @@ const textarea = ref<HTMLTextAreaElement | null>(null)
 const notifications = useAdminNotifications()
 const mediaPickerOpen = ref(false)
 const focusMode = useLocalStorage('fly_admin_editor_focus_mode', false)
+const mobilePane = ref<'write' | 'preview'>('write')
 const previewLoading = ref(false)
 const previewMarkdown = ref('')
 const previewRevision = ref(0)
@@ -263,6 +264,7 @@ watch(
 	() => `${documentModel.value.path}::${documentModel.value.sha || 'new'}`,
 	() => {
 		editorHistory.value = createMarkdownHistory(documentModel.value.body)
+		mobilePane.value = 'write'
 	},
 )
 
@@ -410,7 +412,18 @@ onBeforeUnmount(() => {
 			</button>
 		</div>
 
-		<div class="admin-editor-workspace">
+		<div class="admin-editor-mobile-tabs" role="group" aria-label="编辑器视图">
+			<button type="button" :class="{ 'is-active': mobilePane === 'write' }" :aria-pressed="mobilePane === 'write'" @click="mobilePane = 'write'">
+				<Icon name="tabler:pencil" aria-hidden="true" />
+				写作
+			</button>
+			<button type="button" :class="{ 'is-active': mobilePane === 'preview' }" :aria-pressed="mobilePane === 'preview'" @click="mobilePane = 'preview'">
+				<Icon name="tabler:eye" aria-hidden="true" />
+				预览
+			</button>
+		</div>
+
+		<div class="admin-editor-workspace" :class="{ 'is-preview-active': mobilePane === 'preview' }">
 			<div class="admin-editor-pane">
 				<label class="admin-field admin-field-grow">
 					<span>Markdown 正文</span>

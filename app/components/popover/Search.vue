@@ -4,7 +4,7 @@ import MiniSearch from 'minisearch'
 
 const props = defineProps<ModalProps>()
 
-defineEmits<ModalEmits>()
+const emit = defineEmits<ModalEmits>()
 
 const appConfig = useAppConfig()
 const segmenter = Intl.Segmenter && new Intl.Segmenter(appConfig.language, { granularity: 'word' })
@@ -88,10 +88,20 @@ function openActiveItem() {
 
 <template>
 <Transition name="float-in">
-	<div v-if="open" class="blog-search" role="dialog" aria-modal="true" aria-label="站内搜索">
-		<form class="input" @submit.prevent>
+	<div v-if="open" class="blog-search" role="dialog" aria-modal="true" aria-labelledby="site-search-title">
+		<header class="search-heading">
+			<div>
+				<Icon name="tabler:sparkles" aria-hidden="true" />
+				<span id="site-search-title">站内搜索</span>
+			</div>
+			<button type="button" aria-label="关闭站内搜索" @click="emit('close')">
+				<Icon name="tabler:x" aria-hidden="true" />
+			</button>
+		</header>
+
+		<form class="input" role="search" @submit.prevent>
 			<Icon v-show="false" name="line-md:loading-alt-loop" />
-			<Icon :name="status === 'pending' ? 'line-md:loading-alt-loop' : 'tabler:search'" />
+			<Icon :name="status === 'pending' ? 'line-md:loading-alt-loop' : 'tabler:search'" aria-hidden="true" />
 
 			<!-- 方向键切换搜索结果不应只在搜索框内触发 -->
 			<input
@@ -100,15 +110,25 @@ function openActiveItem() {
 				type="search"
 				incremental
 				class="search-input"
-				placeholder="键入开始搜索"
+				placeholder="搜索文章标题、正文或页面"
+				aria-label="搜索文章标题、正文或页面"
 				@keydown.up.prevent
 				@keydown.down.prevent
 			>
 		</form>
 
 		<TransitionGroup name="expand">
+			<div v-if="!debouncedWord && status === 'success'" class="search-empty">
+				<Icon name="tabler:command" aria-hidden="true" />
+				<div>
+					<strong>输入关键词开始探索</strong>
+					<span>支持文章标题、正文内容和页面名称。</span>
+				</div>
+			</div>
+
 			<div v-if="debouncedWord && status === 'success' && !result.length" class="no-result">
-				无结果
+				<Icon name="tabler:search-off" aria-hidden="true" />
+				<span>没有找到“{{ debouncedWord }}”，试试更短的关键词。</span>
 			</div>
 
 			<menu
@@ -158,27 +178,97 @@ function openActiveItem() {
 	background-color: var(--ld-bg-card);
 }
 
+.search-heading {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+	padding: 0.8rem 0.8rem 0.35rem 1rem;
+
+	> div {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.45rem;
+		font-size: 0.78rem;
+		font-weight: 700;
+		letter-spacing: 0.04em;
+		color: var(--c-text-2);
+	}
+
+	button {
+		display: grid;
+		place-items: center;
+		width: 2.35rem;
+		height: 2.35rem;
+		border-radius: 50%;
+		color: var(--c-text-2);
+		transition: background-color 0.2s, color 0.2s;
+
+		&:hover,
+		&:focus-visible {
+			background: var(--c-primary-soft);
+			color: var(--c-primary);
+		}
+	}
+}
+
 .input {
 	display: flex;
 	align-items: center;
-	gap: 1em;
+	gap: 0.8rem;
 	position: relative;
-	padding: 0 1em;
+	margin: 0.3rem 0.8rem 0.75rem;
+	padding: 0 0.85rem;
+	border: 1px solid var(--c-border);
+	border-radius: 0.8rem;
+	background: color-mix(in srgb, var(--c-bg-2) 82%, transparent);
 
 	> .search-input {
 		width: 100%;
-		padding: 1em 0;
+		padding: 0.9rem 0;
 		outline: none;
 	}
 }
 
+.search-empty,
 .no-result {
-	// expand 时不要设置 padding
-	max-height: 5em;
-	line-height: 5em;
-	text-align: center;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.7rem;
+	max-height: 7rem;
+	padding: 1rem 1.25rem 1.35rem;
+	text-align: start;
 	color: var(--c-text-3);
 	transition: all 0.5s;
+
+	> .iconify {
+		flex: 0 0 auto;
+		font-size: 1.35rem;
+		color: var(--c-primary);
+	}
+}
+
+.search-empty {
+	div {
+		display: grid;
+		gap: 0.2rem;
+	}
+
+	strong {
+		font-size: 0.82rem;
+		color: var(--c-text-1);
+	}
+
+	span {
+		font-size: 0.74rem;
+	}
+}
+
+.no-result {
+	span {
+		font-size: 0.8rem;
+	}
 }
 
 .search-result {
@@ -210,5 +300,48 @@ function openActiveItem() {
 .expand-leave-to {
 	opacity: 0;
 	max-height: 0;
+}
+
+@media (max-width: $breakpoint-phone) {
+	.blog-search {
+		inset: max(4.75rem, env(safe-area-inset-top)) 0.75rem auto;
+		width: auto;
+		max-height: calc(100dvh - 5.5rem - env(safe-area-inset-bottom));
+		margin: 0;
+		border-radius: 1.15rem;
+	}
+
+	.search-heading {
+		padding: 0.7rem 0.55rem 0.25rem 0.85rem;
+
+		button {
+			width: var(--touch-target);
+			height: var(--touch-target);
+		}
+	}
+
+	.input {
+		margin: 0.2rem 0.7rem 0.65rem;
+	}
+
+	.search-result {
+		max-height: 56dvh;
+	}
+
+	.tip {
+		display: none;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.search-heading button,
+	.no-result,
+	.search-empty,
+	.search-result,
+	.tip,
+	.expand-enter-active,
+	.expand-leave-active {
+		transition: none;
+	}
 }
 </style>

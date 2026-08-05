@@ -124,7 +124,7 @@ describe('cycle 4 polish contracts', () => {
 		expect(toc).toMatch(/\.no-toc[\s\S]*?color: var\(--c-text-1\)/u)
 		expect(about).toMatch(/\.about-timeline time[\s\S]*?color: var\(--c-text-1\)/u)
 		expect(moments).toMatch(/\.moments-filter span[\s\S]*?color: var\(--c-text-1\)/u)
-		expect(archive).toContain('<h1 class="visually-hidden">')
+		expect(archive).toContain('<h1>文章归档</h1>')
 	})
 
 	it('keeps AI news landmarks and status controls accessible', () => {
@@ -150,8 +150,8 @@ describe('cycle 4 polish contracts', () => {
 
 		for (const page of [link, moments, momentDetail, about, news, newsDetail])
 			expect(page).not.toContain('tag="h1"')
-		expect(link).toContain('<h1 class="visually-hidden">')
-		expect(link).toContain('友链')
+		expect(link).toContain('<h1>友链</h1>')
+		expect(link).not.toContain('<h1 class="visually-hidden">')
 		expect(momentDetail).toContain('<h1 class="visually-hidden">')
 		expect(momentDetail).toContain('瞬间详情')
 		expect(middleware).toContain('import.meta.server')
