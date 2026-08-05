@@ -51,12 +51,13 @@ describe('article editor helpers', () => {
 	})
 
 	it('creates collision-resistant paths for every new article', () => {
+		const localCreationTime = new Date(2026, 7, 5, 22, 43, 12)
 		expect(createNewArticlePath({
-			now: new Date('2026-08-05T22:43:12+08:00'),
+			now: localCreationTime,
 			uniqueId: 'ABCDEF12-3456',
 		})).toBe('content/posts/2026/article-20260805-224312-abcdef12.md')
 		expect(createNewArticlePath({
-			now: new Date('2026-08-05T22:43:12+08:00'),
+			now: localCreationTime,
 			uniqueId: 'FEDCBA98-7654',
 		})).not.toBe('content/posts/2026/article-20260805-224312-abcdef12.md')
 	})

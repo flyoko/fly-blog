@@ -36,6 +36,31 @@ describe('public blog presentation', () => {
 		expect(aside).toContain(':show="hasContent && layoutStore.state === \'aside\'"')
 	})
 
+	it('keeps public GitHub entry points behind one disabled profile switch', () => {
+		const appConfig = read('app/app.config.ts')
+		const footer = read('config/site/footer.json')
+		const routeAside = read('app/components/blog/RouteAside.vue')
+		const communityWidget = read('app/components/widget/CommGroup.vue')
+		const about = read('app/pages/me.vue')
+		const links = read('app/pages/link.vue')
+		const linksContent = read('content/link.md')
+		const blogConfig = read('blog.config.ts')
+		const nuxtConfig = read('nuxt.config.ts')
+
+		expect(footer).toContain('"showPersonalGitHub": false')
+		expect(footer).toContain('"id": "personal-home"')
+		expect(footer).toContain('"url": "/me"')
+		expect(appConfig).toContain('showGitHub: footerConfig.showPersonalGitHub')
+		expect(routeAside).toContain('appConfig.profile.showGitHub')
+		expect(communityWidget).toContain('v-if="appConfig.profile.showGitHub"')
+		expect(about).toContain('const visibleLinks = computed')
+		expect(about).toContain('v-if="visibleLinks.length"')
+		expect(links).toContain('v-if="appConfig.profile.showGitHub"')
+		expect(linksContent).not.toContain('github.com/flyoko')
+		expect(blogConfig).toContain('homepage: \'https://flyovo.cc.cd/\'')
+		expect(nuxtConfig).not.toContain('data-github-repo')
+	})
+
 	it('composes the about avatar, planet, and character as one coordinated scene', () => {
 		const header = read('app/components/blog/BlogHeader.global.vue')
 		const scene = read('app/components/blog/BlogShinchanScene.vue')

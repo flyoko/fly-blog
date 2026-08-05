@@ -24,7 +24,7 @@ useSeoMeta({
 			<h1>友链</h1>
 			<p>认真认识彼此，再让链接成为长期往来的入口。</p>
 		</div>
-		<a :href="appConfig.author.homepage" target="_blank" rel="noopener noreferrer">
+		<a v-if="appConfig.profile.showGitHub" :href="appConfig.author.homepage" target="_blank" rel="noopener noreferrer">
 			<Icon name="tabler:brand-github" aria-hidden="true" />
 			从 GitHub 找到我
 			<Icon name="tabler:arrow-up-right" aria-hidden="true" />

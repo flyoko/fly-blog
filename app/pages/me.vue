@@ -8,6 +8,9 @@ const links = aboutLinksSchema.parse(linksRaw)
 const { data: profile } = await useAsyncData('about:profile', () =>
 	queryCollection('content').path('/about/profile').first())
 const appConfig = useAppConfig()
+const visibleLinks = computed(() => appConfig.profile.showGitHub
+	? links
+	: links.filter(item => item.id !== 'github'))
 const isDynamicMode = ref(false)
 let themeClassObserver: MutationObserver | undefined
 
@@ -91,14 +94,14 @@ useSeoMeta({
 		</ol>
 	</section>
 
-	<section class="about-section card">
+	<section v-if="visibleLinks.length" class="about-section card">
 		<header class="about-section-heading">
 			<span>LINKS</span>
 			<h2>找到我</h2>
 		</header>
 		<div class="about-links">
 			<a
-				v-for="item in links"
+				v-for="item in visibleLinks"
 				:key="item.id"
 				:href="item.url"
 				target="_blank"

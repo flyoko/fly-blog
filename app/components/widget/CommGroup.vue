@@ -1,5 +1,9 @@
+<script setup lang="ts">
+const appConfig = useAppConfig()
+</script>
+
 <template>
-<BlogWidget card dim title="GitHub">
+<BlogWidget v-if="appConfig.profile.showGitHub" card dim title="GitHub">
 	<a
 		class="github-link"
 		href="https://github.com/flyoko"

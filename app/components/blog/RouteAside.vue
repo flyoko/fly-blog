@@ -3,12 +3,17 @@ const emit = defineEmits<{
 	visibilityChange: [visible: boolean]
 }>()
 
+const appConfig = useAppConfig()
 const route = useRoute()
 const { post } = useArticle()
 const isArticlePage = computed(() => route.meta.articlePage === true)
 const widgetNames = computed<WidgetName[]>(() => {
-	if (route.path === '/')
-		return ['blog-stats', 'weather', 'domain-status', 'comm-group']
+	if (route.path === '/') {
+		const homeWidgets: WidgetName[] = ['blog-stats', 'weather', 'domain-status']
+		if (appConfig.profile.showGitHub)
+			homeWidgets.push('comm-group')
+		return homeWidgets
+	}
 	if (route.path === '/archive')
 		return ['blog-stats', 'blog-log']
 	if (route.path === '/preview')
