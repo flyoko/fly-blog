@@ -36,6 +36,7 @@ useSeoMeta({ title: '新建文章', robots: 'noindex, nofollow' })
 		@save="editor.save"
 		@navigate="editor.navigate"
 		@reload-remote="editor.reloadRemote"
+		@regenerate-path="editor.regenerateNewPath"
 		@compare-raw="editor.compareRaw"
 		@close-raw-comparison="editor.closeRawComparison"
 	/>

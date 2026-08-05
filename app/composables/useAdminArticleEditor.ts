@@ -1,7 +1,7 @@
 import type { ArticleDiagnostic } from '#shared/admin/article-validation'
 import type { ArticleDocument, ArticleSummary } from '#shared/admin/articles'
 import { validateArticleMarkdown } from '#shared/admin/article-validation'
-import { encodeArticleId } from '#shared/admin/articles'
+import { createNewArticlePath, encodeArticleId } from '#shared/admin/articles'
 import { toAdminUserMessage } from '#shared/admin/feedback'
 import {
 	buildArticleSaveRequest,
@@ -23,10 +23,42 @@ function documentFingerprint(document: ArticleDocument) {
 	return JSON.stringify(document)
 }
 
+const newArticlePathSessionKey = 'fly_admin_new_article_path'
+const newArticlePlaceholderPath = 'content/posts/new-article.md'
+
+function sessionNewArticlePath() {
+	if (!import.meta.client)
+		return newArticlePlaceholderPath
+	const stored = window.sessionStorage.getItem(newArticlePathSessionKey)
+	if (stored) {
+		try {
+			encodeArticleId(stored)
+			return stored
+		}
+		catch {
+			window.sessionStorage.removeItem(newArticlePathSessionKey)
+		}
+	}
+	const path = createNewArticlePath()
+	window.sessionStorage.setItem(newArticlePathSessionKey, path)
+	return path
+}
+
+function rememberNewArticlePath(path: string) {
+	if (import.meta.client)
+		window.sessionStorage.setItem(newArticlePathSessionKey, path)
+}
+
+function forgetNewArticlePath() {
+	if (import.meta.client)
+		window.sessionStorage.removeItem(newArticlePathSessionKey)
+}
+
 export function useAdminArticleEditor(options: AdminArticleEditorOptions) {
 	const router = useRouter()
+	const usesGeneratedNewPath = options.isNew && !options.initialDocument
 	const document = ref<ArticleDocument>(options.initialDocument ?? {
-		path: `content/posts/${new Date().getFullYear()}/untitled.md`,
+		path: newArticlePlaceholderPath,
 		sha: null,
 		body: '',
 		frontmatter: {
@@ -115,6 +147,8 @@ export function useAdminArticleEditor(options: AdminArticleEditorOptions) {
 	}
 
 	async function initialize() {
+		if (usesGeneratedNewPath)
+			document.value = { ...document.value, path: sessionNewArticlePath() }
 		loading.value = true
 		error.value = null
 		diagnostics.value = []
@@ -168,6 +202,10 @@ export function useAdminArticleEditor(options: AdminArticleEditorOptions) {
 	}
 
 	async function save(mode: 'direct' | 'pull_request') {
+		if (options.isNew && conflict.value) {
+			error.value = '这个路径已有文章，请先换用新的安全路径。'
+			return
+		}
 		if (!document.value.frontmatter.title?.trim() || !document.value.body.trim()) {
 			error.value = '先写好标题和正文，再保存或提交审核。'
 			return
@@ -182,7 +220,7 @@ export function useAdminArticleEditor(options: AdminArticleEditorOptions) {
 		success.value = null
 		try {
 			let requestDocument = document.value
-			if (mode === 'pull_request' && conflict.value) {
+			if (mode === 'pull_request' && conflict.value && !options.isNew) {
 				const latestRemote = remoteDocument.value ?? await fetchRemote()
 				requestDocument = {
 					...document.value,
@@ -213,6 +251,7 @@ export function useAdminArticleEditor(options: AdminArticleEditorOptions) {
 			else
 				success.value = '文章已发布。'
 			if (options.isNew) {
+				forgetNewArticlePath()
 				await router.replace(`/admin/articles/${encodeArticleId(document.value.path)}`)
 			}
 			else {
@@ -238,6 +277,20 @@ export function useAdminArticleEditor(options: AdminArticleEditorOptions) {
 		finally {
 			saving.value = false
 		}
+	}
+
+	async function regenerateNewPath() {
+		if (!options.isNew)
+			return
+		const previousPath = document.value.path
+		const path = createNewArticlePath()
+		document.value = { ...document.value, path, sha: null }
+		rememberNewArticlePath(path)
+		conflict.value = false
+		remoteDocument.value = null
+		error.value = null
+		success.value = '已换用新的安全路径，标题、正文和图片都保持不变。'
+		await drafts.remove(previousPath, null).catch(() => undefined)
 	}
 
 	async function reloadRemote() {
@@ -321,6 +374,7 @@ export function useAdminArticleEditor(options: AdminArticleEditorOptions) {
 		initialize,
 		flushPendingDraft,
 		save,
+		regenerateNewPath,
 		reloadRemote,
 		compareRaw,
 		closeRawComparison,

@@ -58,6 +58,29 @@ export interface ArticleSummary {
 
 export type ArticleDocument = z.infer<typeof articleDocumentSchema>
 
+export function createNewArticlePath(input: { now?: Date, uniqueId?: string } = {}): string {
+	const now = input.now ?? new Date()
+	if (Number.isNaN(now.getTime()))
+		throw new Error('Invalid article creation time')
+	const pad = (value: number) => value.toString().padStart(2, '0')
+	const timestamp = [
+		now.getFullYear(),
+		pad(now.getMonth() + 1),
+		pad(now.getDate()),
+		'-',
+		pad(now.getHours()),
+		pad(now.getMinutes()),
+		pad(now.getSeconds()),
+	].join('')
+	const uniqueId = (input.uniqueId ?? crypto.randomUUID())
+		.toLowerCase()
+		.replace(/[^a-z0-9]/gu, '')
+		.slice(0, 8)
+	if (uniqueId.length < 6)
+		throw new Error('Article unique id is too short')
+	return articleRepositoryPathSchema.parse(`content/posts/${now.getFullYear()}/article-${timestamp}-${uniqueId}.md`)
+}
+
 function bytesToBinary(bytes: Uint8Array): string {
 	let binary = ''
 	for (const byte of bytes)

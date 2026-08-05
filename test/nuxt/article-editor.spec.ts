@@ -16,6 +16,7 @@ import {
 	updateArticleFrontmatter,
 } from '../../app/composables/useAdminDraft'
 import { normalizeArticleList } from '../../app/composables/useArticle'
+import { createNewArticlePath } from '../../shared/admin/articles'
 import { isDraftFrontmatter } from '../../shared/content/drafts'
 
 const root = fileURLToPath(new URL('../..', import.meta.url))
@@ -47,6 +48,17 @@ describe('article editor helpers', () => {
 		expect(isDraftFrontmatter('---\ntitle: 已发布\ndraft: false\n---\n正文')).toBe(false)
 		expect(isDraftFrontmatter('---\ntitle: 默认发布\n---\n正文')).toBe(false)
 		expect(isDraftFrontmatter('---\nseo:\n  draft: true\n---\n正文')).toBe(false)
+	})
+
+	it('creates collision-resistant paths for every new article', () => {
+		expect(createNewArticlePath({
+			now: new Date('2026-08-05T22:43:12+08:00'),
+			uniqueId: 'ABCDEF12-3456',
+		})).toBe('content/posts/2026/article-20260805-224312-abcdef12.md')
+		expect(createNewArticlePath({
+			now: new Date('2026-08-05T22:43:12+08:00'),
+			uniqueId: 'FEDCBA98-7654',
+		})).not.toBe('content/posts/2026/article-20260805-224312-abcdef12.md')
 	})
 
 	it('keys IndexedDB drafts by repository path and base SHA', () => {
@@ -231,10 +243,14 @@ describe('article editor UI boundaries', () => {
 		expect(editor).toContain('重新加载远端')
 		expect(editor).toContain('比较原始 Markdown')
 		expect(editor).toContain('改用 PR 发布')
+		expect(editor).toContain('换用安全新路径')
+		expect(editor).not.toContain('通过 PR 更新已有文章')
 		expect(editor).toContain('rawComparisonOpen')
 		expect(editor).toContain('rawMarkdown(remoteDocument)')
 		const composable = await source('app/composables/useAdminArticleEditor.ts')
 		expect(composable).toContain('const latestRemote = remoteDocument.value ?? await fetchRemote()')
+		expect(composable).toContain('const newArticlePathSessionKey = \'fly_admin_new_article_path\'')
+		expect(composable).toContain('if (options.isNew && conflict.value)')
 		expect(composable).toContain('sha: latestRemote?.sha ?? document.value.sha')
 		expect(composable).toContain('closeRawComparison')
 	})

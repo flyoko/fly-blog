@@ -44,6 +44,7 @@ const emit = defineEmits<{
 	'save': [mode: 'direct' | 'pull_request']
 	'navigate': [id: string]
 	'reloadRemote': []
+	'regeneratePath': []
 	'compareRaw': []
 	'closeRawComparison': []
 }>()
@@ -338,18 +339,24 @@ onBeforeUnmount(() => {
 		<div v-if="conflict" class="admin-conflict-banner">
 			<div>
 				<strong>{{ isNew ? '仓库路径已经存在' : '远端文章已经变化' }}</strong>
-				<span>{{ isNew ? '这个路径已经对应一篇文章。当前草稿仍保留在浏览器中，可先比较内容，再打开已有文章或通过 PR 提交更新。' : '当前草稿仍保留在浏览器中，请选择如何继续。' }}</span>
+				<span>{{ isNew ? '这个路径已被另一篇文章使用。旧文章已受到保护，当前标题、正文和图片都还在。换一个新路径即可继续发布。' : '当前草稿仍保留在浏览器中，请选择如何继续。' }}</span>
 			</div>
 			<div class="admin-conflict-actions">
+				<button v-if="isNew" class="admin-button admin-button-primary" type="button" @click="emit('regeneratePath')">
+					<Icon name="tabler:wand" />
+					换用安全新路径
+				</button>
 				<button class="admin-button" type="button" @click="emit('reloadRemote')">
 					{{ isNew ? '在新标签打开已有文章' : '重新加载远端' }}
 				</button>
-				<button class="admin-button" type="button" @click="emit('compareRaw')">
-					比较原始 Markdown
-				</button>
-				<button class="admin-button admin-button-primary" type="button" :disabled="saving" @click="emit('save', 'pull_request')">
-					{{ saving ? '正在提交…' : isNew ? '通过 PR 更新已有文章' : '改用 PR 发布' }}
-				</button>
+				<template v-if="!isNew">
+					<button class="admin-button" type="button" @click="emit('compareRaw')">
+						比较原始 Markdown
+					</button>
+					<button class="admin-button admin-button-primary" type="button" :disabled="saving" @click="emit('save', 'pull_request')">
+						{{ saving ? '正在提交…' : '改用 PR 发布' }}
+					</button>
+				</template>
 			</div>
 		</div>
 		<section v-if="diagnostics.length" class="admin-error" role="alert" aria-label="文章诊断">
