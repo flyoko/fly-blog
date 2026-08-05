@@ -265,6 +265,16 @@ describe('article editor UI boundaries', () => {
 		expect(headerAd).toContain(':rel="isExternal ?')
 	})
 
+	it('shows the configured article advertisement at the top of the unfiltered homepage', async () => {
+		const homepage = await source('app/pages/index.vue')
+
+		const adIndex = homepage.indexOf('<PostHeaderAd')
+		const slideIndex = homepage.indexOf('<PostSlide')
+		expect(adIndex).toBeGreaterThan(-1)
+		expect(slideIndex).toBeGreaterThan(adIndex)
+		expect(homepage).toContain('v-if="page === 1 && !category"')
+	})
+
 	it('offers direct and Pull Request publishing plus media insertion', async () => {
 		const editor = await source('app/components/admin/AdminArticleEditor.vue')
 		expect(editor).toContain('保存草稿')

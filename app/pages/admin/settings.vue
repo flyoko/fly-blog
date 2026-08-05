@@ -382,7 +382,7 @@ onMounted(loadDeployedConfigs)
 
 			<div v-if="selected === 'article'" class="admin-visual-config admin-article-ads-editor">
 				<div class="admin-config-intro">
-					<div><Icon name="tabler:ad" /><span><strong>文章头部横幅</strong><small>展示在文章标题和摘要之间；关闭或配置不完整时前台不占位。</small></span></div>
+					<div><Icon name="tabler:ad" /><span><strong>文章头部横幅</strong><small>展示在首页文章列表上方及文章标题和摘要之间；关闭或配置不完整时前台不占位。</small></span></div>
 					<button class="admin-button" type="button" :disabled="article.headerAds.length >= 8" @click="addArticleAd">
 						<Icon name="tabler:plus" />添加广告
 					</button>
