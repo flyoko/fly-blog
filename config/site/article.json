@@ -1,3 +1,13 @@
 {
-  "headerAds": []
+  "headerAds": [
+    {
+      "id": "article-ad-950de5c5",
+      "enabled": true,
+      "label": "支持站长",
+      "title": "质保 plus封号月抛联系 fly",
+      "description": "站长亲自质保",
+      "image": "https://flyovo.cc.cd/media/public/articles/2026/08/d113f393-0ad4-4c8a-910e-451da3d4670a.jpg",
+      "href": "https://flyovo.cc.cd/"
+    }
+  ]
 }
