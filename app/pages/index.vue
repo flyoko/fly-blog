@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { orderBy } from 'es-toolkit/array'
 import { isModuleEnabled } from '#shared/admin/modules'
+import { isArticleHeaderAdDisplayable } from '~/utils/article-ads'
 
 const appConfig = useAppConfig()
 const articlesEnabled = isModuleEnabled(appConfig.featureModules, 'articles')
+const homeAds = computed(() => appConfig.article.headerAds.filter(isArticleHeaderAdDisplayable))
 useSeoMeta({
 	description: appConfig.description,
 	ogImage: appConfig.author.avatar,
@@ -40,8 +42,8 @@ const { data: previewCount } = useAsyncData(
 	<BlogHeader class="mobile-only" to="/" />
 
 	<UtilHydrateSafe v-if="articlesEnabled">
-		<PostHeaderAd v-if="page === 1 && !category" class="home-header-ad" />
-		<PostSlide v-if="listRecommended.length && page === 1 && !category" :list="listRecommended" />
+		<HomeAdCarousel v-if="homeAds.length && page === 1 && !category" :ads="homeAds" />
+		<PostSlide v-else-if="listRecommended.length && page === 1 && !category" :list="listRecommended" />
 
 		<div class="post-list">
 			<PostOrderToggle

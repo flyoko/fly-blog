@@ -73,14 +73,22 @@ const articleHeaderAdSchema = z.object({
 	title: z.string().max(120),
 	description: z.string().max(320),
 	image: z.string().max(2_000).refine(isValidPublicResource, 'Image must be an HTTP(S) URL or root-relative path'),
+	action: z.enum(['link', 'wechat']).default('link'),
 	href: z.string().max(2_000).refine(isValidPublicResource, 'Link must be an HTTP(S) URL or root-relative path'),
+	wechatQr: z.string().max(2_000).refine(isValidPublicResource, 'WeChat QR must be an HTTP(S) URL or root-relative path').default(''),
+	wechatId: z.string().max(80).default(''),
+	wechatNote: z.string().max(160).default(''),
 }).superRefine((ad, ctx) => {
 	if (!ad.enabled)
 		return
 	if (!ad.title.trim())
 		ctx.addIssue({ code: 'custom', path: ['title'], message: 'Enabled ad requires a title' })
-	if (!ad.href.trim())
-		ctx.addIssue({ code: 'custom', path: ['href'], message: 'Enabled ad requires a link' })
+	if (!ad.image.trim())
+		ctx.addIssue({ code: 'custom', path: ['image'], message: 'Enabled ad requires a banner image' })
+	if (ad.action === 'link' && !ad.href.trim())
+		ctx.addIssue({ code: 'custom', path: ['href'], message: 'Enabled link ad requires a link' })
+	if (ad.action === 'wechat' && !ad.wechatQr.trim())
+		ctx.addIssue({ code: 'custom', path: ['wechatQr'], message: 'Enabled WeChat ad requires a QR image' })
 })
 
 export const articlePresentationConfigSchema = z.object({

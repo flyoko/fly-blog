@@ -40,12 +40,19 @@ interface ConfigResult {
 
 type SettingsKind = Extract<AdminConfigKind, 'article' | 'categories' | 'navigation' | 'footer' | 'modules' | 'weather'>
 type ArticleHeaderAd = ArticlePresentationConfig['headerAds'][number]
+type ArticleAdErrorField = 'title' | 'image' | 'href' | 'wechatQr'
+
+interface ArticleAdValidationError {
+	adId: string
+	field: ArticleAdErrorField
+	message: string
+}
 type NavigationItem = NavigationConfig[number]['items'][number]
 type FooterItem = FooterConfig['iconNav'][number]
 
 const tabs: Array<{ id: SettingsKind, kind: SettingsKind, label: string, description: string, icon: string }> = [
 	{ id: 'categories', kind: 'categories', label: '分类', description: '整理文章使用的分类名称、图标和颜色。', icon: 'tabler:category' },
-	{ id: 'article', kind: 'article', label: '文章广告', description: '管理文章标题下方的横幅广告与推荐位。', icon: 'tabler:ad' },
+	{ id: 'article', kind: 'article', label: '首页广告', description: '管理首页文章列表上方的紧凑轮播广告。', icon: 'tabler:ad' },
 	{ id: 'navigation', kind: 'navigation', label: '导航', description: '决定访客在左侧菜单里看到什么。', icon: 'tabler:menu-2' },
 	{ id: 'modules', kind: 'modules', label: '首页模块', description: '控制公开模块、显示状态和导航顺序。', icon: 'tabler:layout-grid' },
 	{ id: 'weather', kind: 'weather', label: '天气', description: '选择公开展示的固定城市。', icon: 'ri:sun-cloudy-line' },
@@ -70,6 +77,7 @@ const cityResults = ref<WeatherCity[]>([])
 const citySearching = ref(false)
 const citySearchError = ref<string | null>(null)
 const moduleUnsaved = ref(false)
+const articleAdErrors = reactive<Record<string, Partial<Record<ArticleAdErrorField, string>>>>({})
 
 const currentTab = computed(() => tabs.find(tab => tab.kind === selected.value) ?? tabs[0]!)
 useSeoMeta({ title: '站点设置', robots: 'noindex, nofollow' })
@@ -91,9 +99,95 @@ function addArticleAd() {
 		title: '',
 		description: '',
 		image: '',
+		action: 'link',
 		href: '',
+		wechatQr: '',
+		wechatId: '',
+		wechatNote: '',
 	}
 	article.value.headerAds.push(ad)
+}
+
+function articleAdError(adId: string, field: ArticleAdErrorField) {
+	return articleAdErrors[adId]?.[field] ?? ''
+}
+
+function clearArticleAdError(adId: string, field: ArticleAdErrorField) {
+	const errors = articleAdErrors[adId]
+	if (!errors)
+		return
+	delete errors[field]
+	if (!Object.keys(errors).length)
+		delete articleAdErrors[adId]
+}
+
+function clearArticleAdErrors(adId: string) {
+	delete articleAdErrors[adId]
+}
+
+function removeArticleAd(index: number) {
+	const ad = article.value.headerAds[index]
+	if (ad)
+		clearArticleAdErrors(ad.id)
+	article.value.headerAds.splice(index, 1)
+}
+
+function changeArticleAdAction(ad: ArticleHeaderAd) {
+	clearArticleAdError(ad.id, 'href')
+	clearArticleAdError(ad.id, 'wechatQr')
+}
+
+function localizedArticleAdIssue(field: ArticleAdErrorField) {
+	return ({
+		title: '广告标题不符合要求。',
+		image: '横幅图片必须是 HTTP(S) 地址或以 / 开头的站内路径。',
+		href: '广告链接必须是 HTTP(S) 地址或以 / 开头的站内路径。',
+		wechatQr: '微信二维码必须是 HTTP(S) 地址或以 / 开头的站内路径。',
+	})[field]
+}
+
+async function validateArticleAds() {
+	Object.keys(articleAdErrors).forEach(key => delete articleAdErrors[key])
+	const validationErrors: ArticleAdValidationError[] = []
+	for (const ad of article.value.headerAds) {
+		if (!ad.enabled)
+			continue
+		if (!ad.title.trim())
+			validationErrors.push({ adId: ad.id, field: 'title', message: '启用广告前请填写广告标题。' })
+		if (!ad.image.trim())
+			validationErrors.push({ adId: ad.id, field: 'image', message: '启用广告前请填写横幅图片。' })
+		if (ad.action === 'link' && !ad.href.trim())
+			validationErrors.push({ adId: ad.id, field: 'href', message: '启用链接广告前请填写广告链接。' })
+		if (ad.action === 'wechat' && !ad.wechatQr.trim())
+			validationErrors.push({ adId: ad.id, field: 'wechatQr', message: '启用微信广告前请填写微信二维码。' })
+	}
+
+	if (!validationErrors.length) {
+		const result = articlePresentationConfigSchema.safeParse(article.value)
+		if (!result.success) {
+			for (const issue of result.error.issues) {
+				const index = typeof issue.path[1] === 'number' ? issue.path[1] : -1
+				const field = issue.path[2]
+				const ad = article.value.headerAds[index]
+				if (!ad || !['title', 'image', 'href', 'wechatQr'].includes(String(field)))
+					continue
+				validationErrors.push({ adId: ad.id, field: field as ArticleAdErrorField, message: localizedArticleAdIssue(field as ArticleAdErrorField) })
+			}
+		}
+	}
+
+	for (const item of validationErrors) {
+		articleAdErrors[item.adId] ??= {}
+		articleAdErrors[item.adId]![item.field] = item.message
+	}
+	const first = validationErrors[0]
+	if (!first)
+		return true
+
+	error.value = '请补全标记为必填的首页广告信息。'
+	await nextTick()
+	document.querySelector<HTMLElement>(`[data-ad-id="${first.adId}"][data-ad-field="${first.field}"]`)?.focus()
+	return false
 }
 
 function addCategory() {
@@ -244,7 +338,7 @@ const createButtonLabel = computed(() => {
 		return '没有改动'
 	if (selected.value !== 'modules' && submittedFingerprints[selected.value] === currentFingerprint.value)
 		return '这版已提交'
-	return ({ article: '保存文章展示并预览', categories: '保存分类并预览', navigation: '保存导航并预览', footer: '保存页脚并预览', weather: '保存天气并预览', modules: '由模块工作台保存' })[selected.value]
+	return ({ article: '保存首页广告并预览', categories: '保存分类并预览', navigation: '保存导航并预览', footer: '保存页脚并预览', weather: '保存天气并预览', modules: '由模块工作台保存' })[selected.value]
 })
 const taskStatus = computed(() => {
 	if (loadingDeployed.value)
@@ -304,6 +398,8 @@ function reloadDeployedConfigs() {
 async function createPullRequest() {
 	if (!canSubmit.value || selected.value === 'modules')
 		return
+	if (selected.value === 'article' && !await validateArticleAds())
+		return
 	saving.value = true
 	error.value = null
 	result.value = null
@@ -335,7 +431,7 @@ onMounted(loadDeployedConfigs)
 	<AdminTaskHeader
 		eyebrow="公开站点"
 		title="站点设置"
-		description="用可视化表单管理分类、文章广告、导航、首页模块、天气和页脚。保存后先生成预览，不会直接影响线上。"
+		description="用可视化表单管理分类、首页广告、导航、首页模块、天气和页脚。保存后先生成预览，不会直接影响线上。"
 		:status="taskStatus"
 		:status-tone="taskTone"
 	>
@@ -383,19 +479,19 @@ onMounted(loadDeployedConfigs)
 
 			<div v-if="selected === 'article'" class="admin-visual-config admin-article-ads-editor">
 				<div class="admin-config-intro">
-					<div><Icon name="tabler:ad" /><span><strong>文章头部横幅</strong><small>展示在首页文章列表上方及文章标题和摘要之间；关闭或配置不完整时前台不占位。</small></span></div>
+					<div><Icon name="tabler:ad" /><span><strong>首页轮播横幅</strong><small>仅展示在首页第一页的文章列表上方；有广告时替代精选文章轮播。</small></span></div>
 					<button class="admin-button" type="button" :disabled="article.headerAds.length >= 8" @click="addArticleAd">
 						<Icon name="tabler:plus" />添加广告
 					</button>
 				</div>
 				<p v-if="!article.headerAds.length" class="admin-muted-copy admin-article-ads-empty">
-					当前没有文章广告。前台不会保留空白区域。
+					当前没有首页广告。前台会继续展示精选文章轮播。
 				</p>
 				<section v-for="(ad, adIndex) in article.headerAds" :key="ad.id" class="admin-config-group admin-article-ad-card">
 					<header>
 						<label class="admin-switch-row admin-article-ad-toggle">
-							<input v-model="ad.enabled" type="checkbox">
-							<span><strong>启用这条广告</strong><small>{{ ad.enabled ? '将进入前台轮播' : '仅保留配置，不公开展示' }}</small></span>
+							<input v-model="ad.enabled" type="checkbox" @change="clearArticleAdErrors(ad.id)">
+							<span><strong>启用这条广告</strong><small>{{ ad.enabled ? '将进入首页自动轮播' : '仅保留配置，不公开展示' }}</small></span>
 						</label>
 						<div class="admin-config-order">
 							<button class="admin-icon-button" type="button" aria-label="上移广告" :disabled="adIndex === 0" @click="move(article.headerAds, adIndex, -1)">
@@ -404,26 +500,52 @@ onMounted(loadDeployedConfigs)
 							<button class="admin-icon-button" type="button" aria-label="下移广告" :disabled="adIndex === article.headerAds.length - 1" @click="move(article.headerAds, adIndex, 1)">
 								<Icon name="tabler:arrow-down" />
 							</button>
-							<button class="admin-icon-button" type="button" aria-label="删除广告" @click="article.headerAds.splice(adIndex, 1)">
+							<button class="admin-icon-button" type="button" aria-label="删除广告" @click="removeArticleAd(adIndex)">
 								<Icon name="tabler:trash" />
 							</button>
 						</div>
 					</header>
 					<div class="admin-article-ad-grid">
-						<label class="admin-field"><span>广告标题</span><input v-model="ad.title" type="text" maxlength="120" placeholder="例如：本月推荐服务"></label>
-						<label class="admin-field"><span>广告链接</span><input v-model="ad.href" type="text" maxlength="2000" placeholder="https://example.com 或 /about"></label>
+						<label class="admin-field" :class="{ 'has-error': articleAdError(ad.id, 'title') }">
+							<span>广告标题 <em>启用后必填</em></span>
+							<input v-model="ad.title" :data-ad-id="ad.id" data-ad-field="title" type="text" maxlength="120" placeholder="例如：本月推荐服务" @input="clearArticleAdError(ad.id, 'title')">
+							<small v-if="articleAdError(ad.id, 'title')" class="admin-field-error" role="alert">{{ articleAdError(ad.id, 'title') }}</small>
+						</label>
+						<label class="admin-field">
+							<span>广告动作</span>
+							<select v-model="ad.action" @change="changeArticleAdAction(ad)">
+								<option value="link">打开链接</option>
+								<option value="wechat">微信联系</option>
+							</select>
+						</label>
 						<label class="admin-field"><span>角标文字</span><input v-model="ad.label" type="text" maxlength="24" placeholder="广告"></label>
-						<label class="admin-field"><span>横幅图片</span><input v-model="ad.image" type="text" maxlength="2000" placeholder="图片 URL，可留空"></label>
-						<label class="admin-field admin-article-ad-description"><span>广告说明</span><textarea v-model="ad.description" rows="3" maxlength="320" placeholder="简短说明推荐内容" /></label>
+						<label class="admin-field" :class="{ 'has-error': articleAdError(ad.id, 'image') }">
+							<span>横幅图片 <em>启用后必填</em></span>
+							<input v-model="ad.image" :data-ad-id="ad.id" data-ad-field="image" type="text" maxlength="2000" placeholder="图片 URL 或 /media/..." @input="clearArticleAdError(ad.id, 'image')">
+							<small v-if="articleAdError(ad.id, 'image')" class="admin-field-error" role="alert">{{ articleAdError(ad.id, 'image') }}</small>
+						</label>
+						<label v-if="ad.action === 'link'" class="admin-field admin-article-ad-wide" :class="{ 'has-error': articleAdError(ad.id, 'href') }">
+							<span>广告链接 <em>启用后必填</em></span>
+							<input v-model="ad.href" :data-ad-id="ad.id" data-ad-field="href" type="text" maxlength="2000" placeholder="https://example.com 或 /about" @input="clearArticleAdError(ad.id, 'href')">
+							<small v-if="articleAdError(ad.id, 'href')" class="admin-field-error" role="alert">{{ articleAdError(ad.id, 'href') }}</small>
+						</label>
+						<template v-else>
+							<label class="admin-field admin-article-ad-wide" :class="{ 'has-error': articleAdError(ad.id, 'wechatQr') }">
+								<span>微信二维码 <em>启用后必填</em></span>
+								<input v-model="ad.wechatQr" :data-ad-id="ad.id" data-ad-field="wechatQr" type="text" maxlength="2000" placeholder="二维码图片 URL 或 /media/..." @input="clearArticleAdError(ad.id, 'wechatQr')">
+								<small v-if="articleAdError(ad.id, 'wechatQr')" class="admin-field-error" role="alert">{{ articleAdError(ad.id, 'wechatQr') }}</small>
+							</label>
+							<label class="admin-field"><span>微信号</span><input v-model="ad.wechatId" type="text" maxlength="80" placeholder="可留空"></label>
+							<label class="admin-field"><span>联系提示</span><input v-model="ad.wechatNote" type="text" maxlength="160" placeholder="例如：添加时请备注博客广告"></label>
+						</template>
+						<label class="admin-field admin-article-ad-description"><span>广告说明</span><textarea v-model="ad.description" rows="3" maxlength="320" placeholder="首页只显示一行简短说明" /></label>
 					</div>
 					<div class="admin-article-ad-preview" :class="{ 'has-image': ad.image }">
 						<img v-if="ad.image" :src="ad.image" alt="" loading="lazy">
-						<div><small>{{ ad.label || '广告' }}</small><strong>{{ ad.title || '广告标题预览' }}</strong><span>{{ ad.description || '填写说明后会在这里显示。' }}</span></div>
-						<Icon name="tabler:arrow-up-right" />
+						<div><small>{{ ad.label || '广告' }}</small><strong>{{ ad.title || '广告标题预览' }}</strong><span>{{ ad.description || '填写说明后会在这里显示。' }}</span><b>{{ ad.action === 'wechat' ? '微信联系' : '了解更多' }} ↗</b></div>
 					</div>
 				</section>
 			</div>
-
 			<div v-else-if="selected === 'categories'" class="admin-category-editor">
 				<div v-for="(category, index) in categories" :key="`${category.name}-${index}`" class="admin-category-row">
 					<label class="admin-field"><span>名称</span><input v-model="category.name" type="text"></label>
@@ -718,26 +840,58 @@ onMounted(loadDeployedConfigs)
 	margin: 0;
 }
 
+.admin-article-ad-wide,
 .admin-article-ad-description {
 	grid-column: 1 / -1;
 }
 
-.admin-article-ad-preview {
-	display: grid;
-	grid-template-columns: minmax(0, 1fr) auto;
-	align-items: stretch;
-	position: relative;
-	overflow: hidden;
-	min-height: 8rem;
-	border: 1px solid color-mix(in srgb, var(--admin-accent) 32%, var(--admin-border));
-	border-radius: 1rem;
-	background:
-		radial-gradient(circle at 88% 12%, var(--admin-accent-soft), transparent 42%),
-		var(--admin-surface);
+.admin-field > span em {
+	margin-inline-start: 0.35rem;
+	font-size: 0.58rem;
+	font-style: normal;
+	font-weight: 500;
+	color: var(--admin-muted);
 }
 
-.admin-article-ad-preview.has-image {
-	grid-template-columns: minmax(0, 1fr) minmax(10rem, 34%);
+.admin-field.has-error input,
+.admin-field.has-error select,
+.admin-field.has-error textarea {
+	border-color: var(--admin-error, #C94B55);
+}
+
+.admin-field-error {
+	display: block;
+	margin-top: 0.32rem;
+	font-size: 0.66rem;
+	line-height: 1.45;
+	color: var(--admin-error, #C94B55);
+}
+
+.admin-article-ad-preview {
+	position: relative;
+	overflow: hidden;
+	height: 10.25rem;
+	border: 1px solid color-mix(in srgb, var(--admin-accent) 28%, var(--admin-border));
+	border-radius: 1rem;
+	box-shadow: 0 0.85rem 2.4rem color-mix(in srgb, var(--admin-surface-strong) 18%, transparent);
+	background: var(--admin-surface);
+	isolation: isolate;
+}
+
+.admin-article-ad-preview::before {
+	content: "";
+	position: absolute;
+	inset: 0;
+	background:
+		linear-gradient(
+			90deg,
+			color-mix(in srgb, var(--admin-surface) 98%, transparent) 0%,
+			color-mix(in srgb, var(--admin-surface) 92%, transparent) 31%,
+			color-mix(in srgb, var(--admin-surface) 45%, transparent) 58%,
+			color-mix(in srgb, var(--admin-surface) 8%, transparent) 100%
+		);
+	pointer-events: none;
+	z-index: 1;
 }
 
 .admin-article-ad-preview > div {
@@ -745,9 +899,12 @@ onMounted(loadDeployedConfigs)
 	flex-direction: column;
 	align-items: flex-start;
 	justify-content: center;
-	gap: 0.4rem;
+	position: relative;
+	width: min(52%, 27rem);
+	height: 100%;
 	min-width: 0;
-	padding: 1.1rem 3.2rem 1.1rem 1.2rem;
+	padding: 1.35rem 3.6rem 1.35rem 3.4rem;
+	z-index: 2;
 }
 
 .admin-article-ad-preview small {
@@ -760,37 +917,46 @@ onMounted(loadDeployedConfigs)
 }
 
 .admin-article-ad-preview strong,
-.admin-article-ad-preview span {
+.admin-article-ad-preview span,
+.admin-article-ad-preview b {
 	display: block;
 }
 
 .admin-article-ad-preview strong {
-	font-family: "Noto Serif SC", serif;
-	font-size: 1.05rem;
+	display: -webkit-box;
+	overflow: hidden;
+	margin-top: 0.45rem;
+	font-size: 1.25rem;
+	-webkit-line-clamp: 2;
+	line-height: 1.3;
+	-webkit-box-orient: vertical;
 }
 
 .admin-article-ad-preview span {
+	display: -webkit-box;
+	overflow: hidden;
+	margin-top: 0.2rem;
 	font-size: 0.75rem;
+	-webkit-line-clamp: 1;
 	line-height: 1.6;
 	color: var(--admin-muted);
+	-webkit-box-orient: vertical;
+}
+
+.admin-article-ad-preview b {
+	margin-top: 0.5rem;
+	font-size: 0.7rem;
+	color: var(--admin-accent-strong);
 }
 
 .admin-article-ad-preview img {
-	grid-column: 2;
-	grid-row: 1;
+	position: absolute;
+	inset: 0;
 	width: 100%;
 	height: 100%;
-	min-height: 8rem;
+	filter: saturate(0.94) contrast(1.02);
 	object-fit: cover;
-}
-
-.admin-article-ad-preview > .iconify {
-	position: absolute;
-	inset-inline-end: 1rem;
-	top: 50%;
-	font-size: 1.2rem;
-	color: var(--admin-accent-strong);
-	transform: translateY(-50%);
+	object-position: center 31%;
 }
 
 .admin-config-item {
@@ -958,18 +1124,22 @@ onMounted(loadDeployedConfigs)
 		grid-template-columns: 1fr;
 	}
 
+	.admin-article-ad-wide,
 	.admin-article-ad-description {
 		grid-column: auto;
 	}
 
-	.admin-article-ad-preview img {
-		grid-column: 1;
-		grid-row: 1;
-		max-height: 10rem;
+	.admin-article-ad-preview {
+		height: 8.25rem;
+	}
+
+	.admin-article-ad-preview::before {
+		background: linear-gradient(90deg, color-mix(in srgb, var(--admin-surface) 98%, transparent) 0%, color-mix(in srgb, var(--admin-surface) 87%, transparent) 47%, color-mix(in srgb, var(--admin-surface) 18%, transparent) 100%);
 	}
 
 	.admin-article-ad-preview > div {
-		grid-row: 2;
+		width: 72%;
+		padding: 1rem 2.9rem 1rem 2.75rem;
 	}
 
 	.admin-config-item-icon {

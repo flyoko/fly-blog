@@ -108,7 +108,10 @@ describe('cycle 5 humanized admin contracts', () => {
 
 		expect(settings).toContain('/api/admin/publishing/configs/categories')
 		expect(settings).toContain('/api/admin/publishing/configs/article')
-		expect(settings).toContain('文章广告')
+		expect(settings).toContain('首页广告')
+		expect(settings).toContain('广告动作')
+		expect(settings).toContain('微信二维码')
+		expect(settings).toContain('启用微信广告前请填写微信二维码。')
 		expect(settings).toContain('重新读取线上配置')
 		expect(settings).toContain('没有改动')
 		expect(modules).toContain('hasChanges')

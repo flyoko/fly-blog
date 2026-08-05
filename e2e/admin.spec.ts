@@ -168,20 +168,38 @@ test.describe('admin desktop workflows', () => {
 		await expect(editor).toHaveValue('::mac-window\n窗口粗体\n::')
 	})
 
-	test('article header ads are configured through site settings', async ({ page }) => {
+	test('homepage WeChat ads validate inline and submit contact details', async ({ page }) => {
 		const capture = await mockAuthenticatedAdmin(page)
 		await page.goto('/admin/settings')
-		await page.getByRole('tab', { name: /文章广告/u }).click()
+		await page.getByRole('tab', { name: /首页广告/u }).click()
 		await page.getByRole('button', { name: '添加广告' }).click()
-		await page.getByLabel('广告标题').fill('博客推荐')
-		await page.getByLabel('广告链接').fill('https://example.com')
+		await page.getByLabel('广告标题').fill('微信联系 fly')
+		await page.getByLabel('横幅图片').fill('/media/banner.webp')
+		await page.getByLabel('广告动作').selectOption('wechat')
 		await page.getByLabel('启用这条广告').check()
-		await page.getByRole('button', { name: '保存文章展示并预览' }).click()
+
+		await page.getByRole('button', { name: '保存首页广告并预览' }).click()
+		await expect(page.getByText('启用微信广告前请填写微信二维码。')).toBeVisible()
+		await expect(page.getByLabel('微信二维码')).toBeFocused()
+		expect(capture.configWrites).toHaveLength(0)
+
+		await page.getByLabel('微信二维码').fill('/media/wechat-qr.webp')
+		await page.getByLabel('微信号').fill('fly-contact')
+		await page.getByLabel('联系提示').fill('请备注博客广告')
+		await page.getByRole('button', { name: '保存首页广告并预览' }).click()
 		await expect.poll(() => capture.configWrites.length).toBe(1)
 		expect(capture.configWrites[0]).toMatchObject({
 			kind: 'article',
 			content: {
-				headerAds: [expect.objectContaining({ enabled: true, title: '博客推荐', href: 'https://example.com' })],
+				headerAds: [expect.objectContaining({
+					action: 'wechat',
+					enabled: true,
+					title: '微信联系 fly',
+					image: '/media/banner.webp',
+					wechatQr: '/media/wechat-qr.webp',
+					wechatId: 'fly-contact',
+					wechatNote: '请备注博客广告',
+				})],
 			},
 		})
 	})

@@ -269,37 +269,34 @@ describe('article editor UI boundaries', () => {
 		expect(editorStyles).not.toContain('margin: -1rem')
 	})
 
-	it('adds a backend-managed article header advertisement between the header and excerpt', async () => {
-		const [config, articlePage, headerAd] = await Promise.all([
+	it('uses the backend-managed ad slot only on the unfiltered homepage', async () => {
+		const [config, homepage, articlePage, carousel] = await Promise.all([
 			source('blog.config.ts'),
+			source('app/pages/index.vue'),
 			source('app/pages/[...slug].vue'),
-			source('app/components/post/PostHeaderAd.vue'),
+			source('app/components/home/HomeAdCarousel.vue'),
 		])
 
 		expect(config).toContain('articlePresentationConfig.headerAds')
-		const headerIndex = articlePage.indexOf('<PostHeader')
-		const adIndex = articlePage.indexOf('<PostHeaderAd')
-		const excerptIndex = articlePage.indexOf('<PostExcerpt')
-		expect(adIndex).toBeGreaterThan(headerIndex)
-		expect(excerptIndex).toBeGreaterThan(adIndex)
-		expect(headerAd).toContain('visibleAds')
-		expect(headerAd).toContain('activeIndex')
-		expect(headerAd).toContain('上一条广告')
-		expect(headerAd).toContain('下一条广告')
-		expect(headerAd).toContain('normalizeCanonicalSiteHref')
-		expect(headerAd).toContain('const isExternal')
-		expect(headerAd).toContain(':target="isExternal ?')
-		expect(headerAd).toContain(':rel="isExternal ?')
-	})
-
-	it('shows the configured article advertisement at the top of the unfiltered homepage', async () => {
-		const homepage = await source('app/pages/index.vue')
-
-		const adIndex = homepage.indexOf('<PostHeaderAd')
-		const slideIndex = homepage.indexOf('<PostSlide')
-		expect(adIndex).toBeGreaterThan(-1)
-		expect(slideIndex).toBeGreaterThan(adIndex)
-		expect(homepage).toContain('v-if="page === 1 && !category"')
+		expect(homepage).toContain('const homeAds')
+		expect(homepage).toContain('<HomeAdCarousel')
+		expect(homepage).toContain(':ads="homeAds"')
+		expect(homepage).toContain('v-if="homeAds.length && page === 1 && !category"')
+		expect(homepage).toContain('v-else-if="listRecommended.length && page === 1 && !category"')
+		expect(articlePage).not.toContain('<PostHeaderAd')
+		expect(articlePage).not.toContain('<HomeAdCarousel')
+		expect(carousel).toContain('5_500')
+		expect(carousel).toContain('usePreferredReducedMotion')
+		expect(carousel).toContain('<Teleport to="body">')
+		expect(carousel).toContain('微信联系')
+		expect(carousel).toContain('上一条广告')
+		expect(carousel).toContain('下一条广告')
+		expect(carousel).toContain('暂停自动轮播')
+		expect(carousel).toContain('handleFocusIn')
+		expect(carousel).toContain('handleTouchStart')
+		expect(carousel).toContain('{{ announcement }}')
+		expect(carousel).toContain('normalizeCanonicalSiteHref')
+		expect(carousel).toContain('noopener sponsored')
 	})
 
 	it('offers direct and Pull Request publishing plus media insertion', async () => {

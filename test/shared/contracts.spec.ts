@@ -51,16 +51,52 @@ describe('admin contracts', () => {
 		expect(parsed.pageSize).toBe(10)
 	})
 
-	it('validates backend-managed article header ads', () => {
-		expect(articlePresentationConfigSchema.parse(articleConfig)).toEqual(articleConfig)
+	it('validates backend-managed homepage ads and preserves legacy link configs', () => {
+		const legacy = articlePresentationConfigSchema.parse(articleConfig)
+		expect(legacy.headerAds[0]).toMatchObject({
+			action: 'link',
+			wechatQr: '',
+			wechatId: '',
+			wechatNote: '',
+		})
+
 		expect(() => articlePresentationConfigSchema.parse({
 			headerAds: [{ id: 'promo', enabled: true, label: '广告', title: '', description: '', image: '', href: '' }],
 		})).toThrow()
+
 		expect(articlePresentationConfigSchema.parse({
 			headerAds: [{ id: 'promo', enabled: true, label: '广告', title: '推荐服务', description: '', image: '/media/banner.webp', href: 'https://example.com' }],
-		}).headerAds).toHaveLength(1)
+		}).headerAds[0]).toMatchObject({ action: 'link', href: 'https://example.com' })
+
 		expect(() => articlePresentationConfigSchema.parse({
-			headerAds: [{ id: 'escape', enabled: true, label: '广告', title: '危险跳转', description: '', image: '', href: '/\\evil.example/path' }],
+			headerAds: [{ id: 'missing-image', enabled: true, label: '广告', title: '推荐服务', description: '', image: '', href: '/about' }],
+		})).toThrow()
+
+		expect(articlePresentationConfigSchema.parse({
+			headerAds: [{
+				id: 'wechat-contact',
+				enabled: true,
+				label: '联系站长',
+				title: '微信联系',
+				description: '扫码添加微信',
+				image: '/media/banner.webp',
+				action: 'wechat',
+				href: '',
+				wechatQr: '/media/wechat-qr.webp',
+				wechatId: 'fly',
+				wechatNote: '备注博客广告',
+			}],
+		}).headerAds[0]).toMatchObject({ action: 'wechat', wechatQr: '/media/wechat-qr.webp' })
+
+		expect(() => articlePresentationConfigSchema.parse({
+			headerAds: [{ id: 'missing-qr', enabled: true, label: '广告', title: '微信联系', description: '', image: '/media/banner.webp', action: 'wechat', href: '', wechatQr: '' }],
+		})).toThrow()
+
+		expect(() => articlePresentationConfigSchema.parse({
+			headerAds: [{ id: 'escape', enabled: true, label: '广告', title: '危险跳转', description: '', image: '/media/banner.webp', href: '/\\evil.example/path' }],
+		})).toThrow()
+		expect(() => articlePresentationConfigSchema.parse({
+			headerAds: [{ id: 'escape-qr', enabled: true, label: '广告', title: '危险二维码', description: '', image: '/media/banner.webp', action: 'wechat', href: '', wechatQr: '/\\evil.example/qr.png' }],
 		})).toThrow()
 	})
 

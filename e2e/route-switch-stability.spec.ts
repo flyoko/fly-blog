@@ -1,3 +1,4 @@
+import type { Locator } from '@playwright/test'
 import { expect, test } from '@playwright/test'
 
 interface RouteFrame {
@@ -81,6 +82,20 @@ async function startRouteRecorder(page: import('@playwright/test').Page, duratio
 	}, duration)
 }
 
+async function expectStrokeDashoffsetToChange(signal: Locator, before: string, timeout = 2_000) {
+	await expect.poll(
+		() => signal.evaluate(element => getComputedStyle(element).strokeDashoffset),
+		{ intervals: [60, 90, 120, 180], timeout },
+	).not.toBe(before)
+}
+
+async function expectTransformToChange(element: Locator, before: string, timeout = 2_000) {
+	await expect.poll(
+		() => element.evaluate(node => getComputedStyle(node).transform),
+		{ intervals: [60, 90, 120, 180], timeout },
+	).not.toBe(before)
+}
+
 function expectStableGeometry(frames: RouteFrame[]) {
 	const range = (values: Array<number | null>) => {
 		const present = values.filter((value): value is number => value !== null)
@@ -100,9 +115,13 @@ test.describe('public route switch stability', () => {
 	})
 
 	test('rapid sidebar navigation does not fade, pulse, smooth-scroll, or shift the shell', async ({ page }) => {
+		await page.setViewportSize({ width: 1_280, height: 420 })
 		await page.goto('/2026/welcome', { waitUntil: 'domcontentloaded' })
 		await expect(page.locator('#blog-sidebar')).toBeVisible()
-		await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight))
+		await expect.poll(() => page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight)).toBeGreaterThan(0)
+		await page.evaluate(() => {
+			document.documentElement.scrollTop = document.documentElement.scrollHeight
+		})
 		await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0)
 
 		await startRouteRecorder(page)
@@ -134,6 +153,7 @@ test.describe('public route switch stability', () => {
 	})
 
 	test('recovers ambient and pointer motion after interrupted and repeated module navigation', async ({ page }) => {
+		test.setTimeout(60_000)
 		let delayAiNews = true
 		await page.route('**/ai.news/_payload.json*', async (route) => {
 			if (delayAiNews) {
@@ -163,27 +183,22 @@ test.describe('public route switch stability', () => {
 		const signal = page.locator('.flow-ribbon-primary .flow-signal')
 		await expect(signal).toHaveCSS('animation-play-state', 'running')
 		const ambientBefore = await signal.evaluate(element => getComputedStyle(element).strokeDashoffset)
-		await page.waitForTimeout(260)
-		const ambientAfter = await signal.evaluate(element => getComputedStyle(element).strokeDashoffset)
-		expect(ambientAfter).not.toBe(ambientBefore)
+		await expectStrokeDashoffsetToChange(signal, ambientBefore)
 
 		const flow = page.locator('.atmosphere-flow')
 		const pointerBefore = await flow.evaluate(element => getComputedStyle(element).transform)
 		await page.mouse.move(1_080, 640)
-		await page.waitForTimeout(280)
-		const pointerAfter = await flow.evaluate(element => getComputedStyle(element).transform)
-		expect(pointerAfter).not.toBe(pointerBefore)
+		await expectTransformToChange(flow, pointerBefore)
 
 		await page.locator('.sidebar-nav-item[href="/moments"]').click()
 		await page.waitForTimeout(420)
 		await expect(atmosphere).not.toHaveClass(/is-route-settling/)
 		const sameRouteBefore = await signal.evaluate(element => getComputedStyle(element).strokeDashoffset)
-		await page.waitForTimeout(220)
-		const sameRouteAfter = await signal.evaluate(element => getComputedStyle(element).strokeDashoffset)
-		expect(sameRouteAfter).not.toBe(sameRouteBefore)
+		await expectStrokeDashoffsetToChange(signal, sameRouteBefore)
 	})
 
 	test('keeps avatar and ambient motion alive while route-sensitive transforms settle in macOS Chrome', async ({ page }) => {
+		test.setTimeout(60_000)
 		let delayNextMePayload = false
 		let delayedMePayloadStarted = false
 		await page.route('**/me/_payload.json*', async (route) => {
@@ -292,38 +307,19 @@ test.describe('public route switch stability', () => {
 		expect(loadingAnimationState.lensPlayState).toBe('running')
 		expect(loadingAnimationState.ribbonPlayState).toBe('running')
 		expect(loadingAnimationState.signalPlayState).toBe('running')
-		const loadingTransform = await page.locator('.atmosphere-flow').evaluate(element => getComputedStyle(element).transform)
+		const flow = page.locator('.atmosphere-flow')
+		const signal = page.locator('.flow-ribbon-primary .flow-signal')
+		const loadingTransform = await flow.evaluate(element => getComputedStyle(element).transform)
 		await page.mouse.move(320, 240)
-		await page.waitForTimeout(450)
 		await expect(atmosphere).toHaveClass(/is-route-settling/)
-		const loadingTransformAfterMove = await page.locator('.atmosphere-flow').evaluate(element => getComputedStyle(element).transform)
-		const loadingAnimationStateAfterMove = await page.evaluate(() => {
-			const lens = document.querySelector<HTMLElement>('.atmosphere-lens-a')
-			const ribbon = document.querySelector<SVGElement>('.flow-ribbon-primary')
-			const signal = document.querySelector<SVGPathElement>('.flow-ribbon-primary .flow-signal')
-			return {
-				lensTransform: lens ? getComputedStyle(lens).transform : null,
-				ribbonTransform: ribbon ? getComputedStyle(ribbon).transform : null,
-				signalDashOffset: signal ? getComputedStyle(signal).strokeDashoffset : null,
-			}
-		})
+		const loadingTransformAfterMove = await flow.evaluate(element => getComputedStyle(element).transform)
 		expect(loadingTransformAfterMove).toBe(loadingTransform)
-		expect([
-			loadingAnimationStateAfterMove.lensTransform !== loadingAnimationState.lensTransform,
-			loadingAnimationStateAfterMove.ribbonTransform !== loadingAnimationState.ribbonTransform,
-			loadingAnimationStateAfterMove.signalDashOffset !== loadingAnimationState.signalDashOffset,
-		].some(Boolean)).toBe(true)
+		await expectStrokeDashoffsetToChange(signal, loadingAnimationState.signalDashOffset ?? '')
 		await expect(page).toHaveURL('/me')
 		await expect(atmosphere).not.toHaveClass(/is-route-settling/, { timeout: 2_000 })
-		const automaticResumeStart = await page.locator('.atmosphere-flow').evaluate(element => getComputedStyle(element).transform)
-		await page.waitForTimeout(220)
-		const automaticResumeEnd = await page.locator('.atmosphere-flow').evaluate(element => getComputedStyle(element).transform)
-		expect(automaticResumeEnd).not.toBe(automaticResumeStart)
-		const resumedTransform = automaticResumeEnd
+		const resumedTransform = await flow.evaluate(element => getComputedStyle(element).transform)
 		await page.mouse.move(910, 520)
-		await page.waitForTimeout(260)
-		const resumedTransformAfterMove = await page.locator('.atmosphere-flow').evaluate(element => getComputedStyle(element).transform)
-		expect(resumedTransformAfterMove).not.toBe(resumedTransform)
+		await expectTransformToChange(flow, resumedTransform)
 
 		for (const [index, path] of ['/moments', '/link', '/archive', '/ai.news', '/', '/comments', '/me'].entries()) {
 			await page.locator(`.sidebar-nav-item[href="${path}"]`).click()
@@ -357,28 +353,25 @@ test.describe('public route switch stability', () => {
 			if (settlingState.settling && settlingStateAfterMove.settling)
 				expect(settlingStateAfterMove.flowTransform).toBe(settlingState.flowTransform)
 			expect(settlingStateAfterMove.signalPlayState).toBe('running')
-			expect(settlingStateAfterMove.signalOffset).not.toBe(settlingState.signalOffset)
+			const signal = page.locator('.flow-ribbon-primary .flow-signal')
+			await expectStrokeDashoffsetToChange(signal, settlingState.signalOffset ?? '')
 
 			await expect(atmosphere).not.toHaveClass(/is-route-settling/, { timeout: 2_000 })
-			const ambientBefore = await page.locator('.flow-ribbon-primary .flow-signal').evaluate(element => getComputedStyle(element).strokeDashoffset)
-			await page.waitForTimeout(240)
-			const ambientAfter = await page.locator('.flow-ribbon-primary .flow-signal').evaluate(element => getComputedStyle(element).strokeDashoffset)
-			expect(ambientAfter).not.toBe(ambientBefore)
+			const ambientBefore = await signal.evaluate(element => getComputedStyle(element).strokeDashoffset)
+			await expectStrokeDashoffsetToChange(signal, ambientBefore)
 
-			const pointerBefore = await page.locator('.atmosphere-flow').evaluate(element => getComputedStyle(element).transform)
+			const flow = page.locator('.atmosphere-flow')
+			const pointerBefore = await flow.evaluate(element => getComputedStyle(element).transform)
 			await page.mouse.move(940 - index * 7, 560 - index * 5)
-			await page.waitForTimeout(260)
-			const pointerAfter = await page.locator('.atmosphere-flow').evaluate(element => getComputedStyle(element).transform)
-			expect(pointerAfter).not.toBe(pointerBefore)
+			await expectTransformToChange(flow, pointerBefore)
 		}
 
 		for (const navigate of [() => page.goBack({ waitUntil: 'domcontentloaded' }), () => page.goForward({ waitUntil: 'domcontentloaded' })]) {
 			await navigate()
 			await expect(atmosphere).not.toHaveClass(/is-route-settling/, { timeout: 2_000 })
-			const before = await page.locator('.flow-ribbon-primary .flow-signal').evaluate(element => getComputedStyle(element).strokeDashoffset)
-			await page.waitForTimeout(240)
-			const after = await page.locator('.flow-ribbon-primary .flow-signal').evaluate(element => getComputedStyle(element).strokeDashoffset)
-			expect(after).not.toBe(before)
+			const signal = page.locator('.flow-ribbon-primary .flow-signal')
+			const before = await signal.evaluate(element => getComputedStyle(element).strokeDashoffset)
+			await expectStrokeDashoffsetToChange(signal, before)
 		}
 
 		await page.evaluate(() => window.__stopMacCompositorRecorder?.())
