@@ -32,7 +32,7 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: 24
-          cache: pnpm
+          package-manager-cache: false
       - run: pnpm install --frozen-lockfile
       - name: 文章 PR 快路径校验
         if: ${{ startsWith(github.head_ref, 'admin/article/') }}
