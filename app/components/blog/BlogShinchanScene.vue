@@ -24,10 +24,14 @@ watch(() => profileImageSrc.value, () => {
 	aria-hidden="true"
 >
 	<span v-if="variant === 'about'" class="scene-atmosphere" />
+	<span v-if="variant === 'about'" class="scene-shooting-star" />
 	<span class="scene-orbit scene-orbit-one" />
 	<span class="scene-orbit scene-orbit-two" />
+	<span v-if="variant === 'about'" class="scene-orbit scene-orbit-three" />
 	<span class="scene-track" />
 	<span v-if="variant === 'about'" class="scene-planet">
+		<span class="scene-planet-texture" />
+		<span class="scene-planet-clouds" />
 		<span class="scene-planet-light" />
 	</span>
 	<span v-if="variant === 'about'" class="scene-avatar-tether" />
@@ -78,6 +82,7 @@ watch(() => profileImageSrc.value, () => {
 }
 
 .scene-atmosphere,
+.scene-shooting-star,
 .scene-orbit,
 .scene-track,
 .scene-spark,
@@ -94,12 +99,40 @@ watch(() => profileImageSrc.value, () => {
 }
 
 .scene-atmosphere {
-	inset: 0 0 0 44%;
+	inset: 0 0 0 42%;
 	background:
-		radial-gradient(circle at 69% 36%, color-mix(in srgb, var(--c-primary) 24%, transparent), transparent 26%),
-		radial-gradient(circle at 82% 76%, color-mix(in srgb, var(--c-flow-blue) 22%, transparent), transparent 42%);
-	mask-image: linear-gradient(90deg, transparent, black 28%);
+		radial-gradient(circle at 72% 30%, rgb(63 132 255 / 24%), transparent 25%),
+		radial-gradient(circle at 70% 83%, rgb(33 104 255 / 22%), transparent 44%),
+		radial-gradient(circle at 28% 52%, rgb(25 69 158 / 15%), transparent 38%);
+	mask-image: linear-gradient(90deg, transparent, black 25%);
 	animation: shinchan-atmosphere 7s ease-in-out infinite;
+}
+
+.scene-shooting-star {
+	top: 19%;
+	left: 46%;
+	width: clamp(5rem, 8vw, 8.5rem);
+	height: 1px;
+	border-radius: 999px;
+	box-shadow: 0 0 1.2rem rgb(86 151 255 / 42%);
+	background: linear-gradient(90deg, transparent, rgb(96 157 255 / 28%) 18%, rgb(222 237 255 / 96%) 88%, white);
+	transform: rotate(-38deg);
+	transform-origin: right center;
+	animation: shinchan-shooting-star 6.8s ease-in-out infinite;
+	z-index: 2;
+}
+
+.scene-shooting-star::after {
+	content: "";
+	position: absolute;
+	top: 50%;
+	right: -0.12rem;
+	width: 0.42rem;
+	aspect-ratio: 1;
+	border-radius: 50%;
+	box-shadow: 0 0 1.1rem rgb(154 199 255 / 90%);
+	background: #F6FAFF;
+	transform: translateY(-50%);
 }
 
 .scene-orbit {
@@ -252,39 +285,89 @@ watch(() => profileImageSrc.value, () => {
 }
 
 .scene-planet {
-	right: -3%;
-	bottom: -64%;
-	width: clamp(18rem, 30vw, 23rem);
+	overflow: hidden;
+	right: -9%;
+	bottom: -58%;
+	width: min(58%, 44rem);
 	aspect-ratio: 1;
-	border: 1px solid color-mix(in srgb, var(--c-primary) 50%, white 10%);
+	border: 1px solid rgb(132 188 255 / 62%);
 	border-radius: 50%;
 	box-shadow:
-		inset 0 1.2rem 2.6rem rgb(255 255 255 / 18%),
-		inset 0 -2.4rem 5rem rgb(18 47 140 / 34%),
-		0 0 3.8rem color-mix(in srgb, var(--c-flow-blue) 34%, transparent);
+		inset 0 1.5rem 3.4rem rgb(255 255 255 / 20%),
+		inset 1.8rem -3rem 6rem rgb(1 14 67 / 48%),
+		inset -1.5rem 0 4rem rgb(33 108 236 / 22%),
+		0 -0.35rem 2rem rgb(104 177 255 / 46%),
+		0 0 5rem rgb(29 99 232 / 38%);
 	background:
-		radial-gradient(circle at 32% 13%, rgb(255 255 255 / 28%), transparent 18%),
-		linear-gradient(155deg, color-mix(in srgb, var(--c-flow-blue) 84%, white 7%), color-mix(in srgb, var(--c-primary) 82%, #15378F));
+		radial-gradient(circle at 32% 12%, rgb(255 255 255 / 30%), transparent 19%),
+		radial-gradient(circle at 43% 34%, #2A83E2 0, #1764C9 42%, #0D45A2 73%, #061D5A 100%);
 	transform: translate3d(var(--scene-planet-x, 0), var(--scene-planet-y, 0), 0);
 	animation: shinchan-planet-breathe 7.2s ease-in-out infinite;
-	z-index: 2;
+	z-index: 3;
 }
 
 .scene-planet::before {
 	content: "";
 	position: absolute;
 	inset: -4%;
-	border: 1px solid color-mix(in srgb, var(--c-primary) 26%, transparent);
+	border: 1px solid rgb(96 166 255 / 36%);
 	border-radius: inherit;
-	box-shadow: 0 -0.25rem 1.4rem color-mix(in srgb, var(--c-primary) 24%, transparent);
+	box-shadow:
+		0 -0.3rem 1.6rem rgb(118 190 255 / 42%),
+		0 0 0 0.55rem rgb(50 114 237 / 8%);
+	pointer-events: none;
+}
+
+.scene-planet::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	border-radius: inherit;
+	background:
+		radial-gradient(circle at 78% 70%, transparent 0 48%, rgb(0 7 35 / 46%) 82%),
+		linear-gradient(122deg, rgb(255 255 255 / 12%), transparent 31% 72%, rgb(0 8 45 / 24%));
+	pointer-events: none;
+}
+
+.scene-planet-texture,
+.scene-planet-clouds,
+.scene-planet-light {
+	position: absolute;
+	inset: 0;
+	border-radius: inherit;
+	pointer-events: none;
+}
+
+.scene-planet-texture {
+	opacity: 0.78;
+	background-image:
+		url("/assets/about-earth-texture.svg"),
+		repeating-radial-gradient(ellipse at 38% 25%, transparent 0 1.35rem, rgb(180 222 255 / 5%) 1.45rem 1.55rem);
+	background-position: center;
+	background-repeat: no-repeat, repeat;
+	background-size: cover, auto;
+	mix-blend-mode: normal;
+}
+
+.scene-planet-clouds {
+	opacity: 0.46;
+	inset: 2%;
+	background:
+		radial-gradient(ellipse at 24% 22%, rgb(224 240 255 / 34%) 0 8%, transparent 10%),
+		radial-gradient(ellipse at 43% 31%, rgb(220 239 255 / 24%) 0 11%, transparent 13%),
+		radial-gradient(ellipse at 68% 21%, rgb(233 246 255 / 28%) 0 8%, transparent 10%),
+		radial-gradient(ellipse at 72% 48%, rgb(218 238 255 / 18%) 0 12%, transparent 14%),
+		radial-gradient(ellipse at 38% 55%, rgb(224 241 255 / 20%) 0 9%, transparent 11%);
+	animation: shinchan-cloud-drift 16s linear infinite;
+	filter: blur(2px);
 }
 
 .scene-planet-light {
-	position: absolute;
 	inset: -1%;
-	border-radius: inherit;
-	background: linear-gradient(112deg, transparent 20%, rgb(255 255 255 / 16%) 47%, transparent 68%);
-	mask-image: linear-gradient(to bottom, black 0 35%, transparent 64%);
+	background:
+		linear-gradient(112deg, transparent 17%, rgb(255 255 255 / 18%) 45%, transparent 66%),
+		radial-gradient(circle at 34% 13%, rgb(255 255 255 / 24%), transparent 22%);
+	mask-image: linear-gradient(to bottom, black 0 41%, transparent 72%);
 	animation: shinchan-planet-light 5.4s ease-in-out infinite;
 }
 
@@ -379,52 +462,132 @@ watch(() => profileImageSrc.value, () => {
 }
 
 .is-about .scene-character {
-	right: 3.5%;
-	bottom: -2.4rem;
-	width: clamp(5.8rem, 10vw, 7.1rem);
+	right: 3.6%;
+	bottom: 40%;
+	width: clamp(8rem, 14vw, 10.5rem);
 	aspect-ratio: 390 / 333;
-	clip-path: inset(0 0 17% 0);
+	clip-path: inset(0 0 8% 0);
 	animation-name: shinchan-peek-about;
-	z-index: 4;
+	z-index: 2;
 }
 
 .is-about.has-custom-character .scene-profile-avatar {
-	top: 43%;
-	right: clamp(6.5rem, 14vw, 10rem);
-	width: clamp(7.5rem, 13vw, 9.8rem);
+	top: 23%;
+	right: 12.5%;
+	width: min(23%, 15.5rem);
 	aspect-ratio: 1;
+	border-width: 1.5px;
+	box-shadow:
+		inset 0 1px 0 rgb(255 255 255 / 65%),
+		inset 0 -1rem 2.8rem rgb(34 91 183 / 20%),
+		0 0 0 0.75rem rgb(76 139 255 / 10%),
+		0 0 3.4rem rgb(75 145 255 / 30%),
+		0 1.8rem 4rem rgb(0 10 40 / 42%);
+	background:
+		radial-gradient(circle at 31% 20%, rgb(255 255 255 / 30%), transparent 29%),
+		radial-gradient(circle at 62% 76%, rgb(52 117 233 / 22%), transparent 44%),
+		rgb(8 27 67 / 45%);
+}
+
+.is-about.has-custom-character .scene-profile-avatar::before {
+	inset: 0.62rem;
+	box-shadow:
+		inset 0 0 1.7rem rgb(255 255 255 / 16%),
+		0 0 1.5rem rgb(93 163 255 / 10%);
+}
+
+.is-about.has-custom-character .scene-profile-avatar img {
+	inset: 0.78rem;
+	width: calc(100% - 1.56rem);
+	height: calc(100% - 1.56rem);
+	box-shadow: 0 1rem 2.2rem rgb(2 13 46 / 42%);
+	background: radial-gradient(circle at 42% 28%, rgb(48 77 126 / 52%), rgb(4 11 31 / 86%) 72%);
+	object-fit: contain;
+}
+
+.is-about .scene-profile-halo {
+	inset: -18%;
+	border-color: rgb(86 153 255 / 34%);
+	box-shadow:
+		0 0 2.7rem rgb(64 139 255 / 22%),
+		inset 0 0 2rem rgb(70 135 255 / 8%);
+}
+
+.is-about .scene-profile-badge {
+	top: 4%;
+	right: -3%;
+	width: clamp(2.35rem, 4vw, 3.15rem);
+	box-shadow:
+		inset 0 1px 0 rgb(255 255 255 / 20%),
+		0 0 1.7rem rgb(72 145 255 / 46%);
+	background: rgb(18 47 100 / 72%);
+	font-size: clamp(0.9rem, 1.6vw, 1.25rem);
+	color: #DCEBFF;
 }
 
 .is-about .scene-orbit-one {
-	inset: -18% -4% -34% 50%;
-	border-color: color-mix(in srgb, var(--c-primary) 35%, transparent);
+	inset: 5% -5% 26% 48%;
+	border-color: rgb(91 155 255 / 42%);
+	rotate: -18deg;
 }
 
 .is-about .scene-orbit-two {
-	inset: 8% -11% -42% 58%;
-	border-color: color-mix(in srgb, var(--c-primary) 44%, transparent);
+	inset: 20% -12% 5% 54%;
+	border-color: rgb(101 169 255 / 52%);
+	rotate: 19deg;
+}
+
+.is-about .scene-orbit-three {
+	inset: 43% -14% -37% 40%;
+	border-style: solid;
+	border-color: rgb(79 142 255 / 34%);
+	animation-duration: 20s;
+	rotate: -7deg;
 }
 
 .is-about .scene-track {
-	opacity: 0.74;
+	opacity: 0.82;
 	top: 42%;
-	right: 0;
-	width: 45%;
+	right: -2%;
+	width: 55%;
+	box-shadow: 0 0 1.2rem rgb(76 151 255 / 34%);
+}
+
+.is-about .scene-avatar-tether {
+	top: 47%;
+	right: 12%;
+	width: 27%;
+}
+
+.is-about .scene-heart {
+	right: 4.8%;
+	bottom: 44%;
+	font-size: clamp(1rem, 2vw, 1.45rem);
+	text-shadow: 0 0 1.2rem rgb(255 79 132 / 56%);
+}
+
+.is-about .scene-ripple {
+	right: 8%;
+	bottom: 26%;
+	width: 5rem;
 }
 
 .is-about .scene-spark-one {
-	top: 12%;
+	top: 9%;
 	right: 7%;
+	font-size: 1.35rem;
 }
 
 .is-about .scene-spark-two {
-	right: 29%;
-	bottom: 19%;
+	right: 26%;
+	bottom: 28%;
+	font-size: 1.05rem;
 }
 
 .is-about .scene-spark-three {
-	top: 54%;
-	right: 43%;
+	top: 49%;
+	right: 45%;
+	font-size: 1.2rem;
 }
 
 .is-about .scene-orbit::after {
@@ -591,6 +754,28 @@ watch(() => profileImageSrc.value, () => {
 	}
 }
 
+@keyframes shinchan-shooting-star {
+	0%, 12%, 100% {
+		opacity: 0;
+		translate: -1.2rem 1.2rem;
+	}
+
+	20%, 42% {
+		opacity: 1;
+		translate: 0 0;
+	}
+
+	54% {
+		opacity: 0;
+		translate: 1.5rem -1.5rem;
+	}
+}
+
+@keyframes shinchan-cloud-drift {
+	from { transform: rotate(-4deg) translateX(-1.5%); }
+	to { transform: rotate(5deg) translateX(1.5%); }
+}
+
 @keyframes shinchan-node-pulse {
 	0%, 100% {
 		box-shadow:
@@ -617,6 +802,69 @@ watch(() => profileImageSrc.value, () => {
 	}
 }
 
+@media (max-width: 900px) {
+	.is-about .scene-atmosphere {
+		inset: 39% 0 0;
+		mask-image: linear-gradient(to bottom, transparent, black 22%);
+	}
+
+	.is-about .scene-shooting-star {
+		top: 57%;
+		left: 32%;
+	}
+
+	.is-about .scene-character {
+		right: 1.2rem;
+		bottom: 50%;
+		width: 10rem;
+	}
+
+	.is-about.has-custom-character .scene-profile-avatar {
+		--profile-base-y: 0px;
+
+		top: auto;
+		right: 11.5rem;
+		bottom: 10.5rem;
+		width: 12rem;
+	}
+
+	.is-about .scene-planet {
+		right: -13%;
+		bottom: -24%;
+		width: 34rem;
+	}
+
+	.is-about .scene-orbit-one {
+		inset: 41% -13% 6% 34%;
+	}
+
+	.is-about .scene-orbit-two {
+		inset: 49% -27% -14% 42%;
+	}
+
+	.is-about .scene-orbit-three {
+		inset: 59% -34% -39% 29%;
+	}
+
+	.is-about .scene-track {
+		top: 67%;
+		right: -7%;
+		width: 73%;
+	}
+
+	.is-about .scene-avatar-tether {
+		top: auto;
+		right: 27%;
+		bottom: 29%;
+		width: 31%;
+	}
+
+	.is-about .scene-heart {
+		right: 5.5%;
+		bottom: 30%;
+	}
+}
+
 @media (max-width: 600px) {
 	.is-moments .scene-character {
 		right: -5%;
@@ -631,55 +879,65 @@ watch(() => profileImageSrc.value, () => {
 	}
 
 	.is-about .scene-atmosphere {
-		inset: 43% 0 0;
-		mask-image: linear-gradient(to bottom, transparent, black 26%);
+		inset: 45% 0 0;
+	}
+
+	.is-about .scene-shooting-star {
+		top: 61%;
+		left: 21%;
+		width: 4.5rem;
 	}
 
 	.is-about .scene-character {
-		right: 0.65rem;
-		bottom: -1.5rem;
-		width: 5.3rem;
+		right: -0.35rem;
+		bottom: 35%;
+		width: 7.8rem;
 	}
 
 	.is-about.has-custom-character .scene-profile-avatar {
-		--profile-base-y: 0px;
+		right: 6.6rem;
+		bottom: 8.2rem;
+		width: 8.6rem;
+	}
 
-		top: auto;
-		right: 5.7rem;
-		bottom: 3.8rem;
-		width: 6.1rem;
+	.is-about .scene-profile-badge {
+		width: 2.25rem;
+		font-size: 0.85rem;
 	}
 
 	.is-about .scene-planet {
-		right: -18%;
-		bottom: -32%;
-		width: 14.5rem;
+		right: -26%;
+		bottom: -20%;
+		width: 23rem;
 	}
 
 	.is-about .scene-orbit-one {
-		inset: 43% -20% -35% 27%;
+		inset: 48% -34% 5% 17%;
 	}
 
 	.is-about .scene-orbit-two {
-		inset: 49% -38% -52% 43%;
+		inset: 57% -48% -16% 30%;
+	}
+
+	.is-about .scene-orbit-three {
+		inset: 65% -58% -39% 12%;
 	}
 
 	.is-about .scene-track {
-		top: 68%;
-		right: -6%;
-		width: 69%;
+		top: 72%;
+		right: -11%;
+		width: 88%;
 	}
 
 	.is-about .scene-avatar-tether {
-		top: auto;
-		right: 25%;
-		bottom: 34%;
-		width: 24%;
+		right: 29%;
+		bottom: 27%;
+		width: 35%;
 	}
 
 	.is-about .scene-heart {
-		right: 4.5%;
-		bottom: 30%;
+		right: 3.5%;
+		bottom: 31%;
 	}
 }
 
@@ -692,6 +950,7 @@ watch(() => profileImageSrc.value, () => {
 
 @media (prefers-reduced-motion: reduce) {
 	.shinchan-scene .scene-atmosphere,
+	.shinchan-scene .scene-shooting-star,
 	.shinchan-scene .scene-orbit,
 	.shinchan-scene .scene-track,
 	.shinchan-scene .scene-spark,
@@ -702,6 +961,7 @@ watch(() => profileImageSrc.value, () => {
 	.shinchan-scene .scene-profile-halo,
 	.shinchan-scene .scene-profile-badge,
 	.shinchan-scene .scene-planet,
+	.shinchan-scene .scene-planet-clouds,
 	.shinchan-scene .scene-planet-light,
 	.shinchan-scene .scene-avatar-tether,
 	.shinchan-scene .scene-heart,

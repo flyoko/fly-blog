@@ -57,6 +57,39 @@ useSeoMeta({
 			<span class="about-eyebrow">ABOUT · FLY LIVING</span>
 			<h1>{{ profile?.title || "关于我" }}</h1>
 			<p>{{ profileSummary }}</p>
+			<a class="about-hero-cta" href="#about-story">
+				<span>探索更多</span>
+				<Icon name="tabler:arrow-right" aria-hidden="true" />
+			</a>
+			<div class="about-hero-features" aria-label="我的关键词">
+				<div class="about-hero-feature">
+					<span class="about-hero-feature-icon">
+						<Icon name="tabler:code" aria-hidden="true" />
+					</span>
+					<span>
+						<strong>写代码</strong>
+						<small>Code</small>
+					</span>
+				</div>
+				<div class="about-hero-feature">
+					<span class="about-hero-feature-icon">
+						<Icon name="tabler:book-2" aria-hidden="true" />
+					</span>
+					<span>
+						<strong>持续学习</strong>
+						<small>Learn</small>
+					</span>
+				</div>
+				<div class="about-hero-feature">
+					<span class="about-hero-feature-icon">
+						<Icon name="tabler:heart" aria-hidden="true" />
+					</span>
+					<span>
+						<strong>认真生活</strong>
+						<small>Life</small>
+					</span>
+				</div>
+			</div>
 		</div>
 		<BlogShinchanScene
 			variant="about"
@@ -65,7 +98,7 @@ useSeoMeta({
 		/>
 	</header>
 
-	<section v-if="profile" class="about-section card article">
+	<section v-if="profile" id="about-story" class="about-section card article">
 		<ContentRenderer :value="profile" />
 	</section>
 
@@ -123,36 +156,210 @@ useSeoMeta({
 
 .about-hero {
 	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 2rem;
+	align-items: stretch;
 	position: relative;
 	overflow: hidden;
-	min-height: clamp(17rem, 31vw, 22rem);
-	padding: clamp(1.5rem, 6vw, 4rem);
-	padding-inline-end: clamp(19rem, 42vw, 32rem);
+	min-height: clamp(30rem, 31vw, 36rem);
+	padding: clamp(2.4rem, 4.8vw, 4.8rem);
+	padding-inline-end: clamp(24rem, 49%, 41rem);
+	border: 1px solid rgb(117 158 231 / 34%);
+	border-radius: clamp(0.9rem, 1.4vw, 1.35rem);
+	box-shadow:
+		inset 0 1px 0 rgb(255 255 255 / 8%),
+		inset 0 0 4.5rem rgb(35 91 202 / 8%),
+		0 1.8rem 5rem rgb(1 8 27 / 28%);
 	background:
-		radial-gradient(circle at 78% 34%, color-mix(in srgb, var(--c-flow-blue) 20%, transparent), transparent 28%),
-		radial-gradient(circle at 100% 112%, color-mix(in srgb, var(--c-flow-blue) 25%, transparent), transparent 43%),
-		linear-gradient(130deg, var(--c-surface-fill), color-mix(in srgb, var(--c-surface-fill) 80%, var(--c-flow-violet) 6%));
+		radial-gradient(circle at 83% 28%, rgb(71 137 255 / 21%), transparent 24%),
+		radial-gradient(circle at 67% 62%, rgb(25 72 178 / 18%), transparent 34%),
+		radial-gradient(circle at 8% 7%, rgb(29 76 181 / 17%), transparent 30%),
+		linear-gradient(126deg, #020817 0%, #061126 48%, #0A1D43 75%, #0C285E 100%);
+	color: #F7FAFF;
+	isolation: isolate;
+}
+
+.about-hero::before {
+	content: "";
+	position: absolute;
+	opacity: 0.72;
+	inset: 0;
+	background-image:
+		radial-gradient(circle at 7% 19%, rgb(255 255 255 / 74%) 0 1px, transparent 1.5px),
+		radial-gradient(circle at 18% 67%, rgb(103 164 255 / 70%) 0 1px, transparent 1.6px),
+		radial-gradient(circle at 28% 11%, rgb(255 255 255 / 55%) 0 1px, transparent 1.4px),
+		radial-gradient(circle at 39% 47%, rgb(99 154 255 / 54%) 0 1.2px, transparent 1.8px),
+		radial-gradient(circle at 47% 24%, rgb(255 255 255 / 68%) 0 1px, transparent 1.5px),
+		radial-gradient(circle at 57% 72%, rgb(88 148 255 / 68%) 0 1.2px, transparent 1.8px),
+		radial-gradient(circle at 68% 12%, rgb(255 255 255 / 62%) 0 1px, transparent 1.5px),
+		radial-gradient(circle at 77% 54%, rgb(101 165 255 / 58%) 0 1.3px, transparent 1.9px),
+		radial-gradient(circle at 88% 18%, rgb(255 255 255 / 76%) 0 1px, transparent 1.5px),
+		radial-gradient(circle at 94% 73%, rgb(86 154 255 / 60%) 0 1.2px, transparent 1.8px);
+	background-size:
+		17rem 13rem,
+		23rem 18rem,
+		19rem 16rem,
+		29rem 21rem,
+		31rem 24rem,
+		27rem 19rem,
+		21rem 17rem,
+		33rem 25rem,
+		25rem 20rem,
+		28rem 23rem;
+	pointer-events: none;
+	z-index: 0;
 }
 
 .about-hero::after {
 	content: "";
 	position: absolute;
 	inset: 0;
-	background: linear-gradient(90deg, color-mix(in srgb, var(--c-surface-fill) 96%, transparent) 0 42%, transparent 64%);
+	background:
+		linear-gradient(90deg, rgb(2 8 23 / 98%) 0 35%, rgb(3 11 28 / 88%) 45%, rgb(5 17 43 / 28%) 62%, transparent 76%),
+		linear-gradient(to bottom, rgb(255 255 255 / 2%), transparent 28% 75%, rgb(1 7 23 / 24%));
 	pointer-events: none;
-	z-index: 0;
+	z-index: 1;
 }
 
 .about-hero-copy {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
 	position: relative;
-	z-index: 2;
+	width: min(100%, 37rem);
+	z-index: 3;
+}
+
+.about-hero h1 {
+	margin: 0.55rem 0 0.8rem;
+	font-family: var(--font-creative);
+	font-size: clamp(4rem, 7vw, 7.4rem);
+	font-weight: 760;
+	letter-spacing: -0.055em;
+	line-height: 0.92;
+	text-shadow:
+		0 1px 0 rgb(255 255 255 / 34%),
+		0 0.7rem 2.5rem rgb(35 100 235 / 28%);
+	color: #F8FAFF;
+}
+
+.about-hero p {
+	max-width: 35rem;
+	margin: 0;
+	font-size: clamp(1rem, 1.45vw, 1.35rem);
+	line-height: 1.7;
+	color: rgb(220 229 248 / 84%);
+}
+
+.about-hero .about-eyebrow {
+	font-size: clamp(0.72rem, 0.9vw, 0.92rem);
+	font-weight: 700;
+	letter-spacing: 0.19em;
+	text-shadow: 0 0 1.4rem rgb(66 139 255 / 48%);
+	color: #65A1FF;
+}
+
+.about-hero-cta {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 1.35rem;
+	min-width: 11.5rem;
+	margin-top: clamp(1.8rem, 3.2vw, 3rem);
+	padding: 0.88rem 1.45rem;
+	border: 1px solid rgb(119 168 255 / 45%);
+	border-radius: 999px;
+	box-shadow:
+		inset 0 1px 0 rgb(255 255 255 / 8%),
+		0 0.8rem 2rem rgb(5 40 112 / 18%);
+	background: linear-gradient(135deg, rgb(15 35 77 / 68%), rgb(7 20 49 / 42%));
+	backdrop-filter: blur(12px);
+	font-weight: 650;
+	color: #F5F8FF;
+	transition:
+		border-color 0.24s ease,
+		box-shadow 0.24s ease,
+		transform 0.24s ease;
+}
+
+.about-hero-cta:hover,
+.about-hero-cta:focus-visible {
+	border-color: rgb(142 187 255 / 78%);
+	box-shadow:
+		inset 0 1px 0 rgb(255 255 255 / 14%),
+		0 0 2rem rgb(48 118 255 / 28%),
+		0 1rem 2.4rem rgb(1 13 44 / 28%);
+	transform: translateY(-2px);
+}
+
+.about-hero-cta svg {
+	font-size: 1.15rem;
+	transition: transform 0.24s ease;
+}
+
+.about-hero-cta:hover svg,
+.about-hero-cta:focus-visible svg {
+	transform: translateX(0.25rem);
+}
+
+.about-hero-features {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	width: min(100%, 34rem);
+	margin-top: auto;
+	padding-top: clamp(2.8rem, 5vw, 5rem);
+}
+
+.about-hero-feature {
+	display: flex;
+	align-items: center;
+	gap: 0.75rem;
+	min-width: 0;
+	padding-inline: 1rem;
+	border-inline-end: 1px solid rgb(121 158 225 / 22%);
+}
+
+.about-hero-feature:first-child {
+	padding-inline-start: 0;
+}
+
+.about-hero-feature:last-child {
+	padding-inline-end: 0;
+	border-inline-end: 0;
+}
+
+.about-hero-feature-icon {
+	display: grid;
+	flex: 0 0 auto;
+	place-items: center;
+	width: 2.7rem;
+	aspect-ratio: 1;
+	border: 1px solid rgb(105 160 255 / 28%);
+	border-radius: 50%;
+	box-shadow: inset 0 0 1rem rgb(47 110 240 / 8%);
+	background: rgb(10 27 61 / 66%);
+	font-size: 1.35rem;
+	color: #69A8FF;
+}
+
+.about-hero-feature > span:last-child {
+	display: grid;
+	gap: 0.1rem;
+	min-width: 0;
+}
+
+.about-hero-feature strong {
+	font-size: 0.95rem;
+	font-weight: 650;
+	white-space: nowrap;
+	color: rgb(244 248 255 / 92%);
+}
+
+.about-hero-feature small {
+	font-size: 0.72rem;
+	color: rgb(184 201 231 / 62%);
 }
 
 .about-hero.is-pointer-active :deep(.scene-profile-avatar) {
-	filter: brightness(1.04) saturate(1.06);
+	filter: brightness(1.08) saturate(1.12);
 }
 
 .about-hero.is-pointer-active :deep(.scene-avatar-tether) {
@@ -160,88 +367,49 @@ useSeoMeta({
 }
 
 .about-hero.is-pointer-active :deep(.scene-character) {
-	filter: drop-shadow(0 18px 28px rgb(32 71 150 / 28%));
+	filter: drop-shadow(0 20px 32px rgb(20 75 181 / 38%));
 }
 
 .about-hero.is-pressed :deep(.scene-ripple) {
 	animation: shinchan-click-ripple 0.72s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.about-hero h1 {
-	margin: 0.35rem 0;
-	font-family: var(--font-creative);
-	font-size: clamp(2.2rem, 8vw, 5rem);
-	line-height: 1;
-}
-
-.about-hero p {
-	max-width: 38rem;
-	color: var(--c-text-2);
-}
-
 .about-hero.is-dynamic-mode {
-	border-color: rgb(105 157 255 / 26%);
+	border-color: rgb(122 171 255 / 48%);
 	box-shadow:
-		inset 0 1px 0 rgb(255 255 255 / 8%),
-		0 1.6rem 4.5rem rgb(2 10 31 / 34%);
+		inset 0 1px 0 rgb(255 255 255 / 12%),
+		inset 0 0 5rem rgb(41 103 232 / 12%),
+		0 1.8rem 5.5rem rgb(0 7 26 / 42%);
 	background:
-		radial-gradient(circle at 72% 30%, rgb(54 117 255 / 22%), transparent 25%),
-		radial-gradient(circle at 98% 104%, rgb(39 105 255 / 34%), transparent 42%),
-		linear-gradient(135deg, #071126 0%, #0A1732 46%, #102B61 100%);
-}
-
-.about-hero.is-dynamic-mode::after {
-	background: linear-gradient(90deg, rgb(5 13 30 / 94%) 0 40%, rgb(7 18 42 / 62%) 55%, transparent 74%);
-}
-
-.about-hero.is-dynamic-mode h1 {
-	text-shadow:
-		0 1px 0 rgb(255 255 255 / 20%),
-		0 0.75rem 2.2rem rgb(16 72 202 / 24%);
-	color: #F7FAFF;
-}
-
-.about-hero.is-dynamic-mode p {
-	color: rgb(220 229 248 / 78%);
+		radial-gradient(circle at 82% 28%, rgb(69 139 255 / 28%), transparent 25%),
+		radial-gradient(circle at 64% 64%, rgb(27 78 194 / 22%), transparent 36%),
+		linear-gradient(126deg, #010614 0%, #041026 48%, #08204C 77%, #0B2C69 100%);
 }
 
 .about-hero.is-dynamic-mode :deep(.scene-atmosphere) {
 	opacity: 1;
-	filter: saturate(1.22) brightness(1.04);
+	filter: saturate(1.26) brightness(1.08);
 }
 
-.about-hero.is-dynamic-mode :deep(.scene-orbit) {
-	border-color: rgb(92 153 255 / 42%);
+.about-hero :deep(.scene-orbit) {
+	border-color: rgb(89 154 255 / 45%);
 }
 
-.about-hero.is-dynamic-mode :deep(.scene-track) {
-	background: linear-gradient(90deg, transparent, rgb(98 174 255 / 88%), transparent);
+.about-hero :deep(.scene-track) {
+	background: linear-gradient(90deg, transparent, rgb(106 180 255 / 88%), transparent);
 }
 
-.about-hero.is-dynamic-mode :deep(.scene-profile-avatar) {
-	border-color: rgb(153 194 255 / 58%);
-	box-shadow:
-		inset 0 1px 0 rgb(255 255 255 / 38%),
-		0 0 0 0.55rem rgb(82 142 255 / 10%),
-		0 0 2.4rem rgb(57 121 255 / 24%),
-		0 1.4rem 3.2rem rgb(2 11 37 / 48%);
-	background: rgb(12 31 70 / 42%);
+.about-hero :deep(.scene-profile-avatar) {
+	border-color: rgb(155 197 255 / 68%);
+	background: rgb(10 29 68 / 44%);
 }
 
-.about-hero.is-dynamic-mode :deep(.scene-profile-avatar img) {
-	background: radial-gradient(circle at 34% 24%, rgb(255 255 255 / 24%), rgb(45 92 177 / 36%));
+.about-hero :deep(.scene-profile-avatar img) {
+	background: radial-gradient(circle at 34% 24%, rgb(255 255 255 / 22%), rgb(29 73 155 / 38%));
 }
 
-.about-hero.is-dynamic-mode :deep(.scene-planet) {
-	box-shadow:
-		inset 0 1.2rem 2.6rem rgb(255 255 255 / 20%),
-		inset 0 -2.4rem 5rem rgb(7 25 91 / 52%),
-		0 -0.3rem 2.2rem rgb(79 153 255 / 36%),
-		0 0 4.2rem rgb(29 93 232 / 34%);
-}
-
-.about-hero.is-dynamic-mode :deep(.scene-character) {
-	filter: drop-shadow(0 16px 30px rgb(0 0 0 / 34%));
+.about-hero :deep(.scene-character) {
+	filter: drop-shadow(0 18px 32px rgb(0 0 0 / 38%));
 }
 
 .about-eyebrow,
@@ -332,15 +500,88 @@ useSeoMeta({
 	transform: translateY(-2px);
 }
 
-@media (max-width: 600px) {
+@media (max-width: 900px) {
 	.about-hero {
-		align-items: flex-start;
-		min-height: 21rem;
-		padding: 1.4rem 1.4rem 11.5rem;
+		min-height: 41rem;
+		padding: 2.4rem 2.2rem 19rem;
 	}
 
 	.about-hero::after {
-		background: linear-gradient(to bottom, color-mix(in srgb, var(--c-surface-fill) 94%, transparent) 0 42%, transparent 66%);
+		background:
+			linear-gradient(to bottom, rgb(2 8 23 / 98%) 0 36%, rgb(3 11 28 / 80%) 49%, transparent 68%),
+			linear-gradient(90deg, rgb(2 8 23 / 50%), transparent 68%);
+	}
+
+	.about-hero-copy {
+		width: min(100%, 37rem);
+	}
+
+	.about-hero h1 {
+		font-size: clamp(4rem, 13vw, 6.6rem);
+	}
+
+	.about-hero-features {
+		margin-top: 2.7rem;
+		padding-top: 0;
+	}
+}
+
+@media (max-width: 600px) {
+	.about-page {
+		margin: 0.75rem;
+	}
+
+	.about-hero {
+		align-items: flex-start;
+		min-height: 42rem;
+		padding: 1.7rem 1.35rem 18rem;
+		border-radius: 1rem;
+	}
+
+	.about-hero h1 {
+		margin-top: 0.65rem;
+		font-size: clamp(3.55rem, 19vw, 5.2rem);
+	}
+
+	.about-hero p {
+		font-size: 0.96rem;
+		line-height: 1.65;
+	}
+
+	.about-hero-cta {
+		min-width: 10.5rem;
+		margin-top: 1.55rem;
+		padding: 0.76rem 1.25rem;
+	}
+
+	.about-hero-features {
+		gap: 0.15rem;
+		width: 100%;
+		margin-top: 2.1rem;
+	}
+
+	.about-hero-feature {
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 0.45rem;
+		padding-inline: 0.55rem;
+	}
+
+	.about-hero-feature:first-child {
+		padding-inline-start: 0;
+	}
+
+	.about-hero-feature-icon {
+		width: 2.35rem;
+		font-size: 1.12rem;
+	}
+
+	.about-hero-feature strong {
+		font-size: 0.8rem;
+	}
+
+	.about-hero-feature small {
+		font-size: 0.66rem;
 	}
 
 	.about-timeline li {
@@ -349,6 +590,8 @@ useSeoMeta({
 }
 
 @media (prefers-reduced-motion: reduce) {
+	.about-hero-cta,
+	.about-hero-cta svg,
 	.about-links a {
 		transition: none;
 	}
