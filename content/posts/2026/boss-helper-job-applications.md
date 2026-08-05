@@ -6,7 +6,7 @@ description: 最近在 BOSS进行投递，最让我头疼的不是岗位少，�
 draft: false
 image: https://flyovo.cc.cd/media/public/articles/2026/08/ea0e6aef-4c48-481c-99bb-5655895041ce.png
 tags: []
-title: 使用Boss-Helper 批量投递简历 省时间省力！
+title: 使用Boss-Helper 批量投递简历 省时间更省力！
 ---
 最近在 BOSS 直聘上找 Java 开发岗位，最让我头疼的不是岗位少，而是重复操作太多：筛选、点开、沟通、再看下一个。几十个岗位操作下来，时间花了不少，每天下来真正用于修改简历和准备面试的时间反而不多。
 
