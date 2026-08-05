@@ -16,7 +16,7 @@ concurrency:
 jobs:
   deploy-preview:
     if: github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 35
     environment:
       name: pages-preview
@@ -24,7 +24,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          fetch-depth: 0
+          fetch-depth: 2
       - uses: pnpm/action-setup@v6
         with:
           version: 11.8.0
@@ -38,7 +38,7 @@ jobs:
         shell: bash
         run: |
           diff_file=$(mktemp)
-          git diff --name-only "origin/${{ github.base_ref }}...HEAD" > "$diff_file"
+          git diff --name-only HEAD^1...HEAD^2 > "$diff_file"
           test "$(wc -l < "$diff_file" | tr -d ' ')" = 1
           path=$(sed -n '1p' "$diff_file")
           [[ "$path" =~ ^content/posts/[0-9]{4}/[a-z0-9]+(-[a-z0-9]+)*\.md$ ]]

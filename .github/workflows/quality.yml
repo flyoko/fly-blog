@@ -16,17 +16,18 @@ concurrency:
 
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
         with:
-          fetch-depth: 0
+          fetch-depth: 2
       - name: 文章 PR 快路径策略
         if: ${{ github.event_name == 'pull_request' && startsWith(github.head_ref, 'admin/article/') }}
         run: |
-          test "$(git diff --name-only "origin/${{ github.base_ref }}...HEAD" | wc -l | tr -d ' ')" = 1
-          git diff --name-only "origin/${{ github.base_ref }}...HEAD" | grep -Eq '^content/posts/[0-9]{4}/[a-z0-9]+(-[a-z0-9]+)*\.md$'
+          changed_files="$(git diff --name-only HEAD^1...HEAD^2)"
+          test "$(printf '%s\n' "$changed_files" | sed '/^$/d' | wc -l | tr -d ' ')" = 1
+          printf '%s\n' "$changed_files" | grep -Eq '^content/posts/[0-9]{4}/[a-z0-9]+(-[a-z0-9]+)*\.md$'
       - uses: pnpm/action-setup@v6
         if: ${{ github.event_name != 'pull_request' || !startsWith(github.head_ref, 'admin/article/') }}
         with:

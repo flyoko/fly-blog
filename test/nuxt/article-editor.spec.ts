@@ -270,6 +270,7 @@ describe('article editor UI boundaries', () => {
 		expect(headerAd).toContain('activeIndex')
 		expect(headerAd).toContain('上一条广告')
 		expect(headerAd).toContain('下一条广告')
+		expect(headerAd).toContain('normalizeCanonicalSiteHref')
 		expect(headerAd).toContain('const isExternal')
 		expect(headerAd).toContain(':target="isExternal ?')
 		expect(headerAd).toContain(':rel="isExternal ?')
