@@ -44,7 +44,7 @@ useSeoMeta({
 
 <template>
 <div class="mobile-only">
-	<BlogHeader to="/" />
+	<BlogHeader to="/" compact />
 </div>
 
 <article class="about-page">
@@ -526,47 +526,47 @@ useSeoMeta({
 
 @media (max-width: 600px) {
 	.about-page {
-		gap: 0.7rem;
+		gap: 0.6rem;
 		width: min(calc(100% - 1rem), 72rem);
-		margin: 0.5rem auto 0.8rem;
+		margin: 0.35rem auto 0.8rem;
 	}
 
 	.about-hero {
 		align-items: flex-start;
-		min-height: 19rem;
-		padding: 1rem 0.95rem 7.8rem;
+		min-height: 13.5rem;
+		padding: 0.9rem 0.85rem 4.7rem;
 		border-radius: 0.95rem;
 	}
 
 	.about-hero::after {
 		background:
-			linear-gradient(to bottom, color-mix(in srgb, var(--c-surface-fill) 97%, white) 0 43%, color-mix(in srgb, var(--c-surface-fill) 76%, transparent) 56%, transparent 76%),
-			linear-gradient(90deg, color-mix(in srgb, var(--c-surface-fill) 58%, transparent), transparent 74%);
+			linear-gradient(105deg, color-mix(in srgb, var(--c-surface-fill) 98%, white) 0 43%, color-mix(in srgb, var(--c-surface-fill) 84%, transparent) 57%, transparent 78%),
+			linear-gradient(to bottom, color-mix(in srgb, var(--c-surface-fill) 72%, transparent), transparent 76%);
 	}
 
 	.about-hero-copy {
-		width: min(100%, 20rem);
+		width: min(72%, 15rem);
 	}
 
 	.about-hero .about-eyebrow {
-		font-size: 0.62rem;
-		letter-spacing: 0.14em;
+		font-size: 0.58rem;
+		letter-spacing: 0.13em;
 	}
 
 	.about-hero h1 {
-		margin: 0.28rem 0 0.38rem;
-		font-size: clamp(2.45rem, 13vw, 3.2rem);
-		line-height: 0.96;
+		margin: 0.2rem 0 0.3rem;
+		font-size: clamp(2.25rem, 11.8vw, 2.85rem);
+		line-height: 0.94;
 	}
 
 	.about-hero p {
-		max-width: 18rem;
-		font-size: 0.8rem;
-		line-height: 1.45;
+		max-width: 14rem;
+		font-size: 0.76rem;
+		line-height: 1.4;
 	}
 
 	.about-section {
-		padding: 1rem;
+		padding: 0.9rem;
 	}
 
 	.about-section-heading h2 {
@@ -586,16 +586,21 @@ useSeoMeta({
 
 @media (max-width: 380px) {
 	.about-hero {
-		min-height: 18.25rem;
-		padding-bottom: 7.25rem;
+		min-height: 12.75rem;
+		padding-bottom: 4.35rem;
+	}
+
+	.about-hero-copy {
+		width: min(74%, 13.5rem);
 	}
 
 	.about-hero h1 {
-		font-size: clamp(2.3rem, 13vw, 2.85rem);
+		font-size: clamp(2.1rem, 11.5vw, 2.55rem);
 	}
 
 	.about-hero p {
-		max-width: 16rem;
+		max-width: 12.5rem;
+		font-size: 0.72rem;
 	}
 }
 
