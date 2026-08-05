@@ -82,11 +82,23 @@ export function useAdminArticleEditor(options: AdminArticleEditorOptions) {
 		articles.value = result.items
 	}
 
+	async function fetchRemote() {
+		const id = options.isNew
+			? encodeArticleId(document.value.path)
+			: options.articleId
+		if (!id)
+			return null
+		const value = await useAdminApi<ArticleDocument>(`/api/admin/articles/${id}`)
+		remoteDocument.value = structuredClone(value)
+		return value
+	}
+
 	async function loadRemote() {
 		if (options.isNew || !options.articleId)
 			return
-		const value = await useAdminApi<ArticleDocument>(`/api/admin/articles/${options.articleId}`)
-		remoteDocument.value = structuredClone(value)
+		const value = await fetchRemote()
+		if (!value)
+			return
 		document.value = value
 	}
 
@@ -167,8 +179,16 @@ export function useAdminArticleEditor(options: AdminArticleEditorOptions) {
 		error.value = null
 		success.value = null
 		try {
+			let requestDocument = document.value
+			if (mode === 'pull_request' && conflict.value) {
+				const latestRemote = remoteDocument.value ?? await fetchRemote()
+				requestDocument = {
+					...document.value,
+					sha: latestRemote?.sha ?? document.value.sha,
+				}
+			}
 			const request = buildArticleSaveRequest(
-				document.value,
+				requestDocument,
 				mode,
 				newIdempotencyKey(options.isNew ? 'article-create' : 'article-update'),
 			)
@@ -201,9 +221,16 @@ export function useAdminArticleEditor(options: AdminArticleEditorOptions) {
 			}
 		}
 		catch (cause) {
-			if (cause instanceof AdminApiError && cause.code === 'CONFLICT')
+			if (cause instanceof AdminApiError && cause.code === 'CONFLICT') {
 				conflict.value = true
-			error.value = cause instanceof Error ? cause.message : '文章保存失败'
+				await fetchRemote().catch(() => null)
+				error.value = options.isNew
+					? '仓库路径已经存在。请修改路径，或使用下方操作继续。'
+					: '远端文章已经变化。当前草稿仍在，请选择如何继续。'
+			}
+			else {
+				error.value = cause instanceof Error ? cause.message : '文章保存失败'
+			}
 			diagnostics.value = (cause as { details?: { diagnostics?: ArticleDiagnostic[] } })?.details?.diagnostics ?? []
 		}
 		finally {
@@ -213,14 +240,17 @@ export function useAdminArticleEditor(options: AdminArticleEditorOptions) {
 
 	async function reloadRemote() {
 		if (options.isNew) {
-			document.value = options.initialDocument ?? document.value
-			const resetFingerprint = documentFingerprint(document.value)
-			remoteFingerprint.value = resetFingerprint
-			localDraftFingerprint.value = resetFingerprint
+			const target = router.resolve(`/admin/articles/${encodeArticleId(document.value.path)}`)
+			window.open(target.href, '_blank', 'noopener,noreferrer')
+			await flushPendingDraft()
 			return
 		}
+		error.value = null
+		const value = await fetchRemote()
+		if (!value)
+			return
 		await drafts.remove(document.value.path, document.value.sha)
-		await loadRemote()
+		document.value = value
 		const loadedFingerprint = documentFingerprint(document.value)
 		remoteFingerprint.value = loadedFingerprint
 		localDraftFingerprint.value = loadedFingerprint
@@ -228,8 +258,20 @@ export function useAdminArticleEditor(options: AdminArticleEditorOptions) {
 		draftRestored.value = false
 	}
 
-	function compareRaw() {
-		rawComparisonOpen.value = true
+	async function compareRaw() {
+		error.value = null
+		try {
+			if (!remoteDocument.value)
+				await fetchRemote()
+			rawComparisonOpen.value = true
+		}
+		catch (cause) {
+			error.value = cause instanceof Error ? cause.message : '远端 Markdown 加载失败'
+		}
+	}
+
+	function closeRawComparison() {
+		rawComparisonOpen.value = false
 	}
 
 	async function navigate(id: string) {
@@ -279,6 +321,7 @@ export function useAdminArticleEditor(options: AdminArticleEditorOptions) {
 		save,
 		reloadRemote,
 		compareRaw,
+		closeRawComparison,
 		navigate,
 	}
 }

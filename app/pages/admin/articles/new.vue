@@ -23,6 +23,8 @@ useSeoMeta({ title: '新建文章', robots: 'noindex, nofollow' })
 		:categories="categories"
 		:saving="editor.saving.value"
 		:conflict="editor.conflict.value"
+		:remote-document="editor.remoteDocument.value"
+		:raw-comparison-open="editor.rawComparisonOpen.value"
 		:diagnostics="editor.diagnostics.value"
 		:draft-status="editor.draftStatus.value"
 		is-new
@@ -30,6 +32,7 @@ useSeoMeta({ title: '新建文章', robots: 'noindex, nofollow' })
 		@navigate="editor.navigate"
 		@reload-remote="editor.reloadRemote"
 		@compare-raw="editor.compareRaw"
+		@close-raw-comparison="editor.closeRawComparison"
 	/>
 </div>
 </template>
