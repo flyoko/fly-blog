@@ -1,6 +1,5 @@
 import type { ArticleDocument } from '#shared/admin/articles'
-import { toRaw } from 'vue'
-import { articleSaveRequestSchema } from '#shared/admin/articles'
+import { articleDocumentSchema, articleSaveRequestSchema } from '#shared/admin/articles'
 
 const draftDatabaseName = 'fly-living-admin'
 const draftStoreName = 'article-drafts'
@@ -282,7 +281,7 @@ export function buildArticleSaveRequest(
 }
 
 export function cloneArticleDocument(document: ArticleDocument): ArticleDocument {
-	return structuredClone(toRaw(document))
+	return articleDocumentSchema.parse(document)
 }
 
 function openDraftDatabase(): Promise<IDBDatabase> {
