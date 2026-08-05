@@ -52,7 +52,15 @@ describe('admin contracts', () => {
 	})
 
 	it('validates backend-managed homepage ads and preserves legacy link configs', () => {
-		const legacy = articlePresentationConfigSchema.parse(articleConfig)
+		const configured = articlePresentationConfigSchema.parse(articleConfig)
+		expect(configured.headerAds.map(ad => ad.action)).toEqual(['wechat', 'link'])
+		expect(configured.headerAds[0]).toMatchObject({
+			wechatQr: 'https://flyovo.cc.cd/media/public/profile/2d6c33d9-5beb-4129-8cca-2f57b36103af.jpg',
+		})
+
+		const legacy = articlePresentationConfigSchema.parse({
+			headerAds: [{ id: 'legacy', enabled: true, label: '广告', title: '旧广告', description: '', image: '/media/banner.webp', href: '/about' }],
+		})
 		expect(legacy.headerAds[0]).toMatchObject({
 			action: 'link',
 			wechatQr: '',

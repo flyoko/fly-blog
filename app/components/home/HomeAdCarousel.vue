@@ -461,6 +461,7 @@ async function copyWechatId() {
 	display: grid;
 	place-items: center;
 	position: absolute;
+	opacity: 0;
 	top: 50%;
 	width: 2.15rem;
 	height: 2.15rem;
@@ -472,8 +473,10 @@ async function copyWechatId() {
 	backdrop-filter: blur(0.6rem);
 	font-size: 1.15rem;
 	color: var(--c-text-1);
-	transform: translateY(-50%);
+	transform: translateY(-50%) scale(0.92);
+	transition: opacity 0.18s ease, transform 0.18s ease, border-color 0.18s ease, color 0.18s ease;
 	cursor: pointer;
+	pointer-events: none;
 	z-index: 4;
 
 	&:hover,
@@ -484,6 +487,13 @@ async function copyWechatId() {
 
 	&.is-previous { inset-inline-start: 0.65rem; }
 	&.is-next { inset-inline-end: 0.65rem; }
+}
+
+.home-ad-carousel-frame:hover .home-ad-carousel-control,
+.home-ad-carousel-frame:focus-within .home-ad-carousel-control {
+	opacity: 1;
+	transform: translateY(-50%) scale(1);
+	pointer-events: auto;
 }
 
 .home-ad-carousel-autoplay {
@@ -648,6 +658,14 @@ async function copyWechatId() {
 	overflow: hidden;
 }
 
+@media (hover: none), (pointer: coarse) {
+	.home-ad-carousel-control {
+		opacity: 1;
+		transform: translateY(-50%) scale(1);
+		pointer-events: auto;
+	}
+}
+
 @media (max-width: 680px) {
 	.home-ad-carousel {
 		margin: 0.8rem 0.5rem;
@@ -725,6 +743,7 @@ async function copyWechatId() {
 
 @media (prefers-reduced-motion: reduce) {
 	.home-ad-carousel-image,
+	.home-ad-carousel-control,
 	.home-ad-carousel-dot,
 	.home-ad-fade-enter-active,
 	.home-ad-fade-leave-active {
