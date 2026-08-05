@@ -528,16 +528,16 @@ function formatTime(value: number) {
 
 @media (max-width: $breakpoint-mobile), (hover: none) and (pointer: coarse) {
 	.music-player {
-		inset-inline: 0.6rem;
-		bottom: max(0.6rem, env(safe-area-inset-bottom));
+		inset-inline: var(--mobile-page-gutter);
+		bottom: var(--mobile-safe-bottom);
 		width: auto;
-		max-height: min(20rem, calc(100dvh - 5.5rem));
+		max-height: min(20rem, calc(100dvh - var(--mobile-content-clearance) - 1rem));
 		background: var(--c-bg-2);
 		backdrop-filter: none;
 	}
 
 	.music-player-console {
-		min-height: 2.75rem;
+		min-height: var(--touch-target);
 		padding: 0.35rem 0.4rem 0.45rem;
 	}
 
@@ -565,8 +565,8 @@ function formatTime(value: number) {
 
 	.music-controls button,
 	.music-volume-control button {
-		min-width: 2.75rem;
-		min-height: 2.75rem;
+		min-width: var(--touch-target);
+		min-height: var(--touch-target);
 	}
 
 	.music-player-tools button {

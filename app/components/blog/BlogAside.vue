@@ -38,11 +38,11 @@ watch(() => props.hasContent, (hasContent) => {
 		position: fixed;
 		inset-inline-end: 0;
 		top: 0;
-		width: min(320px, 100vw);
+		width: min(20rem, calc(100vw - 3rem));
 		height: 100dvh;
-		max-width: 100%;
+		max-width: calc(100vw - 3rem);
 		max-height: 100dvh;
-		padding-bottom: calc(5rem + env(safe-area-inset-bottom));
+		padding-bottom: var(--mobile-content-clearance);
 		background-color: var(--c-bg-1);
 		background-color: color-mix(in srgb, var(--c-bg-1) 96%, transparent);
 		transform: var(--transform-end-far);

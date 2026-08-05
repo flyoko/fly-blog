@@ -307,6 +307,16 @@ button {
 }
 
 @media (max-width: $breakpoint-mobile), (hover: none) and (pointer: coarse) {
+	#blog-panel-shell {
+		inset-inline-end: var(--mobile-page-gutter);
+		bottom: var(--mobile-safe-bottom);
+	}
+
+	#blog-panel button {
+		min-width: var(--mobile-float-size);
+		min-height: var(--mobile-float-size);
+	}
+
 	.music-launcher-effect {
 		display: none;
 	}

@@ -1016,6 +1016,11 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 640px) {
+	.privacy-btn {
+		width: var(--touch-target);
+		height: var(--touch-target);
+	}
+
 	.z-comment {
 		margin: 2rem 0.35rem;
 		padding: 1rem;
@@ -1040,6 +1045,12 @@ onBeforeUnmount(() => {
 		.tk-input .el-textarea__inner {
 			min-height: 8.4rem !important;
 			padding: 3rem 6.6rem 3.2rem 1rem;
+			font-size: 1rem;
+		}
+
+		.tk-meta-input .el-input__inner {
+			min-height: var(--touch-target);
+			font-size: 1rem;
 		}
 
 		.tk-input::before {
@@ -1075,6 +1086,15 @@ onBeforeUnmount(() => {
 
 		.tk-row-actions-start {
 			margin-inline-end: auto;
+		}
+
+		.tk-submit-action-icon {
+			width: var(--touch-target);
+			height: var(--touch-target);
+		}
+
+		.tk-row.actions > .el-button {
+			min-height: var(--touch-target);
 		}
 
 		.tk-comments-title {

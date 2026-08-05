@@ -148,12 +148,30 @@ function toggleDirection() {
 
 @media (max-width: $breakpoint-phone) {
 	.order-toggle {
-		flex-wrap: wrap;
-		gap: 0.65rem 1rem;
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto;
+		gap: 0.5rem;
+		width: 100%;
+	}
+
+	.sort-controls {
+		justify-self: end;
+		min-width: 0;
+
+		> button {
+			min-width: var(--touch-target);
+		}
 	}
 
 	.order-text {
+		overflow: hidden;
+		max-width: min(10rem, 42vw);
 		white-space: nowrap;
+		text-overflow: ellipsis;
+	}
+
+	:deep(.secret-container) {
+		grid-column: 1 / -1;
 	}
 }
 </style>

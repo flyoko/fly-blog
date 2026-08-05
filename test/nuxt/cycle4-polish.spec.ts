@@ -75,6 +75,29 @@ describe('cycle 4 polish contracts', () => {
 		expect(moments).toMatch(/prefers-reduced-motion: reduce[\s\S]*?moment-card[\s\S]*?animation: none;/u)
 	})
 
+	it('keeps mobile layout safety and touch targets explicit', () => {
+		const polish = read('app/assets/css/polish.scss')
+		const layout = read('app/layouts/default.vue')
+		const sidebar = read('app/components/blog/BlogSidebar.vue')
+		const aside = read('app/components/blog/BlogAside.vue')
+		const order = read('app/components/post/OrderToggle.vue')
+		const comment = read('app/components/post/Comment.vue')
+		const article = read('app/assets/css/article.scss')
+		const player = read('app/components/music/GlobalPlayer.vue')
+
+		expect(polish).toContain('--mobile-content-clearance:')
+		expect(layout).toContain('padding-bottom: var(--mobile-content-clearance)')
+		expect(sidebar).toContain('calc(100vw - 3rem)')
+		expect(aside).toContain('calc(100vw - 3rem)')
+		expect(order).toMatch(/\.sort-controls[\s\S]*?> button[\s\S]*?min-width: var\(--touch-target\)/u)
+		expect(comment).toMatch(/\.privacy-btn[\s\S]*?width: var\(--touch-target\)[\s\S]*?height: var\(--touch-target\)/u)
+		expect(comment).toMatch(/\.tk-submit-action-icon[\s\S]*?width: var\(--touch-target\)[\s\S]*?height: var\(--touch-target\)/u)
+		expect(comment).toContain('font-size: 1rem')
+		expect(article).toContain('overflow-wrap: anywhere')
+		expect(article).toContain('overscroll-behavior-inline: contain')
+		expect(player).toContain('bottom: var(--mobile-safe-bottom)')
+	})
+
 	it('keeps the AI news feed inside the layout main landmark', () => {
 		const aiNews = read('app/pages/ai.news/index.vue')
 		expect(aiNews).toContain('<section class=\"news-feed card\"')

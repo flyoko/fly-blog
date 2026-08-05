@@ -65,10 +65,10 @@ const debouncedSelection = refDebounced(text)
 	@media (max-width: $breakpoint-mobile) {
 		position: fixed;
 		inset-inline-start: 0;
-		width: min(320px, 100vw);
+		width: min(20rem, calc(100vw - 3rem));
 		height: 100dvh;
-		max-width: 100%;
-		padding-bottom: env(safe-area-inset-bottom);
+		max-width: calc(100vw - 3rem);
+		padding-bottom: var(--mobile-safe-bottom);
 		box-shadow: inset -1px 0 0 var(--c-surface-line);
 		background-color: var(--c-bg-1);
 		background-color: color-mix(in srgb, var(--c-bg-1) 96%, transparent);

@@ -79,6 +79,11 @@ const hasAside = computed(() => routeAsideVisible.value)
 		// 使内容正确计算宽度而不横向溢出
 		// 也可设置 width: 0 或者 contain: inline-size（兼容性不佳）
 		min-width: 0;
+
+		@media (max-width: $breakpoint-mobile) {
+			width: 100%;
+			padding-bottom: var(--mobile-content-clearance);
+		}
 	}
 }
 </style>
