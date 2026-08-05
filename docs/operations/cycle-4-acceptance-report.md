@@ -1,75 +1,78 @@
 # 周期 4 验收证据报告
 
-- 日期：2026-08-03
-- 范围：统一视觉、动效、响应式、可访问性、性能与最终生产回归
-- 当前结论：本地实现、全量门禁、桌面/移动浏览器回归与静态 WCAG A/AA 审计全部通过；等待私有 `main` 推送、Pages 部署与生产视觉矩阵后更新
+- 最终更新：2026-08-05
+- 范围：统一视觉、动效、响应式、可访问性、性能、生产多域名回归与后续质量收口
+- 当前结论：**Pass**。源码、自动化、PR 门禁、正式域、备用域与生产部署均已验证；周期 4 验收项全部关闭。
 
 ## 已完成实现
 
-- 新增全局视觉/动效/焦点/触控/forced-colors/reduced-motion 样式。
-- 页面切换采用 200ms 淡入与小位移；瞬间/阅闻首屏最多 8 项有限顺序显现。
-- 天气与播放器由静态模块配置进行条件懒加载；禁用时零公开 API 请求、零 Open-Meteo 上游请求、零 Audio 实例、零可见组件。
-- 侧栏/搜索锁定背景滚动并恢复焦点；站内搜索使用 button/dialog 语义。
-- 公开站和后台均有跳至主内容入口与单一主地标。
-- 移动侧栏、天气栏和播放器支持 `100dvh` 与安全区避让。
-- 图片补齐异步解码；非首屏媒体使用懒加载。
-- 关闭命名布局插槽转换，改用路由驱动侧栏组件；修复首页 SSR/客户端片段差异、快捷键和相对时间的非确定首帧，生产 Hydration 无 mismatch。
-- 下拉菜单改为原生 button disclosure，支持点击、焦点离开、外部点击、Escape 与方向键；`aria-expanded` 只出现在真实按钮。
-- 修复 Twikoo 第三方 textarea/Markdown 链接可访问名称，并通过 MutationObserver 覆盖异步重绘。
-- 修复首页、文章、自述、瞬间、归档与侧栏组件的标题、列表、导航名称和文字对比度。
+- 统一公开站与后台的视觉令牌、焦点、触控、安全区、深浅色和 reduced-motion 行为。
+- 修复 SSR/客户端首帧差异、命名布局插槽、多主地标、标题层级、Hydration mismatch 和非确定相对时间。
+- 天气与随心听按模块配置懒加载；关闭态零公开 API 请求、零上游请求、零 Audio 实例和零可见组件。
+- 搜索、抽屉、分类 disclosure、后台 skip link 与 Twikoo 异步 DOM 均具备可访问名称、焦点恢复和键盘操作。
+- 公开站与后台的移动端溢出、触控目标、动态效果和第三方评论语义均加入 Playwright 回归。
+- AI 阅闻列表与详情补齐单一主地标、可读对比度、图库语义和 WCAG A/AA 浏览器回归。
+- 备用 Pages 域的 `/moments`、`/ai.news` 与详情路由在首次客户端加载即跳转正式域，避免 Pages 同源 API 404。
+- 移动端 `/me` 英雄卡由约 440px 压缩至 304px；正文顶部由约 606px 提前至约 466px，360px 窄屏仍无横向溢出。
 
-## 聚焦自动化
+## 最终自动化证据
 
-| 类别 | 结果 |
-|---|---:|
-| 周期 4 源码契约 | 6/6 Pass |
-| 周期 4 E2E | 12 Pass / 8 设备条件 Skip |
-| 320–430px 公开路由溢出矩阵 | Pass |
-| 320–430px 全部后台路由溢出矩阵 | Pass |
-| 搜索键盘、焦点、背景锁定与恢复 | Pass |
-| 后台 skip link | Pass |
-| 可见按钮命名、图片 alt、单一 main 地标 | Pass |
-| 禁用天气/音乐零运行时 | Pass |
-| 公开 Hydration 控制台矩阵 | Pass |
-| Twikoo 第三方表单语义 | Pass |
-| 静态生产 axe WCAG A/AA | 6 核心页面 / 0 violation |
-
-## 最终全量门禁
-
-| 类别 | 结果 |
+| 类别 | 最终结果 |
 |---|---:|
 | ESLint / Stylelint / Typecheck | Pass |
-| Nuxt / 共享测试 | 10 files / 51 tests |
-| API Worker 测试 | 16 files / 90 tests |
-| Edge Worker 测试 | 1 file / 22 tests |
-| 静态生成 | 42 routes |
-| Nuxt Link Checker | 0 error / 0 warning |
-| 生成 HTML 链接检查 | 24 files / 0 broken href |
-| Secret 扫描 | 526 files / 0 finding |
-| Playwright | 36 passed / 30 device-condition skipped |
+| Nuxt / 共享测试（周期 4 生产分支） | 21 files / 206 tests Pass |
+| API Worker（周期 4 生产分支） | 17 files / 127 tests Pass |
+| Edge Worker | 1 file / 33 tests Pass |
+| Playwright 全量低并发复验 | 78 passed / 68 device-condition skipped |
+| 静态生成 | 45 routes |
+| 生成 HTML 链接检查 | 26 files / 0 broken href |
+| Secret 扫描 | 681 files / 0 finding |
+| 生产专用 E2E 路由 | 正常生产输出不存在 `/__e2e__` |
 
-## 构建体积证据
+全量 E2E 首次在本机 6 worker 与多个并发构建下出现两项氛围动效采样超时；单 worker 复验通过，随后 `--workers=2` 全量运行 78/78 通过，确认是资源竞争而非产品回归。
 
-| 项目 | 周期 3 基线 | 周期 4 | 说明 |
-|---|---:|---:|---|
-| 最大 JS chunk | 约 707.17 kB | 707,370 B | 约 +0.2 kB；Nuxt/Vue/Zod/内容与动态路由映射 |
-| SQLite 主线程 chunk | 约 199.77 kB | 199,765 B | 基本不变 |
-| SQLite Worker | 196,867 B | 196,867 B | 不变 |
-| 入口 CSS | 约 55.39 kB | 57,998 B | 增加全局焦点、动效、移动端和高对比规则 |
-| 播放器 CSS | 独立 | 3,751 B | 模块关闭时首页不引用 |
+## 合并与流水线
 
-首页静态 HTML与浏览器网络检查：`/api/weather`、`/api/music/playlist` 请求均为 0，`.music-player` 与天气卡片均不存在。天气和音乐组件仅在模块静态启用时通过 `LazyWidgetWeather` / `LazyMusicGlobalPlayer` 加载；关闭态不创建 Audio，天气 Worker 不访问 Open-Meteo。E2E 使用仅在 `NUXT_E2E=1` 时存在的 `/__e2e__` 路由验证启用态，普通生产构建中该路由返回 404。
+| 交付 | PR / 提交 | 结果 |
+|---|---|---|
+| 周期 4 主收口 | PR #14 / `04198e4` | 合并 |
+| AI 阅闻可访问性 | PR #16 / `7d4fd0e` | 合并 |
+| 后台与生产审计收口 | PR #26 / `0cfb87c` | 合并 |
+| 移动端自述与备用域最终收口 | PR #39 / `7826a19` | 合并 |
+| PR #39 verify | Actions `31007746150`、`31007716804` | Success |
+| PR #39 Pages Preview | Actions `31007745411` | Success |
+| 主线 Quality | Actions `31008058195` | Success |
+| 主线 Pages Production | Actions `31008058268` | Success |
 
-静态生产预览对 `/`、`/2026/welcome`、`/me`、`/moments`、`/link`、`/archive` 执行 axe WCAG 2.0/2.1 A/AA：0 violation；全部页面无控制台错误、无 Hydration mismatch、无非法 `aria-expanded`、无横向溢出。`/moments` 在静态预览中使用同契约 API mock，真实生产 API 在部署后复验。
+## 生产浏览器证据
+
+### 正式域 `https://flyovo.cc.cd`
+
+- `/me`，412×915：HTTP 200；`main=1`、`h1=1`；英雄卡 304px；正文顶部 465.58px；无横向溢出；控制台、页面异常、同源失败响应和 axe WCAG 2.0/2.1 A/AA violation 均为 0。
+- `/ai.news/read/8c44a307ee4227ba9e0f37362746bfe3`：HTTP 200；`main=1`、`h1=1`；无横向溢出；axe 0。
+- 含图片详情 `/ai.news/read/77526c489d7e5b8623e47b2dc249bae6`：图库 `role="group"`、`aria-label="新闻相关图片"`、图片 1；控制台/失败响应/axe 均为 0。
+
+### 备用域 `https://fly-living.pages.dev`
+
+以下首次直达均最终进入正式域，且重定向前未发起任何 `fly-living.pages.dev/api/*` 请求：
+
+- `/moments` → `https://flyovo.cc.cd/moments`
+- `/ai.news` → `https://flyovo.cc.cd/ai.news`
+- `/ai.news/read/8c44a307ee4227ba9e0f37362746bfe3` → 对应正式域详情
 
 ## 验收矩阵
 
 | AC | 状态 | 证据 |
 |---|---|---|
 | C4-AC-01–04 | Pass | 共享令牌、公开/后台样式、源码隐藏契约 |
-| C4-AC-05–10 | Pass | 页面过渡、hover media query、有限显现、全局 reduced-motion |
-| C4-AC-11–15 | Pass | Playwright 公开/后台移动溢出矩阵与安全区样式 |
-| C4-AC-16–21 | Pass | skip link、focus-visible、dialog、焦点恢复、原生 disclosure、语义 DOM、Twikoo 增强、RouteAnnouncer 与 axe 审计 |
-| C4-AC-22–27 | Pass | 关闭态零同源 API/零上游/零 Audio、条件 Lazy 组件、测试专用启用路由、图片策略、体积与控制台矩阵 |
-| C4-AC-28–31 | Pass | 10 files / 51 Nuxt+shared tests；16 files / 90 API tests；22 Edge tests；36 E2E pass / 30 device skips；42 routes；0 link/secret error |
-| C4-AC-32–34 | Pending | 等待最终推送、部署、清理和四周期总报告 |
+| C4-AC-05–10 | Pass | 页面动效、hover 媒体查询、有限显现、全局 reduced-motion |
+| C4-AC-11–15 | Pass | 320–430px 公开/后台溢出矩阵、安全区与触控目标 |
+| C4-AC-16–21 | Pass | skip link、focus-visible、dialog、焦点恢复、原生 disclosure、Twikoo、RouteAnnouncer、axe |
+| C4-AC-22–27 | Pass | 关闭态零运行时、条件懒加载、图片策略、生产构建与控制台矩阵 |
+| C4-AC-28–31 | Pass | 全量测试、Worker、E2E、静态生成、链接和 Secret 扫描 |
+| C4-AC-32–34 | Pass | PR 合并、主线流水线、Pages 生产部署、多域名复审、报告与清理 |
+
+## 已知非阻断信息
+
+- 构建仍会输出 Nuxt/Vite/依赖的 sourcemap、PURE 注解、Shiki CDN external 与大 chunk 提示；均未产生构建、运行或浏览器错误。
+- 站点使用自建同源访问分析后台；Cloudflare Web Analytics 第三方 beacon 不属于本轮功能链路，生产 HTML 中未据此声明已启用。

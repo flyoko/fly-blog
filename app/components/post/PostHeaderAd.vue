@@ -7,7 +7,7 @@ const visibleAds = computed(() => ads.filter(ad => Boolean(
 )))
 const activeIndex = ref(0)
 const currentAd = computed(() => visibleAds.value[activeIndex.value] ?? null)
-const href = computed(() => currentAd.value?.href.trim() || '/')
+const href = computed(() => normalizeCanonicalSiteHref(currentAd.value?.href || ''))
 const isExternal = computed(() => isExtLink(href.value))
 
 watch(() => visibleAds.value.length, (length) => {
