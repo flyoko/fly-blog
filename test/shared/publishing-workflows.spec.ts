@@ -78,11 +78,11 @@ describe('文章发布工作流', () => {
 			'.github/workflows/workers-production.yml',
 		]
 
+		const isolatedPnpmDest = 'dest: $' + '{{ runner.temp }}/setup-pnpm'
 		for (const workflowPath of workflowPaths) {
 			const { source } = await workflow(workflowPath)
-			expect(source).toContain('dest: ${{ runner.temp }}/setup-pnpm')
+			expect(source).toContain(isolatedPnpmDest)
 			expect(source).not.toContain('dest: ~/setup-pnpm')
 		}
 	})
-
 })
