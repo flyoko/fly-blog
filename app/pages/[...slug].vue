@@ -34,7 +34,6 @@ else {
 <template>
 <template v-if="post">
 	<PostHeader v-bind="post" />
-	<PostHeaderAd />
 	<PostExcerpt v-if="excerpt" :excerpt />
 
 	<!-- 使用 float-in 动画会导致搜索跳转不准确 -->

@@ -43,7 +43,7 @@ const blogConfig = {
 
 	article: {
 		categories: Object.fromEntries(categoriesConfig.map(({ name, ...category }) => [name, category])),
-		/** 文章头部推广横幅；由后台站点设置管理，未启用时不渲染占位。 */
+		/** 首页推广横幅；由后台站点设置管理，未启用时不渲染占位。 */
 		headerAds: articlePresentationConfig.headerAds,
 		/** 文章版式，首个为默认版式 */
 		types: {

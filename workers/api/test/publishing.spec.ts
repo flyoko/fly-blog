@@ -306,7 +306,7 @@ describe('configuration pull requests', () => {
 			headers: headers(),
 			body: JSON.stringify({
 				kind: 'article',
-				content: { headerAds: [{ id: 'promo', enabled: true, label: '广告', title: '推荐服务', description: '', image: '', href: 'https://example.com' }] },
+				content: { headerAds: [{ id: 'promo', enabled: true, label: '广告', title: '推荐服务', description: '', image: '/media/banner.webp', href: 'https://example.com' }] },
 				expectedHeadSha: 'base-head',
 				idempotencyKey: 'article-config-pr-one',
 			}),
