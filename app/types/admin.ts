@@ -132,6 +132,10 @@ export function publishRunGroup(run: Pick<AdminPublishRunDto, 'status'>): AdminP
 	return 'in_progress'
 }
 
+export function canClosePublishRun(run: Pick<AdminPublishRunDto, 'status'>): boolean {
+	return !['closed', 'merged', 'published'].includes(run.status)
+}
+
 export function publishNextAction(run: Pick<AdminPublishRunDto, 'kind' | 'status'>) {
 	if (run.status === 'preview_ready')
 		return '查看预览并确认上线'
