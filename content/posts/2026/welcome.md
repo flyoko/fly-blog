@@ -1,9 +1,14 @@
 ---
-title: 你好，这里是 fly living
+categories:
+  - 生活
 date: 2026-08-02
-categories: [生活]
+tags: []
+title: 你好，这里是 fly living
 ---
-
+::mac-window
 欢迎来到 **fly living**。
 
 这里记录技术实践、学习笔记和生活片段。愿每一次整理都能留下清晰的轨迹，也给下一次出发多一点从容。
+::
+
+
