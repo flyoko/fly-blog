@@ -133,6 +133,11 @@ export default defineAppConfig({
 		allowAscending: false,
 	},
 
+	/** 公开个人资料入口；统一控制个人 GitHub 是否出现在访客页面。 */
+	profile: {
+		showGitHub: footerConfig.showPersonalGitHub,
+	},
+
 	themes: {
 		light: {
 			icon: 'tabler:sun',
