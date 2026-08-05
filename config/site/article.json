@@ -7,7 +7,11 @@
       "title": "质保 plus月抛封号",
       "description": "95r 质保封号 gpt-plus，更多联系 fly💗",
       "image": "https://flyovo.cc.cd/media/public/articles/2026/08/d113f393-0ad4-4c8a-910e-451da3d4670a.jpg",
-      "href": "/admin/media"
+      "action": "wechat",
+      "href": "/admin/media",
+      "wechatQr": "https://flyovo.cc.cd/media/public/articles/2026/08/ac3a8413-d6f7-44e8-b90c-1a5f9415863b.jpg",
+      "wechatId": "aw7122325",
+      "wechatNote": ""
     }
   ]
 }
