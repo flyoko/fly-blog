@@ -936,113 +936,114 @@ watch(() => profileImageSrc.value, () => {
 	}
 
 	.is-about .scene-atmosphere {
-		inset: 39% 0 0;
+		inset: 34% 0 0 34%;
+		mask-image: linear-gradient(90deg, transparent, black 24%);
 	}
 
 	.is-about .scene-shooting-star {
-		top: 54%;
-		left: 27%;
-		width: 3.8rem;
+		top: 55%;
+		left: 58%;
+		width: 2.8rem;
 	}
 
 	.is-about .scene-character {
-		right: -0.1rem;
-		bottom: -2%;
-		width: 5.4rem;
+		right: -0.05rem;
+		bottom: -3%;
+		width: 4.4rem;
 	}
 
 	.is-about.has-custom-character .scene-profile-avatar {
-		right: 4.5rem;
-		bottom: 4.35rem;
-		width: 4.35rem;
+		right: 3.55rem;
+		bottom: 3.1rem;
+		width: 3.3rem;
 	}
 
 	.is-about.has-custom-character .scene-profile-avatar::before {
-		inset: 0.4rem;
+		inset: 0.3rem;
 	}
 
 	.is-about.has-custom-character .scene-profile-avatar img {
-		inset: 0.5rem;
-		width: calc(100% - 1rem);
-		height: calc(100% - 1rem);
+		inset: 0.4rem;
+		width: calc(100% - 0.8rem);
+		height: calc(100% - 0.8rem);
 	}
 
 	.is-about .scene-profile-badge {
-		width: 1.45rem;
-		font-size: 0.58rem;
+		width: 1.15rem;
+		font-size: 0.48rem;
 	}
 
 	.is-about .scene-planet {
-		right: -11%;
-		bottom: -24%;
-		width: 11.5rem;
+		right: -12%;
+		bottom: -28%;
+		width: 8.5rem;
 	}
 
 	.is-about .scene-orbit-one {
-		inset: 41% -32% 4% 18%;
+		inset: 43% -34% -4% 38%;
 	}
 
 	.is-about .scene-orbit-two {
-		inset: 51% -46% -18% 30%;
+		inset: 54% -48% -25% 46%;
 	}
 
 	.is-about .scene-orbit-three {
-		inset: 60% -56% -44% 13%;
+		inset: 64% -58% -52% 34%;
 	}
 
 	.is-about .scene-track {
-		top: 67%;
-		right: -9%;
-		width: 82%;
+		top: 72%;
+		right: -10%;
+		width: 66%;
 	}
 
 	.is-about .scene-avatar-tether {
-		right: 27%;
-		bottom: 25%;
-		width: 31%;
+		right: 25%;
+		bottom: 23%;
+		width: 24%;
 	}
 
 	.is-about .scene-heart {
-		right: 2.8%;
-		bottom: 27%;
-		font-size: 0.82rem;
+		right: 2.5%;
+		bottom: 24%;
+		font-size: 0.68rem;
 	}
 
 	.is-about .scene-speech {
 		top: auto;
-		right: 0.52rem;
-		bottom: 5.55rem;
-		padding: 0.32rem 0.48rem;
-		font-size: 0.58rem;
+		right: 0.35rem;
+		bottom: 4.4rem;
+		padding: 0.25rem 0.38rem;
+		font-size: 0.5rem;
 	}
 
 	.is-about .scene-spark-one {
-		font-size: 0.9rem;
+		font-size: 0.72rem;
 	}
 
 	.is-about .scene-spark-two,
 	.is-about .scene-spark-three {
-		font-size: 0.78rem;
+		font-size: 0.62rem;
 	}
 }
 
 @media (max-width: 380px) {
 	.is-about .scene-character {
-		width: 5rem;
-	}
-
-	.is-about.has-custom-character .scene-profile-avatar {
-		right: 4.15rem;
-		bottom: 4.05rem;
 		width: 4rem;
 	}
 
+	.is-about.has-custom-character .scene-profile-avatar {
+		right: 3.25rem;
+		bottom: 2.8rem;
+		width: 3rem;
+	}
+
 	.is-about .scene-planet {
-		width: 10.8rem;
+		width: 8rem;
 	}
 
 	.is-about .scene-speech {
-		bottom: 5.15rem;
+		bottom: 4rem;
 	}
 }
 

@@ -1,8 +1,10 @@
 <script setup lang="ts">
 withDefaults(defineProps<{
 	tag?: string
+	compact?: boolean
 }>(), {
 	tag: 'div',
+	compact: false,
 })
 const appConfig = useAppConfig()
 const { data: aboutProfile } = await useAsyncData('about:header-avatar', () =>
@@ -15,7 +17,7 @@ const isRouteSettling = useState<boolean>('route-compositor-settling', () => fal
 </script>
 
 <template>
-<UtilLink class="blog-header" :class="{ 'is-route-settling': isRouteSettling }">
+<UtilLink class="blog-header" :class="{ 'is-route-settling': isRouteSettling, 'is-compact': compact }">
 	<div v-if="appConfig.header.emojiTail" class="emoji-tail">
 		<span
 			v-for="(emoji, emojiIndex) in appConfig.header.emojiTail"
@@ -287,6 +289,64 @@ const isRouteSettling = useState<boolean>('route-compositor-settling', () => fal
 .blog-header:hover {
 	.emoji-tail {
 		opacity: 0.14;
+	}
+}
+
+@media (max-width: 600px) {
+	.blog-header.is-compact {
+		gap: 0.4em;
+		min-height: 4.2rem;
+		margin: 0.4rem 0.5rem 0.25rem;
+		padding: 0.55rem 4.4rem 0.55rem 0.65rem;
+		border-radius: 0.95rem;
+		box-shadow:
+			0 10px 28px var(--c-surface-shadow),
+			inset 0 1px 0 var(--c-surface-highlight);
+	}
+
+	.blog-header.is-compact .blog-logo-shell {
+		height: 2.35em;
+	}
+
+	.blog-header.is-compact .blog-logo-shell.circle {
+		width: 2.35em;
+	}
+
+	.blog-header.is-compact .header-title {
+		font-size: 1.15em;
+		line-height: 1.08;
+	}
+
+	.blog-header.is-compact .header-subtitle {
+		margin-top: 0.08rem;
+		font-size: 0.68em;
+		line-height: 1.22;
+	}
+
+	.blog-header.is-compact :deep(.is-header .scene-character) {
+		right: -0.35rem;
+		bottom: -0.8rem;
+		width: 4.5rem;
+	}
+
+	.blog-header.is-compact :deep(.is-header .scene-rocket) {
+		top: 10%;
+		right: 31%;
+		font-size: 0.85rem;
+	}
+
+	.blog-header.is-compact :deep(.is-header .scene-orbit-one) {
+		inset: 6% -14% -36% 55%;
+	}
+
+	.blog-header.is-compact :deep(.is-header .scene-orbit-two) {
+		inset: -28% 8% 20% 34%;
+	}
+
+	.blog-header.is-compact :deep(.is-header .scene-track) {
+		top: 27%;
+		right: -8%;
+		width: 62%;
 	}
 }
 

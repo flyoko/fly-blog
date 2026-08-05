@@ -36,6 +36,7 @@ describe('public blog presentation', () => {
 	})
 
 	it('composes the about avatar, planet, and character as one coordinated scene', () => {
+		const header = read('app/components/blog/BlogHeader.global.vue')
 		const scene = read('app/components/blog/BlogShinchanScene.vue')
 		const page = read('app/pages/me.vue')
 
@@ -85,10 +86,14 @@ describe('public blog presentation', () => {
 		expect(scene).toContain('filter: none')
 		expect(page).toContain('class="about-hero-spotlight"')
 		expect(page).toContain('--surface-tilt-x')
-		expect(page).toContain('min-height: 19rem')
-		expect(page).toContain('padding: 1rem 0.95rem 7.8rem')
+		expect(header).toContain('compact?: boolean')
+		expect(header).toContain('\'is-compact\': compact')
+		expect(header).toContain('.blog-header.is-compact')
+		expect(page).toContain('<BlogHeader to="/" compact />')
+		expect(page).toContain('min-height: 13.5rem')
+		expect(page).toContain('padding: 0.9rem 0.85rem 4.7rem')
 		expect(page).toContain('width: min(calc(100% - 1rem), 72rem)')
-		expect(scene).toContain('width: 5.4rem')
-		expect(scene).toContain('bottom: 4.35rem')
+		expect(scene).toContain('width: 4.4rem')
+		expect(scene).toContain('bottom: 3.1rem')
 	})
 })
