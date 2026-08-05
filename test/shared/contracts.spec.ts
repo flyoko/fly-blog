@@ -52,7 +52,7 @@ describe('admin contracts', () => {
 	})
 
 	it('validates backend-managed article header ads', () => {
-		expect(articlePresentationConfigSchema.parse(articleConfig)).toEqual({ headerAds: [] })
+		expect(articlePresentationConfigSchema.parse(articleConfig)).toEqual(articleConfig)
 		expect(() => articlePresentationConfigSchema.parse({
 			headerAds: [{ id: 'promo', enabled: true, label: '广告', title: '', description: '', image: '', href: '' }],
 		})).toThrow()
