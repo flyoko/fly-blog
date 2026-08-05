@@ -29,6 +29,8 @@
 
 Quality 与 Pages Preview 的 checkout 深度收敛为 2；文章 PR 快路径比较 GitHub PR 合并提交的两个父提交，保留单文件约束，同时避免自托管 Runner 抓取全部分支与标签。 两个父树使用直接比较（`git diff HEAD^1 HEAD^2`），不依赖浅克隆中不存在的共同祖先。
 
+四条 Actions 工作流把 `pnpm/action-setup` 的安装目录固定到 `${{ runner.temp }}/setup-pnpm`，避免同一账号下多台自托管 Runner 并行作业共享 `~/setup-pnpm` 而互相破坏 store。
+
 ## 下一目标
 
 继续以“后台高频任务可理解、可恢复、可验证”为优先级，后续新增范围必须先有独立设计/验收标准，避免把未定义功能混入既有周期。
