@@ -269,7 +269,7 @@ describe('article editor UI boundaries', () => {
 		expect(editorStyles).not.toContain('margin: -1rem')
 	})
 
-	it('uses the backend-managed ad slot only on the unfiltered homepage', async () => {
+	it('uses the backend-managed ad slot across homepage states only', async () => {
 		const [config, homepage, articlePage, carousel] = await Promise.all([
 			source('blog.config.ts'),
 			source('app/pages/index.vue'),
@@ -281,7 +281,7 @@ describe('article editor UI boundaries', () => {
 		expect(homepage).toContain('const homeAds')
 		expect(homepage).toContain('<HomeAdCarousel')
 		expect(homepage).toContain(':ads="homeAds"')
-		expect(homepage).toContain('v-if="homeAds.length && page === 1 && !category"')
+		expect(homepage).toContain('<HomeAdCarousel v-if="homeAds.length" :ads="homeAds" />')
 		expect(homepage).toContain('v-else-if="listRecommended.length && page === 1 && !category"')
 		expect(articlePage).not.toContain('<PostHeaderAd')
 		expect(articlePage).not.toContain('<HomeAdCarousel')

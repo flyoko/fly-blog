@@ -479,7 +479,7 @@ onMounted(loadDeployedConfigs)
 
 			<div v-if="selected === 'article'" class="admin-visual-config admin-article-ads-editor">
 				<div class="admin-config-intro">
-					<div><Icon name="tabler:ad" /><span><strong>首页轮播横幅</strong><small>仅展示在首页第一页的文章列表上方；有广告时替代精选文章轮播。</small></span></div>
+					<div><Icon name="tabler:ad" /><span><strong>首页轮播横幅</strong><small>展示在首页文章列表上方；筛选、排序和翻页时保持显示，有广告时替代精选文章轮播。</small></span></div>
 					<button class="admin-button" type="button" :disabled="article.headerAds.length >= 8" @click="addArticleAd">
 						<Icon name="tabler:plus" />添加广告
 					</button>
