@@ -1,5 +1,5 @@
 {
-  "showPersonalGitHub": true,
+  "showPersonalGitHub": false,
   "showThemeSource": false,
   "showSiteSource": false,
   "iconNav": [
@@ -7,7 +7,7 @@
       "id": "personal-home",
       "icon": "tabler:home",
       "text": "个人主页",
-      "url": "https://github.com/flyoko"
+      "url": "/me"
     },
     {
       "id": "personal-github",
