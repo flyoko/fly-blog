@@ -34,6 +34,7 @@ class FakePublishingRepository implements PublishingRepositoryPort {
 	commitChangeCount = 1
 	pullCounter = 0
 	mergeCalls = 0
+	closeCalls: number[] = []
 	pullReadFailure = false
 	branches = new Map<string, string>()
 	committedPaths: string[] = []
@@ -168,6 +169,13 @@ class FakePublishingRepository implements PublishingRepositoryPort {
 	async getDeployment(ref: string) {
 		this.deploymentRefs.push(ref)
 		return this.deployment
+	}
+
+	async closePullRequest(number: number) {
+		const pull = await this.getPullRequest(number)
+		this.closeCalls.push(number)
+		pull.state = 'closed'
+		pull.mergeable = false
 	}
 
 	async mergePullRequest(number: number, expectedHeadSha: string) {
@@ -633,6 +641,88 @@ describe('pull request status and merge guard', () => {
 		await expect(new PublishingService(runtimeEnv(), repository).listRuns(1, 30)).resolves.toMatchObject({
 			items: [{ id: run.publishRunId, status: 'checks_pending' }],
 		})
+	})
+
+	it('closes a tracked pull request and records an audit entry', async () => {
+		const repository = new FakePublishingRepository()
+		const run = await createRun(repository)
+		const app = createApp(repository)
+
+		const response = await app.request(`https://blog.example.test/api/admin/publishing/runs/${run.publishRunId}/close`, {
+			method: 'POST',
+			headers: headers(),
+		}, runtimeEnv())
+
+		expect(response.status).toBe(200)
+		expect(await response.json()).toMatchObject({
+			ok: true,
+			data: { id: run.publishRunId, status: 'closed' },
+		})
+		expect(repository.closeCalls).toEqual([run.pullRequestNumber])
+		expect(await testEnv.DB.prepare('SELECT status FROM publish_runs WHERE id = ?')
+			.bind(run.publishRunId)
+			.first()).toEqual({ status: 'closed' })
+		expect(await testEnv.DB.prepare(`
+			SELECT action, target_type, target_id, result
+			FROM audit_logs
+			WHERE action = 'publishing.close'
+			ORDER BY created_at DESC
+			LIMIT 1
+		`).first()).toEqual({
+			action: 'publishing.close',
+			target_type: 'publish_run',
+			target_id: run.publishRunId,
+			result: 'success',
+		})
+	})
+
+	it('closes direct publishing tracking without touching a pull request', async () => {
+		const repository = new FakePublishingRepository()
+		await testEnv.DB.prepare(`
+			INSERT INTO publish_runs (
+				id, kind, status, repository_ref, resource_path, commit_sha, created_at, updated_at
+			) VALUES ('direct-close', 'direct', 'failed', 'main', 'content/about/profile.md', 'commit-close', ?, ?)
+		`).bind('2026-08-05T00:00:00.000Z', '2026-08-05T00:01:00.000Z').run()
+		const app = createApp(repository)
+
+		const first = await app.request('https://blog.example.test/api/admin/publishing/runs/direct-close/close', {
+			method: 'POST',
+			headers: headers(),
+		}, runtimeEnv())
+		const second = await app.request('https://blog.example.test/api/admin/publishing/runs/direct-close/close', {
+			method: 'POST',
+			headers: headers(),
+		}, runtimeEnv())
+
+		expect(first.status).toBe(200)
+		expect(second.status).toBe(200)
+		expect(await second.json()).toMatchObject({ ok: true, data: { id: 'direct-close', status: 'closed' } })
+		expect(repository.closeCalls).toEqual([])
+	})
+
+	it('rejects closing completed runs and requires csrf', async () => {
+		const repository = new FakePublishingRepository()
+		await testEnv.DB.prepare(`
+			INSERT INTO publish_runs (
+				id, kind, status, repository_ref, resource_path, commit_sha, created_at, updated_at
+			) VALUES ('direct-published', 'direct', 'published', 'main', 'content/about/profile.md', 'commit-published', ?, ?)
+		`).bind('2026-08-05T00:00:00.000Z', '2026-08-05T00:01:00.000Z').run()
+		const run = await createRun(repository)
+		const app = createApp(repository)
+
+		const completed = await app.request('https://blog.example.test/api/admin/publishing/runs/direct-published/close', {
+			method: 'POST',
+			headers: headers(),
+		}, runtimeEnv())
+		const withoutCsrf = await app.request(`https://blog.example.test/api/admin/publishing/runs/${run.publishRunId}/close`, {
+			method: 'POST',
+			headers: { cookie: 'fly_admin_session=publishing-session', origin: 'https://blog.example.test' },
+		}, runtimeEnv())
+
+		expect(completed.status).toBe(400)
+		expect(await completed.json()).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED' } })
+		expect(withoutCsrf.status).toBe(403)
+		expect(repository.closeCalls).toEqual([])
 	})
 
 	it('blocks merge when a PR contains an extra file', async () => {

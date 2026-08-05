@@ -247,6 +247,27 @@ describe('gitHubRepository reviews and status', () => {
 		expect(await requests[0]!.json()).toEqual({ ref: 'refs/heads/admin/change', sha: 'abc' })
 	})
 
+	it('closes a pull request with a bounded GitHub update', async () => {
+		const { repository, requests } = createRepository([
+			json({
+				number: 12,
+				html_url: 'https://github.test/pr/12',
+				title: 'Change config',
+				state: 'closed',
+				head: { sha: 'head-sha', ref: 'admin/change' },
+				base: { ref: 'main' },
+				mergeable: false,
+				merged: false,
+			}),
+		])
+
+		await expect(repository.closePullRequest(12)).resolves.toBeUndefined()
+
+		expect(requests[0]!.method).toBe('PATCH')
+		expect(requests[0]!.url).toContain('/pulls/12')
+		expect(await requests[0]!.json()).toEqual({ state: 'closed' })
+	})
+
 	it('lists pull request files with bounded structured patches', async () => {
 		const longPatch = `@@ -1 +1 @@\n-${'a'.repeat(25_000)}\n+new`
 		const { repository, requests } = createRepository([

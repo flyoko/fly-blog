@@ -286,6 +286,17 @@ export class GitHubRepository {
 		return mapPullRequest(await this.request<GitHubPullResponse>(`/pulls/${number}`))
 	}
 
+	async closePullRequest(number: number): Promise<void> {
+		if (!Number.isInteger(number) || number < 1)
+			throw new ApiError('VALIDATION_FAILED', 400, 'Pull request number is invalid')
+		const pullRequest = mapPullRequest(await this.request<GitHubPullResponse>(`/pulls/${number}`, {
+			method: 'PATCH',
+			body: JSON.stringify({ state: 'closed' }),
+		}, new Set([409, 422])))
+		if (pullRequest.state !== 'closed')
+			throw new ApiError('UPSTREAM_FAILED', 502, 'GitHub did not close the pull request')
+	}
+
 	async getPullRequestFiles(number: number): Promise<PullRequestFileDto[]> {
 		if (!Number.isInteger(number) || number < 1)
 			throw new ApiError('VALIDATION_FAILED', 400, 'Pull request number is invalid')

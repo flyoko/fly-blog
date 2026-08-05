@@ -56,6 +56,7 @@ export interface PublishingRepositoryPort extends ArticleRepositoryPort {
 	createPullRequest: (input: { head: string, base: string, title: string, body: string }) => Promise<{ number: number, url: string }>
 	getPullRequest: (number: number) => Promise<PullRequestDto>
 	getPullRequestFiles: (number: number) => Promise<PullRequestFileDto[]>
+	closePullRequest: (number: number) => Promise<void>
 	getChecks: (ref: string, resourcePath?: string) => Promise<CheckSummaryDto>
 	getCommitChangeCount: (ref: string) => Promise<number>
 	getDeployment: (ref: string) => Promise<DeploymentDto | null>
@@ -515,6 +516,64 @@ export class PublishingService {
 			deployment,
 			canMerge: reason === undefined,
 			...(reason ? { reason } : {}),
+		}
+	}
+
+	async closeRun(id: string, actor: ArticleActor): Promise<PublishRunRow> {
+		const runId = id.trim()
+		if (!runId || runId.length > 128)
+			throw new ApiError('VALIDATION_FAILED', 400, 'Publishing run id is invalid')
+
+		const run = await this.publishRepository.findRun(runId)
+		if (!run)
+			throw new ApiError('NOT_FOUND', 404, 'Publishing run was not found')
+		if (run.status === 'closed')
+			return run
+		if (run.status === 'published' || run.status === 'merged')
+			throw new ApiError('VALIDATION_FAILED', 400, 'Completed publishing runs cannot be closed')
+
+		try {
+			let closed: PublishRunRow
+			if (run.kind === 'pull_request' && run.pullNumber) {
+				const pullRequest = await this.repository.getPullRequest(run.pullNumber)
+				if (pullRequest.merged) {
+					closed = await updateReconciledRun(this.publishRepository, run, { status: 'merged' })
+				}
+				else {
+					if (pullRequest.state === 'open')
+						await this.repository.closePullRequest(run.pullNumber)
+					closed = await updateReconciledRun(this.publishRepository, run, { status: 'closed' })
+				}
+			}
+			else {
+				closed = await updateReconciledRun(this.publishRepository, run, { status: 'closed' })
+			}
+
+			await this.auditRepository.writeAudit({
+				actorId: actor.id,
+				actorLogin: actor.login,
+				action: 'publishing.close',
+				targetType: 'publish_run',
+				targetId: run.id,
+				result: 'success',
+				requestId: actor.requestId,
+				metadata: { kind: run.kind, pullNumber: run.pullNumber, resolvedStatus: closed.status },
+			})
+			return closed
+		}
+		catch (error) {
+			const apiError = asApiError(error)
+			await this.auditRepository.writeAudit({
+				actorId: actor.id,
+				actorLogin: actor.login,
+				action: 'publishing.close',
+				targetType: 'publish_run',
+				targetId: run.id,
+				result: 'failure',
+				requestId: actor.requestId,
+				metadata: { kind: run.kind, pullNumber: run.pullNumber, errorCode: apiError.code },
+			}).catch(() => undefined)
+			throw apiError
 		}
 	}
 
