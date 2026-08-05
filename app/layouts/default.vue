@@ -16,7 +16,7 @@ const hasAside = computed(() => routeAsideVisible.value)
 		<slot />
 		<BlogFooter />
 	</main>
-	<BlogAside>
+	<BlogAside :has-content="hasAside">
 		<ClientOnly>
 			<BlogRouteAside @visibility-change="routeAsideVisible = $event" />
 		</ClientOnly>

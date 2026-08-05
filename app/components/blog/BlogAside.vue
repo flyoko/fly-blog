@@ -1,17 +1,26 @@
 <script setup lang="ts">
+const props = defineProps<{
+	hasContent: boolean
+}>()
+
 const layoutStore = useLayoutStore()
+
+watch(() => props.hasContent, (hasContent) => {
+	if (!hasContent && layoutStore.state === 'aside')
+		layoutStore.close()
+})
 </script>
 
 <template>
 <BlogMask
-	:show="layoutStore.state === 'aside'"
+	:show="hasContent && layoutStore.state === 'aside'"
 	class="aside-mask widescreen-only"
 	@click="layoutStore.close()"
 />
 
 <!-- 不能用 Transition 实现弹出收起动画，因为宽屏状态始终显示 -->
 <!-- 如果为空数组则隐藏 -->
-<aside id="blog-aside" :class="{ show: layoutStore.state === 'aside' }" aria-label="补充信息">
+<aside id="blog-aside" :class="{ 'show': layoutStore.state === 'aside', 'has-content': hasContent }" aria-label="补充信息">
 	<slot />
 </aside>
 </template>
@@ -55,7 +64,7 @@ const layoutStore = useLayoutStore()
 		}
 	}
 
-	&:empty {
+	&:not(.has-content) {
 		display: none;
 	}
 }

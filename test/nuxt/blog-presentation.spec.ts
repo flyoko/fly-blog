@@ -24,6 +24,17 @@ describe('public blog presentation', () => {
 		expect(2024 - 2002).toBe(22)
 	})
 
+	it('does not reserve desktop width for an empty route aside placeholder', () => {
+		const aside = read('app/components/blog/BlogAside.vue')
+		const layout = read('app/layouts/default.vue')
+
+		expect(layout).toContain('<BlogAside :has-content="hasAside">')
+		expect(aside).toContain('hasContent: boolean')
+		expect(aside).toContain('\'has-content\': hasContent')
+		expect(aside).toContain('&:not(.has-content)')
+		expect(aside).toContain(':show="hasContent && layoutStore.state === \'aside\'"')
+	})
+
 	it('composes the about avatar, planet, and character as one coordinated scene', () => {
 		const scene = read('app/components/blog/BlogShinchanScene.vue')
 		const page = read('app/pages/me.vue')
