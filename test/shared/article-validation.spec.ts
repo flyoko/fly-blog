@@ -27,4 +27,15 @@ describe('文章 Markdown 轻量诊断', () => {
 		expect(diagnostics).toHaveLength(2)
 		expect(diagnostics.map(item => item.bodyColumn)).toEqual([10, 21])
 	})
+	it('诊断只有协议没有目标地址的 Markdown 链接', () => {
+		expect(validateArticleMarkdown('[Boss-Helper](https://)')).toEqual([
+			{
+				code: 'markdown/incomplete-link-target',
+				message: '链接地址不完整',
+				suggestion: '粘贴完整网页地址，或删除这个链接',
+				bodyLine: 1,
+				bodyColumn: 15,
+			},
+		])
+	})
 })

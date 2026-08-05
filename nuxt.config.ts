@@ -102,7 +102,9 @@ export default defineNuxtConfig({
 
 	// @keep-sorted
 	experimental: {
+		emitRouteChunkError: 'automatic-immediate',
 		extractAsyncDataHandlers: true,
+		restoreState: true,
 		typescriptPlugin: true,
 	},
 

@@ -1,0 +1,8 @@
+/200
+  Cache-Control: no-cache, no-store, must-revalidate
+/200.html
+  Cache-Control: no-cache, no-store, must-revalidate
+/admin
+  Cache-Control: no-cache, no-store, must-revalidate
+/admin/*
+  Cache-Control: no-cache, no-store, must-revalidate

@@ -1,5 +1,6 @@
 import type { ArticleDocument } from '#shared/admin/articles'
 import { articleDocumentSchema, articleSaveRequestSchema } from '#shared/admin/articles'
+import { toAdminUserMessage } from '#shared/admin/feedback'
 
 const draftDatabaseName = 'fly-living-admin'
 const draftStoreName = 'article-drafts'
@@ -328,7 +329,7 @@ export function useAdminDraft() {
 			return await withDraftStore('readonly', store => store.get(adminDraftKey(path, sha))) as AdminArticleDraft | null
 		}
 		catch (cause) {
-			error.value = cause instanceof Error ? cause.message : '本地草稿读取失败'
+			error.value = toAdminUserMessage(cause, '本地草稿读取失败')
 			return null
 		}
 	}
@@ -346,7 +347,7 @@ export function useAdminDraft() {
 			lastSavedAt.value = draft.updatedAt
 		}
 		catch (cause) {
-			error.value = cause instanceof Error ? cause.message : '本地草稿保存失败'
+			error.value = toAdminUserMessage(cause, '本地草稿保存失败')
 			throw cause
 		}
 		finally {
@@ -360,7 +361,7 @@ export function useAdminDraft() {
 			lastSavedAt.value = null
 		}
 		catch (cause) {
-			error.value = cause instanceof Error ? cause.message : '本地草稿清理失败'
+			error.value = toAdminUserMessage(cause, '本地草稿清理失败')
 		}
 	}
 

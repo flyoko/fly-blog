@@ -449,16 +449,22 @@ test.describe('admin desktop workflows', () => {
 	})
 
 	test('article conflict preserves the local draft and exposes recovery choices', async ({ page }) => {
-		await mockAuthenticatedAdmin(page, { articleConflict: true })
+		const capture = await mockAuthenticatedAdmin(page, { articleConflict: true })
 		await page.goto('/admin/articles')
 		await page.getByRole('link', { name: /Cycle 1 article/u }).click()
 		await expect(page).toHaveURL(`/admin/articles/${articleId}`)
 		await page.getByLabel('Markdown 正文').fill('# Local conflicting edit')
 		await page.getByRole('button', { name: '发布文章' }).click()
-		await expect(page.getByText('远端文章已经变化')).toBeVisible()
+		await expect(page.getByText('远端文章已经变化', { exact: true })).toBeVisible()
 		await expect(page.getByRole('button', { name: '重新加载远端' })).toBeVisible()
-		await expect(page.getByRole('button', { name: '比较原始 Markdown' })).toBeVisible()
-		await expect(page.getByRole('button', { name: '改用 PR 发布' })).toBeVisible()
+		await page.getByRole('button', { name: '比较原始 Markdown' }).click()
+		const comparison = page.getByRole('dialog', { name: '原始 Markdown' })
+		await expect(comparison).toContainText('# Local conflicting edit')
+		await expect(comparison).toContainText('# Remote article changed')
+		await comparison.getByRole('button', { name: '关闭' }).click()
+		await page.getByRole('button', { name: '改用 PR 发布' }).click()
+		await expect.poll(() => capture.articleWrites).toHaveLength(2)
+		expect(capture.articleWrites[1]).toMatchObject({ mode: 'pull_request', expectedSha: 'article-sha-2', document: { sha: 'article-sha-2' } })
 	})
 
 	test('review detail exposes checks, preview, and guarded merge', async ({ page }) => {
@@ -583,7 +589,7 @@ test.describe('admin desktop workflows', () => {
 	test('dependency failure renders an actionable degraded state', async ({ page }) => {
 		await mockAuthenticatedAdmin(page, { overviewFailure: true })
 		await page.goto('/admin')
-		await expect(page.getByText('GitHub is temporarily unavailable')).toBeVisible()
+		await expect(page.getByText('依赖服务暂时不可用，请稍后重试。').first()).toBeVisible()
 		await expect(page.getByRole('button', { name: '重新加载' })).toBeVisible()
 	})
 })

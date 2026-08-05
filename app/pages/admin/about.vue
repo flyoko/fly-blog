@@ -6,6 +6,7 @@ import type {
 } from '#shared/admin/about'
 import type { MediaObjectDto } from '#shared/admin/media'
 import { aboutLinksSchema, aboutTimelineSchema } from '#shared/admin/about'
+import { toAdminUserMessage } from '#shared/admin/feedback'
 import { insertMarkdownImage } from '~/composables/useAdminDraft'
 import { buildConfigPullRequest } from '~/types/admin'
 import { renderAdminMarkdown } from '~/utils/admin-markdown'
@@ -16,6 +17,7 @@ interface AboutPayload {
 	links: { items: AboutLinks, sha: string }
 }
 
+const notifications = useAdminNotifications()
 const data = ref<AboutPayload | null>(null)
 const loading = ref(true)
 const saving = ref(false)
@@ -57,7 +59,7 @@ async function load() {
 		links.value = aboutLinksSchema.parse(payload.links.items)
 	}
 	catch (cause) {
-		error.value = cause instanceof Error ? cause.message : '自述加载失败'
+		error.value = toAdminUserMessage(cause, '自述加载失败')
 	}
 	finally {
 		loading.value = false
@@ -87,7 +89,7 @@ async function saveProfile() {
 		await load()
 	}
 	catch (cause) {
-		error.value = cause instanceof Error ? cause.message : '自述保存失败'
+		error.value = toAdminUserMessage(cause, '自述保存失败')
 	}
 	finally {
 		saving.value = false
@@ -130,7 +132,8 @@ function refreshPreview(body: string) {
 		previewError.value = null
 	}
 	catch (cause) {
-		previewError.value = cause instanceof Error ? cause.message : 'Markdown 预览失败'
+		previewError.value = toAdminUserMessage(cause, '预览暂时无法更新，请稍后重试。')
+		notifications.warning('预览暂时没有更新', previewError.value)
 	}
 	finally {
 		previewLoading.value = false

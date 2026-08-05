@@ -70,11 +70,11 @@ function articleSummary() {
 	}
 }
 
-function articleDocument() {
+function articleDocument(sha = 'article-sha-1') {
 	return {
 		path: articlePath,
-		sha: 'article-sha-1',
-		body: '# Existing article\n',
+		sha,
+		body: sha === 'article-sha-2' ? '# Remote article changed\n' : '# Existing article\n',
 		frontmatter: {
 			title: 'Cycle 1 article',
 			description: 'A deterministic article used by browser tests.',
@@ -308,7 +308,7 @@ function analyticsVisitors(trafficType: string | null, pageSize: number) {
 	}
 }
 
-async function respond(route: Route, options: AdminApiMockOptions, capture: AdminApiCapture, state: { sessionCalls: number }) {
+async function respond(route: Route, options: AdminApiMockOptions, capture: AdminApiCapture, state: { sessionCalls: number, articleConflictTriggered: boolean }) {
 	const request = route.request()
 	const url = new URL(request.url())
 	const method = request.method()
@@ -621,15 +621,25 @@ async function respond(route: Route, options: AdminApiMockOptions, capture: Admi
 	}
 
 	if (path.startsWith('/api/admin/articles/') && method === 'GET') {
-		await route.fulfill(success(articleDocument()))
+		await route.fulfill(success(articleDocument(state.articleConflictTriggered ? 'article-sha-2' : 'article-sha-1')))
 		return
 	}
 
 	if (path.startsWith('/api/admin/articles/') && method === 'PUT') {
-		capture.articleWrites.push(request.postDataJSON())
-		await route.fulfill(options.articleConflict
-			? failure('CONFLICT', 'The remote article changed', 409, { currentSha: 'article-sha-2' })
-			: success({ mode: 'direct', path: articlePath, commitSha: 'updated-sha', branch: 'main' }))
+		const body = request.postDataJSON() as Record<string, unknown>
+		capture.articleWrites.push(body)
+		if (options.articleConflict && !state.articleConflictTriggered) {
+			state.articleConflictTriggered = true
+			await route.fulfill(failure('CONFLICT', 'The remote article changed', 409, { currentSha: 'article-sha-2' }))
+		}
+		else {
+			await route.fulfill(success({
+				mode: body.mode,
+				path: articlePath,
+				commitSha: 'updated-sha',
+				branch: body.mode === 'pull_request' ? 'article/update-conflict' : 'main',
+			}))
+		}
 		return
 	}
 
@@ -850,7 +860,7 @@ export async function mockAdminApi(page: Page, options: AdminApiMockOptions = {}
 		analyticsVisitorPageSizes: [],
 		mergeCount: 0,
 	}
-	const state = { sessionCalls: 0 }
+	const state = { sessionCalls: 0, articleConflictTriggered: false }
 	await page.route('**/api/**', route => respond(route, options, capture, state))
 	return capture
 }

@@ -3,18 +3,23 @@ import categoriesRaw from '~~/config/taxonomy/categories.json'
 
 const editor = useAdminArticleEditor({ isNew: true })
 const categories = categoriesRaw.map(item => item.name)
+const notifications = useAdminNotifications()
+
+watch(editor.error, (message) => {
+	if (message && !editor.conflict.value)
+		notifications.error(message, '文章没有保存成功。')
+})
+
+watch(editor.success, (message) => {
+	if (message)
+		notifications.success('文章已保存', message)
+})
 
 useSeoMeta({ title: '新建文章', robots: 'noindex, nofollow' })
 </script>
 
 <template>
 <div>
-	<p v-if="editor.error.value" class="admin-error">
-		{{ editor.error.value }}
-	</p>
-	<p v-if="editor.success.value" class="admin-success">
-		{{ editor.success.value }}
-	</p>
 	<div v-if="editor.loading.value" class="admin-skeleton admin-editor-loading" />
 	<AdminArticleEditor
 		v-else

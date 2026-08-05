@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { MediaObjectDto } from '#shared/admin/media'
 import type { MusicImportFileResult } from '~/utils/music-import/types'
+import { toAdminUserMessage } from '#shared/admin/feedback'
 import { musicAudioAccept } from '~/utils/music-import/qmc-formats'
 import { maxMusicBatchBytes, MusicImportError } from '~/utils/music-import/types'
 
@@ -93,7 +94,7 @@ async function load() {
 		total.value = result.total
 	}
 	catch (cause) {
-		error.value = cause instanceof Error ? cause.message : '媒体列表加载失败'
+		error.value = toAdminUserMessage(cause, '媒体列表加载失败')
 	}
 	finally {
 		loading.value = false
@@ -126,7 +127,7 @@ async function importKeyFile(event: Event) {
 	catch (cause) {
 		keyFileStatus.value = {
 			kind: 'error',
-			message: cause instanceof Error ? cause.message : '密钥文件导入失败。',
+			message: toAdminUserMessage(cause, '密钥文件导入失败。'),
 		}
 	}
 	finally {
@@ -224,7 +225,7 @@ async function uploadFiles(files: File[]) {
 		if (cause instanceof MusicImportError && cause.code === 'CANCELLED')
 			error.value = cause.message
 		else
-			error.value = cause instanceof Error ? cause.message : '媒体上传失败'
+			error.value = toAdminUserMessage(cause, '媒体上传失败')
 	}
 	finally {
 		uploading.value = false
@@ -305,7 +306,7 @@ async function confirmPendingAction() {
 				return
 			}
 		}
-		error.value = cause instanceof Error ? cause.message : '媒体操作失败'
+		error.value = toAdminUserMessage(cause, '媒体操作失败')
 	}
 	finally {
 		actionBusy.value = false
@@ -319,7 +320,7 @@ async function perform(operation: () => Promise<unknown>) {
 		await load()
 	}
 	catch (cause) {
-		error.value = cause instanceof Error ? cause.message : '媒体操作失败'
+		error.value = toAdminUserMessage(cause, '媒体操作失败')
 	}
 }
 
@@ -453,7 +454,7 @@ onBeforeUnmount(() => {
 			<strong>部分文件上传失败</strong>
 			<ul>
 				<li v-for="result in failedUploads" :key="result.name">
-					{{ result.originalName ?? result.name }}：{{ result.error?.message }}
+					{{ result.originalName ?? result.name }}：{{ toAdminUserMessage(result.error, '这个文件没有处理成功。') }}
 				</li>
 			</ul>
 		</div>

@@ -6,6 +6,7 @@ import type {
 	PullRequestFileDto,
 } from '#shared/admin/publishing'
 import type { AdminPublishRunDto } from '~/types/admin'
+import { toAdminUserMessage } from '#shared/admin/feedback'
 import { nextPublishRefreshDelay } from '#shared/admin/publishing-refresh'
 import AdminReleaseChecklist from '~/components/admin/reviews/AdminReleaseChecklist.vue'
 import AdminReleaseQueue from '~/components/admin/reviews/AdminReleaseQueue.vue'
@@ -107,7 +108,7 @@ async function load(silent = false) {
 		lastUpdatedAt.value = new Date().toISOString()
 	}
 	catch (cause) {
-		listError.value = cause instanceof Error ? cause.message : '发布记录加载失败'
+		listError.value = toAdminUserMessage(cause, '发布记录加载失败')
 	}
 	finally {
 		if (!silent)
@@ -128,7 +129,7 @@ async function loadMore() {
 		loadedPageCount.value = nextPage
 	}
 	catch (cause) {
-		listError.value = cause instanceof Error ? cause.message : '更多发布记录加载失败'
+		listError.value = toAdminUserMessage(cause, '更多发布记录加载失败')
 	}
 	finally {
 		loadingMore.value = false
@@ -150,7 +151,7 @@ async function inspect(run: AdminPublishRunDto) {
 		detailOwnerId.value = run.id
 	}
 	catch (cause) {
-		detailError.value = cause instanceof Error ? cause.message : '发布详情加载失败'
+		detailError.value = toAdminUserMessage(cause, '发布详情加载失败')
 	}
 	finally {
 		detailLoading.value = false
@@ -205,7 +206,7 @@ async function closeSelected() {
 		}
 	}
 	catch (cause) {
-		closeError.value = cause instanceof Error ? cause.message : '关闭任务失败，请稍后重试'
+		closeError.value = toAdminUserMessage(cause, '关闭任务失败，请稍后重试')
 	}
 	finally {
 		closing.value = false
@@ -237,7 +238,7 @@ async function merge() {
 		await refreshStatus()
 	}
 	catch (cause) {
-		mergeError.value = cause instanceof Error ? cause.message : '上线失败，请稍后重试'
+		mergeError.value = toAdminUserMessage(cause, '上线失败，请稍后重试')
 	}
 	finally {
 		merging.value = false
@@ -370,7 +371,7 @@ onBeforeUnmount(() => {
 				</div>
 				<p>{{ directStatusDescription(selectedDirect) }}</p>
 				<p v-if="selectedDirect.errorMessage" class="admin-error" role="alert">
-					{{ selectedDirect.errorMessage }}
+					{{ toAdminUserMessage(selectedDirect.errorMessage, '这次发布没有完成，请重新检查后重试。') }}
 				</p>
 				<div class="admin-release-direct-meta">
 					<div><span>内容</span><code>{{ selectedDirect.resourcePath || '直接发布内容' }}</code></div>

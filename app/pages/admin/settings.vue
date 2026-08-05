@@ -13,6 +13,7 @@ import footerSource from '~~/config/site/footer.json'
 import navigationSource from '~~/config/site/navigation.json'
 import weatherSource from '~~/config/site/weather.json'
 import categoriesSource from '~~/config/taxonomy/categories.json'
+import { toAdminUserMessage } from '#shared/admin/feedback'
 import {
 	articlePresentationConfigSchema,
 	categoriesConfigSchema,
@@ -176,7 +177,7 @@ async function searchCities() {
 			citySearchError.value = '没有找到匹配城市，换一个更完整的名称试试。'
 	}
 	catch (cause) {
-		citySearchError.value = cause instanceof Error ? cause.message : '城市搜索失败'
+		citySearchError.value = toAdminUserMessage(cause, '城市搜索失败')
 	}
 	finally {
 		citySearching.value = false
@@ -283,7 +284,7 @@ async function loadDeployedConfigs() {
 		syncedAt.value = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
 	}
 	catch (cause) {
-		error.value = cause instanceof Error ? cause.message : '线上配置读取失败，当前保留页面内置配置。'
+		error.value = toAdminUserMessage(cause, '线上配置读取失败，当前保留页面内置配置。')
 	}
 	finally {
 		loadingDeployed.value = false
@@ -319,7 +320,7 @@ async function createPullRequest() {
 		submittedFingerprints[selected.value] = currentFingerprint.value
 	}
 	catch (cause) {
-		error.value = cause instanceof Error ? cause.message : '配置 Pull Request 创建失败'
+		error.value = toAdminUserMessage(cause, '配置 Pull Request 创建失败')
 	}
 	finally {
 		saving.value = false

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { MediaObjectDto } from '#shared/admin/media'
 import type { MomentDto, MomentStatus } from '#shared/admin/moments'
+import { toAdminUserMessage } from '#shared/admin/feedback'
 
 const route = useRoute()
 const items = ref<MomentDto[]>([])
@@ -160,7 +161,7 @@ async function load() {
 		}
 	}
 	catch (cause) {
-		error.value = cause instanceof Error ? cause.message : '瞬间列表加载失败'
+		error.value = toAdminUserMessage(cause, '瞬间列表加载失败')
 	}
 	finally {
 		loading.value = false
@@ -201,7 +202,7 @@ async function save() {
 			resetForm()
 	}
 	catch (cause) {
-		error.value = cause instanceof Error ? cause.message : '瞬间保存失败'
+		error.value = toAdminUserMessage(cause, '瞬间保存失败')
 	}
 	finally {
 		saving.value = false
@@ -236,7 +237,7 @@ async function transition(kind: 'publish' | 'withdraw' | 'restore') {
 		await load()
 	}
 	catch (cause) {
-		error.value = cause instanceof Error ? cause.message : '状态更新失败'
+		error.value = toAdminUserMessage(cause, '状态更新失败')
 	}
 	finally {
 		saving.value = false
@@ -252,7 +253,7 @@ async function loadBackup() {
 			backupPath.value = backup.value.state.last_backup_path
 	}
 	catch (cause) {
-		error.value = cause instanceof Error ? cause.message : '备份状态加载失败'
+		error.value = toAdminUserMessage(cause, '备份状态加载失败')
 	}
 }
 
@@ -271,7 +272,7 @@ async function runBackup() {
 		await loadBackup()
 	}
 	catch (cause) {
-		error.value = cause instanceof Error ? cause.message : '备份执行失败'
+		error.value = toAdminUserMessage(cause, '备份执行失败')
 	}
 	finally {
 		backupWorking.value = false
@@ -295,7 +296,7 @@ async function previewBackup() {
 		}
 	}
 	catch (cause) {
-		error.value = cause instanceof Error ? cause.message : '备份预检失败'
+		error.value = toAdminUserMessage(cause, '备份预检失败')
 	}
 	finally {
 		backupWorking.value = false
@@ -324,7 +325,7 @@ async function restoreBackup() {
 		await Promise.all([load(), loadBackup()])
 	}
 	catch (cause) {
-		error.value = cause instanceof Error ? cause.message : '备份恢复失败'
+		error.value = toAdminUserMessage(cause, '备份恢复失败')
 	}
 	finally {
 		backupWorking.value = false

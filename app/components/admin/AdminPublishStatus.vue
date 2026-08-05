@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { AdminPublishRunDto } from '~/types/admin'
+import { toAdminUserMessage } from '#shared/admin/feedback'
 import { publishStatusMeta } from '~/types/admin'
 
 const props = withDefaults(defineProps<{
@@ -10,6 +11,9 @@ const props = withDefaults(defineProps<{
 })
 
 const meta = computed(() => publishStatusMeta(props.run.status ?? 'unknown'))
+const errorMessage = computed(() => props.run.errorMessage
+	? toAdminUserMessage(props.run.errorMessage, '这次发布没有完成，请重新检查后重试。')
+	: '')
 </script>
 
 <template>
@@ -25,8 +29,8 @@ const meta = computed(() => publishStatusMeta(props.run.status ?? 'unknown'))
 		<a v-if="run.pullRequestUrl" class="admin-button" :href="run.pullRequestUrl" target="_blank" rel="noopener">查看 PR</a>
 		<a v-if="run.deploymentUrl" class="admin-button" :href="run.deploymentUrl" target="_blank" rel="noopener">查看预览</a>
 	</div>
-	<p v-if="run.errorMessage" class="admin-error">
-		{{ run.errorMessage }}
+	<p v-if="errorMessage" class="admin-error">
+		{{ errorMessage }}
 	</p>
 </article>
 </template>

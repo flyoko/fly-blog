@@ -7,6 +7,7 @@ export interface ArticleDiagnostic {
 }
 
 const emphasisPattern = /\*{3}[^\n]*?\s\*{3}(?!\*)/gu
+const incompleteLinkTargetPattern = /\]\((?:https?:\/\/|mailto:)\)/gu
 
 export function validateArticleMarkdown(body: string): ArticleDiagnostic[] {
 	const diagnostics: ArticleDiagnostic[] = []
@@ -29,6 +30,17 @@ export function validateArticleMarkdown(body: string): ArticleDiagnostic[] {
 				suggestion: '删除结束标记前的空格',
 				bodyLine: lineIndex + 1,
 				bodyColumn: matchIndex + closingMarkerIndex + 1,
+			})
+		}
+
+		for (const match of line.matchAll(incompleteLinkTargetPattern)) {
+			const matchIndex = match.index ?? 0
+			diagnostics.push({
+				code: 'markdown/incomplete-link-target',
+				message: '链接地址不完整',
+				suggestion: '粘贴完整网页地址，或删除这个链接',
+				bodyLine: lineIndex + 1,
+				bodyColumn: matchIndex + 3,
 			})
 		}
 	}

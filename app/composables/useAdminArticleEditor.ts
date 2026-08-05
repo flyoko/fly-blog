@@ -2,6 +2,7 @@ import type { ArticleDiagnostic } from '#shared/admin/article-validation'
 import type { ArticleDocument, ArticleSummary } from '#shared/admin/articles'
 import { validateArticleMarkdown } from '#shared/admin/article-validation'
 import { encodeArticleId } from '#shared/admin/articles'
+import { toAdminUserMessage } from '#shared/admin/feedback'
 import {
 	buildArticleSaveRequest,
 	cloneArticleDocument,
@@ -56,10 +57,11 @@ export function useAdminArticleEditor(options: AdminArticleEditorOptions) {
 	let draftSavePromise: Promise<void> | undefined
 
 	const hasUnsavedChanges = computed(() => documentFingerprint(document.value) !== localDraftFingerprint.value)
-	watch(() => document.value.body, () => {
-		if (diagnostics.value.length)
-			diagnostics.value = []
-	})
+	watch(
+		() => document.value.body,
+		body => diagnostics.value = validateArticleMarkdown(body),
+		{ immediate: true },
+	)
 	const matchesRemote = computed(() => documentFingerprint(document.value) === remoteFingerprint.value)
 	const draftStatus = computed(() => {
 		if (drafts.saving.value)
@@ -125,7 +127,7 @@ export function useAdminArticleEditor(options: AdminArticleEditorOptions) {
 			initialized.value = true
 		}
 		catch (cause) {
-			error.value = cause instanceof Error ? cause.message : '文章编辑器加载失败'
+			error.value = toAdminUserMessage(cause, '文章编辑器加载失败')
 		}
 		finally {
 			loading.value = false
@@ -229,7 +231,7 @@ export function useAdminArticleEditor(options: AdminArticleEditorOptions) {
 					: '远端文章已经变化。当前草稿仍在，请选择如何继续。'
 			}
 			else {
-				error.value = cause instanceof Error ? cause.message : '文章保存失败'
+				error.value = toAdminUserMessage(cause, '文章保存失败')
 			}
 			diagnostics.value = (cause as { details?: { diagnostics?: ArticleDiagnostic[] } })?.details?.diagnostics ?? []
 		}
@@ -266,7 +268,7 @@ export function useAdminArticleEditor(options: AdminArticleEditorOptions) {
 			rawComparisonOpen.value = true
 		}
 		catch (cause) {
-			error.value = cause instanceof Error ? cause.message : '远端 Markdown 加载失败'
+			error.value = toAdminUserMessage(cause, '远端内容暂时无法读取，请稍后重试。')
 		}
 	}
 

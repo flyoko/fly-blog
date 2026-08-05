@@ -195,8 +195,9 @@ describe('article editor UI boundaries', () => {
 	})
 
 	it('uses the shared MDC renderer and exposes detailed formatting controls', async () => {
-		const [editor, nuxtConfig, mdcPatch] = await Promise.all([
+		const [editor, editorComposable, nuxtConfig, mdcPatch] = await Promise.all([
 			source('app/components/admin/AdminArticleEditor.vue'),
+			source('app/composables/useAdminArticleEditor.ts'),
 			source('nuxt.config.ts'),
 			source('patches/@nuxtjs__mdc.patch'),
 		])
@@ -213,7 +214,10 @@ describe('article editor UI boundaries', () => {
 		expect(editor).not.toContain('lastSuccessfulPreview')
 		expect(editor).toContain('<NuxtErrorBoundary')
 		expect(editor).toContain('@keydown="onEditorKeydown"')
-		expect(editor).toContain('Markdown 预览失败')
+		expect(editor).toContain('预览暂时没有更新')
+		expect(editor).toContain('重新加载预览')
+		expect(editor).not.toContain('error?.message')
+		expect(editorComposable).toContain('body => diagnostics.value = validateArticleMarkdown(body)')
 		expect(nuxtConfig).toContain('const markdownRemarkPlugins')
 		expect(nuxtConfig).toContain('const markdownRehypePlugins')
 		expect(nuxtConfig).toContain('\'remark-breaks\': {}')
@@ -227,6 +231,12 @@ describe('article editor UI boundaries', () => {
 		expect(editor).toContain('重新加载远端')
 		expect(editor).toContain('比较原始 Markdown')
 		expect(editor).toContain('改用 PR 发布')
+		expect(editor).toContain('rawComparisonOpen')
+		expect(editor).toContain('rawMarkdown(remoteDocument)')
+		const composable = await source('app/composables/useAdminArticleEditor.ts')
+		expect(composable).toContain('const latestRemote = remoteDocument.value ?? await fetchRemote()')
+		expect(composable).toContain('sha: latestRemote?.sha ?? document.value.sha')
+		expect(composable).toContain('closeRawComparison')
 	})
 
 	it('uses a route-aware full-width layout without negative margin compensation', async () => {

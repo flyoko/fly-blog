@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { ModulesConfig } from '#shared/admin/site-config'
 import modulesSource from '~~/config/site/modules.json'
+import { toAdminUserMessage } from '#shared/admin/feedback'
 import { isNavigationModuleId } from '#shared/admin/modules'
 import { modulesConfigSchema, weatherConfigSchema } from '#shared/admin/site-config'
 import AdminAdvancedDetails from '~/components/admin/AdminAdvancedDetails.vue'
@@ -115,7 +116,7 @@ async function loadDeployedModules() {
 		syncedAt.value = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
 	}
 	catch (cause) {
-		syncError.value = cause instanceof Error ? cause.message : '线上模块配置读取失败'
+		syncError.value = toAdminUserMessage(cause, '线上模块配置读取失败')
 	}
 	finally {
 		syncing.value = false
@@ -186,7 +187,7 @@ async function save() {
 		submittedFingerprint.value = currentFingerprint.value
 	}
 	catch (cause) {
-		error.value = cause instanceof Error ? cause.message : '首页模块保存失败'
+		error.value = toAdminUserMessage(cause, '首页模块保存失败')
 	}
 	finally {
 		saving.value = false

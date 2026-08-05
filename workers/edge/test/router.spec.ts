@@ -137,7 +137,10 @@ describe('edge forwarding', () => {
 		const reader = await worker.fetch(new Request('https://flyovo.cc.cd/ai.news/read/document-key'), runtimeEnv, {} as ExecutionContext)
 
 		expect(admin.status).toBe(200)
+		expect(admin.headers.get('cache-control')).toBe('no-cache, no-store, must-revalidate')
+		expect(admin.headers.get('pragma')).toBe('no-cache')
 		expect(reader.status).toBe(200)
+		expect(reader.headers.get('cache-control')).toBeNull()
 		expect(requests).toEqual([
 			'https://fly-living.pages.dev/200',
 			'https://fly-living.pages.dev/200',

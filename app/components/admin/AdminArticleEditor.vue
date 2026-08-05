@@ -3,6 +3,7 @@ import type { ArticleDiagnostic } from '#shared/admin/article-validation'
 import type { ArticleDocument, ArticleSummary } from '#shared/admin/articles'
 import type { MediaObjectDto } from '#shared/admin/media'
 import type { MarkdownEdit, MarkdownHistorySnapshot } from '~/composables/useAdminDraft'
+import { isChunkLoadError } from '#shared/admin/feedback'
 import {
 	applyMarkdownEdit,
 	createMarkdownHistory,
@@ -48,9 +49,12 @@ const emit = defineEmits<{
 }>()
 
 const textarea = ref<HTMLTextAreaElement | null>(null)
+const notifications = useAdminNotifications()
 const mediaPickerOpen = ref(false)
+const focusMode = useLocalStorage('fly_admin_editor_focus_mode', false)
 const previewLoading = ref(false)
 const previewMarkdown = ref('')
+const previewRevision = ref(0)
 const editorHistory = ref(createMarkdownHistory(props.modelValue.body))
 let previewTimer: ReturnType<typeof setTimeout> | undefined
 
@@ -81,7 +85,7 @@ function rawMarkdown(value: ArticleDocument | null | undefined) {
 		.filter(([, field]) => field !== undefined)
 		.map(([key, field]) => `${key}: ${JSON.stringify(field)}`)
 		.join('\n')
-	return `---\n${frontmatter}\n---\n\n${value.body}`
+	return ['---', frontmatter, '---', '', value.body].join('\n')
 }
 
 function focusDiagnostic(diagnostic: Pick<ArticleDiagnostic, 'bodyLine' | 'bodyColumn'>) {
@@ -237,6 +241,21 @@ function onSaveShortcut(event: KeyboardEvent) {
 		emit('save', 'direct')
 }
 
+function onPreviewError(error: unknown) {
+	notifications.warning(
+		'预览暂时没有更新',
+		isChunkLoadError(error)
+			? '页面资源正在恢复，正文已安全保存在这台设备。'
+			: '正文已安全保存在这台设备，可以继续写作或稍后重试。',
+	)
+}
+
+function retryPreview(clearError: () => void) {
+	clearError()
+	previewRevision.value += 1
+	previewMarkdown.value = documentModel.value.body
+}
+
 onMounted(() => window.addEventListener('keydown', onSaveShortcut))
 
 watch(
@@ -283,7 +302,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-<div class="admin-editor-shell">
+<div class="admin-editor-shell" :class="{ 'is-focus-mode': focusMode }">
 	<h1 class="visually-hidden">
 		{{ isNew ? '新建文章' : `编辑文章：${documentModel.frontmatter.title || '未命名文章'}` }}
 	</h1>
@@ -350,6 +369,10 @@ onBeforeUnmount(() => {
 				<span class="admin-editor-metrics">{{ contentLength }} 字 · 约 {{ readingMinutes }} 分钟</span>
 			</div>
 			<div class="admin-editor-actions">
+				<button class="admin-button" type="button" :aria-pressed="focusMode" @click="focusMode = !focusMode">
+					<Icon :name="focusMode ? 'tabler:layout-sidebar-right-expand' : 'tabler:focus-2'" />
+					{{ focusMode ? '退出专注' : '专注写作' }}
+				</button>
 				<button class="admin-button" type="button" @click="mediaPickerOpen = true">
 					<Icon name="tabler:photo-plus" />
 					插入媒体
@@ -401,19 +424,29 @@ onBeforeUnmount(() => {
 				</div>
 				<NuxtErrorBoundary
 					v-if="previewMarkdown"
-					:key="previewMarkdown"
+					@error="onPreviewError"
 				>
 					<MDC
+						:key="previewRevision"
 						:value="previewMarkdown"
 						tag="article"
 						class="article admin-preview-content"
 					/>
-					<template #error="{ error }">
-						<p class="admin-error">
-							Markdown 预览失败：{{ error?.message || '请检查自定义块或 Markdown 语法。' }}
-						</p>
+					<template #error="{ clearError }">
+						<div class="admin-preview-fallback" role="status">
+							<Icon name="tabler:refresh-alert" aria-hidden="true" />
+							<strong>预览暂时没有更新</strong>
+							<p>正文仍会自动保存在这台设备，不影响继续写作。</p>
+							<button class="admin-button" type="button" @click="retryPreview(clearError)">
+								<Icon name="tabler:refresh" aria-hidden="true" />重新加载预览
+							</button>
+						</div>
 					</template>
 				</NuxtErrorBoundary>
+				<div v-else class="admin-preview-fallback admin-preview-empty">
+					<Icon name="tabler:file-text" aria-hidden="true" />
+					<strong>开始写作后，这里会显示预览</strong>
+				</div>
 			</div>
 		</div>
 	</section>

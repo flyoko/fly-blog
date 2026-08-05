@@ -6,6 +6,17 @@ const router = useRouter()
 const articleId = computed(() => route.params.id as string)
 const editor = useAdminArticleEditor({ isNew: false, articleId: articleId.value })
 const categories = categoriesRaw.map(item => item.name)
+const notifications = useAdminNotifications()
+
+watch(editor.error, (message) => {
+	if (message && !editor.conflict.value)
+		notifications.error(message, '文章没有保存成功。')
+})
+
+watch(editor.success, (message) => {
+	if (message)
+		notifications.success('文章已保存', message)
+})
 const line = Number(route.query.line)
 const column = Number(route.query.column)
 const initialDiagnostic = ref(
@@ -26,12 +37,6 @@ useSeoMeta({ title: '编辑文章', robots: 'noindex, nofollow' })
 
 <template>
 <div>
-	<p v-if="editor.error.value" class="admin-error">
-		{{ editor.error.value }}
-	</p>
-	<p v-if="editor.success.value" class="admin-success">
-		{{ editor.success.value }}
-	</p>
 	<div v-if="editor.loading.value" class="admin-skeleton admin-editor-loading" />
 	<AdminArticleEditor
 		v-else

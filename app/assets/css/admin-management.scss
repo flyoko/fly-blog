@@ -1713,3 +1713,48 @@
 		transition: none;
 	}
 }
+
+.admin-editor-shell.is-focus-mode {
+	grid-template-columns: minmax(0, 1fr);
+}
+
+.admin-editor-shell.is-focus-mode > .admin-editor-list,
+.admin-editor-shell.is-focus-mode > .admin-editor-meta {
+	display: none;
+}
+
+.admin-preview-fallback {
+	display: grid;
+	place-items: center;
+	align-content: center;
+	gap: 0.45rem;
+	width: 100%;
+	min-height: 18rem;
+	padding: 2rem;
+	border: 1px dashed var(--admin-border);
+	border-radius: 0.9rem;
+	background: color-mix(in srgb, var(--admin-surface-soft) 72%, transparent);
+	text-align: center;
+	color: var(--admin-muted);
+}
+
+.admin-preview-fallback > .iconify {
+	font-size: 2rem;
+	color: var(--admin-warning);
+}
+
+.admin-preview-fallback strong {
+	font-size: 0.86rem;
+	color: var(--admin-text);
+}
+
+.admin-preview-fallback p {
+	max-width: 28rem;
+	margin: 0;
+	font-size: 0.72rem;
+	line-height: 1.65;
+}
+
+.admin-preview-empty > .iconify {
+	color: var(--admin-muted);
+}

@@ -2,6 +2,7 @@
 import type { MediaObjectDto } from '#shared/admin/media'
 import type { MusicPlaylist, MusicTrack } from '#shared/admin/music'
 import playlistFallback from '~~/content/playlists/default.json'
+import { toAdminUserMessage } from '#shared/admin/feedback'
 import { musicPlaylistSchema } from '#shared/admin/music'
 import AdminMusicTrackEditor from '~/components/admin/music/AdminMusicTrackEditor.vue'
 import AdminMusicTrackList from '~/components/admin/music/AdminMusicTrackList.vue'
@@ -82,7 +83,7 @@ async function load() {
 		ensureSelection(selectedTrackId.value)
 	}
 	catch (cause) {
-		error.value = cause instanceof Error ? cause.message : '歌单加载失败'
+		error.value = toAdminUserMessage(cause, '歌单加载失败')
 	}
 	finally {
 		loading.value = false
@@ -192,7 +193,7 @@ async function save() {
 		await load()
 	}
 	catch (cause) {
-		error.value = cause instanceof Error ? cause.message : '歌单保存失败，本地改动仍然保留。'
+		error.value = toAdminUserMessage(cause, '歌单保存失败，本地改动仍然保留。')
 	}
 	finally {
 		saving.value = false

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { NewsItemDto } from '#shared/admin/news'
+import { toAdminUserMessage } from '#shared/admin/feedback'
 import AdminNewsInbox from '~/components/admin/news/AdminNewsInbox.vue'
 import AdminNewsManualForm from '~/components/admin/news/AdminNewsManualForm.vue'
 import AdminNewsSourceHealth from '~/components/admin/news/AdminNewsSourceHealth.vue'
@@ -74,7 +75,7 @@ async function load(background = false) {
 		data.value = await useAdminApi<NewsAdminData>('/api/admin/news')
 	}
 	catch (cause) {
-		loadError.value = cause instanceof Error ? cause.message : 'AI 阅闻数据加载失败'
+		loadError.value = toAdminUserMessage(cause, 'AI 阅闻数据加载失败')
 	}
 	finally {
 		if (!background)
@@ -94,7 +95,7 @@ async function sync() {
 		await load(true)
 	}
 	catch (cause) {
-		syncError.value = cause instanceof Error ? cause.message : '同步失败，已保留上次成功快照。'
+		syncError.value = toAdminUserMessage(cause, '同步失败，已保留上次成功快照。')
 	}
 	finally {
 		syncing.value = false
@@ -125,7 +126,7 @@ async function confirmDelete() {
 		await load(true)
 	}
 	catch (cause) {
-		deleteError.value = cause instanceof Error ? cause.message : 'AI 阅闻条目删除失败'
+		deleteError.value = toAdminUserMessage(cause, 'AI 阅闻条目删除失败')
 	}
 	finally {
 		deleting.value = false
@@ -154,7 +155,7 @@ async function addManual() {
 		activeTab.value = 'content'
 	}
 	catch (cause) {
-		manualError.value = cause instanceof Error ? cause.message : '手动精选保存失败'
+		manualError.value = toAdminUserMessage(cause, '手动精选保存失败')
 	}
 	finally {
 		adding.value = false

@@ -13,6 +13,7 @@ import type {
 	AnalyticsVisitorsDto,
 } from '#shared/admin/analytics'
 import { ANALYTICS_VISITOR_PAGE_SIZE } from '#shared/admin/analytics'
+import { toAdminUserMessage } from '#shared/admin/feedback'
 import { formatAnalyticsLocation, localizeAnalyticsCity } from '~/utils/analytics-location'
 
 interface PanelState<T> {
@@ -51,7 +52,7 @@ async function loadPanel<T>(panel: PanelState<T>, loader: () => Promise<T>, fall
 	}
 	catch (cause) {
 		if (request === panel.request)
-			panel.error = cause instanceof Error ? cause.message : fallback
+			panel.error = toAdminUserMessage(cause, fallback)
 	}
 	finally {
 		if (request === panel.request)
@@ -343,7 +344,7 @@ async function revealIp(eventId: number): Promise<void> {
 		ipTimers.set(eventId, setTimeout(hideIp, 30_000, eventId))
 	}
 	catch (cause) {
-		ipReveals[String(eventId)] = { value: '', loading: false, error: cause instanceof Error ? cause.message : '完整 IP 已不可用' }
+		ipReveals[String(eventId)] = { value: '', loading: false, error: toAdminUserMessage(cause, '完整 IP 已不可用') }
 	}
 }
 
@@ -370,7 +371,7 @@ async function exportCsv(): Promise<void> {
 		URL.revokeObjectURL(href)
 	}
 	catch (cause) {
-		pageError.value = cause instanceof Error ? cause.message : 'CSV 导出失败'
+		pageError.value = toAdminUserMessage(cause, 'CSV 导出失败')
 	}
 	finally {
 		exporting.value = false

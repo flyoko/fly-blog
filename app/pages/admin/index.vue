@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { AdminOverviewDto } from '~/types/admin'
+import { toAdminUserMessage } from '#shared/admin/feedback'
 import { serviceStatusMeta } from '~/types/admin'
 
 const adminStore = useAdminStore()
@@ -60,7 +61,7 @@ async function refresh() {
 		overview.value = await useAdminApi<AdminOverviewDto>('/api/admin/overview')
 	}
 	catch (cause) {
-		error.value = cause instanceof Error ? cause.message : '概览加载失败'
+		error.value = toAdminUserMessage(cause, '概览加载失败')
 	}
 	finally {
 		loading.value = false
@@ -185,7 +186,7 @@ onMounted(refresh)
 					<span class="admin-service-item-dot" aria-hidden="true" />
 					<div>
 						<strong>{{ service.service.toUpperCase() }}</strong>
-						<span>{{ service.message || serviceStatusMeta(service.status).label }}</span>
+						<span>{{ service.message ? toAdminUserMessage(service.message, serviceStatusMeta(service.status).label) : serviceStatusMeta(service.status).label }}</span>
 					</div>
 				</div>
 			</div>

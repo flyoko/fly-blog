@@ -44,6 +44,20 @@ async function forwardedRequest(request: Request, targetUrl: URL): Promise<Reque
 	return new Request(targetUrl, init)
 }
 
+function withPageCachePolicy(pathname: string, response: Response): Response {
+	if (pathname !== '/admin' && !pathname.startsWith('/admin/'))
+		return response
+	const headers = new Headers(response.headers)
+	headers.set('cache-control', 'no-cache, no-store, must-revalidate')
+	headers.set('pragma', 'no-cache')
+	headers.set('expires', '0')
+	return new Response(response.body, {
+		status: response.status,
+		statusText: response.statusText,
+		headers,
+	})
+}
+
 function momentDetailId(pathname: string): string | null {
 	const match = pathname.match(/^\/moments\/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\/?$/iu)
 	return match?.[1] ?? null
@@ -107,7 +121,13 @@ const worker = {
 			pagesUrl.pathname = useSpaShell ? '/200' : incomingUrl.pathname
 			pagesUrl.search = useSpaShell ? '' : incomingUrl.search
 			const response = await fetch(await forwardedRequest(request, pagesUrl))
-			return instrumentPageResponse(request, response, incomingUrl.pathname, env, ctx)
+			return instrumentPageResponse(
+				request,
+				withPageCachePolicy(incomingUrl.pathname, response),
+				incomingUrl.pathname,
+				env,
+				ctx,
+			)
 		}
 		catch {
 			return upstreamUnavailable()

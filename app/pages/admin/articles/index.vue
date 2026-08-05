@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { ArticleSummary } from '#shared/admin/articles'
 import categoriesRaw from '~~/config/taxonomy/categories.json'
+import { toAdminUserMessage } from '#shared/admin/feedback'
 
 const query = ref('')
 const category = ref('')
@@ -39,7 +40,7 @@ async function load() {
 		})
 	}
 	catch (cause) {
-		error.value = cause instanceof Error ? cause.message : '文章列表加载失败'
+		error.value = toAdminUserMessage(cause, '文章列表加载失败')
 	}
 	finally {
 		loading.value = false
