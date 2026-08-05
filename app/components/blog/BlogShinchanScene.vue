@@ -204,7 +204,7 @@ watch(() => profileImageSrc.value, () => {
 	transform: translate3d(var(--scene-character-x, var(--scene-shift-x, 0)), var(--scene-character-y, var(--scene-shift-y, 0)), 0);
 	transform-origin: 54% 88%;
 	animation: shinchan-bob 3.9s cubic-bezier(0.45, 0, 0.2, 1) infinite;
-	filter: drop-shadow(0 16px 26px rgb(28 61 120 / 18%));
+	filter: none;
 }
 
 .scene-character img {
@@ -286,9 +286,9 @@ watch(() => profileImageSrc.value, () => {
 
 .scene-planet {
 	overflow: hidden;
-	right: -6%;
-	bottom: -64%;
-	width: min(48%, 34rem);
+	right: -7%;
+	bottom: -78%;
+	width: min(46%, 30rem);
 	aspect-ratio: 1;
 	border: 1px solid rgb(132 188 255 / 62%);
 	border-radius: 50%;
@@ -406,13 +406,27 @@ watch(() => profileImageSrc.value, () => {
 
 .scene-speech {
 	padding: 0.42rem 0.68rem;
-	border: 1px solid color-mix(in srgb, var(--c-text) 22%, transparent);
+	border: 1.5px solid color-mix(in srgb, var(--c-text-1) 58%, var(--c-primary) 18%);
 	border-radius: 0.75rem 0.75rem 0.2rem;
-	box-shadow: 0 8px 18px rgb(40 72 125 / 12%);
-	background: color-mix(in srgb, var(--ld-bg-card) 88%, transparent);
-	font-size: 0.68rem;
+	box-shadow: 0 5px 12px rgb(40 72 125 / 8%);
+	background: color-mix(in srgb, var(--ld-bg-card) 94%, white 6%);
+	font-size: 0.72rem;
+	font-weight: 700;
 	color: var(--c-text-1);
 	animation: shinchan-speech 4.4s ease-in-out infinite;
+}
+
+.scene-speech::after {
+	content: "";
+	position: absolute;
+	right: 0.75rem;
+	bottom: -0.28rem;
+	width: 0.48rem;
+	height: 0.48rem;
+	border-right: 1.5px solid color-mix(in srgb, var(--c-text-1) 58%, var(--c-primary) 18%);
+	border-bottom: 1.5px solid color-mix(in srgb, var(--c-text-1) 58%, var(--c-primary) 18%);
+	background: color-mix(in srgb, var(--ld-bg-card) 94%, white 6%);
+	transform: rotate(45deg);
 }
 
 .is-header .scene-character {
@@ -462,37 +476,39 @@ watch(() => profileImageSrc.value, () => {
 }
 
 .is-about .scene-character {
-	right: 4.2%;
-	bottom: 36%;
-	width: clamp(6.4rem, 9vw, 8rem);
+	right: 1.2%;
+	bottom: -4%;
+	width: clamp(8.75rem, 12.5vw, 10.75rem);
 	aspect-ratio: 390 / 333;
 	clip-path: inset(0 0 8% 0);
+	animation-delay: -0.8s;
+	animation-duration: 4.8s;
 	animation-name: shinchan-peek-about;
-	z-index: 2;
+	z-index: 7;
 }
 
 .is-about.has-custom-character .scene-profile-avatar {
-	top: 18%;
-	right: 12%;
-	width: min(19%, 12rem);
+	top: 17%;
+	right: 22%;
+	width: min(12.5%, 8.25rem);
 	aspect-ratio: 1;
 	border-width: 1.5px;
 	box-shadow:
-		inset 0 1px 0 rgb(255 255 255 / 65%),
-		inset 0 -1rem 2.8rem rgb(34 91 183 / 20%),
-		0 0 0 0.75rem rgb(76 139 255 / 10%),
-		0 0 3.4rem rgb(75 145 255 / 30%),
-		0 1.8rem 4rem rgb(0 10 40 / 42%);
+		inset 0 1px 0 rgb(255 255 255 / 75%),
+		inset 0 -1rem 2.8rem rgb(34 91 183 / 12%),
+		0 0 0 0.65rem rgb(76 139 255 / 9%),
+		0 0 2.7rem rgb(75 145 255 / 22%),
+		0 1.5rem 3.4rem rgb(74 104 158 / 18%);
 	background:
-		radial-gradient(circle at 31% 20%, rgb(255 255 255 / 30%), transparent 29%),
-		radial-gradient(circle at 62% 76%, rgb(52 117 233 / 22%), transparent 44%),
-		rgb(8 27 67 / 45%);
+		radial-gradient(circle at 31% 20%, rgb(255 255 255 / 88%), transparent 29%),
+		radial-gradient(circle at 62% 76%, rgb(84 151 255 / 12%), transparent 44%),
+		rgb(255 255 255 / 48%);
 }
 
 .is-about.has-custom-character .scene-profile-avatar::before {
 	inset: 0.62rem;
 	box-shadow:
-		inset 0 0 1.7rem rgb(255 255 255 / 16%),
+		inset 0 0 1.7rem rgb(255 255 255 / 30%),
 		0 0 1.5rem rgb(93 163 255 / 10%);
 }
 
@@ -500,16 +516,16 @@ watch(() => profileImageSrc.value, () => {
 	inset: 0.78rem;
 	width: calc(100% - 1.56rem);
 	height: calc(100% - 1.56rem);
-	box-shadow: 0 1rem 2.2rem rgb(2 13 46 / 42%);
-	background: radial-gradient(circle at 42% 28%, rgb(48 77 126 / 52%), rgb(4 11 31 / 86%) 72%);
+	box-shadow: 0 1rem 2rem rgb(74 100 151 / 20%);
+	background: radial-gradient(circle at 42% 28%, rgb(255 255 255 / 92%), rgb(187 215 255 / 62%) 72%);
 	object-fit: contain;
 }
 
 .is-about .scene-profile-halo {
 	inset: -18%;
-	border-color: rgb(86 153 255 / 34%);
+	border-color: rgb(86 153 255 / 26%);
 	box-shadow:
-		0 0 2.7rem rgb(64 139 255 / 22%),
+		0 0 2.4rem rgb(64 139 255 / 16%),
 		inset 0 0 2rem rgb(70 135 255 / 8%);
 }
 
@@ -518,27 +534,52 @@ watch(() => profileImageSrc.value, () => {
 	right: -3%;
 	width: clamp(1.9rem, 3vw, 2.5rem);
 	box-shadow:
-		inset 0 1px 0 rgb(255 255 255 / 18%),
-		0 0 1.35rem rgb(72 145 255 / 42%);
-	background: rgb(18 47 100 / 70%);
+		inset 0 1px 0 rgb(255 255 255 / 58%),
+		0 0 1.35rem rgb(72 145 255 / 28%);
+	background: rgb(245 250 255 / 82%);
 	font-size: clamp(0.75rem, 1.15vw, 1rem);
-	color: #DCEBFF;
+	color: #4380DD;
+}
+
+.is-about .scene-planet {
+	opacity: 0.84;
+	right: 0.5%;
+	bottom: -18%;
+	width: min(31%, 20.5rem);
+	border-color: rgb(117 176 255 / 32%);
+	box-shadow:
+		inset 0 1.2rem 3rem rgb(255 255 255 / 54%),
+		inset 1.8rem -3rem 5rem rgb(82 139 230 / 18%),
+		0 -0.25rem 1.6rem rgb(114 182 255 / 24%),
+		0 0 4rem rgb(91 153 240 / 18%);
+	background:
+		radial-gradient(circle at 32% 12%, rgb(255 255 255 / 72%), transparent 19%),
+		radial-gradient(circle at 43% 34%, #D9ECFF 0, #B9D9FF 42%, #91BEF4 73%, #6A9CDC 100%);
+}
+
+.is-about .scene-planet-texture {
+	opacity: 0.62;
+	filter: saturate(0.76) brightness(1.12);
+}
+
+.is-about .scene-planet-clouds {
+	opacity: 0.32;
 }
 
 .is-about .scene-orbit-one {
-	inset: 5% -5% 26% 48%;
+	inset: 7% -3% 22% 53%;
 	border-color: rgb(91 155 255 / 42%);
 	rotate: -18deg;
 }
 
 .is-about .scene-orbit-two {
-	inset: 20% -12% 5% 54%;
+	inset: 22% -10% -12% 59%;
 	border-color: rgb(101 169 255 / 52%);
 	rotate: 19deg;
 }
 
 .is-about .scene-orbit-three {
-	inset: 43% -14% -37% 40%;
+	inset: 45% -10% -55% 47%;
 	border-style: solid;
 	border-color: rgb(79 142 255 / 34%);
 	animation-duration: 20s;
@@ -546,24 +587,33 @@ watch(() => profileImageSrc.value, () => {
 }
 
 .is-about .scene-track {
-	opacity: 0.82;
-	top: 42%;
-	right: -2%;
-	width: 55%;
+	opacity: 0.76;
+	top: 39%;
+	right: -1%;
+	width: 49%;
 	box-shadow: 0 0 1.2rem rgb(76 151 255 / 34%);
 }
 
 .is-about .scene-avatar-tether {
-	top: 47%;
-	right: 12%;
-	width: 27%;
+	top: 48%;
+	right: 15%;
+	width: 21%;
+}
+
+.is-about .scene-speech {
+	top: auto;
+	right: 1.6%;
+	bottom: 43%;
+	z-index: 9;
 }
 
 .is-about .scene-heart {
-	right: 4.8%;
-	bottom: 44%;
-	font-size: clamp(1rem, 2vw, 1.45rem);
-	text-shadow: 0 0 1.2rem rgb(255 79 132 / 56%);
+	right: 5.5%;
+	bottom: 34%;
+	font-size: clamp(1.05rem, 2vw, 1.45rem);
+	text-shadow: 0 0 0.85rem rgb(255 59 92 / 30%);
+	color: #FF3B5C;
+	z-index: 8;
 }
 
 .is-about .scene-ripple {
@@ -635,9 +685,10 @@ watch(() => profileImageSrc.value, () => {
 }
 
 @keyframes shinchan-peek-about {
-	0%, 100% { transform: translate3d(var(--scene-character-x, 0), calc(var(--scene-character-y, 0) + 9px), 0) rotate(-1.5deg); }
-	42% { transform: translate3d(var(--scene-character-x, 0), calc(var(--scene-character-y, 0) - 4px), 0) rotate(1deg); }
-	68% { transform: translate3d(var(--scene-character-x, 0), calc(var(--scene-character-y, 0) - 1px), 0) rotate(-0.5deg); }
+	0%, 100% { transform: translate3d(var(--scene-character-x, 0), calc(var(--scene-character-y, 0px) + 8px), 0) rotate(-1deg); }
+	34% { transform: translate3d(calc(var(--scene-character-x, 0px) - 2px), calc(var(--scene-character-y, 0px) - 2px), 0) rotate(0.8deg); }
+	61% { transform: translate3d(calc(var(--scene-character-x, 0px) + 2px), calc(var(--scene-character-y, 0px) - 8px), 0) rotate(-0.55deg); }
+	82% { transform: translate3d(var(--scene-character-x, 0), calc(var(--scene-character-y, 0px) - 1px), 0) rotate(0.35deg); }
 }
 
 @keyframes shinchan-rocket {
@@ -814,24 +865,24 @@ watch(() => profileImageSrc.value, () => {
 	}
 
 	.is-about .scene-character {
-		right: 1rem;
-		bottom: 43%;
-		width: 8rem;
+		right: 0.4rem;
+		bottom: -1%;
+		width: 8.5rem;
 	}
 
 	.is-about.has-custom-character .scene-profile-avatar {
 		--profile-base-y: 0px;
 
 		top: auto;
-		right: 9rem;
-		bottom: 8.5rem;
-		width: 10rem;
+		right: 7.6rem;
+		bottom: 7.4rem;
+		width: 7.2rem;
 	}
 
 	.is-about .scene-planet {
-		right: -10%;
-		bottom: -27%;
-		width: 27rem;
+		right: -4%;
+		bottom: -15%;
+		width: 18rem;
 	}
 
 	.is-about .scene-orbit-one {
@@ -860,8 +911,14 @@ watch(() => profileImageSrc.value, () => {
 	}
 
 	.is-about .scene-heart {
-		right: 5.5%;
-		bottom: 30%;
+		right: 5%;
+		bottom: 29%;
+	}
+
+	.is-about .scene-speech {
+		top: auto;
+		right: 0.8rem;
+		bottom: 9.7rem;
 	}
 }
 
@@ -889,15 +946,15 @@ watch(() => profileImageSrc.value, () => {
 	}
 
 	.is-about .scene-character {
-		right: -0.2rem;
-		bottom: 31%;
-		width: 6.2rem;
+		right: -0.1rem;
+		bottom: -1%;
+		width: 6.8rem;
 	}
 
 	.is-about.has-custom-character .scene-profile-avatar {
-		right: 5.4rem;
-		bottom: 6.7rem;
-		width: 7rem;
+		right: 5.7rem;
+		bottom: 6.2rem;
+		width: 5.5rem;
 	}
 
 	.is-about .scene-profile-badge {
@@ -906,9 +963,9 @@ watch(() => profileImageSrc.value, () => {
 	}
 
 	.is-about .scene-planet {
-		right: -22%;
+		right: -10%;
 		bottom: -18%;
-		width: 19rem;
+		width: 14.5rem;
 	}
 
 	.is-about .scene-orbit-one {
@@ -936,8 +993,15 @@ watch(() => profileImageSrc.value, () => {
 	}
 
 	.is-about .scene-heart {
-		right: 3.5%;
-		bottom: 31%;
+		right: 3.2%;
+		bottom: 29%;
+	}
+
+	.is-about .scene-speech {
+		top: auto;
+		right: 0.65rem;
+		bottom: 7.85rem;
+		font-size: 0.66rem;
 	}
 }
 

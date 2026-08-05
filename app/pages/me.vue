@@ -31,10 +31,6 @@ const profileSummary = computed(() =>
 const profileAvatar = computed(() =>
 	String((profile.value as Record<string, unknown> | null)?.avatar || ''),
 )
-const animatedCatAvatar = 'https://flyovo.cc.cd/media/public/profile/917a55b1-a628-406b-8bdf-76a0a8ad81fa.gif'
-const profilePortrait = computed(() =>
-	profileAvatar.value === animatedCatAvatar ? '/assets/profile-cat-hero.webp' : '',
-)
 
 useSeoMeta({
 	title: () => profile.value?.title || '自述',
@@ -53,48 +49,17 @@ useSeoMeta({
 
 <article class="about-page">
 	<header class="about-hero card" :class="{ 'is-dynamic-mode': isDynamicMode }">
+		<span class="about-hero-spotlight" aria-hidden="true" />
 		<div class="about-hero-copy">
 			<span class="about-eyebrow">ABOUT · FLY LIVING</span>
-			<h1>{{ profile?.title || "关于我" }}</h1>
+			<h1><span>{{ profile?.title || "关于我" }}</span></h1>
 			<p>{{ profileSummary }}</p>
-			<a class="about-hero-cta" href="#about-story">
-				<span>探索更多</span>
-				<Icon name="tabler:arrow-right" aria-hidden="true" />
-			</a>
-			<div class="about-hero-features" aria-label="我的关键词">
-				<div class="about-hero-feature">
-					<span class="about-hero-feature-icon">
-						<Icon name="tabler:code" aria-hidden="true" />
-					</span>
-					<span>
-						<strong>写代码</strong>
-						<small>Code</small>
-					</span>
-				</div>
-				<div class="about-hero-feature">
-					<span class="about-hero-feature-icon">
-						<Icon name="tabler:book-2" aria-hidden="true" />
-					</span>
-					<span>
-						<strong>持续学习</strong>
-						<small>Learn</small>
-					</span>
-				</div>
-				<div class="about-hero-feature">
-					<span class="about-hero-feature-icon">
-						<Icon name="tabler:heart" aria-hidden="true" />
-					</span>
-					<span>
-						<strong>认真生活</strong>
-						<small>Life</small>
-					</span>
-				</div>
-			</div>
 		</div>
 		<BlogShinchanScene
 			variant="about"
+			speech="你好，我是 fly"
 			:character-src="profileAvatar || undefined"
-			:portrait-src="profilePortrait || undefined"
+			:portrait-src="profileAvatar || undefined"
 		/>
 	</header>
 
@@ -151,60 +116,84 @@ useSeoMeta({
 .about-page {
 	display: grid;
 	gap: 1rem;
-	width: min(calc(100% - 2rem), 78rem);
+	width: min(calc(100% - 2rem), 72rem);
 	margin: 1rem auto;
 }
 
 .about-hero {
+	--surface-tilt-x: 0deg;
+	--surface-tilt-y: 0deg;
+
 	display: flex;
 	align-items: center;
 	position: relative;
 	overflow: hidden;
-	min-height: clamp(23.5rem, 24vw, 27rem);
-	padding: clamp(2rem, 3.6vw, 3rem);
-	padding-inline-end: clamp(20rem, 44%, 34rem);
-	border: 1px solid rgb(117 158 231 / 34%);
+	min-height: clamp(17.5rem, 24vw, 22rem);
+	padding: clamp(1.6rem, 4vw, 3rem);
+	padding-inline-end: clamp(18rem, 43%, 31rem);
+	border: 1px solid color-mix(in srgb, var(--c-primary) 28%, var(--c-border));
 	border-radius: clamp(0.9rem, 1.4vw, 1.35rem);
 	box-shadow:
-		inset 0 1px 0 rgb(255 255 255 / 8%),
-		inset 0 0 4rem rgb(35 91 202 / 7%),
-		0 1.2rem 3.4rem rgb(1 8 27 / 24%);
+		inset 0 1px 0 rgb(255 255 255 / 82%),
+		inset 0 0 4rem color-mix(in srgb, var(--c-primary) 8%, transparent),
+		0 1.2rem 3.2rem rgb(68 100 154 / 14%);
 	background:
-		radial-gradient(circle at 83% 28%, rgb(71 137 255 / 19%), transparent 23%),
-		radial-gradient(circle at 68% 66%, rgb(25 72 178 / 16%), transparent 33%),
-		radial-gradient(circle at 8% 7%, rgb(29 76 181 / 14%), transparent 29%),
-		linear-gradient(126deg, #020817 0%, #061126 48%, #0A1D43 75%, #0C285E 100%);
-	color: #F7FAFF;
+		radial-gradient(circle at 84% 26%, color-mix(in srgb, var(--c-primary) 24%, transparent), transparent 31%),
+		radial-gradient(circle at 70% 80%, color-mix(in srgb, var(--c-flow-blue) 16%, transparent), transparent 39%),
+		linear-gradient(132deg, color-mix(in srgb, var(--c-surface-fill) 96%, white), color-mix(in srgb, var(--c-surface-fill) 82%, var(--c-flow-blue) 10%));
+	color: var(--c-text);
+	transform:
+		perspective(1200px)
+		rotateX(var(--surface-tilt-x))
+		rotateY(var(--surface-tilt-y))
+		translate3d(var(--surface-shift-x, 0), var(--surface-shift-y, 0), 0);
+	transform-style: preserve-3d;
+	transition:
+		background 0.35s ease,
+		border-color 0.35s ease,
+		box-shadow 0.35s ease,
+		color 0.35s ease,
+		transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
 	isolation: isolate;
+}
+
+.about-hero-spotlight {
+	position: absolute;
+	opacity: 0;
+	inset: 0;
+	background: radial-gradient(circle 16rem at var(--surface-x, 72%) var(--surface-y, 35%), color-mix(in srgb, var(--c-primary) 18%, transparent), transparent 72%);
+	transition: opacity 0.22s ease;
+	pointer-events: none;
+	z-index: 2;
+}
+
+.about-hero.is-pointer-active .about-hero-spotlight {
+	opacity: 1;
 }
 
 .about-hero::before {
 	content: "";
 	position: absolute;
-	opacity: 0.72;
+	opacity: 0.52;
 	inset: 0;
 	background-image:
-		radial-gradient(circle at 7% 19%, rgb(255 255 255 / 74%) 0 1px, transparent 1.5px),
-		radial-gradient(circle at 18% 67%, rgb(103 164 255 / 70%) 0 1px, transparent 1.6px),
-		radial-gradient(circle at 28% 11%, rgb(255 255 255 / 55%) 0 1px, transparent 1.4px),
-		radial-gradient(circle at 39% 47%, rgb(99 154 255 / 54%) 0 1.2px, transparent 1.8px),
-		radial-gradient(circle at 47% 24%, rgb(255 255 255 / 68%) 0 1px, transparent 1.5px),
-		radial-gradient(circle at 57% 72%, rgb(88 148 255 / 68%) 0 1.2px, transparent 1.8px),
-		radial-gradient(circle at 68% 12%, rgb(255 255 255 / 62%) 0 1px, transparent 1.5px),
-		radial-gradient(circle at 77% 54%, rgb(101 165 255 / 58%) 0 1.3px, transparent 1.9px),
-		radial-gradient(circle at 88% 18%, rgb(255 255 255 / 76%) 0 1px, transparent 1.5px),
-		radial-gradient(circle at 94% 73%, rgb(86 154 255 / 60%) 0 1.2px, transparent 1.8px);
+		radial-gradient(circle at 8% 18%, color-mix(in srgb, var(--c-primary) 28%, white) 0 1px, transparent 1.5px),
+		radial-gradient(circle at 19% 68%, color-mix(in srgb, var(--c-primary) 38%, transparent) 0 1px, transparent 1.6px),
+		radial-gradient(circle at 32% 12%, rgb(255 255 255 / 86%) 0 1px, transparent 1.4px),
+		radial-gradient(circle at 46% 42%, color-mix(in srgb, var(--c-primary) 30%, transparent) 0 1.2px, transparent 1.8px),
+		radial-gradient(circle at 58% 72%, color-mix(in srgb, var(--c-flow-blue) 34%, transparent) 0 1.2px, transparent 1.8px),
+		radial-gradient(circle at 74% 14%, rgb(255 255 255 / 82%) 0 1px, transparent 1.5px),
+		radial-gradient(circle at 88% 56%, color-mix(in srgb, var(--c-primary) 34%, transparent) 0 1.3px, transparent 1.9px),
+		radial-gradient(circle at 95% 24%, rgb(255 255 255 / 90%) 0 1px, transparent 1.5px);
 	background-size:
 		17rem 13rem,
 		23rem 18rem,
 		19rem 16rem,
 		29rem 21rem,
-		31rem 24rem,
 		27rem 19rem,
 		21rem 17rem,
 		33rem 25rem,
-		25rem 20rem,
-		28rem 23rem;
+		25rem 20rem;
 	pointer-events: none;
 	z-index: 0;
 }
@@ -214,8 +203,8 @@ useSeoMeta({
 	position: absolute;
 	inset: 0;
 	background:
-		linear-gradient(90deg, rgb(2 8 23 / 98%) 0 35%, rgb(3 11 28 / 88%) 45%, rgb(5 17 43 / 28%) 62%, transparent 76%),
-		linear-gradient(to bottom, rgb(255 255 255 / 2%), transparent 28% 75%, rgb(1 7 23 / 24%));
+		linear-gradient(90deg, color-mix(in srgb, var(--c-surface-fill) 96%, white) 0 33%, color-mix(in srgb, var(--c-surface-fill) 82%, transparent) 47%, transparent 69%),
+		linear-gradient(to bottom, rgb(255 255 255 / 16%), transparent 32% 76%, color-mix(in srgb, var(--c-primary) 8%, transparent));
 	pointer-events: none;
 	z-index: 1;
 }
@@ -225,138 +214,150 @@ useSeoMeta({
 	flex-direction: column;
 	align-items: flex-start;
 	position: relative;
-	width: min(100%, 32rem);
-	z-index: 3;
+	width: min(100%, 30rem);
+	transform: translateZ(24px);
+	z-index: 4;
+}
+
+.about-hero :deep(.shinchan-scene) {
+	transform: translateZ(12px);
+	z-index: 2;
 }
 
 .about-hero h1 {
-	margin: 0.45rem 0 0.65rem;
+	margin: 0.4rem 0 0.55rem;
 	font-family: var(--font-creative);
-	font-size: clamp(3.35rem, 5.4vw, 5.8rem);
+	font-size: clamp(3.25rem, 5.4vw, 5.7rem);
 	font-weight: 760;
 	letter-spacing: -0.05em;
 	line-height: 0.94;
-	text-shadow:
-		0 1px 0 rgb(255 255 255 / 30%),
-		0 0.55rem 1.9rem rgb(35 100 235 / 24%);
-	color: #F8FAFF;
+	text-shadow: 0 0.55rem 1.8rem rgb(81 116 170 / 11%);
+	color: var(--c-text-1);
+	transition: color 0.35s ease, text-shadow 0.35s ease;
+}
+
+.about-hero h1 span {
+	display: inline;
+	padding: 0 0.08em 0.03em;
+	box-decoration-break: clone;
+	background: linear-gradient(to top, color-mix(in srgb, var(--c-primary) 30%, transparent) 0 58%, transparent 58%);
 }
 
 .about-hero p {
-	max-width: 31rem;
+	max-width: 29rem;
 	margin: 0;
-	font-size: clamp(0.92rem, 1.05vw, 1.08rem);
-	line-height: 1.65;
-	color: rgb(220 229 248 / 82%);
+	font-size: clamp(0.9rem, 0.95vw, 1rem);
+	line-height: 1.58;
+	color: var(--c-text-2);
+	transition: color 0.35s ease;
 }
 
 .about-hero .about-eyebrow {
 	font-size: clamp(0.68rem, 0.72vw, 0.8rem);
 	font-weight: 700;
 	letter-spacing: 0.18em;
-	text-shadow: 0 0 1.2rem rgb(66 139 255 / 42%);
-	color: #65A1FF;
+	text-shadow: 0 0 1.2rem color-mix(in srgb, var(--c-primary) 22%, transparent);
+	color: var(--c-primary);
+	transition: color 0.35s ease, text-shadow 0.35s ease;
 }
 
-.about-hero-cta {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	gap: 1rem;
-	min-width: 10rem;
-	margin-top: clamp(1.3rem, 2vw, 1.8rem);
-	padding: 0.72rem 1.2rem;
-	border: 1px solid rgb(119 168 255 / 42%);
-	border-radius: 999px;
+:global(html.light) .about-hero {
+	border-color: color-mix(in srgb, var(--c-primary) 28%, var(--c-border));
+	box-shadow:
+		inset 0 1px 0 rgb(255 255 255 / 84%),
+		inset 0 0 4rem color-mix(in srgb, var(--c-primary) 8%, transparent),
+		0 1.2rem 3.2rem rgb(68 100 154 / 14%);
+	background:
+		radial-gradient(circle at 84% 26%, color-mix(in srgb, var(--c-primary) 22%, transparent), transparent 31%),
+		radial-gradient(circle at 70% 80%, color-mix(in srgb, var(--c-flow-blue) 14%, transparent), transparent 39%),
+		linear-gradient(132deg, color-mix(in srgb, var(--c-surface-fill) 97%, white), color-mix(in srgb, var(--c-surface-fill) 84%, var(--c-flow-blue) 9%));
+	color: var(--c-text);
+}
+
+:global(html.light) .about-hero h1 {
+	text-shadow: 0 0.55rem 1.8rem rgb(81 116 170 / 11%);
+	color: var(--c-text-1);
+}
+
+:global(html.dark) .about-hero {
+	border-color: rgb(103 153 236 / 36%);
 	box-shadow:
 		inset 0 1px 0 rgb(255 255 255 / 8%),
-		0 0.6rem 1.5rem rgb(5 40 112 / 15%);
-	background: linear-gradient(135deg, rgb(15 35 77 / 62%), rgb(7 20 49 / 38%));
-	backdrop-filter: blur(10px);
-	font-size: 0.92rem;
-	font-weight: 650;
-	color: #F5F8FF;
-	transition:
-		border-color 0.24s ease,
-		box-shadow 0.24s ease,
-		transform 0.24s ease;
+		inset 0 0 4.5rem rgb(42 98 211 / 10%),
+		0 1.4rem 3.8rem rgb(0 7 25 / 32%);
+	background:
+		radial-gradient(circle at 84% 27%, rgb(74 139 255 / 24%), transparent 31%),
+		radial-gradient(circle at 69% 82%, rgb(34 93 205 / 20%), transparent 40%),
+		linear-gradient(132deg, #050B18 0%, #0A1429 48%, #102B59 100%);
+	color: #F7FAFF;
 }
 
-.about-hero-cta:hover,
-.about-hero-cta:focus-visible {
-	border-color: rgb(142 187 255 / 78%);
+:global(html.dark) .about-hero::after {
+	background:
+		linear-gradient(90deg, rgb(5 11 24 / 98%) 0 34%, rgb(8 18 38 / 84%) 48%, transparent 70%),
+		linear-gradient(to bottom, rgb(255 255 255 / 2%), transparent 32% 76%, rgb(0 5 18 / 24%));
+}
+
+:global(html.dark) .about-hero h1 {
+	text-shadow: 0 0.7rem 2.2rem rgb(34 94 213 / 25%);
+	color: #F8FAFF;
+}
+
+:global(html.dark) .about-hero h1 span {
+	background: linear-gradient(to top, rgb(69 137 255 / 30%) 0 58%, transparent 58%);
+}
+
+:global(html.dark) .about-hero p {
+	color: rgb(222 231 247 / 82%);
+}
+
+:global(html.dark) .about-hero .about-eyebrow {
+	text-shadow: 0 0 1.2rem rgb(76 145 255 / 42%);
+	color: #70A9FF;
+}
+
+:global(html.dark) .about-hero :deep(.scene-profile-avatar) {
+	border-color: rgb(145 190 255 / 58%);
+	background: rgb(13 35 75 / 58%);
+}
+
+:global(html.dark) .about-hero :deep(.scene-profile-avatar img) {
+	background: radial-gradient(circle at 34% 24%, rgb(255 255 255 / 18%), rgb(29 73 155 / 42%));
+}
+
+:global(html.dark) .about-hero :deep(.scene-character) {
+	filter: none;
+}
+
+:global(html.dark) .about-hero :deep(.scene-planet) {
+	border-color: rgb(107 171 255 / 48%);
 	box-shadow:
-		inset 0 1px 0 rgb(255 255 255 / 14%),
-		0 0 2rem rgb(48 118 255 / 28%),
-		0 1rem 2.4rem rgb(1 13 44 / 28%);
-	transform: translateY(-2px);
+		inset 0 1.1rem 2.8rem rgb(255 255 255 / 18%),
+		inset 1.8rem -3rem 5rem rgb(3 19 78 / 48%),
+		0 -0.2rem 1.4rem rgb(91 164 255 / 36%),
+		0 0 4rem rgb(38 105 235 / 28%);
+	background:
+		radial-gradient(circle at 32% 12%, rgb(255 255 255 / 28%), transparent 19%),
+		radial-gradient(circle at 43% 34%, #318AE8 0, #1C69CE 42%, #0F46A5 73%, #071F61 100%);
 }
 
-.about-hero-cta svg {
-	font-size: 1.15rem;
-	transition: transform 0.24s ease;
+:global(html.dark) .about-hero :deep(.scene-planet-texture) {
+	filter: saturate(0.96) brightness(0.92);
 }
 
-.about-hero-cta:hover svg,
-.about-hero-cta:focus-visible svg {
-	transform: translateX(0.25rem);
+:global(html.dynamic) .about-hero {
+	border-color: color-mix(in srgb, var(--c-primary) 52%, var(--c-border));
+	background:
+		radial-gradient(circle at 82% 28%, color-mix(in srgb, var(--c-primary) 32%, transparent), transparent 31%),
+		radial-gradient(circle at 64% 68%, color-mix(in srgb, var(--c-flow-blue) 21%, transparent), transparent 38%),
+		linear-gradient(132deg, color-mix(in srgb, var(--c-surface-fill) 97%, white), color-mix(in srgb, var(--c-surface-fill) 74%, var(--c-flow-blue) 14%));
 }
 
-.about-hero-features {
-	display: grid;
-	grid-template-columns: repeat(3, minmax(0, 1fr));
-	width: min(100%, 30rem);
-	margin-top: clamp(1.8rem, 2.8vw, 2.6rem);
-}
-
-.about-hero-feature {
-	display: flex;
-	align-items: center;
-	gap: 0.6rem;
-	min-width: 0;
-	padding-inline: 0.8rem;
-	border-inline-end: 1px solid rgb(121 158 225 / 20%);
-}
-
-.about-hero-feature:first-child {
-	padding-inline-start: 0;
-}
-
-.about-hero-feature:last-child {
-	padding-inline-end: 0;
-	border-inline-end: 0;
-}
-
-.about-hero-feature-icon {
-	display: grid;
-	flex: 0 0 auto;
-	place-items: center;
-	width: 2.35rem;
-	aspect-ratio: 1;
-	border: 1px solid rgb(105 160 255 / 26%);
-	border-radius: 50%;
-	box-shadow: inset 0 0 0.85rem rgb(47 110 240 / 7%);
-	background: rgb(10 27 61 / 62%);
-	font-size: 1.12rem;
-	color: #69A8FF;
-}
-
-.about-hero-feature > span:last-child {
-	display: grid;
-	gap: 0.1rem;
-	min-width: 0;
-}
-
-.about-hero-feature strong {
-	font-size: 0.84rem;
-	font-weight: 650;
-	white-space: nowrap;
-	color: rgb(244 248 255 / 90%);
-}
-
-.about-hero-feature small {
-	font-size: 0.66rem;
-	color: rgb(184 201 231 / 60%);
+.about-hero.is-pointer-active {
+	box-shadow:
+		inset 0 1px 0 rgb(255 255 255 / 88%),
+		inset 0 0 4.8rem color-mix(in srgb, var(--c-primary) 12%, transparent),
+		0 1.55rem 4rem rgb(61 95 158 / 20%);
 }
 
 .about-hero.is-pointer-active :deep(.scene-profile-avatar) {
@@ -368,7 +369,7 @@ useSeoMeta({
 }
 
 .about-hero.is-pointer-active :deep(.scene-character) {
-	filter: drop-shadow(0 20px 32px rgb(20 75 181 / 38%));
+	filter: none;
 }
 
 .about-hero.is-pressed :deep(.scene-ripple) {
@@ -376,15 +377,15 @@ useSeoMeta({
 }
 
 .about-hero.is-dynamic-mode {
-	border-color: rgb(122 171 255 / 48%);
+	border-color: color-mix(in srgb, var(--c-primary) 48%, var(--c-border));
 	box-shadow:
-		inset 0 1px 0 rgb(255 255 255 / 12%),
-		inset 0 0 5rem rgb(41 103 232 / 12%),
-		0 1.8rem 5.5rem rgb(0 7 26 / 42%);
+		inset 0 1px 0 rgb(255 255 255 / 88%),
+		inset 0 0 5rem color-mix(in srgb, var(--c-primary) 12%, transparent),
+		0 1.8rem 5.5rem rgb(79 111 166 / 18%);
 	background:
-		radial-gradient(circle at 82% 28%, rgb(69 139 255 / 28%), transparent 25%),
-		radial-gradient(circle at 64% 64%, rgb(27 78 194 / 22%), transparent 36%),
-		linear-gradient(126deg, #010614 0%, #041026 48%, #08204C 77%, #0B2C69 100%);
+		radial-gradient(circle at 82% 28%, color-mix(in srgb, var(--c-primary) 30%, transparent), transparent 31%),
+		radial-gradient(circle at 64% 68%, color-mix(in srgb, var(--c-flow-blue) 19%, transparent), transparent 38%),
+		linear-gradient(132deg, color-mix(in srgb, var(--c-surface-fill) 96%, white), color-mix(in srgb, var(--c-surface-fill) 76%, var(--c-flow-blue) 12%));
 }
 
 .about-hero.is-dynamic-mode :deep(.scene-atmosphere) {
@@ -393,24 +394,24 @@ useSeoMeta({
 }
 
 .about-hero :deep(.scene-orbit) {
-	border-color: rgb(89 154 255 / 45%);
+	border-color: color-mix(in srgb, var(--c-primary) 38%, transparent);
 }
 
 .about-hero :deep(.scene-track) {
-	background: linear-gradient(90deg, transparent, rgb(106 180 255 / 88%), transparent);
+	background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--c-primary) 68%, white), transparent);
 }
 
 .about-hero :deep(.scene-profile-avatar) {
-	border-color: rgb(155 197 255 / 68%);
-	background: rgb(10 29 68 / 44%);
+	border-color: color-mix(in srgb, var(--c-primary) 48%, white);
+	background: rgb(255 255 255 / 52%);
 }
 
 .about-hero :deep(.scene-profile-avatar img) {
-	background: radial-gradient(circle at 34% 24%, rgb(255 255 255 / 22%), rgb(29 73 155 / 38%));
+	background: radial-gradient(circle at 34% 24%, rgb(255 255 255 / 92%), color-mix(in srgb, var(--c-primary) 14%, white));
 }
 
 .about-hero :deep(.scene-character) {
-	filter: drop-shadow(0 18px 32px rgb(0 0 0 / 38%));
+	filter: none;
 }
 
 .about-eyebrow,
@@ -504,86 +505,46 @@ useSeoMeta({
 @media (max-width: 900px) {
 	.about-hero {
 		align-items: flex-start;
-		min-height: 35rem;
-		padding: 2.1rem 2rem 15.5rem;
+		min-height: 29rem;
+		padding: 1.8rem 1.75rem 13.5rem;
 	}
 
 	.about-hero::after {
 		background:
-			linear-gradient(to bottom, rgb(2 8 23 / 98%) 0 38%, rgb(3 11 28 / 78%) 51%, transparent 70%),
-			linear-gradient(90deg, rgb(2 8 23 / 48%), transparent 68%);
+			linear-gradient(to bottom, color-mix(in srgb, var(--c-surface-fill) 96%, white) 0 39%, color-mix(in srgb, var(--c-surface-fill) 70%, transparent) 52%, transparent 72%),
+			linear-gradient(90deg, color-mix(in srgb, var(--c-surface-fill) 60%, transparent), transparent 72%);
 	}
 
 	.about-hero-copy {
-		width: min(100%, 33rem);
+		width: min(100%, 30rem);
 	}
 
 	.about-hero h1 {
-		font-size: clamp(3.6rem, 11vw, 5.4rem);
-	}
-
-	.about-hero-features {
-		margin-top: 2rem;
+		font-size: clamp(3.25rem, 10vw, 5rem);
 	}
 }
 
 @media (max-width: 600px) {
 	.about-page {
-		width: min(calc(100% - 1.5rem), 78rem);
+		width: min(calc(100% - 1.5rem), 72rem);
 		margin: 0.75rem auto;
 	}
 
 	.about-hero {
 		align-items: flex-start;
-		min-height: 36.5rem;
-		padding: 1.5rem 1.25rem 14.5rem;
+		min-height: 27.5rem;
+		padding: 1.35rem 1.15rem 10.75rem;
 		border-radius: 1rem;
 	}
 
 	.about-hero h1 {
-		margin-top: 0.55rem;
-		font-size: clamp(3rem, 16vw, 4.35rem);
+		margin-top: 0.45rem;
+		font-size: clamp(2.85rem, 15vw, 3.8rem);
 	}
 
 	.about-hero p {
-		font-size: 0.9rem;
-		line-height: 1.6;
-	}
-
-	.about-hero-cta {
-		min-width: 9.25rem;
-		margin-top: 1.25rem;
-		padding: 0.68rem 1.05rem;
-	}
-
-	.about-hero-features {
-		gap: 0.1rem;
-		width: 100%;
-		margin-top: 1.65rem;
-	}
-
-	.about-hero-feature {
-		flex-direction: column;
-		align-items: flex-start;
-		gap: 0.45rem;
-		padding-inline: 0.55rem;
-	}
-
-	.about-hero-feature:first-child {
-		padding-inline-start: 0;
-	}
-
-	.about-hero-feature-icon {
-		width: 2.35rem;
-		font-size: 1.12rem;
-	}
-
-	.about-hero-feature strong {
-		font-size: 0.8rem;
-	}
-
-	.about-hero-feature small {
-		font-size: 0.66rem;
+		font-size: 0.86rem;
+		line-height: 1.55;
 	}
 
 	.about-timeline li {
@@ -592,10 +553,15 @@ useSeoMeta({
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.about-hero-cta,
-	.about-hero-cta svg,
+	.about-hero,
+	.about-hero-spotlight,
 	.about-links a {
 		transition: none;
+	}
+
+	.about-hero {
+		--surface-tilt-x: 0deg;
+		--surface-tilt-y: 0deg;
 	}
 }
 </style>

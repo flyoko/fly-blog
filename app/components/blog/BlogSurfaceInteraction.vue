@@ -28,6 +28,8 @@ function clearSurface(element = active) {
 	element.style.removeProperty('--surface-shift-x')
 	element.style.removeProperty('--surface-shift-y')
 	element.style.removeProperty('--surface-sheen-position')
+	element.style.removeProperty('--surface-tilt-x')
+	element.style.removeProperty('--surface-tilt-y')
 	element.style.removeProperty('--scene-shift-x')
 	element.style.removeProperty('--scene-shift-y')
 	element.style.removeProperty('--scene-avatar-x')
@@ -64,6 +66,7 @@ function updateSurface() {
 	const normalizedX = (x - 50) / 50
 	const normalizedY = (y - 50) / 50
 	const compact = active.matches('.sidebar-nav-item, .pagination')
+	const immersive = active.matches('.about-hero')
 	const intensity = interactionIntensity.value
 	const shiftX = normalizedX * (compact ? 2 : 4.5) * intensity
 	const shiftY = normalizedY * (compact ? 1.5 : 3.25) * intensity
@@ -73,6 +76,8 @@ function updateSurface() {
 	active.style.setProperty('--surface-shift-x', `${shiftX.toFixed(2)}px`)
 	active.style.setProperty('--surface-shift-y', `${shiftY.toFixed(2)}px`)
 	active.style.setProperty('--surface-sheen-position', `${x.toFixed(2)}%`)
+	active.style.setProperty('--surface-tilt-x', `${(immersive ? -normalizedY * 2.2 * intensity : 0).toFixed(2)}deg`)
+	active.style.setProperty('--surface-tilt-y', `${(immersive ? normalizedX * 2.8 * intensity : 0).toFixed(2)}deg`)
 	active.style.setProperty('--scene-shift-x', `${(-normalizedX * (compact ? 3 : 7) * intensity).toFixed(2)}px`)
 	active.style.setProperty('--scene-shift-y', `${(-normalizedY * (compact ? 2 : 5) * intensity).toFixed(2)}px`)
 	active.style.setProperty('--scene-avatar-x', `${(-normalizedX * 9 * intensity).toFixed(2)}px`)
