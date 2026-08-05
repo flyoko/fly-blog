@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import {
 	buildConfigPullRequest,
+	canClosePublishRun,
 	publishStatusMeta,
 } from '../../app/types/admin'
 
@@ -39,6 +40,15 @@ describe('admin management helpers', () => {
 		expect(publishStatusMeta('preview_ready')).toEqual({ label: '可审核', tone: 'positive' })
 		expect(publishStatusMeta('failed')).toEqual({ label: '失败', tone: 'danger' })
 		expect(publishStatusMeta('closed')).toEqual({ label: '已关闭', tone: 'neutral' })
+	})
+
+	it('only lets unfinished publishing runs be closed', () => {
+		expect(canClosePublishRun({ status: 'checks_pending' })).toBe(true)
+		expect(canClosePublishRun({ status: 'failed' })).toBe(true)
+		expect(canClosePublishRun({ status: 'preview_ready' })).toBe(true)
+		expect(canClosePublishRun({ status: 'closed' })).toBe(false)
+		expect(canClosePublishRun({ status: 'merged' })).toBe(false)
+		expect(canClosePublishRun({ status: 'published' })).toBe(false)
 	})
 })
 
@@ -158,6 +168,43 @@ describe('admin management UI boundaries', () => {
 		expect(reviews).toContain('打开部署结果')
 		expect(reviews).toContain('title="确认上线"')
 		expect(reviews).not.toContain('verification-text="MERGE"')
+	})
+
+	it('prevalidates article Markdown and links failed checks back to the editor location', async () => {
+		const composable = await source('app/composables/useAdminArticleEditor.ts')
+		const editor = await source('app/components/admin/AdminArticleEditor.vue')
+		const existingPage = await source('app/pages/admin/articles/[id].vue')
+		const newPage = await source('app/pages/admin/articles/new.vue')
+		const checklist = await source('app/components/admin/reviews/AdminReleaseChecklist.vue')
+
+		const saveSource = composable.slice(
+			composable.indexOf('async function save'),
+			composable.indexOf('async function reloadRemote'),
+		)
+		expect(saveSource).toContain('validateArticleMarkdown(document.value.body)')
+		expect(saveSource.indexOf('validateArticleMarkdown(document.value.body)')).toBeLessThan(saveSource.indexOf('await useAdminApi'))
+		expect(composable).toContain('error.value = \'文章正文存在格式问题，请先修正。\'')
+		expect(editor).toContain('focusDiagnostic')
+		expect(editor).toContain('setSelectionRange(position, position)')
+		expect(existingPage).toContain(':initial-diagnostic="initialDiagnostic"')
+		expect(existingPage).toContain('router.replace({ query })')
+		expect(newPage).toContain(':diagnostics="editor.diagnostics.value"')
+		expect(checklist).toContain('encodeArticleId(run.resourcePath)')
+		expect(checklist).toContain('run.resourcePath === diagnostic.path && diagnostic.bodyLine')
+		expect(checklist).toContain('?line=${diagnostic.bodyLine')
+	})
+
+	it('marks stalled runs and exposes per-run refresh and close controls', async () => {
+		const reviews = await source('app/pages/admin/reviews.vue')
+		const queue = await source('app/components/admin/reviews/AdminReleaseQueue.vue')
+
+		expect(queue).toContain('isPublishRunStale')
+		expect(queue).toContain('长时间未更新')
+		expect(reviews).toContain('重新检查')
+		expect(reviews).toContain('关闭任务')
+		expect(reviews).toContain('/api/admin/publishing/runs/$' + '{current.id}/close')
+		expect(reviews).toContain('title="关闭发布任务"')
+		expect(reviews).toContain('closeConfirmOpen')
 	})
 
 	it('loads release history in bounded pages with an infinite-scroll fallback', async () => {

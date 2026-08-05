@@ -4,6 +4,7 @@ import type {
 } from '../../../../../shared/admin/articles'
 import type { Env } from '../../env'
 import pLimit from 'p-limit'
+import { validateArticleMarkdown } from '../../../../../shared/admin/article-validation'
 import {
 	articleDocumentSchema,
 	encodeArticleId,
@@ -25,6 +26,7 @@ export interface ArticleRepositoryPort {
 		message: string
 		files: Array<{ path: string, content: string | null }>
 	}) => Promise<{ commitSha: string }>
+	createFileCommit: (input: { branch: string, expectedHeadSha: string, path: string, content: string, fileSha?: string, message: string }) => Promise<{ commitSha: string }>
 }
 
 export interface ArticleActor {
@@ -143,6 +145,9 @@ export class ArticleService {
 		}
 		if (!parsed.frontmatter.title?.trim())
 			throw new ApiError('VALIDATION_FAILED', 400, 'Article title is required')
+		const diagnostics = validateArticleMarkdown(parsed.body)
+		if (diagnostics.length)
+			throw new ApiError('VALIDATION_FAILED', 400, 'Article Markdown is invalid', { diagnostics })
 		const categoryNames = await this.loadCategoryNames()
 		const missing = (parsed.frontmatter.categories ?? []).filter(category => !categoryNames.has(category))
 		if (missing.length)
@@ -158,6 +163,7 @@ export class ArticleService {
 	}): Promise<{ publishRunId: string, commitSha: string }> {
 		const document = await this.validate(input.document)
 		const current = await this.findOptionalFile(document.path)
+		const serialized = serializeArticle(document)
 		if (input.expectedSha === null || input.expectedSha === undefined) {
 			if (current)
 				throw new ApiError('CONFLICT', 409, 'Article already exists')
@@ -165,6 +171,8 @@ export class ArticleService {
 		else if (!current || current.sha !== input.expectedSha) {
 			throw new ApiError('CONFLICT', 409, 'Article changed since it was loaded')
 		}
+		if (current?.content === serialized)
+			throw new ApiError('VALIDATION_FAILED', 400, '文章内容没有变化，无需重复发布')
 
 		const publishRunId = crypto.randomUUID()
 		const now = new Date().toISOString()
@@ -173,16 +181,18 @@ export class ArticleService {
 			kind: 'direct',
 			status: 'created',
 			repositoryRef: this.env.GITHUB_DEFAULT_BRANCH,
+			resourcePath: document.path,
 			createdAt: now,
 		})
 		try {
 			const head = await this.repository.getBranchHead(this.env.GITHUB_DEFAULT_BRANCH)
-			const serialized = serializeArticle(document)
-			const result = await this.repository.createAtomicCommit({
+			const result = await this.repository.createFileCommit({
 				branch: this.env.GITHUB_DEFAULT_BRANCH,
 				expectedHeadSha: head,
+				path: document.path,
+				content: serialized,
+				...(current ? { fileSha: current.sha } : {}),
 				message: `发布文章: ${document.frontmatter.title}`,
-				files: [{ path: document.path, content: serialized }],
 			})
 			await this.publishRepository.updateRun(publishRunId, {
 				status: 'commit_created',

@@ -6,6 +6,7 @@ import type { PublishingRepositoryPort } from '../src/features/publishing/publis
 import { applyD1Migrations, env } from 'cloudflare:test'
 import { Hono } from 'hono'
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { serializeArticle } from '../src/features/articles/article-codec'
 import {
 
 	PublishingService,
@@ -28,9 +29,12 @@ const categoryConfig = [
 class FakePublishingRepository implements PublishingRepositoryPort {
 	baseHead = 'base-head'
 	commitCounter = 0
+	atomicCommitCalls = 0
+	fileCommitInputs: Array<Parameters<PublishingRepositoryPort['createFileCommit']>[0]> = []
 	commitChangeCount = 1
 	pullCounter = 0
 	mergeCalls = 0
+	closeCalls: number[] = []
 	pullReadFailure = false
 	branches = new Map<string, string>()
 	committedPaths: string[] = []
@@ -99,6 +103,7 @@ class FakePublishingRepository implements PublishingRepositoryPort {
 		message: string
 		files: Array<{ path: string, content: string | null }>
 	}) {
+		this.atomicCommitCalls++
 		if (this.branches.get(input.branch) !== input.expectedHeadSha)
 			throw new ApiError('CONFLICT', 409, 'branch changed')
 		this.commitCounter++
@@ -110,6 +115,16 @@ class FakePublishingRepository implements PublishingRepositoryPort {
 				this.files.set(file.path, { sha, content: file.content })
 		}
 		return { commitSha: sha }
+	}
+
+	async createFileCommit(input: Parameters<PublishingRepositoryPort['createFileCommit']>[0]) {
+		this.fileCommitInputs.push(input)
+		return this.createAtomicCommit({
+			branch: input.branch,
+			expectedHeadSha: input.expectedHeadSha,
+			message: input.message,
+			files: [{ path: input.path, content: input.content }],
+		})
 	}
 
 	async createPullRequest(input: { head: string, base: string, title: string, body: string }) {
@@ -154,6 +169,13 @@ class FakePublishingRepository implements PublishingRepositoryPort {
 	async getDeployment(ref: string) {
 		this.deploymentRefs.push(ref)
 		return this.deployment
+	}
+
+	async closePullRequest(number: number) {
+		const pull = await this.getPullRequest(number)
+		this.closeCalls.push(number)
+		pull.state = 'closed'
+		pull.mergeable = false
 	}
 
 	async mergePullRequest(number: number, expectedHeadSha: string) {
@@ -295,6 +317,8 @@ describe('configuration pull requests', () => {
 			data: { resourcePath: 'config/site/article.json' },
 		})
 		expect(repository.committedPaths).toEqual(['config/site/article.json'])
+		expect(repository.fileCommitInputs).toEqual([])
+		expect(repository.atomicCommitCalls).toBe(1)
 	})
 
 	it('maps allowed config keys to fixed paths, creates unique branches, and replays duplicates', async () => {
@@ -392,6 +416,82 @@ describe('pull request status and merge guard', () => {
 		}, runtimeEnv())
 		expect(await merge.json()).toMatchObject({ ok: true, data: { merged: false, reason: 'checks_failed' } })
 		expect(repository.mergeCalls).toBe(0)
+	})
+
+	it('marks an open pull request failed when repository checks fail', async () => {
+		const repository = new FakePublishingRepository()
+		const run = await createRun(repository)
+		repository.checks = {
+			status: 'failure',
+			total: 1,
+			successful: 0,
+			failed: 1,
+			pending: 0,
+			diagnostics: [{ checkName: 'deploy-preview', message: 'Markdown 格式错误', bodyLine: 7, bodyColumn: 16 }],
+		}
+
+		const list = await new PublishingService(runtimeEnv(), repository).listRuns(1, 30)
+
+		expect(list.items[0]).toMatchObject({
+			id: run.publishRunId,
+			status: 'failed',
+			errorCode: 'CHECKS_FAILED',
+			errorMessage: 'Markdown 格式错误（第 7 行，第 16 列）',
+		})
+		expect(repository.checkRefs).toEqual([run.headSha])
+		expect(repository.deploymentRefs).toEqual([run.branch])
+	})
+
+	it('marks an open pull request ready when checks and preview succeed', async () => {
+		const repository = new FakePublishingRepository()
+		const run = await createRun(repository)
+		repository.checks = { status: 'success', total: 1, successful: 1, failed: 0, pending: 0 }
+		repository.deployment = {
+			id: 'preview-deployment',
+			ref: run.branch,
+			environment: 'Preview',
+			url: 'https://preview.example.test/run',
+			status: 'success',
+			updatedAt: '2026-08-05T12:00:00.000Z',
+		}
+
+		const list = await new PublishingService(runtimeEnv(), repository).listRuns(1, 30)
+
+		expect(list.items[0]).toMatchObject({
+			id: run.publishRunId,
+			status: 'preview_ready',
+			deploymentUrl: 'https://preview.example.test/run',
+			errorCode: null,
+			errorMessage: null,
+		})
+	})
+
+	it('recovers a failed pull request after checks and preview succeed', async () => {
+		const repository = new FakePublishingRepository()
+		const run = await createRun(repository)
+		repository.checks = { status: 'failure', total: 1, successful: 0, failed: 1, pending: 0 }
+		const service = new PublishingService(runtimeEnv(), repository)
+		await service.listRuns(1, 30)
+
+		repository.checks = { status: 'success', total: 1, successful: 1, failed: 0, pending: 0 }
+		repository.deployment = {
+			id: 'preview-recovered',
+			ref: run.branch,
+			environment: 'Preview',
+			url: 'https://preview.example.test/recovered',
+			status: 'success',
+			updatedAt: '2026-08-05T12:05:00.000Z',
+		}
+
+		const recovered = await service.listRuns(1, 30)
+
+		expect(recovered.items[0]).toMatchObject({
+			id: run.publishRunId,
+			status: 'preview_ready',
+			deploymentUrl: 'https://preview.example.test/recovered',
+			errorCode: null,
+			errorMessage: null,
+		})
 	})
 
 	it('reconciles a closed pull request in list and detail responses', async () => {
@@ -541,6 +641,88 @@ describe('pull request status and merge guard', () => {
 		await expect(new PublishingService(runtimeEnv(), repository).listRuns(1, 30)).resolves.toMatchObject({
 			items: [{ id: run.publishRunId, status: 'checks_pending' }],
 		})
+	})
+
+	it('closes a tracked pull request and records an audit entry', async () => {
+		const repository = new FakePublishingRepository()
+		const run = await createRun(repository)
+		const app = createApp(repository)
+
+		const response = await app.request(`https://blog.example.test/api/admin/publishing/runs/${run.publishRunId}/close`, {
+			method: 'POST',
+			headers: headers(),
+		}, runtimeEnv())
+
+		expect(response.status).toBe(200)
+		expect(await response.json()).toMatchObject({
+			ok: true,
+			data: { id: run.publishRunId, status: 'closed' },
+		})
+		expect(repository.closeCalls).toEqual([run.pullRequestNumber])
+		expect(await testEnv.DB.prepare('SELECT status FROM publish_runs WHERE id = ?')
+			.bind(run.publishRunId)
+			.first()).toEqual({ status: 'closed' })
+		expect(await testEnv.DB.prepare(`
+			SELECT action, target_type, target_id, result
+			FROM audit_logs
+			WHERE action = 'publishing.close'
+			ORDER BY created_at DESC
+			LIMIT 1
+		`).first()).toEqual({
+			action: 'publishing.close',
+			target_type: 'publish_run',
+			target_id: run.publishRunId,
+			result: 'success',
+		})
+	})
+
+	it('closes direct publishing tracking without touching a pull request', async () => {
+		const repository = new FakePublishingRepository()
+		await testEnv.DB.prepare(`
+			INSERT INTO publish_runs (
+				id, kind, status, repository_ref, resource_path, commit_sha, created_at, updated_at
+			) VALUES ('direct-close', 'direct', 'failed', 'main', 'content/about/profile.md', 'commit-close', ?, ?)
+		`).bind('2026-08-05T00:00:00.000Z', '2026-08-05T00:01:00.000Z').run()
+		const app = createApp(repository)
+
+		const first = await app.request('https://blog.example.test/api/admin/publishing/runs/direct-close/close', {
+			method: 'POST',
+			headers: headers(),
+		}, runtimeEnv())
+		const second = await app.request('https://blog.example.test/api/admin/publishing/runs/direct-close/close', {
+			method: 'POST',
+			headers: headers(),
+		}, runtimeEnv())
+
+		expect(first.status).toBe(200)
+		expect(second.status).toBe(200)
+		expect(await second.json()).toMatchObject({ ok: true, data: { id: 'direct-close', status: 'closed' } })
+		expect(repository.closeCalls).toEqual([])
+	})
+
+	it('rejects closing completed runs and requires csrf', async () => {
+		const repository = new FakePublishingRepository()
+		await testEnv.DB.prepare(`
+			INSERT INTO publish_runs (
+				id, kind, status, repository_ref, resource_path, commit_sha, created_at, updated_at
+			) VALUES ('direct-published', 'direct', 'published', 'main', 'content/about/profile.md', 'commit-published', ?, ?)
+		`).bind('2026-08-05T00:00:00.000Z', '2026-08-05T00:01:00.000Z').run()
+		const run = await createRun(repository)
+		const app = createApp(repository)
+
+		const completed = await app.request('https://blog.example.test/api/admin/publishing/runs/direct-published/close', {
+			method: 'POST',
+			headers: headers(),
+		}, runtimeEnv())
+		const withoutCsrf = await app.request(`https://blog.example.test/api/admin/publishing/runs/${run.publishRunId}/close`, {
+			method: 'POST',
+			headers: { cookie: 'fly_admin_session=publishing-session', origin: 'https://blog.example.test' },
+		}, runtimeEnv())
+
+		expect(completed.status).toBe(400)
+		expect(await completed.json()).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED' } })
+		expect(withoutCsrf.status).toBe(403)
+		expect(repository.closeCalls).toEqual([])
 	})
 
 	it('blocks merge when a PR contains an extra file', async () => {
@@ -706,6 +888,64 @@ describe('article pull requests', () => {
 		})
 		expect(result.resourcePath).toBe(document.path)
 		expect(repository.committedPaths).toContain(document.path)
+		expect(repository.fileCommitInputs).toHaveLength(1)
+		expect(repository.fileCommitInputs[0]).not.toHaveProperty('fileSha')
 		expect(result.pullRequestNumber).toBe(1)
+	})
+
+	it('passes the existing article blob SHA to the PR commit', async () => {
+		const repository = new FakePublishingRepository()
+		const service = new PublishingService(runtimeEnv(), repository)
+		const document: ArticleDocument = {
+			path: 'content/posts/2026/existing.md',
+			sha: 'article-sha',
+			body: '# Changed',
+			frontmatter: { title: 'Changed', categories: ['技术'], tags: [] },
+		}
+
+		await service.publishArticle({
+			document,
+			expectedSha: 'article-sha',
+			idempotencyKey: 'article-pr-existing',
+			actor: { id: '42', login: 'flyoko', requestId: 'request-article-existing' },
+		})
+
+		expect(repository.fileCommitInputs).toHaveLength(1)
+		expect(repository.fileCommitInputs[0]).toMatchObject({
+			path: document.path,
+			fileSha: 'article-sha',
+		})
+	})
+
+	it('rejects an unchanged article before creating a branch, run, or PR', async () => {
+		const repository = new FakePublishingRepository()
+		const service = new PublishingService(runtimeEnv(), repository)
+		const document: ArticleDocument = {
+			path: 'content/posts/2026/existing.md',
+			sha: 'article-sha',
+			body: '# Existing',
+			frontmatter: { title: 'Existing', categories: ['技术'], tags: [] },
+		}
+		repository.files.set(document.path, {
+			sha: 'article-sha',
+			content: serializeArticle(document),
+		})
+
+		await expect(service.publishArticle({
+			document,
+			expectedSha: 'article-sha',
+			idempotencyKey: 'article-pr-no-changes',
+			actor: { id: '42', login: 'flyoko', requestId: 'request-article-no-changes' },
+		})).rejects.toMatchObject({
+			code: 'VALIDATION_FAILED',
+			status: 400,
+			message: '文章内容没有变化，无需重复发布',
+		})
+
+		expect(repository.branches.size).toBe(0)
+		expect(repository.commitCounter).toBe(0)
+		expect(repository.pullCounter).toBe(0)
+		const count = await testEnv.DB.prepare('SELECT COUNT(*) AS count FROM publish_runs').first<{ count: number }>()
+		expect(count?.count).toBe(0)
 	})
 })

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { AdminPublishRunDto, AdminPublishRunGroup } from '~/types/admin'
 import { useIntersectionObserver } from '@vueuse/core'
+import { isPublishRunStale } from '#shared/admin/publishing-refresh'
 import AdminEmptyState from '~/components/admin/AdminEmptyState.vue'
 import AdminStatusPill from '~/components/admin/AdminStatusPill.vue'
 import { publishNextAction, publishRunGroup, publishStatusMeta } from '~/types/admin'
@@ -28,6 +29,16 @@ const groups: Array<{ id: AdminPublishRunGroup, label: string, description: stri
 
 function groupRuns(group: AdminPublishRunGroup) {
 	return props.runs.filter(run => publishRunGroup(run) === group)
+}
+
+function isStale(run: AdminPublishRunDto) {
+	return publishRunGroup(run) === 'in_progress' && isPublishRunStale(run.updatedAt)
+}
+
+function nextAction(run: AdminPublishRunDto) {
+	return isStale(run)
+		? '长时间未更新，可重新检查或关闭'
+		: publishNextAction(run)
 }
 
 function resourceLabel(run: AdminPublishRunDto) {
@@ -70,10 +81,13 @@ useIntersectionObserver(loadMoreTrigger, ([entry]) => {
 						<strong>{{ resourceLabel(run) }}</strong>
 						<small>{{ new Date(run.updatedAt).toLocaleString('zh-CN') }}</small>
 					</span>
-					<AdminStatusPill :tone="publishStatusMeta(run.status).tone">
+					<AdminStatusPill v-if="isStale(run)" tone="warning">
+						长时间未更新
+					</AdminStatusPill>
+					<AdminStatusPill v-else :tone="publishStatusMeta(run.status).tone">
 						{{ publishStatusMeta(run.status).label }}
 					</AdminStatusPill>
-					<span class="admin-release-next">{{ publishNextAction(run) }}</span>
+					<span class="admin-release-next">{{ nextAction(run) }}</span>
 				</button>
 			</div>
 			<p v-else class="admin-muted-copy">

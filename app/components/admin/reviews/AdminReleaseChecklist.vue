@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { CheckSummaryDto, DeploymentDto } from '#shared/admin/publishing'
 import type { AdminPublishRunDto } from '~/types/admin'
+import { encodeArticleId } from '#shared/admin/articles'
 
 const props = defineProps<{
 	run: AdminPublishRunDto
@@ -59,6 +60,18 @@ function iconName(state: StepState) {
 			<p>{{ step.description }}</p>
 		</div>
 	</article>
+</section>
+<section v-if="checks.diagnostics?.length" class="admin-release-diagnostics" aria-label="检查诊断">
+	<h3>需要修正的问题</h3>
+	<ul>
+		<li v-for="diagnostic in checks.diagnostics" :key="`${diagnostic.checkName}-${diagnostic.path}-${diagnostic.line}-${diagnostic.message}`">
+			<span>{{ diagnostic.path || '仓库检查' }}<template v-if="diagnostic.line">:{{ diagnostic.line }}<template v-if="diagnostic.column">:{{ diagnostic.column }}</template></template> · {{ diagnostic.message }}</span>
+			<NuxtLink v-if="diagnostic.path && run.resourcePath === diagnostic.path && diagnostic.bodyLine" :to="`/admin/articles/${encodeArticleId(run.resourcePath)}?line=${diagnostic.bodyLine}&column=${diagnostic.bodyColumn || 1}`">
+				编辑并定位
+			</NuxtLink>
+			<a v-else-if="diagnostic.detailsUrl" :href="diagnostic.detailsUrl" target="_blank" rel="noopener">查看详情</a>
+		</li>
+	</ul>
 </section>
 </template>
 

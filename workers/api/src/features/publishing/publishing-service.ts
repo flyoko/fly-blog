@@ -56,7 +56,8 @@ export interface PublishingRepositoryPort extends ArticleRepositoryPort {
 	createPullRequest: (input: { head: string, base: string, title: string, body: string }) => Promise<{ number: number, url: string }>
 	getPullRequest: (number: number) => Promise<PullRequestDto>
 	getPullRequestFiles: (number: number) => Promise<PullRequestFileDto[]>
-	getChecks: (ref: string) => Promise<CheckSummaryDto>
+	closePullRequest: (number: number) => Promise<void>
+	getChecks: (ref: string, resourcePath?: string) => Promise<CheckSummaryDto>
 	getCommitChangeCount: (ref: string) => Promise<number>
 	getDeployment: (ref: string) => Promise<DeploymentDto | null>
 	mergePullRequest: (number: number, expectedHeadSha: string) => Promise<{ merged: boolean, sha?: string }>
@@ -64,7 +65,7 @@ export interface PublishingRepositoryPort extends ArticleRepositoryPort {
 
 export interface PublishingStatusRepositoryPort {
 	getPullRequest: (number: number) => Promise<PullRequestDto>
-	getChecks: (ref: string) => Promise<CheckSummaryDto>
+	getChecks: (ref: string, resourcePath?: string) => Promise<CheckSummaryDto>
 	getCommitChangeCount: (ref: string) => Promise<number>
 	getDeployment: (ref: string) => Promise<DeploymentDto | null>
 }
@@ -102,8 +103,15 @@ export type MergeBlockReason
 		| 'pull_request_closed'
 		| 'merge_rejected'
 
-const activePullRequestStatuses = new Set(['created', 'commit_created', 'checks_pending', 'preview_ready'])
+const activePullRequestStatuses = new Set(['created', 'commit_created', 'checks_pending', 'preview_ready', 'failed'])
 const activeDirectStatuses = new Set(['created', 'commit_created', 'checks_pending', 'failed'])
+
+function checksFailureMessage(checks: CheckSummaryDto): string {
+	const diagnostic = checks.diagnostics?.[0]
+	if (!diagnostic)
+		return 'Repository checks failed'
+	return `${diagnostic.message}${diagnostic.bodyLine ? `（第 ${diagnostic.bodyLine} 行${diagnostic.bodyColumn ? `，第 ${diagnostic.bodyColumn} 列` : ''}）` : ''}`
+}
 
 async function updateReconciledRun(
 	publishRepository: PublishRepository,
@@ -146,7 +154,7 @@ async function reconcileDirectPublishRun(
 		return run
 
 	const [checks, deployment] = await Promise.all([
-		repository.getChecks(run.commitSha),
+		repository.getChecks(run.commitSha, run.resourcePath ?? undefined),
 		repository.getDeployment(run.commitSha),
 	])
 	if (deployment?.status === 'success') {
@@ -170,7 +178,7 @@ async function reconcileDirectPublishRun(
 			status: 'failed',
 			deploymentUrl: deployment?.url ?? run.deploymentUrl,
 			errorCode: 'CHECKS_FAILED',
-			errorMessage: 'Repository checks failed',
+			errorMessage: checksFailureMessage(checks),
 		})
 	}
 	if (checks.total === 0 && !deployment) {
@@ -206,14 +214,45 @@ async function reconcilePullRequestRun(
 	}
 
 	const current = pullRequest ?? await repository.getPullRequest(run.pullNumber)
-	const status = current.merged
-		? 'merged'
-		: current.state === 'closed'
-			? 'closed'
-			: null
-	if (!status)
-		return run
-	return updateReconciledRun(publishRepository, run, { status })
+	if (current.merged)
+		return updateReconciledRun(publishRepository, run, { status: 'merged' })
+	if (current.state === 'closed')
+		return updateReconciledRun(publishRepository, run, { status: 'closed' })
+
+	const [checks, deployment] = await Promise.all([
+		repository.getChecks(current.headSha, run.resourcePath ?? undefined),
+		repository.getDeployment(run.repositoryRef),
+	])
+	if (checks.status === 'failure') {
+		return updateReconciledRun(publishRepository, run, {
+			status: 'failed',
+			deploymentUrl: deployment?.url ?? run.deploymentUrl,
+			errorCode: 'CHECKS_FAILED',
+			errorMessage: checksFailureMessage(checks),
+		})
+	}
+	if (deployment?.status === 'failure') {
+		return updateReconciledRun(publishRepository, run, {
+			status: 'failed',
+			deploymentUrl: deployment.url,
+			errorCode: 'PREVIEW_FAILED',
+			errorMessage: 'Preview deployment failed',
+		})
+	}
+	if (checks.status === 'success' && checks.total > 0 && deployment?.status === 'success') {
+		return updateReconciledRun(publishRepository, run, {
+			status: 'preview_ready',
+			deploymentUrl: deployment.url,
+			errorCode: null,
+			errorMessage: null,
+		})
+	}
+	return updateReconciledRun(publishRepository, run, {
+		status: 'checks_pending',
+		deploymentUrl: deployment?.url ?? run.deploymentUrl,
+		errorCode: null,
+		errorMessage: null,
+	})
 }
 
 async function reconcilePublishRun(
@@ -379,6 +418,7 @@ export class PublishingService {
 					branchKind: input.kind,
 					resourcePath: definition.path,
 					content: `${JSON.stringify(content, null, 2)}\n`,
+					commitMode: 'atomic',
 					expectedHeadSha: input.expectedHeadSha,
 					title: input.title ?? `更新${input.kind}配置`,
 					body: input.body ?? '由 fly living 管理后台创建。',
@@ -403,6 +443,8 @@ export class PublishingService {
 		else if (!current || current.sha !== input.expectedSha) {
 			throw new ApiError('CONFLICT', 409, 'Article changed since it was loaded')
 		}
+		if (current?.content === serializeArticle(document))
+			throw new ApiError('VALIDATION_FAILED', 400, '文章内容没有变化，无需重复发布')
 		return withIdempotency({
 			db: this.env.DB,
 			key: input.idempotencyKey,
@@ -414,6 +456,8 @@ export class PublishingService {
 					branchKind: 'article',
 					resourcePath: document.path,
 					content: serializeArticle(document),
+					commitMode: 'file',
+					fileSha: current?.sha,
 					title: `发布文章: ${document.frontmatter.title}`,
 					body: '文章内容变更，等待预览与检查通过后合并。',
 					actor: input.actor,
@@ -439,11 +483,11 @@ export class PublishingService {
 
 	async getPullRequestDetail(number: number): Promise<PullRequestDetail> {
 		const pullRequest = await this.repository.getPullRequest(number)
-		const [files, checks, deployment, run] = await Promise.all([
+		const run = await this.publishRepository.findByPullNumber(number)
+		const [files, checks, deployment] = await Promise.all([
 			this.repository.getPullRequestFiles(number),
-			this.repository.getChecks(pullRequest.headSha),
+			this.repository.getChecks(pullRequest.headSha, run?.resourcePath ?? undefined),
 			this.repository.getDeployment(pullRequest.headBranch),
-			this.publishRepository.findByPullNumber(number),
 		])
 		const reason = blockReason(pullRequest, files, checks, deployment, run, this.env.GITHUB_DEFAULT_BRANCH)
 		let reconciledRun = run
@@ -472,6 +516,64 @@ export class PublishingService {
 			deployment,
 			canMerge: reason === undefined,
 			...(reason ? { reason } : {}),
+		}
+	}
+
+	async closeRun(id: string, actor: ArticleActor): Promise<PublishRunRow> {
+		const runId = id.trim()
+		if (!runId || runId.length > 128)
+			throw new ApiError('VALIDATION_FAILED', 400, 'Publishing run id is invalid')
+
+		const run = await this.publishRepository.findRun(runId)
+		if (!run)
+			throw new ApiError('NOT_FOUND', 404, 'Publishing run was not found')
+		if (run.status === 'closed')
+			return run
+		if (run.status === 'published' || run.status === 'merged')
+			throw new ApiError('VALIDATION_FAILED', 400, 'Completed publishing runs cannot be closed')
+
+		try {
+			let closed: PublishRunRow
+			if (run.kind === 'pull_request' && run.pullNumber) {
+				const pullRequest = await this.repository.getPullRequest(run.pullNumber)
+				if (pullRequest.merged) {
+					closed = await updateReconciledRun(this.publishRepository, run, { status: 'merged' })
+				}
+				else {
+					if (pullRequest.state === 'open')
+						await this.repository.closePullRequest(run.pullNumber)
+					closed = await updateReconciledRun(this.publishRepository, run, { status: 'closed' })
+				}
+			}
+			else {
+				closed = await updateReconciledRun(this.publishRepository, run, { status: 'closed' })
+			}
+
+			await this.auditRepository.writeAudit({
+				actorId: actor.id,
+				actorLogin: actor.login,
+				action: 'publishing.close',
+				targetType: 'publish_run',
+				targetId: run.id,
+				result: 'success',
+				requestId: actor.requestId,
+				metadata: { kind: run.kind, pullNumber: run.pullNumber, resolvedStatus: closed.status },
+			})
+			return closed
+		}
+		catch (error) {
+			const apiError = asApiError(error)
+			await this.auditRepository.writeAudit({
+				actorId: actor.id,
+				actorLogin: actor.login,
+				action: 'publishing.close',
+				targetType: 'publish_run',
+				targetId: run.id,
+				result: 'failure',
+				requestId: actor.requestId,
+				metadata: { kind: run.kind, pullNumber: run.pullNumber, errorCode: apiError.code },
+			}).catch(() => undefined)
+			throw apiError
 		}
 	}
 
@@ -509,6 +611,8 @@ export class PublishingService {
 		branchKind: string
 		resourcePath: string
 		content: string
+		commitMode: 'atomic' | 'file'
+		fileSha?: string
 		expectedHeadSha?: string
 		title: string
 		body: string
@@ -530,12 +634,21 @@ export class PublishingService {
 		})
 		try {
 			await this.repository.createBranch({ name: branch, fromSha: baseHead })
-			const commit = await this.repository.createAtomicCommit({
-				branch,
-				expectedHeadSha: baseHead,
-				message: input.title,
-				files: [{ path: input.resourcePath, content: input.content }],
-			})
+			const commit = input.commitMode === 'file'
+				? await this.repository.createFileCommit({
+						branch,
+						expectedHeadSha: baseHead,
+						path: input.resourcePath,
+						content: input.content,
+						...(input.fileSha ? { fileSha: input.fileSha } : {}),
+						message: input.title,
+					})
+				: await this.repository.createAtomicCommit({
+						branch,
+						expectedHeadSha: baseHead,
+						message: input.title,
+						files: [{ path: input.resourcePath, content: input.content }],
+					})
 			await this.publishRepository.updateRun(publishRunId, {
 				status: 'commit_created',
 				commitSha: commit.commitSha,

@@ -11,6 +11,7 @@ import packageJson from './package.json'
 import redirectList from './redirects.json'
 import { disabledModulePathPrefixes, isModuleEnabled } from './shared/admin/modules'
 import { modulesConfigSchema } from './shared/admin/site-config'
+import { filterArticlePreviewPages } from './shared/article-preview-build'
 
 function pluginPath(path: string) {
 	return pathToFileURL(resolve(`./remark-plugins/${path}.mjs`)).href
@@ -31,7 +32,11 @@ const markdownRehypePlugins = {
 const cloudflareWebAnalyticsToken = env.NUXT_PUBLIC_CLOUDFLARE_WEB_ANALYTICS_TOKEN?.trim()
 const configuredModules = modulesConfigSchema.parse(modulesRaw)
 const articlesEnabled = isModuleEnabled(configuredModules, 'articles')
-const disabledModulePrerenderPaths = disabledModulePathPrefixes(configuredModules)
+const articlePreviewBuild = env.NUXT_ARTICLE_PREVIEW === '1'
+const disabledModulePrerenderPaths = [
+	...disabledModulePathPrefixes(configuredModules),
+	...(articlePreviewBuild ? ['/admin/**'] : []),
+]
 
 // 此处配置无需修改
 export default defineNuxtConfig({
@@ -103,7 +108,7 @@ export default defineNuxtConfig({
 
 	nitro: {
 		prerender: {
-			routes: ['/admin/analytics'],
+			routes: articlePreviewBuild ? [] : ['/admin/analytics'],
 			ignore: disabledModulePrerenderPaths,
 			// 修复部分平台会在文章路径后添加 `/`，导致闪现 404 错误
 			// https://github.com/nuxt/content/issues/2378
@@ -228,6 +233,8 @@ export default defineNuxtConfig({
 
 	hooks: {
 		'pages:extend': (pages) => {
+			if (articlePreviewBuild)
+				pages.splice(0, pages.length, ...filterArticlePreviewPages(pages))
 			if (env.NUXT_E2E !== '1')
 				return
 			pages.push({

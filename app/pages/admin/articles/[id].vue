@@ -2,9 +2,24 @@
 import categoriesRaw from '~~/config/taxonomy/categories.json'
 
 const route = useRoute()
+const router = useRouter()
 const articleId = computed(() => route.params.id as string)
 const editor = useAdminArticleEditor({ isNew: false, articleId: articleId.value })
 const categories = categoriesRaw.map(item => item.name)
+const line = Number(route.query.line)
+const column = Number(route.query.column)
+const initialDiagnostic = ref(
+	Number.isInteger(line) && line > 0 && Number.isInteger(column) && column > 0
+		? { bodyLine: line, bodyColumn: column }
+		: undefined,
+)
+
+onMounted(async () => {
+	if (!initialDiagnostic.value)
+		return
+	const { line: _line, column: _column, ...query } = route.query
+	await router.replace({ query })
+})
 
 useSeoMeta({ title: '编辑文章', robots: 'noindex, nofollow' })
 </script>
@@ -25,6 +40,8 @@ useSeoMeta({ title: '编辑文章', robots: 'noindex, nofollow' })
 		:categories="categories"
 		:saving="editor.saving.value"
 		:conflict="editor.conflict.value"
+		:diagnostics="editor.diagnostics.value"
+		:initial-diagnostic="initialDiagnostic"
 		:draft-status="editor.draftStatus.value"
 		@save="editor.save"
 		@navigate="editor.navigate"

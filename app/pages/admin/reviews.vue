@@ -6,10 +6,11 @@ import type {
 	PullRequestFileDto,
 } from '#shared/admin/publishing'
 import type { AdminPublishRunDto } from '~/types/admin'
+import { nextPublishRefreshDelay } from '#shared/admin/publishing-refresh'
 import AdminReleaseChecklist from '~/components/admin/reviews/AdminReleaseChecklist.vue'
 import AdminReleaseQueue from '~/components/admin/reviews/AdminReleaseQueue.vue'
 import AdminReleaseTechnicalDetails from '~/components/admin/reviews/AdminReleaseTechnicalDetails.vue'
-import { publishNextAction, publishRunGroup, publishStatusMeta } from '~/types/admin'
+import { canClosePublishRun, publishNextAction, publishRunGroup, publishStatusMeta } from '~/types/admin'
 
 interface PullRequestDetail {
 	run: AdminPublishRunDto | null
@@ -29,20 +30,26 @@ const loading = ref(true)
 const loadingMore = ref(false)
 const detailLoading = ref(false)
 const merging = ref(false)
+const refreshingSelected = ref(false)
+const closing = ref(false)
 const mergeConfirmOpen = ref(false)
+const closeConfirmOpen = ref(false)
 const listError = ref<string | null>(null)
 const detailError = ref<string | null>(null)
 const mergeError = ref<string | null>(null)
+const closeError = ref<string | null>(null)
 const selected = ref<AdminPublishRunDto | null>(null)
 const detail = ref<PullRequestDetail | null>(null)
 const detailOwnerId = ref<string | null>(null)
 const lastUpdatedAt = ref<string | null>(null)
-let refreshTimer: ReturnType<typeof setInterval> | undefined
+let refreshTimer: ReturnType<typeof setTimeout> | undefined
+let refreshStartedAt = 0
 
 const hasPendingRuns = computed(() => runs.value.some(run => publishRunGroup(run) === 'in_progress'))
 const hasMore = computed(() => runs.value.length < total.value)
 const visibleDetail = computed(() => detailOwnerId.value === selected.value?.id ? detail.value : null)
 const selectedDirect = computed(() => selected.value?.kind === 'direct' ? selected.value : null)
+const canCloseSelected = computed(() => selected.value ? canClosePublishRun(selected.value) : false)
 
 function directStatusDescription(run: AdminPublishRunDto) {
 	if (run.status === 'published') {
@@ -65,7 +72,7 @@ const taskStatus = computed(() => {
 		return `${runs.value.filter(run => publishRunGroup(run) === 'needs_action').length} 项等待你处理`
 	return `状态已更新 · ${lastUpdatedAt.value ? new Date(lastUpdatedAt.value).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) : '刚刚'}`
 })
-const taskTone = computed(() => listError.value || mergeError.value ? 'danger' : runs.value.some(run => publishRunGroup(run) === 'needs_action') ? 'warning' : 'positive')
+const taskTone = computed(() => listError.value || mergeError.value || closeError.value ? 'danger' : runs.value.some(run => publishRunGroup(run) === 'needs_action') ? 'warning' : 'positive')
 
 useSeoMeta({ title: '发布与审核', robots: 'noindex, nofollow' })
 
@@ -132,6 +139,7 @@ async function inspect(run: AdminPublishRunDto) {
 	selected.value = run
 	detailError.value = null
 	mergeError.value = null
+	closeError.value = null
 	if (!run.pullNumber) {
 		detailOwnerId.value = null
 		return
@@ -153,6 +161,55 @@ async function refreshStatus(silent = false) {
 	await load(silent)
 	if (selected.value?.pullNumber)
 		await inspect(selected.value)
+}
+
+async function recheckSelected() {
+	if (!selected.value || refreshingSelected.value)
+		return
+	refreshingSelected.value = true
+	closeError.value = null
+	try {
+		await refreshStatus(true)
+	}
+	finally {
+		refreshingSelected.value = false
+	}
+}
+
+function requestClose() {
+	if (canCloseSelected.value)
+		closeConfirmOpen.value = true
+}
+
+async function closeSelected() {
+	const current = selected.value
+	if (!current || !canClosePublishRun(current) || closing.value)
+		return
+	closing.value = true
+	closeError.value = null
+	try {
+		await useAdminApi(`/api/admin/publishing/runs/${current.id}/close`, { method: 'POST' })
+		closeConfirmOpen.value = false
+		await load()
+		const next = runs.value.find(run => run.id !== current.id && publishRunGroup(run) === 'needs_action')
+			?? runs.value.find(run => run.id !== current.id && publishRunGroup(run) === 'in_progress')
+			?? runs.value.find(run => run.id === current.id)
+			?? runs.value[0]
+		if (next) {
+			await inspect(next)
+		}
+		else {
+			selected.value = null
+			detail.value = null
+			detailOwnerId.value = null
+		}
+	}
+	catch (cause) {
+		closeError.value = cause instanceof Error ? cause.message : '关闭任务失败，请稍后重试'
+	}
+	finally {
+		closing.value = false
+	}
 }
 
 function requestMerge() {
@@ -189,7 +246,7 @@ async function merge() {
 
 function stopRefreshTimer() {
 	if (refreshTimer)
-		clearInterval(refreshTimer)
+		clearTimeout(refreshTimer)
 	refreshTimer = undefined
 }
 
@@ -197,10 +254,17 @@ function startRefreshTimer() {
 	stopRefreshTimer()
 	if (document.visibilityState !== 'visible')
 		return
-	refreshTimer = setInterval(() => {
-		if (hasPendingRuns.value)
-			void refreshStatus(true)
-	}, 15_000)
+	refreshStartedAt = Date.now()
+	const schedule = () => {
+		refreshTimer = setTimeout(async () => {
+			if (document.visibilityState !== 'visible' || !hasPendingRuns.value)
+				return
+			await refreshStatus(true)
+			if (hasPendingRuns.value && document.visibilityState === 'visible')
+				schedule()
+		}, nextPublishRefreshDelay(Date.now() - refreshStartedAt))
+	}
+	schedule()
 }
 
 function handleVisibilityChange() {
@@ -253,6 +317,9 @@ onBeforeUnmount(() => {
 	<p v-if="mergeError" class="admin-error" role="alert">
 		{{ mergeError }}
 	</p>
+	<p v-if="closeError" class="admin-error" role="alert">
+		{{ closeError }}
+	</p>
 
 	<div class="admin-release-workbench">
 		<AdminReleaseQueue
@@ -281,6 +348,15 @@ onBeforeUnmount(() => {
 					重试详情
 				</button>
 			</p>
+
+			<div v-if="selected && canCloseSelected" class="admin-release-task-actions">
+				<button class="admin-button" type="button" :disabled="refreshingSelected || closing" @click="recheckSelected">
+					<Icon name="tabler:refresh" />{{ refreshingSelected ? '正在重新检查…' : '重新检查' }}
+				</button>
+				<button class="admin-button admin-button-danger" type="button" :disabled="closing" @click="requestClose">
+					<Icon name="tabler:x" />{{ closing ? '正在关闭…' : '关闭任务' }}
+				</button>
+			</div>
 
 			<section v-if="selectedDirect" class="admin-release-direct-status" aria-live="polite">
 				<div class="admin-release-direct-heading">
@@ -330,6 +406,19 @@ onBeforeUnmount(() => {
 	</div>
 
 	<AdminConfirmDialog
+		:open="closeConfirmOpen"
+		title="关闭发布任务"
+		:description="selected?.kind === 'pull_request'
+			? '关闭后会同步关闭对应的 GitHub Pull Request，并把记录移入已完成。失败原因和技术信息仍会保留。'
+			: '关闭后只停止后台跟踪并把记录移入已完成，不会撤销已经写入仓库或线上站点的内容。'"
+		confirm-label="确认关闭"
+		:busy="closing"
+		danger
+		@close="closeConfirmOpen = false"
+		@confirm="closeSelected"
+	/>
+
+	<AdminConfirmDialog
 		:open="mergeConfirmOpen"
 		title="确认上线"
 		:description="`发布任务 #${visibleDetail?.pullRequest.number ?? '—'} 的检查和预览已经通过。确认后，这次变更会进入正式站点。系统会在服务端再次校验当前版本。`"
@@ -361,7 +450,8 @@ onBeforeUnmount(() => {
 	min-height: 22rem;
 }
 
-.admin-release-primary-actions {
+.admin-release-primary-actions,
+.admin-release-task-actions {
 	display: flex;
 	justify-content: flex-end;
 	gap: 0.6rem;
@@ -438,11 +528,14 @@ onBeforeUnmount(() => {
 	}
 
 	.admin-release-primary-actions,
-	.admin-release-primary-actions .admin-button {
+	.admin-release-primary-actions .admin-button,
+	.admin-release-task-actions,
+	.admin-release-task-actions .admin-button {
 		width: 100%;
 	}
 
-	.admin-release-primary-actions {
+	.admin-release-primary-actions,
+	.admin-release-task-actions {
 		flex-direction: column;
 	}
 }

@@ -5,6 +5,7 @@ import { applyD1Migrations, env } from 'cloudflare:test'
 import { Hono } from 'hono'
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { encodeArticleId } from '../../../shared/admin/articles'
+import { serializeArticle } from '../src/features/articles/article-codec'
 import { createArticleRoutes } from '../src/features/articles/routes'
 import { ApiError, failure, normalizeError } from '../src/lib/api-error'
 import { sha256Base64Url } from '../src/lib/crypto'
@@ -39,6 +40,7 @@ class FakeArticleRepository implements ArticleRepositoryPort {
 
 	head = 'head-1'
 	commitCalls = 0
+	fileCommitInputs: Array<Parameters<ArticleRepositoryPort['createFileCommit']>[0]> = []
 	failCommit = false
 
 	async listFiles(prefix: string) {
@@ -78,6 +80,16 @@ class FakeArticleRepository implements ArticleRepositoryPort {
 		}
 		this.head = commitSha
 		return { commitSha }
+	}
+
+	async createFileCommit(input: Parameters<ArticleRepositoryPort['createFileCommit']>[0]) {
+		this.fileCommitInputs.push(input)
+		return this.createAtomicCommit({
+			branch: input.branch,
+			expectedHeadSha: input.expectedHeadSha,
+			message: input.message,
+			files: [{ path: input.path, content: input.content }],
+		})
 	}
 }
 
@@ -242,6 +254,67 @@ describe('article validation and publishing routes', () => {
 		expect(repository.commitCalls).toBe(1)
 		const run = await testEnv.DB.prepare('SELECT status, commit_sha FROM publish_runs').first<{ status: string, commit_sha: string }>()
 		expect(run).toEqual({ status: 'checks_pending', commit_sha: 'commit-1' })
+	})
+
+	it('passes the existing blob SHA to the single-file commit', async () => {
+		const repository = new FakeArticleRepository()
+		const id = encodeArticleId('content/posts/2026/alpha.md')
+		const response = await createApp(repository).request(`https://blog.example.test/api/admin/articles/${id}`, {
+			method: 'PUT',
+			headers: { ...headers(true), 'content-type': 'application/json' },
+			body: JSON.stringify({
+				document: {
+					path: 'content/posts/2026/alpha.md',
+					sha: 'alpha-sha',
+					body: '# Changed',
+					frontmatter: { title: 'Changed', categories: ['技术'], tags: [] },
+				},
+				expectedSha: 'alpha-sha',
+				mode: 'direct',
+				idempotencyKey: 'article-update-file-sha',
+			}),
+		}, runtimeEnv())
+
+		expect(response.status).toBe(200)
+		expect(repository.fileCommitInputs).toHaveLength(1)
+		expect(repository.fileCommitInputs[0]).toMatchObject({
+			path: 'content/posts/2026/alpha.md',
+			fileSha: 'alpha-sha',
+		})
+	})
+
+	it('rejects an unchanged article before creating a publish run', async () => {
+		const repository = new FakeArticleRepository()
+		const document = {
+			path: 'content/posts/2026/alpha.md',
+			sha: 'alpha-sha',
+			body: '# Alpha',
+			frontmatter: { title: 'Alpha', categories: ['技术'], tags: [] },
+		}
+		repository.files.set(document.path, {
+			sha: 'alpha-sha',
+			content: serializeArticle(document),
+		})
+		const id = encodeArticleId(document.path)
+		const response = await createApp(repository).request(`https://blog.example.test/api/admin/articles/${id}`, {
+			method: 'PUT',
+			headers: { ...headers(true), 'content-type': 'application/json' },
+			body: JSON.stringify({
+				document,
+				expectedSha: 'alpha-sha',
+				mode: 'direct',
+				idempotencyKey: 'article-no-changes',
+			}),
+		}, runtimeEnv())
+
+		expect(response.status).toBe(400)
+		expect(await response.json()).toMatchObject({
+			ok: false,
+			error: { code: 'VALIDATION_FAILED', message: '文章内容没有变化，无需重复发布' },
+		})
+		expect(repository.commitCalls).toBe(0)
+		const count = await testEnv.DB.prepare('SELECT COUNT(*) AS count FROM publish_runs').first<{ count: number }>()
+		expect(count?.count).toBe(0)
 	})
 
 	it('rejects a stale file SHA before committing', async () => {

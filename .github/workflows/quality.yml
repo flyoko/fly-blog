@@ -20,19 +20,37 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: 文章 PR 快路径策略
+        if: ${{ github.event_name == 'pull_request' && startsWith(github.head_ref, 'admin/article/') }}
+        run: |
+          test "$(git diff --name-only "origin/${{ github.base_ref }}...HEAD" | wc -l | tr -d ' ')" = 1
+          git diff --name-only "origin/${{ github.base_ref }}...HEAD" | grep -Eq '^content/posts/[0-9]{4}/[a-z0-9]+(-[a-z0-9]+)*\.md$'
       - uses: pnpm/action-setup@v6
+        if: ${{ github.event_name != 'pull_request' || !startsWith(github.head_ref, 'admin/article/') }}
         with:
           version: 11.8.0
       - uses: actions/setup-node@v6
+        if: ${{ github.event_name != 'pull_request' || !startsWith(github.head_ref, 'admin/article/') }}
         with:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+        if: ${{ github.event_name != 'pull_request' || !startsWith(github.head_ref, 'admin/article/') }}
       - run: pnpm lint
+        if: ${{ github.event_name != 'pull_request' || !startsWith(github.head_ref, 'admin/article/') }}
       - run: pnpm typecheck
+        if: ${{ github.event_name != 'pull_request' || !startsWith(github.head_ref, 'admin/article/') }}
       - run: pnpm test:unit
+        if: ${{ github.event_name != 'pull_request' || !startsWith(github.head_ref, 'admin/article/') }}
       - run: pnpm test:workers
+        if: ${{ github.event_name != 'pull_request' || !startsWith(github.head_ref, 'admin/article/') }}
       - run: pnpm generate
+        if: ${{ github.event_name != 'pull_request' || !startsWith(github.head_ref, 'admin/article/') }}
       - run: pnpm check:smoke
+        if: ${{ github.event_name != 'pull_request' || !startsWith(github.head_ref, 'admin/article/') }}
       - run: pnpm check:links
+        if: ${{ github.event_name != 'pull_request' || !startsWith(github.head_ref, 'admin/article/') }}
       - run: pnpm check:secrets
+        if: ${{ github.event_name != 'pull_request' || !startsWith(github.head_ref, 'admin/article/') }}

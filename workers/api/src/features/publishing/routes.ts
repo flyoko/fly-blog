@@ -58,6 +58,19 @@ export function createPublishingRoutes(options: PublishingRoutesOptions = {}) {
 		return success(c, data)
 	})
 
+	routes.post('/runs/:id/close', requireCsrf, async (c) => {
+		const session = c.get('session')!
+		const runId = c.req.param('id')
+		return enforceRateLimit(c.env.WRITE_RATE_LIMITER, `${session.id}:publishing:close`, async () => {
+			const data = await new PublishingService(c.env, repositoryFactory(c.env)).closeRun(runId, {
+				id: session.id,
+				login: session.login,
+				requestId: c.get('requestId'),
+			})
+			return success(c, data)
+		})
+	})
+
 	routes.post('/pull-requests', requireCsrf, async (c) => {
 		const session = c.get('session')!
 		return enforceRateLimit(c.env.WRITE_RATE_LIMITER, `${session.id}:publishing:create-pr`, async () => {

@@ -60,6 +60,10 @@ class FakeArticleRepository implements ArticleRepositoryPort {
 		return { status: 'success', total: 1, successful: 1, failed: 0, pending: 0 }
 	}
 
+	async createFileCommit(input: Parameters<ArticleRepositoryPort['createFileCommit']>[0]) {
+		return { commitSha: input.expectedHeadSha }
+	}
+
 	async getCommitChangeCount(_ref: string): Promise<number> {
 		return 1
 	}
@@ -220,7 +224,7 @@ describe('overview counts and health', () => {
 					articles: 2,
 					activeMedia: 1,
 					openPullRequests: 1,
-					pendingPublishes: 1,
+					pendingPublishes: 0,
 					failedPublishes: 1,
 				},
 				latestPublish: { id: 'failed-1', status: 'failed' },
@@ -231,6 +235,12 @@ describe('overview counts and health', () => {
 					{ service: 'pages', status: 'ok' },
 				],
 			},
+		})
+		expect(await testEnv.DB.prepare('SELECT status, deployment_url FROM publish_runs WHERE id = ?')
+			.bind('pr-1')
+			.first()).toEqual({
+			status: 'preview_ready',
+			deployment_url: 'https://production.example.test',
 		})
 	})
 

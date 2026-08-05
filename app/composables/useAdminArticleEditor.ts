@@ -1,4 +1,6 @@
+import type { ArticleDiagnostic } from '#shared/admin/article-validation'
 import type { ArticleDocument, ArticleSummary } from '#shared/admin/articles'
+import { validateArticleMarkdown } from '#shared/admin/article-validation'
 import { encodeArticleId } from '#shared/admin/articles'
 import {
 	buildArticleSaveRequest,
@@ -41,6 +43,7 @@ export function useAdminArticleEditor(options: AdminArticleEditorOptions) {
 	const saving = ref(false)
 	const conflict = ref(false)
 	const error = ref<string | null>(null)
+	const diagnostics = ref<ArticleDiagnostic[]>([])
 	const success = ref<string | null>(null)
 	const rawComparisonOpen = ref(false)
 	const initialized = ref(false)
@@ -53,6 +56,10 @@ export function useAdminArticleEditor(options: AdminArticleEditorOptions) {
 	let draftSavePromise: Promise<void> | undefined
 
 	const hasUnsavedChanges = computed(() => documentFingerprint(document.value) !== localDraftFingerprint.value)
+	watch(() => document.value.body, () => {
+		if (diagnostics.value.length)
+			diagnostics.value = []
+	})
 	const matchesRemote = computed(() => documentFingerprint(document.value) === remoteFingerprint.value)
 	const draftStatus = computed(() => {
 		if (drafts.saving.value)
@@ -96,6 +103,7 @@ export function useAdminArticleEditor(options: AdminArticleEditorOptions) {
 	async function initialize() {
 		loading.value = true
 		error.value = null
+		diagnostics.value = []
 		try {
 			await Promise.all([loadArticles(), loadRemote()])
 			const loadedFingerprint = documentFingerprint(document.value)
@@ -150,6 +158,11 @@ export function useAdminArticleEditor(options: AdminArticleEditorOptions) {
 			error.value = '先写好标题和正文，再保存或提交审核。'
 			return
 		}
+		diagnostics.value = validateArticleMarkdown(document.value.body)
+		if (diagnostics.value.length) {
+			error.value = '文章正文存在格式问题，请先修正。'
+			return
+		}
 		saving.value = true
 		error.value = null
 		success.value = null
@@ -191,6 +204,7 @@ export function useAdminArticleEditor(options: AdminArticleEditorOptions) {
 			if (cause instanceof AdminApiError && cause.code === 'CONFLICT')
 				conflict.value = true
 			error.value = cause instanceof Error ? cause.message : '文章保存失败'
+			diagnostics.value = (cause as { details?: { diagnostics?: ArticleDiagnostic[] } })?.details?.diagnostics ?? []
 		}
 		finally {
 			saving.value = false
@@ -255,6 +269,7 @@ export function useAdminArticleEditor(options: AdminArticleEditorOptions) {
 		saving,
 		conflict,
 		error,
+		diagnostics,
 		success,
 		rawComparisonOpen,
 		draftStatus,

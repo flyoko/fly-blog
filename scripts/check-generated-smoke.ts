@@ -1,5 +1,6 @@
 import { access, readdir, readFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
+import { env } from 'node:process'
 
 const outputRoot = resolve('.output/public')
 
@@ -30,15 +31,26 @@ async function requireOneOf(relativePaths: string[]) {
 
 async function main() {
 	const indexPath = await requireFile('index.html')
+	const indexHtml = await readFile(indexPath, 'utf8')
+
+	if (!indexHtml.includes('fly living'))
+		throw new Error('Generated home page does not contain the site title.')
+
+	if (env.NUXT_ARTICLE_PREVIEW === '1') {
+		const adminMediaCandidates = ['admin/media/index.html', 'admin/media.html']
+		const adminMediaResults = await Promise.all(adminMediaCandidates.map(relativePath => fileExists(join(outputRoot, relativePath))))
+		if (adminMediaResults.some(Boolean))
+			throw new Error('Article preview output must not include admin pages.')
+		console.info('Generated article preview smoke passed: home page is valid and admin pages are excluded.')
+		return
+	}
+
 	const adminMediaPath = await requireOneOf(['admin/media/index.html', 'admin/media.html'])
-	const [indexHtml, adminMediaHtml, assets] = await Promise.all([
-		readFile(indexPath, 'utf8'),
+	const [adminMediaHtml, assets] = await Promise.all([
 		readFile(adminMediaPath, 'utf8'),
 		readdir(join(outputRoot, '_nuxt')),
 	])
 
-	if (!indexHtml.includes('fly living'))
-		throw new Error('Generated home page does not contain the site title.')
 	if (!adminMediaHtml.includes('<html'))
 		throw new Error('Generated admin media page is not valid HTML.')
 
