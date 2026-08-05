@@ -222,6 +222,23 @@ test('Twikoo controls expose accessible names after third-party initialization',
 	await expect(page.locator('#twikoo img:not([alt])')).toHaveCount(0)
 })
 
+test('mobile about hero keeps the introduction above the fold', async ({ page, isMobile }) => {
+	test.skip(!isMobile, 'Mobile about density is validated in the mobile project.')
+	await page.goto('/me', { waitUntil: 'networkidle' })
+	const metrics = await page.evaluate(() => {
+		const hero = document.querySelector('.about-hero')?.getBoundingClientRect()
+		const story = document.querySelector('#about-story')?.getBoundingClientRect()
+		return {
+			heroHeight: hero?.height || 0,
+			storyTop: story?.top || Number.POSITIVE_INFINITY,
+			viewportHeight: window.innerHeight,
+		}
+	})
+	expect(metrics.heroHeight).toBeLessThanOrEqual(320)
+	expect(metrics.storyTop).toBeLessThanOrEqual(metrics.viewportHeight * 0.62)
+	await expectNoHorizontalOverflow(page)
+})
+
 test.describe('mobile overflow matrix', () => {
 	test.beforeEach(async ({ isMobile }) => {
 		test.skip(!isMobile, 'Mobile overflow matrix runs in the mobile project.')

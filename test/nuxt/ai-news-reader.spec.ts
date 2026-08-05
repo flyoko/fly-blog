@@ -46,7 +46,7 @@ describe('ai 阅闻站内阅读界面', () => {
 		expect(page).toContain('查看原始来源')
 		expect(page).toContain('以下为内容摘要，完整信息请阅读原文')
 		expect(page).toContain('newsDocument.value?.images')
-		expect(page).toContain('class="reader-gallery"')
+		expect(page).toContain('class="reader-gallery" role="group" aria-label="新闻相关图片"')
 		expect(page).toContain('@error="hideBrokenImage(image.url)"')
 		expect(page).not.toContain('查看聚合来源')
 		expect(page).not.toContain('v-html')

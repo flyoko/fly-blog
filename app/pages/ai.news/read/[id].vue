@@ -164,7 +164,7 @@ onMounted(load)
 			</p>
 		</div>
 
-		<div v-if="visibleImages.length" class="reader-gallery" aria-label="新闻相关图片">
+		<div v-if="visibleImages.length" class="reader-gallery" role="group" aria-label="新闻相关图片">
 			<figure v-for="image in visibleImages" :key="image.url">
 				<img
 					:src="image.url"
@@ -235,7 +235,7 @@ onMounted(load)
 	align-items: center;
 	gap: 0.45rem 0.7rem;
 	font: 0.68rem var(--font-monospace);
-	color: var(--c-text-3);
+	color: var(--c-text-1);
 }
 
 .reader-meta > :first-child {
@@ -248,7 +248,7 @@ onMounted(load)
 	border: 1px solid color-mix(in srgb, var(--c-primary) 28%, var(--c-border));
 	border-radius: 0.35rem;
 	background: var(--c-primary-soft);
-	color: var(--c-primary);
+	color: var(--c-text-1);
 }
 
 .reader-header h1 {
@@ -281,7 +281,7 @@ onMounted(load)
 }
 
 .reader-times dt {
-	color: var(--c-text-3);
+	color: var(--c-text-1);
 }
 
 .reader-times dd {
@@ -369,7 +369,7 @@ onMounted(load)
 
 .reader-source p {
 	font-size: 0.66rem;
-	color: var(--c-text-3);
+	color: var(--c-text-1);
 }
 
 .reader-source strong {
