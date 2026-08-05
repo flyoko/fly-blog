@@ -12,7 +12,7 @@ title: ether，属于你的第一张虚拟卡（测试）
 ![xnk.webp](https://flyovo.cc.cd/media/public/articles/2026/08/727de31c-493a-4131-91fd-b28ce12aadfa.webp)
 
 ::mac-window
-***ether.fi Cash ***
+***ether.fi Cash***
 
 免费档 Core 规则是：
 
