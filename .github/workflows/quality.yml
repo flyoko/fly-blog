@@ -32,6 +32,7 @@ jobs:
         if: ${{ github.event_name != 'pull_request' || !startsWith(github.head_ref, 'admin/article/') }}
         with:
           version: 11.8.0
+          dest: ${{ runner.temp }}/setup-pnpm
       - uses: actions/setup-node@v6
         if: ${{ github.event_name != 'pull_request' || !startsWith(github.head_ref, 'admin/article/') }}
         with:
