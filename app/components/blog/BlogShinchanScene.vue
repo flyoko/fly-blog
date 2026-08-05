@@ -286,9 +286,9 @@ watch(() => profileImageSrc.value, () => {
 
 .scene-planet {
 	overflow: hidden;
-	right: -9%;
-	bottom: -58%;
-	width: min(58%, 44rem);
+	right: -6%;
+	bottom: -64%;
+	width: min(48%, 34rem);
 	aspect-ratio: 1;
 	border: 1px solid rgb(132 188 255 / 62%);
 	border-radius: 50%;
@@ -462,9 +462,9 @@ watch(() => profileImageSrc.value, () => {
 }
 
 .is-about .scene-character {
-	right: 3.6%;
-	bottom: 40%;
-	width: clamp(8rem, 14vw, 10.5rem);
+	right: 4.2%;
+	bottom: 36%;
+	width: clamp(6.4rem, 9vw, 8rem);
 	aspect-ratio: 390 / 333;
 	clip-path: inset(0 0 8% 0);
 	animation-name: shinchan-peek-about;
@@ -472,9 +472,9 @@ watch(() => profileImageSrc.value, () => {
 }
 
 .is-about.has-custom-character .scene-profile-avatar {
-	top: 23%;
-	right: 12.5%;
-	width: min(23%, 15.5rem);
+	top: 18%;
+	right: 12%;
+	width: min(19%, 12rem);
 	aspect-ratio: 1;
 	border-width: 1.5px;
 	box-shadow:
@@ -516,12 +516,12 @@ watch(() => profileImageSrc.value, () => {
 .is-about .scene-profile-badge {
 	top: 4%;
 	right: -3%;
-	width: clamp(2.35rem, 4vw, 3.15rem);
+	width: clamp(1.9rem, 3vw, 2.5rem);
 	box-shadow:
-		inset 0 1px 0 rgb(255 255 255 / 20%),
-		0 0 1.7rem rgb(72 145 255 / 46%);
-	background: rgb(18 47 100 / 72%);
-	font-size: clamp(0.9rem, 1.6vw, 1.25rem);
+		inset 0 1px 0 rgb(255 255 255 / 18%),
+		0 0 1.35rem rgb(72 145 255 / 42%);
+	background: rgb(18 47 100 / 70%);
+	font-size: clamp(0.75rem, 1.15vw, 1rem);
 	color: #DCEBFF;
 }
 
@@ -814,24 +814,24 @@ watch(() => profileImageSrc.value, () => {
 	}
 
 	.is-about .scene-character {
-		right: 1.2rem;
-		bottom: 50%;
-		width: 10rem;
+		right: 1rem;
+		bottom: 43%;
+		width: 8rem;
 	}
 
 	.is-about.has-custom-character .scene-profile-avatar {
 		--profile-base-y: 0px;
 
 		top: auto;
-		right: 11.5rem;
-		bottom: 10.5rem;
-		width: 12rem;
+		right: 9rem;
+		bottom: 8.5rem;
+		width: 10rem;
 	}
 
 	.is-about .scene-planet {
-		right: -13%;
-		bottom: -24%;
-		width: 34rem;
+		right: -10%;
+		bottom: -27%;
+		width: 27rem;
 	}
 
 	.is-about .scene-orbit-one {
@@ -889,26 +889,26 @@ watch(() => profileImageSrc.value, () => {
 	}
 
 	.is-about .scene-character {
-		right: -0.35rem;
-		bottom: 35%;
-		width: 7.8rem;
+		right: -0.2rem;
+		bottom: 31%;
+		width: 6.2rem;
 	}
 
 	.is-about.has-custom-character .scene-profile-avatar {
-		right: 6.6rem;
-		bottom: 8.2rem;
-		width: 8.6rem;
+		right: 5.4rem;
+		bottom: 6.7rem;
+		width: 7rem;
 	}
 
 	.is-about .scene-profile-badge {
-		width: 2.25rem;
-		font-size: 0.85rem;
+		width: 1.9rem;
+		font-size: 0.72rem;
 	}
 
 	.is-about .scene-planet {
-		right: -26%;
-		bottom: -20%;
-		width: 23rem;
+		right: -22%;
+		bottom: -18%;
+		width: 19rem;
 	}
 
 	.is-about .scene-orbit-one {
