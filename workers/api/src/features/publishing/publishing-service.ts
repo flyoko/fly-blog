@@ -415,7 +415,7 @@ export class PublishingService {
 			execute: async () => ({
 				status: 201,
 				body: await this.createPullRequestRun({
-					branchKind: input.kind,
+					branchKind: `config/${input.kind}`,
 					resourcePath: definition.path,
 					content: `${JSON.stringify(content, null, 2)}\n`,
 					commitMode: 'atomic',

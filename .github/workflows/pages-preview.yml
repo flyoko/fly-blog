@@ -25,6 +25,23 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 2
+      - name: 检测文章 PR 快路径
+        id: article-fast-path
+        if: ${{ startsWith(github.head_ref, 'admin/article/') }}
+        shell: bash
+        run: |
+          diff_file=$(mktemp)
+          git diff --name-only HEAD^1 HEAD^2 > "$diff_file"
+          changed_count=$(wc -l < "$diff_file" | tr -d ' ')
+          changed_path=$(sed -n '1p' "$diff_file")
+          if [[ "$changed_count" = 1 ]] && article_path=$(bash scripts/is-article-fast-path.sh "$changed_path"); then
+            echo "eligible=true" >> "$GITHUB_OUTPUT"
+            echo "ARTICLE_PATH=$article_path" >> "$GITHUB_ENV"
+          else
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+            echo "文章快路径不适用，改走完整校验。"
+            sed 's/^/ - /' "$diff_file"
+          fi
       - uses: pnpm/action-setup@v6
         with:
           version: 11.8.0
@@ -35,22 +52,17 @@ jobs:
           package-manager-cache: false
       - run: pnpm install --frozen-lockfile
       - name: 文章 PR 快路径校验
-        if: ${{ startsWith(github.head_ref, 'admin/article/') }}
+        if: ${{ steps.article-fast-path.outputs.eligible == 'true' }}
         shell: bash
         run: |
-          diff_file=$(mktemp)
-          git diff --name-only HEAD^1 HEAD^2 > "$diff_file"
-          test "$(wc -l < "$diff_file" | tr -d ' ')" = 1
-          path=$(sed -n '1p' "$diff_file")
-          [[ "$path" =~ ^content/posts/[0-9]{4}/[a-z0-9]+(-[a-z0-9]+)*\.md$ ]]
-          pnpm exec eslint "$path"
+          pnpm exec eslint "$ARTICLE_PATH"
           export NUXT_ARTICLE_PREVIEW=1
           pnpm generate
           pnpm check:smoke
           pnpm check:links
           pnpm check:secrets
       - run: pnpm verify
-        if: ${{ !startsWith(github.head_ref, 'admin/article/') }}
+        if: ${{ steps.article-fast-path.outputs.eligible != 'true' }}
       - id: deploy
         uses: cloudflare/wrangler-action@v4
         with:
