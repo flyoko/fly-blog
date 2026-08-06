@@ -312,10 +312,15 @@ describe('configuration pull requests', () => {
 			}),
 		}, runtimeEnv())
 		expect(write.status).toBe(201)
-		expect(await write.json()).toMatchObject({
+		const writePayload = await write.json() as {
+			ok: boolean
+			data: { branch: string, resourcePath: string }
+		}
+		expect(writePayload).toMatchObject({
 			ok: true,
 			data: { resourcePath: 'config/site/article.json' },
 		})
+		expect(writePayload.data.branch).toMatch(/^admin\/config\/article\/\d{8}-\d{6}-[a-z0-9]{6}$/u)
 		expect(repository.committedPaths).toEqual(['config/site/article.json'])
 		expect(repository.fileCommitInputs).toEqual([])
 		expect(repository.atomicCommitCalls).toBe(1)
@@ -341,7 +346,7 @@ describe('configuration pull requests', () => {
 		expect(first.status).toBe(201)
 		const firstData = (await first.json() as { data: { branch: string, resourcePath: string } }).data
 		expect(firstData.resourcePath).toBe('config/taxonomy/categories.json')
-		expect(firstData.branch).toMatch(/^admin\/categories\/\d{8}-\d{6}-[a-z0-9]{6}$/u)
+		expect(firstData.branch).toMatch(/^admin\/config\/categories\/\d{8}-\d{6}-[a-z0-9]{6}$/u)
 		const replay = await create('config-pr-one')
 		expect((await replay.json() as { data: unknown }).data).toEqual(firstData)
 		expect(repository.pullCounter).toBe(1)
