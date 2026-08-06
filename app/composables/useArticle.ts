@@ -39,6 +39,25 @@ export function normalizeArticleList(list: ArticleProps[] | null | undefined) {
 	return list ?? []
 }
 
+export function resolveArticleDate(article: Pick<ArticleProps, 'date' | 'updated'>, preferUpdated = false) {
+	const candidates = preferUpdated
+		? [article.updated, article.date]
+		: [article.date, article.updated]
+
+	return candidates.find((value) => {
+		if (!value?.trim())
+			return false
+
+		try {
+			toZonedTemporal(value)
+			return true
+		}
+		catch {
+			return false
+		}
+	})
+}
+
 export function useCategory(list: MaybeRefOrGetter<ArticleProps[] | null | undefined>, options?: UseCategoryOptions) {
 	const { bindQuery } = options || {}
 
@@ -97,11 +116,20 @@ export function useArticleSort(list: MaybeRefOrGetter<ArticleProps[] | null | un
 		? useRouteQuery(bindDirectionQuery, initialAscend.toString(), { transform: booleanQueryTransformer })
 		: ref<boolean>(initialAscend)
 
-	const listSorted = computed(() => orderBy(
-		normalizeArticleList(toValue(list)),
-		[sortOrder.value, 'date'],
-		[isAscending.value ? 'asc' : 'desc'],
-	))
+	const listSorted = computed(() => {
+		const direction = isAscending.value ? 'asc' : 'desc'
+		const primaryOrder = sortOrder.value === 'updated'
+			? (article: ArticleProps) => resolveArticleDate(article, true) ?? ''
+			: sortOrder.value === 'date'
+				? (article: ArticleProps) => resolveArticleDate(article) ?? ''
+				: sortOrder.value
+
+		return orderBy(
+			normalizeArticleList(toValue(list)),
+			[primaryOrder, 'date'],
+			[direction],
+		)
+	})
 
 	function setSortOrder(value: ArticleOrderType) {
 		sortOrder.value = value

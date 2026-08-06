@@ -7,12 +7,13 @@ const props = defineProps<{
 	showCategory?: boolean
 } & ArticleProps>()
 
-const mainDate = computed(() => props.useUpdated ? props.updated : props.date)
+const mainDate = computed(() => resolveArticleDate(props, props.useUpdated))
 </script>
 
 <template>
 <li class="article-item">
-	<UtilDate class="dim-hover" :date="mainDate" format="monthDay" />
+	<UtilDate v-if="mainDate" class="dim-hover" :date="mainDate" format="monthDay" />
+	<span v-else class="dim-hover">未标</span>
 
 	<div class="gradient-card" :style="{ '--c-accent': getCategoryColor(categories?.[0]) }">
 		<UtilLink class="article-link scrollbar-hidden scrollcheck-x" :to :title="description">

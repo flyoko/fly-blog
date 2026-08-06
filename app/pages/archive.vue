@@ -25,15 +25,6 @@ const listGrouped = computed(() => {
 	const groupList = Object.entries(groupBy(listCategorized.value, getArticleYear))
 	return isAscending.value ? groupList : groupList.reverse()
 })
-const archiveYears = computed(() => listGrouped.value.map(([year]) => year).filter(Boolean))
-const archiveSummary = computed(() => {
-	const count = listCategorized.value.length
-	const words = formatNumber(sumBy(listCategorized.value, article => article.readingTime?.words ?? 0))
-	const years = archiveYears.value.map(Number).filter(Number.isFinite).sort((a, b) => a - b)
-	const range = years.length > 1 ? `${years[0]}—${years.at(-1)}` : years[0]?.toString() || '持续更新'
-	return `${range} · ${count} 篇文章 · ${words} 字`
-})
-
 // 不能使用 /api/stats，因为可能切换分组方式
 const yearlyWordCount = computed(() =>
 	mapValues(Object.fromEntries(listGrouped.value), (articles) => {
@@ -43,12 +34,20 @@ const yearlyWordCount = computed(() =>
 )
 
 function getArticleYear(article: ArticleProps) {
+	const date = resolveArticleDate(article, sortOrder.value === 'updated')
+	if (!date)
+		return '未标日期'
+
 	try {
-		return toZonedTemporal(article[sortOrder.value] as string).year.toString()
+		return toZonedTemporal(date).year.toString()
 	}
 	catch {
-		return ''
+		return '未标日期'
 	}
+}
+
+function isArchiveYear(year: string) {
+	return /^\d{4}$/u.test(year)
 }
 </script>
 
@@ -58,11 +57,7 @@ function getArticleYear(article: ArticleProps) {
 </div>
 
 <div class="archive proper-height">
-	<header class="archive-intro card">
-		<span>LIBRARY · ARCHIVE</span>
-		<h1>文章归档</h1>
-		<p>{{ archiveSummary }}</p>
-	</header>
+	<h1>文章归档</h1>
 	<PostOrderToggle
 		:is-ascending="isAscending"
 		:sort-order="sortOrder"
@@ -95,10 +90,12 @@ function getArticleYear(article: ArticleProps) {
 				{{ year }}
 			</h2>
 
-			<div v-if="birthYear > 0" class="archive-age">
-				<span>{{ Number(year) - birthYear }}</span>
-				<span class="age-label">岁</span>
-			</div>
+			<template v-if="birthYear > 0">
+				<div v-if="isArchiveYear(year)" class="archive-age">
+					<span>{{ Number(year) - birthYear }}</span>
+					<span class="age-label">岁</span>
+				</div>
+			</template>
 
 			<div class="archive-info">
 				<span>{{ yearlyWordCount[year] }}字</span>
@@ -145,37 +142,22 @@ function getArticleYear(article: ArticleProps) {
 .archive {
 	padding: 1rem; // 防止内部 outline 被 mask
 	mask-image: linear-gradient(#FFF 50%, #FFF7);
-}
 
-.archive-intro {
-	position: relative;
-	overflow: hidden;
-	margin-bottom: 1rem;
-	padding: clamp(1.4rem, 4vw, 2.5rem);
-	background:
-		radial-gradient(circle at 88% 18%, var(--c-primary-soft), transparent 34%),
-		linear-gradient(135deg, var(--c-surface-fill), color-mix(in srgb, var(--c-surface-fill) 82%, var(--c-flow-blue) 8%));
-
-	> span {
-		font: 0.7rem var(--font-monospace);
-		letter-spacing: 0.16em;
-		color: var(--c-primary);
-	}
-
-	h1 {
-		margin-top: 0.35rem;
-		font: clamp(2.2rem, 7vw, 4.5rem) / 1 var(--font-creative);
-	}
-
-	p {
-		margin-top: 0.65rem;
-		font-variant-numeric: tabular-nums;
-		color: var(--c-text-2);
+	> h1 {
+		position: absolute;
+		overflow: hidden;
+		width: 1px;
+		height: 1px;
+		margin: -1px;
+		padding: 0;
+		border: 0;
+		clip-path: inset(50%);
+		white-space: nowrap;
 	}
 }
 
 .archive-group {
-	margin: 1rem 0 3rem;
+	margin: 1.5rem 0 3rem;
 
 	> .archive-list {
 		display: grid;
@@ -252,20 +234,8 @@ function getArticleYear(article: ArticleProps) {
 		padding: 0.75rem;
 	}
 
-	.archive-intro {
-		padding: 1.35rem 1.25rem;
-
-		h1 {
-			font-size: clamp(2.7rem, 15vw, 4rem);
-		}
-
-		p {
-			font-size: 0.82rem;
-		}
-	}
-
 	.archive-group {
-		margin-bottom: 2rem;
+		margin: 1rem 0 2rem;
 	}
 
 	.archive-title {
