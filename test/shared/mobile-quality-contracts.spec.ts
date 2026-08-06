@@ -30,7 +30,7 @@ describe('mobile quality contracts', () => {
 		const mobileJob = workflow.slice(workflow.indexOf('  mobile-quality:'))
 
 		expect(workflow).toContain(`article-fast-path: ${githubExpression('steps.article-fast-path.outputs.eligible')}`)
-		expect(mobileJob).toContain(`runs-on: ${githubExpression('vars.MOBILE_QUALITY_RUNNER || \'ubuntu-latest\'')}`)
+		expect(mobileJob).toContain('runs-on: ubuntu-latest')
 		expect(mobileJob).toContain('test "$RUNNER_OS" = "Linux"')
 		expect(mobileJob).toContain('needs: verify')
 		expect(mobileJob).toContain(`if: ${githubExpression('needs.verify.outputs.article-fast-path != \'true\'')}`)
@@ -45,5 +45,6 @@ describe('mobile quality contracts', () => {
 		expect(mobileJob).toContain('playwright-report')
 		expect(mobileJob).toContain('test-results')
 		expect(mobileJob).not.toContain('vars.CI_RUNNER')
+		expect(mobileJob).not.toContain('vars.MOBILE_QUALITY_RUNNER')
 	})
 })

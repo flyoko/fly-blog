@@ -73,7 +73,7 @@ jobs:
   mobile-quality:
     needs: verify
     if: ${{ needs.verify.outputs.article-fast-path != 'true' }}
-    runs-on: ${{ vars.MOBILE_QUALITY_RUNNER || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     timeout-minutes: 35
     env:
       E2E_REUSE_OUTPUT: '1'
