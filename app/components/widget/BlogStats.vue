@@ -4,8 +4,8 @@ import { Temporal } from 'temporal-polyfill'
 const appConfig = useAppConfig()
 const runtimeConfig = useRuntimeConfig()
 
-// 响应头不正确时，stats.value 可能会是字符串，首次属性访问可能为 undefined
-const { data: stats } = useFetch('/api/stats')
+// 静态托管可能把无扩展名的预渲染 JSON 作为 application/octet-stream 返回。
+const { data: stats } = useFetch('/api/stats', { responseType: 'json' })
 
 const buildTime = toZonedTemporal(runtimeConfig.public.buildTime).toPlainDateTime()
 const displayReference = shallowRef<Temporal.PlainDateTime>(buildTime)
