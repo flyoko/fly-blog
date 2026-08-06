@@ -16,7 +16,7 @@ const closeButton = ref<HTMLButtonElement | null>(null)
 const dialog = ref<HTMLElement | null>(null)
 const preferredReducedMotion = usePreferredReducedMotion()
 const documentVisibility = useDocumentVisibility()
-const compactViewport = useMediaQuery('(max-width: 680px)')
+const pointerHoverCapable = useMediaQuery('(hover: hover) and (pointer: fine)')
 
 const currentAd = computed(() => props.ads[activeIndex.value] ?? null)
 const href = computed(() => normalizeCanonicalSiteHref(currentAd.value?.href || ''))
@@ -27,7 +27,6 @@ const canAutoplay = computed(() => Boolean(
 	&& !focusPaused.value
 	&& !userPaused.value
 	&& !contactOpen.value
-	&& !compactViewport.value
 	&& preferredReducedMotion.value !== 'reduce'
 	&& documentVisibility.value === 'visible',
 ))
@@ -96,6 +95,15 @@ function toggleAutoplay() {
 	}
 }
 
+function handlePointerEnter() {
+	if (pointerHoverCapable.value)
+		pointerPaused.value = true
+}
+
+function handlePointerLeave() {
+	pointerPaused.value = false
+}
+
 function handleTouchStart(event: TouchEvent) {
 	touchStartX.value = event.changedTouches[0]?.clientX ?? null
 	pointerPaused.value = true
@@ -118,7 +126,11 @@ function handleTouchCancel() {
 
 function handleFocusIn(event: FocusEvent) {
 	const target = event.target as HTMLElement | null
-	focusPaused.value = !target?.classList.contains('home-ad-carousel-autoplay')
+	focusPaused.value = Boolean(
+		target
+		&& !target.classList.contains('home-ad-carousel-autoplay')
+		&& target.matches(':focus-visible'),
+	)
 }
 
 function handleFocusOut(event: FocusEvent) {
@@ -184,8 +196,8 @@ async function copyWechatId() {
 	class="home-ad-carousel"
 	aria-label="首页推广"
 	aria-roledescription="轮播"
-	@mouseenter="pointerPaused = true"
-	@mouseleave="pointerPaused = false"
+	@mouseenter="handlePointerEnter"
+	@mouseleave="handlePointerLeave"
 	@focusin="handleFocusIn"
 	@focusout="handleFocusOut"
 >

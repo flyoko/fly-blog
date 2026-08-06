@@ -20,6 +20,7 @@ const linkAdTitle = linkAdConfig.title
 const wechatQrPath = contactAd.wechatQr
 const linkAdPath = linkAdConfig.href
 const linkAdIndex = enabledAds.findIndex(ad => ad.id === linkAdConfig.id)
+const nextAdTitle = enabledAds[(linkAdIndex + 1) % enabledAds.length]!.title
 
 test.describe('homepage advertisement carousel', () => {
 	test('stays compact on desktop and does not enter article pages', async ({ page, isMobile }) => {
@@ -113,7 +114,7 @@ test.describe('homepage advertisement carousel', () => {
 		await linkAdTab.click()
 		await expect(carousel).toContainText(linkAdTitle)
 		await page.waitForTimeout(6_000)
-		await expect(carousel).toContainText(linkAdTitle)
+		await expect(carousel).toContainText(nextAdTitle)
 
 		for (const query of ['?category=生活', '?sort=updated']) {
 			await page.goto(`/${query}`)
