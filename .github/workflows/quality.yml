@@ -77,7 +77,7 @@ jobs:
     timeout-minutes: 35
     env:
       E2E_REUSE_OUTPUT: '1'
-      E2E_SERVER_COMMAND: python3 -m http.server 3000 --bind 127.0.0.1 --directory .output/public
+      E2E_SERVER_COMMAND: pnpm preview:e2e:static
     steps:
       - uses: actions/checkout@v6
         with:

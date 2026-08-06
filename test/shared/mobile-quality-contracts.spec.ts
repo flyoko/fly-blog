@@ -10,6 +10,7 @@ describe('mobile quality contracts', () => {
 			scripts: Record<string, string>
 		}
 
+		expect(packageJson.scripts['preview:e2e:static']).toBe('node scripts/serve-static-e2e.mjs')
 		expect(packageJson.scripts['test:e2e:mobile']).toBe('playwright test e2e/mobile-experience.spec.ts e2e/mobile-navigation-layering.spec.ts e2e/mobile-performance-budget.spec.ts e2e/mobile-player-performance.spec.ts --project=mobile-chromium --workers=1 --retries=0')
 		expect(packageJson.scripts['test:e2e:mobile:visual']).toBe('playwright test e2e/mobile-visual.spec.ts --project=mobile-chromium --workers=1 --retries=0')
 		expect(packageJson.scripts['check:mobile-performance']).toBe('unrun scripts/check-mobile-performance-budget.ts')
@@ -17,6 +18,7 @@ describe('mobile quality contracts', () => {
 
 	it('keeps screenshot output deterministic', () => {
 		const config = read('playwright.config.ts')
+		expect(config).toContain(['? `E2E_PORT=', '$', '{e2ePort} pnpm preview:e2e:static`'].join(''))
 		expect(config).toContain('snapshotPathTemplate: \'{testDir}/{testFilePath}-snapshots/{arg}-{projectName}{ext}\'')
 		expect(config).toContain('animations: \'disabled\'')
 		expect(config).toContain('caret: \'hide\'')
@@ -33,7 +35,7 @@ describe('mobile quality contracts', () => {
 		expect(mobileJob).toContain('needs: verify')
 		expect(mobileJob).toContain(`if: ${githubExpression('needs.verify.outputs.article-fast-path != \'true\'')}`)
 		expect(mobileJob).toContain('pnpm exec playwright install --with-deps chromium')
-		expect(mobileJob).toContain('E2E_SERVER_COMMAND: python3 -m http.server 3000 --bind 127.0.0.1 --directory .output/public')
+		expect(mobileJob).toContain('E2E_SERVER_COMMAND: pnpm preview:e2e:static')
 		expect(mobileJob).toContain('pnpm generate')
 		expect(mobileJob).toContain('pnpm test:e2e:mobile')
 		expect(mobileJob).toContain('pnpm test:e2e:mobile:visual')

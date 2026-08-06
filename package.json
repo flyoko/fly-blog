@@ -22,6 +22,7 @@
     "generate": "nuxt generate",
     "preview": "nuxt preview",
     "preview:e2e": "NUXT_E2E=1 pnpm generate && nuxt preview",
+    "preview:e2e:static": "node scripts/serve-static-e2e.mjs",
     "bump": "pnpx taze -w && rimraf node_modules pnpm-lock.yaml && pnpm dedupe",
     "lint": "eslint && stylelint '**/*.{vue,scss}'",
     "lint:fix": "eslint --fix && stylelint '**/*.{vue,scss}' --fix",

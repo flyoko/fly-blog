@@ -4,7 +4,7 @@ import { defineConfig, devices } from '@playwright/test'
 const e2ePort = process.env.E2E_PORT || '3000'
 const e2eBaseUrl = `http://127.0.0.1:${e2ePort}`
 const e2eServerCommand = process.env.E2E_SERVER_COMMAND || (process.env.E2E_REUSE_OUTPUT === '1'
-	? `HOST=127.0.0.1 PORT=${e2ePort} nuxt preview`
+	? `E2E_PORT=${e2ePort} pnpm preview:e2e:static`
 	: `HOST=127.0.0.1 PORT=${e2ePort} pnpm preview:e2e`)
 
 export default defineConfig({
