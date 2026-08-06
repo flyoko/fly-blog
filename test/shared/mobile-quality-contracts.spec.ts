@@ -10,8 +10,8 @@ describe('mobile quality contracts', () => {
 			scripts: Record<string, string>
 		}
 
-		expect(packageJson.scripts['test:e2e:mobile']).toBe('playwright test --project=mobile-chromium --grep-invert @visual')
-		expect(packageJson.scripts['test:e2e:mobile:visual']).toBe('playwright test --project=mobile-chromium --grep @visual')
+		expect(packageJson.scripts['test:e2e:mobile']).toBe('playwright test e2e/mobile-experience.spec.ts e2e/mobile-navigation-layering.spec.ts e2e/mobile-performance-budget.spec.ts e2e/mobile-player-performance.spec.ts --project=mobile-chromium --workers=1 --retries=0')
+		expect(packageJson.scripts['test:e2e:mobile:visual']).toBe('playwright test e2e/mobile-visual.spec.ts --project=mobile-chromium --workers=1 --retries=0')
 		expect(packageJson.scripts['check:mobile-performance']).toBe('unrun scripts/check-mobile-performance-budget.ts')
 	})
 

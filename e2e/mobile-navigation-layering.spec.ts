@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { prepareHydratedMobilePage } from './fixtures/mobile-quality'
 
 async function waitForDrawer(page: import('@playwright/test').Page, selector: string) {
 	const drawer = page.locator(selector)
@@ -46,7 +47,7 @@ test.describe('移动端抽屉层级与关闭行为', () => {
 	})
 
 	test('主菜单完整覆盖正文、播放器和浮动面板', async ({ page }) => {
-		await page.goto('/2026/welcome')
+		await prepareHydratedMobilePage(page, { route: '/2026/welcome', width: 390, height: 844 })
 		const toggle = page.getByRole('button', { name: '切换菜单' })
 		await toggle.click()
 		await waitForDrawer(page, '#blog-sidebar')
@@ -74,7 +75,7 @@ test.describe('移动端抽屉层级与关闭行为', () => {
 	})
 
 	test('右侧补充信息抽屉使用同一套安全层级', async ({ page }) => {
-		await page.goto('/2026/welcome')
+		await prepareHydratedMobilePage(page, { route: '/2026/welcome', width: 390, height: 844 })
 		const toggle = page.getByRole('button', { name: '切换侧边栏' })
 		await expect(toggle).toBeVisible()
 		await toggle.click()

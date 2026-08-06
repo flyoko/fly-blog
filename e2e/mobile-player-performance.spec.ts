@@ -1,5 +1,6 @@
 import type { Page } from '@playwright/test'
 import { expect, test } from '@playwright/test'
+import { prepareHydratedMobilePage } from './fixtures/mobile-quality'
 import { mockSilentMedia } from './fixtures/silent-media'
 
 async function mockPublicMusic(page: Page) {
@@ -56,7 +57,7 @@ test.describe('移动端播放器与性能基线', () => {
 
 	test('首次进入保持隐藏并通过共享浮动面板按需展开', async ({ page }) => {
 		await mockPublicMusic(page)
-		await page.goto('/2026/welcome', { waitUntil: 'domcontentloaded' })
+		await prepareHydratedMobilePage(page, { route: '/2026/welcome', width: 390, height: 844 })
 
 		const player = page.getByRole('region', { name: '随心听播放器' })
 		const launcher = page.getByRole('button', { name: '打开音乐播放器' })
@@ -109,7 +110,7 @@ test.describe('移动端播放器与性能基线', () => {
 
 	test('移动端不运行持续氛围动画且触摸不会生成鼠标粒子', async ({ page }) => {
 		await mockPublicMusic(page)
-		await page.goto('/ai.news', { waitUntil: 'domcontentloaded' })
+		await prepareHydratedMobilePage(page, { route: '/ai.news', width: 390, height: 844 })
 
 		const atmosphereAnimations = await page.evaluate(() => document.getAnimations().filter((animation) => {
 			const target = animation.effect?.target
