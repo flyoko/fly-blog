@@ -18,6 +18,8 @@ jobs:
   verify:
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 30
+    outputs:
+      article-fast-path: ${{ steps.article-fast-path.outputs.eligible }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -67,3 +69,42 @@ jobs:
         if: ${{ steps.article-fast-path.outputs.eligible != 'true' }}
       - run: pnpm check:secrets
         if: ${{ steps.article-fast-path.outputs.eligible != 'true' }}
+
+  mobile-quality:
+    needs: verify
+    if: ${{ needs.verify.outputs.article-fast-path != 'true' }}
+    runs-on: ${{ vars.MOBILE_QUALITY_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 35
+    env:
+      E2E_REUSE_OUTPUT: '1'
+      E2E_SERVER_COMMAND: python3 -m http.server 3000 --bind 127.0.0.1 --directory .output/public
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.8.0
+          dest: ${{ runner.temp }}/setup-pnpm
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - name: Confirm Linux visual environment
+        run: test "$RUNNER_OS" = "Linux"
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm generate
+      - run: pnpm check:mobile-performance
+      - run: pnpm test:e2e:mobile
+      - run: pnpm test:e2e:mobile:visual
+      - name: Upload mobile quality diagnostics
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-quality-diagnostics
+          path: |
+            playwright-report
+            test-results
+          if-no-files-found: ignore
+          retention-days: 7

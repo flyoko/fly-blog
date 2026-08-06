@@ -64,6 +64,7 @@ const debouncedSelection = refDebounced(text)
 
 	@media (max-width: $breakpoint-mobile) {
 		position: fixed;
+		visibility: hidden;
 		inset-inline-start: 0;
 		width: min(20rem, calc(100vw - 3rem));
 		height: 100dvh;
@@ -75,12 +76,18 @@ const debouncedSelection = refDebounced(text)
 		backdrop-filter: blur(18px) saturate(116%);
 		color: currentcolor;
 		transform: var(--transform-start-far);
-		transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+		transition:
+			transform 0.24s cubic-bezier(0.22, 1, 0.36, 1),
+			visibility 0s linear 0.24s;
+		pointer-events: none;
 		z-index: calc(var(--z-index-popover) + 5);
 
 		&.show {
+			visibility: visible;
 			box-shadow: 18px 0 48px var(--c-surface-shadow), inset -1px 0 0 var(--c-surface-line);
 			transform: none;
+			transition-delay: 0s;
+			pointer-events: auto;
 		}
 	}
 }

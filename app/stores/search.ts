@@ -12,6 +12,7 @@ export const useSearchStore = defineStore('search', () => {
 	const {
 		open: _open,
 		close: _close,
+		status: modalStatus,
 	} = modalStore.use(() => h(LazyPopoverSearch, {
 		onClose: () => {
 			_close()
@@ -24,8 +25,11 @@ export const useSearchStore = defineStore('search', () => {
 
 	// 从外部调用时应该操作 layoutStore
 	watch(() => layoutStore.state, (state) => {
-		if (state !== 'search')
-			return _close()
+		if (state !== 'search') {
+			if (modalStatus.value === 'open')
+				void _close()
+			return
+		}
 
 		word.value = window.getSelection()?.toString().trim() || word.value
 		_open()

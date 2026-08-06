@@ -1,5 +1,6 @@
 import type { Locator, Page } from '@playwright/test'
 import { expect, test } from '@playwright/test'
+import { prepareHydratedMobilePage } from './fixtures/mobile-quality'
 
 const MOBILE_WIDTHS = [320, 375, 390, 430] as const
 const CORE_ROUTES = ['/', '/2026/welcome', '/me', '/ai.news', '/comments'] as const
@@ -64,16 +65,12 @@ async function getOverflowDiagnostics(page: Page) {
 }
 
 async function assertNoPageOverflow(page: Page, route: string, width: number) {
-	await page.setViewportSize({ width, height: 844 })
 	const pageErrors: string[] = []
 	const onPageError = (error: Error) => pageErrors.push(error.message)
 	page.on('pageerror', onPageError)
 
 	try {
-		await page.goto(route, { waitUntil: 'domcontentloaded' })
-		if (route === '/ai.news' && !await page.locator('#main-content').count())
-			await page.goto('/ai.news/index/', { waitUntil: 'domcontentloaded' })
-		await expect(page.locator('#main-content')).toBeVisible()
+		await prepareHydratedMobilePage(page, { route, width, height: 844 })
 		await page.waitForTimeout(100)
 
 		const diagnostics = await getOverflowDiagnostics(page)
@@ -99,10 +96,16 @@ async function assertNoPageOverflow(page: Page, route: string, width: number) {
 
 async function expectTouchTarget(locator: Locator, name: string) {
 	await expect(locator, `${name} 应可见`).toBeVisible()
-	const box = await locator.boundingBox()
-	expect(box, `${name} 缺少布局盒`).not.toBeNull()
-	expect(box?.width, `${name} 宽度不足约 44px`).toBeGreaterThanOrEqual(MIN_TOUCH_TARGET_PX)
-	expect(box?.height, `${name} 高度不足约 44px`).toBeGreaterThanOrEqual(MIN_TOUCH_TARGET_PX)
+	await expect.poll(async () => locator.evaluate((element) => {
+		if (!element.isConnected)
+			return 0
+		return element.getBoundingClientRect().width
+	}).catch(() => 0), { message: `${name} 宽度不足约 44px` }).toBeGreaterThanOrEqual(MIN_TOUCH_TARGET_PX)
+	await expect.poll(async () => locator.evaluate((element) => {
+		if (!element.isConnected)
+			return 0
+		return element.getBoundingClientRect().height
+	}).catch(() => 0), { message: `${name} 高度不足约 44px` }).toBeGreaterThanOrEqual(MIN_TOUCH_TARGET_PX)
 }
 
 test.describe('移动端整体体验基线', () => {
@@ -119,8 +122,7 @@ test.describe('移动端整体体验基线', () => {
 	}
 
 	test('320px 首页筛选、菜单、遮罩和搜索可操作', async ({ page }) => {
-		await page.setViewportSize({ width: 320, height: 700 })
-		await page.goto('/', { waitUntil: 'domcontentloaded' })
+		await prepareHydratedMobilePage(page, { route: '/', width: 320, height: 700 })
 
 		const category = page.locator('.order-toggle .dropdown-trigger').first()
 		const direction = page.getByRole('button', { name: '切换为最早优先' })
@@ -146,19 +148,26 @@ test.describe('移动端整体体验基线', () => {
 		await expect(menuToggle).toBeFocused()
 
 		await menuToggle.click()
-		await page.getByRole('button', { name: '搜索站内内容' }).click()
+		await expect(drawer).toHaveClass(/show/)
+		const searchButton = page.getByRole('button', { name: '搜索站内内容' })
+		await expect(searchButton).toBeVisible()
+		await searchButton.click()
 		const dialog = page.getByRole('dialog', { name: '站内搜索' })
-		await expect(dialog).toBeVisible()
+		await expect(dialog).toBeVisible({ timeout: 15_000 })
 		await expect(page.getByRole('searchbox', { name: '搜索文章标题、正文或页面' })).toBeFocused()
 	})
 
 	test('320px 补充信息抽屉保留遮罩关闭区域', async ({ page }) => {
-		await page.setViewportSize({ width: 320, height: 700 })
-		await page.goto('/2026/welcome', { waitUntil: 'domcontentloaded' })
+		await prepareHydratedMobilePage(page, { route: '/2026/welcome', width: 320, height: 700 })
 
 		const toggle = page.getByRole('button', { name: '切换侧边栏' })
 		await expect(toggle, '补充信息按钮应在路由侧栏完成挂载后出现').toBeVisible({ timeout: 15_000 })
 		await expectTouchTarget(toggle, '补充信息按钮')
+		await expect.poll(async () => toggle.evaluate((element) => {
+			const rect = element.getBoundingClientRect()
+			const topElement = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2)
+			return topElement === element || Boolean(topElement?.closest('button') === element)
+		}), { timeout: 15_000, message: '补充信息按钮应位于可点击层级最上方' }).toBe(true)
 		await toggle.click()
 
 		const drawer = page.locator('#blog-aside')
@@ -175,8 +184,7 @@ test.describe('移动端整体体验基线', () => {
 	})
 
 	test('浮动面板位于安全区内且主内容预留底部操作空间', async ({ page }) => {
-		await page.setViewportSize({ width: 390, height: 700 })
-		await page.goto('/2026/welcome', { waitUntil: 'domcontentloaded' })
+		await prepareHydratedMobilePage(page, { route: '/2026/welcome', width: 390, height: 700 })
 
 		const panel = page.locator('#blog-panel-shell')
 		await expect(panel).toBeVisible()
@@ -196,11 +204,10 @@ test.describe('移动端整体体验基线', () => {
 	})
 
 	test('320px 评论区主要操作具备完整触控区域', async ({ page }) => {
-		await page.setViewportSize({ width: 320, height: 700 })
-		await page.goto('/2026/welcome', { waitUntil: 'domcontentloaded' })
+		await prepareHydratedMobilePage(page, { route: '/2026/welcome', width: 320, height: 700 })
 
 		const comment = page.locator('.z-comment')
-		await comment.scrollIntoViewIfNeeded()
+		await expect(comment).toBeVisible()
 		await expectTouchTarget(page.getByRole('button', { name: '评论隐私说明：无需登录，邮箱不会公开' }), '评论隐私说明')
 
 		const actions = comment.locator('#twikoo .tk-row.actions')
@@ -222,10 +229,12 @@ test.describe('移动端整体体验基线', () => {
 	})
 
 	test('搜索在 320×568 动态视口下可输入、滚动并关闭', async ({ page }) => {
-		await page.setViewportSize({ width: 320, height: 568 })
-		await page.goto('/', { waitUntil: 'domcontentloaded' })
+		await prepareHydratedMobilePage(page, { route: '/', width: 320, height: 568 })
 		await page.getByRole('button', { name: '切换菜单' }).click()
-		await page.getByRole('button', { name: '搜索站内内容' }).click()
+		await expect(page.locator('#blog-sidebar')).toHaveClass(/show/)
+		const searchButton = page.getByRole('button', { name: '搜索站内内容' })
+		await expect(searchButton).toBeVisible()
+		await searchButton.click()
 
 		const dialog = page.getByRole('dialog', { name: '站内搜索' })
 		const input = page.getByRole('searchbox', { name: '搜索文章标题、正文或页面' })
@@ -235,7 +244,7 @@ test.describe('移动端整体体验基线', () => {
 		expect(dialogBox).not.toBeNull()
 		expect(dialogBox?.height, '搜索弹层不能超过动态视口').toBeLessThanOrEqual(552)
 
-		await input.fill('fly')
+		await input.fill('你好')
 		await expect(dialog.locator('.search-result')).toBeVisible({ timeout: 15_000 })
 		const result = dialog.locator('.search-result')
 		const scrollMetrics = await result.evaluate(element => ({

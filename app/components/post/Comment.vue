@@ -578,11 +578,15 @@ onBeforeUnmount(() => {
 	}
 
 	.tk-input .el-textarea__inner {
+		width: 100%;
+		min-width: 0;
 		min-height: 7.25rem !important;
+		max-width: 100%;
 		padding: 1rem 7.75rem 1rem 1rem;
 		border: 1px solid var(--c-surface-line);
 		border-radius: 0.9rem;
 		box-shadow: inset 0 1px 0 var(--c-surface-highlight);
+		box-sizing: border-box;
 		outline: none;
 		background:
 			radial-gradient(circle at 92% 72%, var(--c-primary-soft), transparent 17%),

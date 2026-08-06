@@ -1,0 +1,45 @@
+html {
+	color-scheme: light !important;
+	scroll-behavior: auto !important;
+}
+
+*,
+*::before,
+*::after {
+	animation-delay: 0s !important;
+	animation-duration: 0s !important;
+	caret-color: transparent !important;
+	font-family: "DejaVu Sans", sans-serif !important;
+	font-synthesis: none !important;
+	scroll-behavior: auto !important;
+	transition: none !important;
+}
+
+canvas,
+video,
+img[src$=".gif"] {
+	visibility: hidden !important;
+}
+
+.comments-page .z-comment {
+	overflow: hidden !important;
+	min-height: 20rem !important;
+	max-height: 20rem !important;
+	margin: 0.9rem 0 1.5rem !important;
+}
+
+.news-digest {
+	overflow: hidden !important;
+	min-height: 15rem !important;
+	max-height: 15rem !important;
+}
+
+#blog-panel-shell,
+.music-player {
+	display: none !important;
+}
+
+#twikoo,
+.comment-status {
+	visibility: hidden !important;
+}

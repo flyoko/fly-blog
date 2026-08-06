@@ -25,7 +25,7 @@ async function expectNoHorizontalOverflow(page: import('@playwright/test').Page)
 	expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth + 1)
 }
 
-test('enabled weather and music initialize their public runtimes once', async ({ page }) => {
+test('enabled weather and music initialize their public runtimes once', async ({ page, isMobile }) => {
 	await mockSilentMedia(page)
 	await page.addInitScript(() => {
 		Object.defineProperty(window, '__mediaLoadCount', { configurable: true, writable: true, value: 0 })
@@ -85,7 +85,18 @@ test('enabled weather and music initialize their public runtimes once', async ({
 		})
 	})
 	await page.goto('/', { waitUntil: 'networkidle' })
+	if (isMobile) {
+		const asideToggle = page.getByRole('button', { name: '切换侧边栏' })
+		await expect(asideToggle).toBeVisible()
+		await asideToggle.click()
+		await expect(page.locator('#blog-aside')).toHaveClass(/show/)
+	}
 	await expect(page.locator('.weather-card')).toBeVisible()
+	if (isMobile) {
+		const asideToggle = page.getByRole('button', { name: '切换侧边栏' })
+		await asideToggle.click()
+		await expect(page.locator('#blog-aside')).not.toHaveClass(/show/)
+	}
 	const player = page.getByRole('region', { name: '随心听播放器' })
 	await expect(player).toBeHidden()
 	const mediaLoadsBeforeOpen = await page.evaluate(() => Number((window as unknown as { __mediaLoadCount?: number }).__mediaLoadCount || 0))

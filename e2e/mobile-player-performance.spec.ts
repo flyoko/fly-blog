@@ -72,11 +72,13 @@ test.describe('移动端播放器与性能基线', () => {
 		await expect(player.locator('.music-player-details')).toHaveCount(0)
 		const playerHeight = await player.evaluate(element => element.getBoundingClientRect().height)
 		expect(playerHeight).toBeLessThan(80)
-		const playerBox = await player.boundingBox()
-		const panelBox = await page.locator('#blog-panel').boundingBox()
-		expect(playerBox).not.toBeNull()
-		expect(panelBox).not.toBeNull()
-		expect((panelBox?.y ?? 0) + (panelBox?.height ?? 0)).toBeLessThanOrEqual((playerBox?.y ?? 0) - 12)
+		await expect.poll(async () => {
+			const playerBox = await player.boundingBox()
+			const panelBox = await page.locator('#blog-panel').boundingBox()
+			if (!playerBox || !panelBox)
+				return Number.NEGATIVE_INFINITY
+			return playerBox.y - (panelBox.y + panelBox.height)
+		}, { message: '浮动面板应在播放器上方保留至少 12px 间距' }).toBeGreaterThanOrEqual(12)
 		const overflowX = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth)
 		expect(overflowX).toBe(false)
 		for (const name of ['上一首', '播放', '下一首']) {

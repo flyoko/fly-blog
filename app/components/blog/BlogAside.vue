@@ -36,6 +36,7 @@ watch(() => props.hasContent, (hasContent) => {
 
 	@media (max-width: $breakpoint-widescreen) {
 		position: fixed;
+		visibility: hidden;
 		inset-inline-end: 0;
 		top: 0;
 		width: min(20rem, calc(100vw - 3rem));
@@ -46,7 +47,10 @@ watch(() => props.hasContent, (hasContent) => {
 		background-color: var(--c-bg-1);
 		background-color: color-mix(in srgb, var(--c-bg-1) 96%, transparent);
 		transform: var(--transform-end-far);
-		transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+		transition:
+			transform 0.24s cubic-bezier(0.22, 1, 0.36, 1),
+			visibility 0s linear 0.24s;
+		pointer-events: none;
 
 		> :deep(.blog-widget) {
 			padding: 0.65rem;
@@ -60,7 +64,10 @@ watch(() => props.hasContent, (hasContent) => {
 		}
 
 		&.show {
+			visibility: visible;
 			transform: none;
+			transition-delay: 0s;
+			pointer-events: auto;
 		}
 	}
 

@@ -8,6 +8,8 @@ const root = fileURLToPath(new URL('../..', import.meta.url))
 interface WorkflowJob {
 	environment?: { name?: string, url?: string }
 	if?: unknown
+	needs?: unknown
+	outputs?: Record<string, unknown>
 }
 
 interface WorkflowDocument {
@@ -54,13 +56,21 @@ describe('文章发布工作流', () => {
 		const { source, document } = await workflow('.github/workflows/quality.yml')
 		const jobs = document.jobs ?? {}
 		const job = jobs.verify
+		const mobileJob = jobs['mobile-quality']
 
 		expect(job).toBeTruthy()
 		if (!job)
 			throw new Error('verify job missing')
-		expect(Object.keys(jobs)).toEqual(['verify'])
+		expect(mobileJob).toBeTruthy()
+		if (!mobileJob)
+			throw new Error('mobile-quality job missing')
+		expect(Object.keys(jobs)).toEqual(['verify', 'mobile-quality'])
 		expect(job).not.toHaveProperty('if')
 		expect(source).toContain('检测文章 PR 快路径')
+		expect(job.outputs).toHaveProperty('article-fast-path')
+		expect(mobileJob).toHaveProperty('if')
+		expect(mobileJob.needs).toBe('verify')
+		expect(source).toContain('needs.verify.outputs.article-fast-path != \'true\'')
 		expect(source).toContain('fetch-depth: 2')
 		expect(source).toContain('HEAD^1 HEAD^2')
 		expect(source).not.toContain('HEAD^1...HEAD^2')
