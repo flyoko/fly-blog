@@ -286,7 +286,7 @@ describe('article editor UI boundaries', () => {
 		expect(homepage).toContain('v-else-if="listRecommended.length && page === 1 && !category"')
 		expect(articlePage).not.toContain('<PostHeaderAd')
 		expect(articlePage).not.toContain('<HomeAdCarousel')
-		expect(carousel).toContain('5_500')
+		expect(carousel).toContain('3_000')
 		expect(carousel).toContain('usePreferredReducedMotion')
 		expect(carousel).toContain('useMediaQuery(\'(hover: hover) and (pointer: fine)\')')
 		expect(carousel).toContain('<Teleport to="body">')

@@ -31,7 +31,7 @@ const canAutoplay = computed(() => Boolean(
 	&& documentVisibility.value === 'visible',
 ))
 
-const { pause, resume } = useIntervalFn(() => move(1, false), 5_500, { immediate: false })
+const { pause, resume } = useIntervalFn(() => move(1, false), 3_000, { immediate: false })
 
 watch(canAutoplay, (enabled) => {
 	if (!import.meta.client)

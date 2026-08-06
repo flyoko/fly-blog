@@ -113,8 +113,7 @@ test.describe('homepage advertisement carousel', () => {
 		await expect(linkAdTab).toBeVisible()
 		await linkAdTab.click()
 		await expect(carousel).toContainText(linkAdTitle)
-		await page.waitForTimeout(6_000)
-		await expect(carousel).toContainText(nextAdTitle)
+		await expect(carousel).toContainText(nextAdTitle, { timeout: 5_000 })
 
 		for (const query of ['?category=生活', '?sort=updated']) {
 			await page.goto(`/${query}`)
