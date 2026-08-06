@@ -16,6 +16,7 @@ const closeButton = ref<HTMLButtonElement | null>(null)
 const dialog = ref<HTMLElement | null>(null)
 const preferredReducedMotion = usePreferredReducedMotion()
 const documentVisibility = useDocumentVisibility()
+const compactViewport = useMediaQuery('(max-width: 680px)')
 
 const currentAd = computed(() => props.ads[activeIndex.value] ?? null)
 const href = computed(() => normalizeCanonicalSiteHref(currentAd.value?.href || ''))
@@ -26,6 +27,7 @@ const canAutoplay = computed(() => Boolean(
 	&& !focusPaused.value
 	&& !userPaused.value
 	&& !contactOpen.value
+	&& !compactViewport.value
 	&& preferredReducedMotion.value !== 'reduce'
 	&& documentVisibility.value === 'visible',
 ))
@@ -251,6 +253,7 @@ async function copyWechatId() {
 			type="button"
 			:aria-label="userPaused ? '继续自动轮播' : '暂停自动轮播'"
 			:aria-pressed="userPaused"
+			:title="userPaused ? '继续自动轮播' : '暂停自动轮播'"
 			@click="toggleAutoplay"
 		>
 			<Icon :name="userPaused ? 'tabler:player-play-filled' : 'tabler:player-pause-filled'" />
@@ -706,7 +709,7 @@ async function copyWechatId() {
 
 	.home-ad-carousel-copy {
 		width: 72%;
-		padding: 1rem 2.9rem 1rem 2.75rem;
+		padding: 1rem 1.25rem;
 
 		> small { font-size: 0.55rem; }
 
@@ -722,21 +725,42 @@ async function copyWechatId() {
 		font-size: 0.64rem;
 	}
 
-	.home-ad-carousel-control {
-		width: var(--touch-target);
-		height: var(--touch-target);
-		border-radius: 0.7rem;
-		font-size: 1rem;
-
-		&.is-previous { inset-inline-start: 0.35rem; }
-		&.is-next { inset-inline-end: 0.35rem; }
+	.home-ad-carousel-control,
+	.home-ad-carousel-autoplay {
+		display: none;
 	}
 
-	.home-ad-carousel-autoplay {
-		inset-inline-end: 0.35rem;
-		bottom: 0.35rem;
-		width: var(--touch-target);
-		height: var(--touch-target);
+	.home-ad-carousel-dots {
+		gap: 0.1rem;
+		bottom: 0.2rem;
+	}
+
+	.home-ad-carousel-dot {
+		display: grid;
+		place-items: center;
+		width: 1.35rem;
+		height: 1.35rem;
+		background: transparent;
+
+		&::before {
+			content: "";
+			width: 0.38rem;
+			height: 0.38rem;
+			border-radius: 999px;
+			box-shadow: 0 0 0 1px color-mix(in srgb, var(--c-bg-2) 72%, transparent);
+			background: color-mix(in srgb, var(--c-text-1) 38%, transparent);
+			transition: width 0.2s ease, background 0.2s ease;
+		}
+
+		&.is-active {
+			width: 1.65rem;
+			background: transparent;
+
+			&::before {
+				width: 1rem;
+				background: var(--c-primary);
+			}
+		}
 	}
 
 	.home-ad-dialog-backdrop {

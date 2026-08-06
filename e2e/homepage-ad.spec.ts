@@ -6,8 +6,9 @@ const articleConfig = articlePresentationConfigSchema.parse(JSON.parse(
 	readFileSync(new URL('../config/site/article.json', import.meta.url), 'utf8'),
 ))
 
-const contactAd = articleConfig.headerAds.find(ad => ad.enabled && ad.action === 'wechat')
-const linkAdConfig = articleConfig.headerAds.find(ad => ad.enabled && ad.action === 'link' && ad.href.startsWith('/'))
+const enabledAds = articleConfig.headerAds.filter(ad => ad.enabled)
+const contactAd = enabledAds.find(ad => ad.action === 'wechat')
+const linkAdConfig = enabledAds.find(ad => ad.action === 'link' && ad.href.startsWith('/'))
 
 if (!contactAd?.wechatQr)
 	throw new Error('Homepage ad E2E requires an enabled WeChat ad with a QR image.')
@@ -18,6 +19,7 @@ const contactAdTitle = contactAd.title
 const linkAdTitle = linkAdConfig.title
 const wechatQrPath = contactAd.wechatQr
 const linkAdPath = linkAdConfig.href
+const linkAdIndex = enabledAds.findIndex(ad => ad.id === linkAdConfig.id)
 
 test.describe('homepage advertisement carousel', () => {
 	test('stays compact on desktop and does not enter article pages', async ({ page, isMobile }) => {
@@ -98,9 +100,20 @@ test.describe('homepage advertisement carousel', () => {
 		test.skip(!isMobile, 'Mobile dimensions run in the mobile project.')
 		test.setTimeout(60_000)
 		await page.goto('/')
+		const carousel = page.locator('.home-ad-carousel')
 		await expect(page.locator('.home-ad-carousel-frame')).toHaveCSS('height', '132px')
-		await expect(page.locator('.home-ad-carousel')).toContainText(contactAdTitle)
+		await expect(carousel).toContainText(contactAdTitle)
 		expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1)).toBe(true)
+		await expect(page.getByRole('button', { name: '上一条广告' })).toBeHidden()
+		await expect(page.getByRole('button', { name: '下一条广告' })).toBeHidden()
+		await expect(page.getByRole('button', { name: '暂停自动轮播' })).toBeHidden()
+
+		const linkAdTab = page.getByRole('tab', { name: `第 ${linkAdIndex + 1} 条广告：${linkAdTitle}` })
+		await expect(linkAdTab).toBeVisible()
+		await linkAdTab.click()
+		await expect(carousel).toContainText(linkAdTitle)
+		await page.waitForTimeout(6_000)
+		await expect(carousel).toContainText(linkAdTitle)
 
 		for (const query of ['?category=生活', '?sort=updated']) {
 			await page.goto(`/${query}`)
