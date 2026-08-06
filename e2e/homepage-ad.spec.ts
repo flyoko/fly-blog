@@ -1,8 +1,23 @@
+import { readFileSync } from 'node:fs'
 import { expect, test } from '@playwright/test'
+import { articlePresentationConfigSchema } from '../shared/admin/site-config'
 
-const contactAdTitle = '质保 plus月抛封号'
-const linkAdTitle = '使用Boss-Helper 批量投递简历 省时间更省力！'
-const wechatQrPath = 'https://flyovo.cc.cd/media/public/profile/2d6c33d9-5beb-4129-8cca-2f57b36103af.jpg'
+const articleConfig = articlePresentationConfigSchema.parse(JSON.parse(
+	readFileSync(new URL('../config/site/article.json', import.meta.url), 'utf8'),
+))
+
+const contactAd = articleConfig.headerAds.find(ad => ad.enabled && ad.action === 'wechat')
+const linkAdConfig = articleConfig.headerAds.find(ad => ad.enabled && ad.action === 'link' && ad.href.startsWith('/'))
+
+if (!contactAd?.wechatQr)
+	throw new Error('Homepage ad E2E requires an enabled WeChat ad with a QR image.')
+if (!linkAdConfig)
+	throw new Error('Homepage ad E2E requires an enabled internal link ad.')
+
+const contactAdTitle = contactAd.title
+const linkAdTitle = linkAdConfig.title
+const wechatQrPath = contactAd.wechatQr
+const linkAdPath = linkAdConfig.href
 
 test.describe('homepage advertisement carousel', () => {
 	test('stays compact on desktop and does not enter article pages', async ({ page, isMobile }) => {
@@ -73,10 +88,10 @@ test.describe('homepage advertisement carousel', () => {
 		await next.click()
 		const linkAd = page.locator('.home-ad-carousel-main')
 		await expect(linkAd).toContainText(linkAdTitle)
-		await expect(linkAd).toHaveAttribute('href', '/2026/boss-helper-job-applications')
+		await expect(linkAd).toHaveAttribute('href', linkAdPath)
 		await expect(linkAd).toHaveAttribute('rel', /sponsored/u)
 		await linkAd.click()
-		await expect(page).toHaveURL('/2026/boss-helper-job-applications')
+		await expect(page).toHaveURL(linkAdPath)
 	})
 
 	test('uses the mobile height and stays visible on filtered and sorted home views', async ({ page, isMobile }) => {
