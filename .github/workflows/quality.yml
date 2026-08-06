@@ -22,37 +22,48 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 2
-      - name: 文章 PR 快路径策略
+      - name: 检测文章 PR 快路径
+        id: article-fast-path
         if: ${{ github.event_name == 'pull_request' && startsWith(github.head_ref, 'admin/article/') }}
+        shell: bash
         run: |
-          changed_files="$(git diff --name-only HEAD^1 HEAD^2)"
-          test "$(printf '%s\n' "$changed_files" | sed '/^$/d' | wc -l | tr -d ' ')" = 1
-          printf '%s\n' "$changed_files" | grep -Eq '^content/posts/[0-9]{4}/[a-z0-9]+(-[a-z0-9]+)*\.md$'
+          diff_file=$(mktemp)
+          git diff --name-only HEAD^1 HEAD^2 > "$diff_file"
+          changed_count=$(wc -l < "$diff_file" | tr -d ' ')
+          changed_path=$(sed -n '1p' "$diff_file")
+          if [[ "$changed_count" = 1 ]] && article_path=$(bash scripts/is-article-fast-path.sh "$changed_path"); then
+            echo "eligible=true" >> "$GITHUB_OUTPUT"
+            echo "ARTICLE_PATH=$article_path" >> "$GITHUB_ENV"
+          else
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+            echo "文章快路径不适用，改走完整校验。"
+            sed 's/^/ - /' "$diff_file"
+          fi
       - uses: pnpm/action-setup@v6
-        if: ${{ github.event_name != 'pull_request' || !startsWith(github.head_ref, 'admin/article/') }}
+        if: ${{ steps.article-fast-path.outputs.eligible != 'true' }}
         with:
           version: 11.8.0
           dest: ${{ runner.temp }}/setup-pnpm
       - uses: actions/setup-node@v6
-        if: ${{ github.event_name != 'pull_request' || !startsWith(github.head_ref, 'admin/article/') }}
+        if: ${{ steps.article-fast-path.outputs.eligible != 'true' }}
         with:
           node-version: 24
           package-manager-cache: false
       - run: pnpm install --frozen-lockfile
-        if: ${{ github.event_name != 'pull_request' || !startsWith(github.head_ref, 'admin/article/') }}
+        if: ${{ steps.article-fast-path.outputs.eligible != 'true' }}
       - run: pnpm lint
-        if: ${{ github.event_name != 'pull_request' || !startsWith(github.head_ref, 'admin/article/') }}
+        if: ${{ steps.article-fast-path.outputs.eligible != 'true' }}
       - run: pnpm typecheck
-        if: ${{ github.event_name != 'pull_request' || !startsWith(github.head_ref, 'admin/article/') }}
+        if: ${{ steps.article-fast-path.outputs.eligible != 'true' }}
       - run: pnpm test:unit
-        if: ${{ github.event_name != 'pull_request' || !startsWith(github.head_ref, 'admin/article/') }}
+        if: ${{ steps.article-fast-path.outputs.eligible != 'true' }}
       - run: pnpm test:workers
-        if: ${{ github.event_name != 'pull_request' || !startsWith(github.head_ref, 'admin/article/') }}
+        if: ${{ steps.article-fast-path.outputs.eligible != 'true' }}
       - run: pnpm generate
-        if: ${{ github.event_name != 'pull_request' || !startsWith(github.head_ref, 'admin/article/') }}
+        if: ${{ steps.article-fast-path.outputs.eligible != 'true' }}
       - run: pnpm check:smoke
-        if: ${{ github.event_name != 'pull_request' || !startsWith(github.head_ref, 'admin/article/') }}
+        if: ${{ steps.article-fast-path.outputs.eligible != 'true' }}
       - run: pnpm check:links
-        if: ${{ github.event_name != 'pull_request' || !startsWith(github.head_ref, 'admin/article/') }}
+        if: ${{ steps.article-fast-path.outputs.eligible != 'true' }}
       - run: pnpm check:secrets
-        if: ${{ github.event_name != 'pull_request' || !startsWith(github.head_ref, 'admin/article/') }}
+        if: ${{ steps.article-fast-path.outputs.eligible != 'true' }}
