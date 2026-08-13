@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { FinanceFilter, FinanceFlashListDto } from '#shared/admin/finance'
 import type { NewsItemDto } from '#shared/admin/news'
 
 interface Briefing {
@@ -47,12 +48,22 @@ interface DailyHighlight {
 }
 
 type NewsFilter = 'all' | 'hot' | 'rss' | 'manual'
+type NewsSection = 'ai' | 'finance'
 
 const filterOptions: Array<{ id: NewsFilter, label: string }> = [
 	{ id: 'all', label: '全部' },
 	{ id: 'rss', label: '站长资讯' },
 	{ id: 'hot', label: 'AI 精选' },
 	{ id: 'manual', label: '手动精选' },
+]
+
+const financeFilterOptions: Array<{ id: FinanceFilter, label: string }> = [
+	{ id: 'all', label: '全部' },
+	{ id: 'market', label: '市场' },
+	{ id: 'company', label: '公司' },
+	{ id: 'macro', label: '宏观' },
+	{ id: 'overseas', label: '海外' },
+	{ id: 'tech', label: '科技' },
 ]
 
 const sourceLabels: Record<NewsItemDto['kind'], string> = {
@@ -76,12 +87,33 @@ const ownedCoverDateFormatter = new Intl.DateTimeFormat('zh-CN', {
 	day: '2-digit',
 })
 
+const financeTimeFormatter = new Intl.DateTimeFormat('zh-CN', {
+	hour: '2-digit',
+	minute: '2-digit',
+	hour12: false,
+	timeZone: 'Asia/Shanghai',
+})
+
+const financeDayFormatter = new Intl.DateTimeFormat('zh-CN', {
+	month: '2-digit',
+	day: '2-digit',
+	weekday: 'long',
+	timeZone: 'Asia/Shanghai',
+})
+
 const data = ref<NewsPayload | null>(null)
 const loading = ref(true)
 const error = ref('')
+const activeSection = ref<NewsSection>('ai')
 const filter = ref<NewsFilter>('all')
 const query = ref('')
 const failedImageUrls = ref<Set<string>>(new Set())
+const financeFilter = ref<FinanceFilter>('all')
+const financeImportantOnly = ref(false)
+const financeData = ref<FinanceFlashListDto | null>(null)
+const financeLoading = ref(false)
+const financeError = ref('')
+let financeRequestRevision = 0
 
 const dailySections = computed<DailySection[]>(() => {
 	if (!data.value?.briefing)
@@ -138,6 +170,22 @@ const visibleItems = computed<NewsItemDto[]>(() => {
 	})
 })
 
+const visibleFinanceItems = computed(() => financeData.value?.items || [])
+
+const financeDayLabel = computed(() => {
+	const value = visibleFinanceItems.value[0]?.publishedAt || financeData.value?.updatedAt
+	if (!value)
+		return '今日'
+	const date = new Date(value)
+	if (Number.isNaN(date.getTime()))
+		return '今日'
+	const parts = financeDayFormatter.formatToParts(date)
+	const month = parts.find(part => part.type === 'month')?.value
+	const day = parts.find(part => part.type === 'day')?.value
+	const weekday = parts.find(part => part.type === 'weekday')?.value
+	return month && day && weekday ? `${month}月${day}日 · ${weekday}` : financeDayFormatter.format(date)
+})
+
 const degradedSources = computed(() =>
 	data.value?.sources.filter(source => source.status === 'failed') || [],
 )
@@ -155,9 +203,9 @@ const briefingDate = computed(() => data.value?.briefing?.date.replaceAll('-', '
 
 useSeoMeta({
 	title: 'AI 阅闻',
-	description: '在 fly living 内阅读 AI 精选、站长资讯和每日简报，保留来源与原文入口。',
+	description: '在 fly living 内阅读 AI 精选、财经 7×24、站长资讯和每日简报，保留来源与原文入口。',
 	ogTitle: 'AI 阅闻 · fly living',
-	ogDescription: '站内阅读 AI 精选、站长资讯和每日简报。',
+	ogDescription: '站内阅读 AI 精选、财经 7×24、站长资讯和每日简报。',
 })
 
 function sourceLabel(item: NewsItemDto) {
@@ -194,6 +242,13 @@ function formatOwnedCoverDate(value: string | null) {
 	return ownedCoverDateFormatter.format(date).replaceAll('/', '.')
 }
 
+function formatFinanceTime(value: string) {
+	const date = new Date(value)
+	if (Number.isNaN(date.getTime()))
+		return '--:--'
+	return financeTimeFormatter.format(date)
+}
+
 function hasUsableCover(item: NewsItemDto) {
 	return Boolean(item.coverImage && !failedImageUrls.value.has(item.coverImage.url))
 }
@@ -221,6 +276,36 @@ async function load() {
 	}
 }
 
+async function loadFinance() {
+	const revision = ++financeRequestRevision
+	financeLoading.value = true
+	financeError.value = ''
+	try {
+		const result = await $fetch<{ data: FinanceFlashListDto }>('/api/finance/flash', {
+			query: {
+				category: financeFilter.value,
+				important: financeImportantOnly.value ? 'true' : 'false',
+				limit: 50,
+			},
+		})
+		if (revision === financeRequestRevision)
+			financeData.value = result.data
+	}
+	catch (cause) {
+		if (revision === financeRequestRevision)
+			financeError.value = cause instanceof Error ? cause.message : '财经快讯加载失败'
+	}
+	finally {
+		if (revision === financeRequestRevision)
+			financeLoading.value = false
+	}
+}
+
+watch([activeSection, financeFilter, financeImportantOnly], ([section]) => {
+	if (section === 'finance')
+		void loadFinance()
+})
+
 onMounted(load)
 </script>
 
@@ -232,23 +317,42 @@ onMounted(load)
 	<header class="news-header">
 		<div>
 			<p class="news-eyebrow">
-				AI · SIGNALS · DAILY
+				AI · SIGNALS · MARKETS
 			</p>
 			<h1>AI 阅闻</h1>
 			<p class="news-intro">
-				每天浏览值得关注的 AI 动态、产品进展与技术资讯。
+				每天浏览值得关注的 AI 动态、财经快讯与技术资讯。
 			</p>
 		</div>
-		<div class="news-sync" :class="{ degraded: degradedSources.length }">
+		<div class="news-sync" :class="{ degraded: activeSection === 'finance' ? Boolean(financeError) : Boolean(degradedSources.length) }">
 			<span class="news-sync-dot" aria-hidden="true" />
 			<div>
-				<strong>{{ degradedSources.length ? '部分内容暂未更新' : '内容持续更新' }}</strong>
-				<span>更新于 {{ formatDateTime(latestSyncAt) }}</span>
+				<strong>{{ activeSection === 'finance' ? financeError ? '财经快讯暂未更新' : financeLoading ? '财经快讯加载中' : financeData?.prototype ? '财经原型已加载' : '财经快讯持续更新' : degradedSources.length ? '部分内容暂未更新' : '内容持续更新' }}</strong>
+				<span>{{ activeSection === 'finance' ? financeData?.prototype ? '原型数据 · 非实时' : `更新于 ${formatDateTime(financeData?.updatedAt || null)}` : `更新于 ${formatDateTime(latestSyncAt)}` }}</span>
 			</div>
 		</div>
 	</header>
 
-	<div v-if="error || degradedSources.length" class="news-notices" aria-live="polite">
+	<nav class="news-section-tabs card" aria-label="AI 阅闻栏目">
+		<button
+			type="button"
+			:class="{ active: activeSection === 'ai' }"
+			:aria-pressed="activeSection === 'ai'"
+			@click="activeSection = 'ai'"
+		>
+			AI 资讯
+		</button>
+		<button
+			type="button"
+			:class="{ active: activeSection === 'finance' }"
+			:aria-pressed="activeSection === 'finance'"
+			@click="activeSection = 'finance'"
+		>
+			财经 7×24
+		</button>
+	</nav>
+
+	<div v-if="activeSection === 'ai' && (error || degradedSources.length)" class="news-notices" aria-live="polite">
 		<div v-if="degradedSources.length" class="news-notice card">
 			<Icon name="tabler:cloud-off" aria-hidden="true" />
 			<p>
@@ -264,7 +368,7 @@ onMounted(load)
 		</div>
 	</div>
 
-	<section class="news-controls card" aria-label="AI 阅闻筛选与搜索">
+	<section v-if="activeSection === 'ai'" class="news-controls card" aria-label="AI 阅闻筛选与搜索">
 		<nav class="news-filter" aria-label="来源筛选">
 			<button
 				v-for="option in filterOptions"
@@ -287,7 +391,7 @@ onMounted(load)
 		</label>
 	</section>
 
-	<div class="news-layout">
+	<div v-if="activeSection === 'ai'" class="news-layout">
 		<section class="news-feed card" aria-labelledby="news-feed-title">
 			<header class="news-feed-header">
 				<div>
@@ -439,6 +543,94 @@ onMounted(load)
 			</p>
 		</aside>
 	</div>
+
+	<section v-else class="finance-stream card" aria-labelledby="finance-stream-title">
+		<header class="finance-stream-header">
+			<div>
+				<p>{{ financeDayLabel }}</p>
+				<h2 id="finance-stream-title">
+					财经 7×24
+				</h2>
+				<span>市场、公司、宏观与海外快讯 <b v-if="financeData?.prototype" class="finance-prototype-pill">原型数据源</b></span>
+			</div>
+			<button
+				class="finance-important-toggle"
+				type="button"
+				role="switch"
+				:aria-checked="financeImportantOnly"
+				@click="financeImportantOnly = !financeImportantOnly"
+			>
+				<span>只看重要</span>
+				<span class="finance-toggle-track" aria-hidden="true"><span /></span>
+			</button>
+		</header>
+
+		<nav class="finance-filter" aria-label="财经快讯分类">
+			<button
+				v-for="option in financeFilterOptions"
+				:key="option.id"
+				type="button"
+				:class="{ active: financeFilter === option.id }"
+				:aria-pressed="financeFilter === option.id"
+				@click="financeFilter = option.id"
+			>
+				{{ option.label }}
+			</button>
+		</nav>
+
+		<div class="finance-stream-meta">
+			<span>实时快讯 · 按发布时间倒序</span>
+			<strong>{{ financeLoading ? '加载中' : `${financeData?.total || 0} 条` }}</strong>
+		</div>
+
+		<div v-if="financeError" class="finance-error" role="alert">
+			<Icon name="tabler:alert-circle" aria-hidden="true" />
+			<p>
+				{{ financeError }}
+			</p>
+			<button type="button" @click="loadFinance">
+				重新加载
+			</button>
+		</div>
+
+		<div v-else-if="financeLoading && !financeData" class="finance-loading" aria-label="正在加载财经快讯">
+			<span v-for="index in 5" :key="index" />
+		</div>
+
+		<div v-else-if="visibleFinanceItems.length" class="finance-list" aria-live="polite">
+			<article
+				v-for="item in visibleFinanceItems"
+				:key="item.id"
+				class="finance-flash"
+				:class="{ important: item.important }"
+			>
+				<time :datetime="item.publishedAt">{{ formatFinanceTime(item.publishedAt) }}</time>
+				<div class="finance-flash-rail" aria-hidden="true">
+					<span />
+				</div>
+				<div class="finance-flash-card">
+					<header>
+						<span v-if="item.important" class="finance-important-badge">重要</span>
+						<span>{{ item.categoryLabel }}</span>
+						<span v-if="item.topic">{{ item.topic }}</span>
+					</header>
+					<h3>{{ item.title }}</h3>
+					<p v-if="item.summary">
+						{{ item.summary }}
+					</p>
+					<footer>
+						<span>来源：{{ item.sourceName }}</span>
+						<a v-if="item.sourceUrl" :href="item.sourceUrl" target="_blank" rel="noopener noreferrer">原文</a>
+					</footer>
+				</div>
+			</article>
+		</div>
+
+		<div v-else class="finance-empty">
+			<strong>当前筛选下暂无快讯</strong>
+			<p>切换分类或关闭“只看重要”后再试。</p>
+		</div>
+	</section>
 </section>
 </template>
 
@@ -447,6 +639,32 @@ onMounted(load)
 	display: grid;
 	gap: 1rem;
 	margin: clamp(0.8rem, 2vw, 1.4rem);
+}
+
+.news-section-tabs {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 0.35rem;
+	padding: 0.4rem;
+	border: 1px solid var(--c-border);
+	border-radius: 0.85rem;
+	background: var(--ld-bg-card);
+}
+
+.news-section-tabs button {
+	min-height: 2.7rem;
+	border: 1px solid transparent;
+	border-radius: 0.65rem;
+	font-size: 0.82rem;
+	color: var(--c-text-2);
+	transition: border-color 0.18s, background-color 0.18s, color 0.18s;
+}
+
+.news-section-tabs button.active {
+	border-color: var(--c-border);
+	background: var(--c-bg-2);
+	font-weight: 700;
+	color: var(--c-text-1);
 }
 
 .news-header {
@@ -619,6 +837,305 @@ onMounted(load)
 	width: 1.55rem;
 	height: 1.55rem;
 	border-radius: 0.4rem;
+	color: var(--c-text-3);
+}
+
+.finance-stream {
+	overflow: hidden;
+	border: 1px solid var(--c-border);
+	border-radius: 0.9rem;
+	background: var(--ld-bg-card);
+}
+
+.finance-stream-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+	padding: 1rem 1.1rem;
+	border-bottom: 1px solid var(--c-border);
+}
+
+.finance-stream-header p {
+	font: 0.72rem var(--font-monospace);
+	color: var(--c-text-2);
+}
+
+.finance-stream-header h2 {
+	margin-top: 0.18rem;
+	font-size: 1.08rem;
+	letter-spacing: -0.015em;
+}
+
+.finance-stream-header div > span {
+	display: block;
+	margin-top: 0.25rem;
+	font-size: 0.7rem;
+	color: var(--c-text-3);
+}
+
+.finance-stream-header .finance-prototype-pill {
+	display: inline-block;
+	margin-left: 0.35rem;
+	padding: 0.12rem 0.32rem;
+	border-radius: 0.3rem;
+	background: var(--c-primary-soft);
+	font-size: 0.58rem;
+	font-weight: 700;
+	color: var(--c-primary);
+}
+
+.finance-important-toggle {
+	display: flex;
+	align-items: center;
+	gap: 0.65rem;
+	font-size: 0.74rem;
+	white-space: nowrap;
+	color: var(--c-text-2);
+}
+
+.finance-toggle-track {
+	display: flex;
+	align-items: center;
+	width: 2.35rem;
+	height: 1.35rem;
+	padding: 0.16rem;
+	border: 1px solid var(--c-border);
+	border-radius: 1rem;
+	background: var(--c-bg-2);
+	transition: border-color 0.18s, background-color 0.18s;
+}
+
+.finance-toggle-track span {
+	width: 0.9rem;
+	height: 0.9rem;
+	border-radius: 50%;
+	background: var(--c-text-1);
+	transition: transform 0.18s, background-color 0.18s;
+}
+
+.finance-important-toggle[aria-checked="true"] .finance-toggle-track {
+	border-color: color-mix(in srgb, var(--c-error) 48%, var(--c-border));
+	background: var(--c-error-soft);
+}
+
+.finance-important-toggle[aria-checked="true"] .finance-toggle-track span {
+	background: var(--c-error);
+	transform: translateX(1rem);
+}
+
+.finance-filter {
+	display: flex;
+	gap: 0.25rem;
+	overflow-x: auto;
+	padding: 0.55rem 0.75rem;
+	border-bottom: 1px solid var(--c-border);
+	scrollbar-width: none;
+}
+
+.finance-filter::-webkit-scrollbar {
+	display: none;
+}
+
+.finance-filter button {
+	flex: 0 0 auto;
+	padding: 0.42rem 0.72rem;
+	border: 1px solid transparent;
+	border-radius: 0.5rem;
+	font-size: 0.7rem;
+	color: var(--c-text-3);
+}
+
+.finance-filter button.active {
+	border-color: var(--c-primary);
+	background: var(--c-primary-soft);
+	font-weight: 700;
+	color: var(--c-text-1);
+}
+
+.finance-stream-meta {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+	padding: 0.7rem 1rem 0.45rem;
+	font-size: 0.68rem;
+	color: var(--c-text-3);
+}
+
+.finance-stream-meta strong {
+	font: 0.68rem var(--font-monospace);
+	color: var(--c-primary);
+}
+
+.finance-error {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr) auto;
+	align-items: center;
+	gap: 0.6rem;
+	margin: 0.55rem 0.85rem 0.85rem;
+	padding: 0.75rem 0.8rem;
+	border: 1px solid color-mix(in srgb, var(--c-error) 30%, var(--c-border));
+	border-radius: 0.7rem;
+	background: var(--c-error-soft);
+	font-size: 0.72rem;
+	color: var(--c-text-2);
+}
+
+.finance-error .iconify {
+	color: var(--c-error);
+}
+
+.finance-error button {
+	white-space: nowrap;
+	color: var(--c-primary);
+}
+
+.finance-loading {
+	display: grid;
+	gap: 0.55rem;
+	padding: 0.25rem 0.85rem 1rem;
+}
+
+.finance-loading span {
+	height: 5rem;
+	border-radius: 0.7rem;
+	background: linear-gradient(100deg, transparent 25%, var(--c-primary-soft) 48%, transparent 72%);
+	background-size: 240% 100%;
+	animation: news-shimmer 1.5s infinite linear;
+}
+
+.finance-list {
+	padding: 0 0.85rem 1rem;
+}
+
+.finance-flash {
+	display: grid;
+	grid-template-columns: 3.4rem 1rem minmax(0, 1fr);
+	gap: 0.55rem;
+	min-height: 6.5rem;
+}
+
+.finance-flash > time {
+	padding-top: 1.05rem;
+	font: 700 0.72rem var(--font-monospace);
+	text-align: end;
+	color: var(--c-primary);
+}
+
+.finance-flash-rail {
+	display: flex;
+	justify-content: center;
+	position: relative;
+}
+
+.finance-flash-rail::before {
+	content: "";
+	position: absolute;
+	top: 1.35rem;
+	bottom: -0.6rem;
+	width: 1px;
+	background: var(--c-border);
+}
+
+.finance-flash:last-child .finance-flash-rail::before {
+	bottom: 1.2rem;
+}
+
+.finance-flash-rail span {
+	position: relative;
+	width: 0.45rem;
+	height: 0.45rem;
+	margin-top: 1.17rem;
+	border-radius: 50%;
+	box-shadow: 0 0 0 0.25rem var(--c-primary-soft);
+	background: var(--c-primary);
+	z-index: 1;
+}
+
+.finance-flash-card {
+	margin: 0.25rem 0 0.7rem;
+	padding: 0.75rem 0.85rem;
+	border: 1px solid transparent;
+	border-radius: 0.75rem;
+}
+
+.finance-flash-card header {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.35rem;
+	margin-bottom: 0.45rem;
+}
+
+.finance-flash-card header span {
+	padding: 0.2rem 0.4rem;
+	border-radius: 0.35rem;
+	background: var(--c-bg-2);
+	font-size: 0.62rem;
+	color: var(--c-text-3);
+}
+
+.finance-flash-card h3 {
+	font-size: 0.94rem;
+	letter-spacing: -0.01em;
+	line-height: 1.6;
+}
+
+.finance-flash-card > p {
+	margin-top: 0.35rem;
+	font-size: 0.74rem;
+	line-height: 1.65;
+	color: var(--c-text-2);
+}
+
+.finance-flash-card footer {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.5rem;
+	margin-top: 0.55rem;
+	font-size: 0.64rem;
+	color: var(--c-text-3);
+}
+
+.finance-flash-card footer a {
+	color: var(--c-primary);
+}
+
+.finance-flash.important > time,
+.finance-flash.important .finance-flash-card h3 {
+	color: var(--c-error);
+}
+
+.finance-flash.important .finance-flash-rail span {
+	box-shadow: 0 0 0 0.25rem var(--c-error-soft);
+	background: var(--c-error);
+}
+
+.finance-flash.important .finance-flash-card {
+	border-color: color-mix(in srgb, var(--c-error) 30%, var(--c-border));
+	background: linear-gradient(90deg, var(--c-error-soft), transparent 68%);
+}
+
+.finance-flash-card header .finance-important-badge {
+	background: var(--c-error-soft);
+	font-weight: 700;
+	color: var(--c-error);
+}
+
+.finance-empty {
+	display: grid;
+	place-items: center;
+	gap: 0.35rem;
+	min-height: 15rem;
+	padding: 2rem;
+	text-align: center;
+	color: var(--c-text-2);
+}
+
+.finance-empty p {
+	font-size: 0.72rem;
 	color: var(--c-text-3);
 }
 
@@ -984,6 +1501,11 @@ onMounted(load)
 	background: var(--c-primary-soft);
 }
 
+.news-section-tabs button:focus-visible,
+.finance-important-toggle:focus-visible,
+.finance-filter button:focus-visible,
+.finance-error button:focus-visible,
+.finance-flash-card footer a:focus-visible,
 .news-filter button:focus-visible,
 .news-search:focus-within,
 .news-row a:focus-visible,
@@ -1047,8 +1569,76 @@ onMounted(load)
 		margin: 0.7rem;
 	}
 
+	.news-section-tabs {
+		gap: 0.25rem;
+		padding: 0.3rem;
+	}
+
+	.news-section-tabs button {
+		min-height: 2.5rem;
+		font-size: 0.78rem;
+	}
+
 	.news-header h1 {
 		font-size: 2rem;
+	}
+
+	.finance-stream-header {
+		align-items: flex-start;
+		padding: 0.85rem;
+	}
+
+	.finance-filter {
+		padding-inline: 0.55rem;
+	}
+
+	.finance-stream-meta {
+		padding-inline: 0.7rem;
+	}
+
+	.finance-list {
+		padding-inline: 0.3rem;
+	}
+
+	.finance-flash {
+		grid-template-columns: 2.8rem 0.8rem minmax(0, 1fr);
+		gap: 0.28rem;
+		min-height: 6rem;
+	}
+
+	.finance-flash > time {
+		padding-top: 0.95rem;
+		font-size: 0.68rem;
+	}
+
+	.finance-flash-rail span {
+		margin-top: 1.05rem;
+	}
+
+	.finance-flash-rail::before {
+		top: 1.2rem;
+	}
+
+	.finance-flash-card {
+		margin-top: 0.18rem;
+		padding: 0.68rem 0.65rem;
+	}
+
+	.finance-flash-card h3 {
+		font-size: 0.88rem;
+	}
+
+	.finance-flash-card > p {
+		font-size: 0.7rem;
+	}
+
+	.finance-error {
+		grid-template-columns: auto minmax(0, 1fr);
+	}
+
+	.finance-error button {
+		grid-column: 2;
+		justify-self: start;
 	}
 
 	.news-controls {
@@ -1094,6 +1684,14 @@ onMounted(load)
 }
 
 @media (max-width: 360px) {
+	.finance-stream-header {
+		flex-wrap: wrap;
+	}
+
+	.finance-important-toggle {
+		margin-left: auto;
+	}
+
 	.news-sync {
 		grid-template-columns: 1fr;
 	}
@@ -1108,6 +1706,11 @@ onMounted(load)
 }
 
 @media (prefers-reduced-motion: reduce) {
+	.news-section-tabs button,
+	.finance-toggle-track,
+	.finance-toggle-track span,
+	.finance-filter button,
+	.finance-loading span,
 	.news-filter button,
 	.news-row,
 	.news-row-rail span,

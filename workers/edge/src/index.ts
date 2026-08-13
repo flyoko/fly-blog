@@ -1,6 +1,6 @@
 import { analyticsBeaconPath, handleAnalyticsBeacon, instrumentPageResponse } from './analytics'
 
-const apiPrefixes = ['/api/auth/', '/api/admin/', '/api/analytics/', '/api/moments/', '/api/music/', '/api/news/', '/media/']
+const apiPrefixes = ['/api/auth/', '/api/admin/', '/api/analytics/', '/api/finance/', '/api/moments/', '/api/music/', '/api/news/', '/media/']
 const apiExact = new Set(['/api/health', '/api/moments', '/api/news', '/api/weather'])
 
 const hopByHopHeaders = new Set([

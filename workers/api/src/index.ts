@@ -6,6 +6,8 @@ import { AnalyticsService } from './features/analytics/service'
 import { GitHubRepository } from './features/articles/github-repository'
 import { createArticleRoutes } from './features/articles/routes'
 import { authRoutes } from './features/auth/routes'
+import { adminFinanceRoutes, publicFinanceRoutes } from './features/finance/routes'
+import { FinanceFlashService } from './features/finance/service'
 import { healthRoutes } from './features/health/routes'
 import { publicMediaRoutes } from './features/media/public-routes'
 import { mediaRoutes } from './features/media/routes'
@@ -24,10 +26,11 @@ import { adminWeatherRoutes, publicWeatherRoutes } from './features/weather/rout
 import { ApiError, failure, normalizeError } from './lib/api-error'
 import { contextMiddleware } from './middleware/context'
 
-export type ScheduledJob = 'analytics-maintenance' | 'news-sync' | 'moment-backup'
+export type ScheduledJob = 'analytics-maintenance' | 'finance-sync' | 'news-sync' | 'moment-backup'
 
 export interface ScheduledTaskServices {
 	syncNews: () => Promise<unknown>
+	syncFinance: () => Promise<unknown>
 	backupMoments: () => Promise<unknown>
 	maintainAnalytics: () => Promise<unknown>
 }
@@ -35,9 +38,9 @@ export interface ScheduledTaskServices {
 export function scheduledJobsFor(cron: string): ScheduledJob[] {
 	switch (cron) {
 		case '*/5 * * * *':
-			return ['news-sync']
+			return ['news-sync', 'finance-sync']
 		case '17 19 * * *':
-			return ['moment-backup', 'news-sync']
+			return ['moment-backup', 'news-sync', 'finance-sync']
 		case '31 19 * * *':
 			return ['analytics-maintenance']
 		default:
@@ -50,12 +53,17 @@ export async function runScheduledTask(
 	env: Env,
 	services: ScheduledTaskServices = {
 		syncNews: () => new NewsService(env).sync(),
+		syncFinance: async () => {
+			const service = new FinanceFlashService(env)
+			return service.prototype ? undefined : service.sync()
+		},
 		backupMoments: () => new MomentBackupService(env).backup(),
 		maintainAnalytics: () => new AnalyticsService(env).maintain(),
 	},
 ): Promise<void> {
 	const runners: Record<ScheduledJob, () => Promise<unknown>> = {
 		'news-sync': services.syncNews,
+		'finance-sync': services.syncFinance,
 		'moment-backup': services.backupMoments,
 		'analytics-maintenance': services.maintainAnalytics,
 	}
@@ -77,6 +85,8 @@ app.route('/api/admin/overview', overviewRoutes)
 app.route('/api/admin/publishing', publishingRoutes)
 app.route('/api/auth', authRoutes)
 app.route('/api/health', healthRoutes)
+app.route('/api/admin/finance', adminFinanceRoutes)
+app.route('/api/finance', publicFinanceRoutes)
 app.route('/api/admin/media', mediaRoutes)
 app.route('/api/admin/music', musicRoutes)
 app.route('/api/music', publicMusicRoutes)

@@ -30,6 +30,7 @@ const markdownRehypePlugins = {
 }
 
 const cloudflareWebAnalyticsToken = env.NUXT_PUBLIC_CLOUDFLARE_WEB_ANALYTICS_TOKEN?.trim()
+const devApiOrigin = env.NUXT_DEV_API_ORIGIN?.trim().replace(/\/+$/u, '')
 const configuredModules = modulesConfigSchema.parse(modulesRaw)
 const articlesEnabled = isModuleEnabled(configuredModules, 'articles')
 const articlePreviewBuild = env.NUXT_ARTICLE_PREVIEW === '1'
@@ -109,6 +110,7 @@ export default defineNuxtConfig({
 	},
 
 	nitro: {
+		devProxy: devApiOrigin ? { '/api': `${devApiOrigin}/api` } : {},
 		prerender: {
 			routes: articlePreviewBuild ? [] : ['/admin/analytics'],
 			ignore: disabledModulePrerenderPaths,
