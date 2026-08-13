@@ -27,5 +27,10 @@
     "name": "生活",
     "icon": "tabler:leaf",
     "color": "#ff7777"
+  },
+  {
+    "name": "情感",
+    "icon": "tabler:folder",
+    "color": "#5f9ea0"
   }
 ]
