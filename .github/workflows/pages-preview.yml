@@ -46,6 +46,7 @@ jobs:
         with:
           version: 11.8.0
           dest: ${{ runner.temp }}/setup-pnpm
+          cache: true
       - uses: actions/setup-node@v6
         with:
           node-version: 24
@@ -61,7 +62,7 @@ jobs:
           pnpm check:smoke
           pnpm check:links
           pnpm check:secrets
-      - run: pnpm verify
+      - run: pnpm verify:pages
         if: ${{ steps.article-fast-path.outputs.eligible != 'true' }}
       - id: deploy
         uses: cloudflare/wrangler-action@v4

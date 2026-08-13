@@ -15,17 +15,18 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  verify:
-    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
-    timeout-minutes: 30
+  article-fast-path:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
-      article-fast-path: ${{ steps.article-fast-path.outputs.eligible }}
+      eligible: ${{ steps.detect.outputs.eligible || 'false' }}
     steps:
       - uses: actions/checkout@v6
+        if: ${{ github.event_name == 'pull_request' && startsWith(github.head_ref, 'admin/article/') }}
         with:
           fetch-depth: 2
       - name: 检测文章 PR 快路径
-        id: article-fast-path
+        id: detect
         if: ${{ github.event_name == 'pull_request' && startsWith(github.head_ref, 'admin/article/') }}
         shell: bash
         run: |
@@ -33,46 +34,56 @@ jobs:
           git diff --name-only HEAD^1 HEAD^2 > "$diff_file"
           changed_count=$(wc -l < "$diff_file" | tr -d ' ')
           changed_path=$(sed -n '1p' "$diff_file")
-          if [[ "$changed_count" = 1 ]] && article_path=$(bash scripts/is-article-fast-path.sh "$changed_path"); then
+          if [[ "$changed_count" = 1 ]] && bash scripts/is-article-fast-path.sh "$changed_path" > /dev/null; then
             echo "eligible=true" >> "$GITHUB_OUTPUT"
-            echo "ARTICLE_PATH=$article_path" >> "$GITHUB_ENV"
           else
             echo "eligible=false" >> "$GITHUB_OUTPUT"
             echo "文章快路径不适用，改走完整校验。"
             sed 's/^/ - /' "$diff_file"
           fi
+
+  verify:
+    needs: article-fast-path
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+        if: ${{ needs.article-fast-path.outputs.eligible != 'true' }}
+        with:
+          fetch-depth: 2
       - uses: pnpm/action-setup@v6
-        if: ${{ steps.article-fast-path.outputs.eligible != 'true' }}
+        if: ${{ needs.article-fast-path.outputs.eligible != 'true' }}
         with:
           version: 11.8.0
           dest: ${{ runner.temp }}/setup-pnpm
+          cache: true
       - uses: actions/setup-node@v6
-        if: ${{ steps.article-fast-path.outputs.eligible != 'true' }}
+        if: ${{ needs.article-fast-path.outputs.eligible != 'true' }}
         with:
           node-version: 24
           package-manager-cache: false
       - run: pnpm install --frozen-lockfile
-        if: ${{ steps.article-fast-path.outputs.eligible != 'true' }}
+        if: ${{ needs.article-fast-path.outputs.eligible != 'true' }}
       - run: pnpm lint
-        if: ${{ steps.article-fast-path.outputs.eligible != 'true' }}
+        if: ${{ needs.article-fast-path.outputs.eligible != 'true' }}
       - run: pnpm typecheck
-        if: ${{ steps.article-fast-path.outputs.eligible != 'true' }}
+        if: ${{ needs.article-fast-path.outputs.eligible != 'true' }}
       - run: pnpm test:unit
-        if: ${{ steps.article-fast-path.outputs.eligible != 'true' }}
+        if: ${{ needs.article-fast-path.outputs.eligible != 'true' }}
       - run: pnpm test:workers
-        if: ${{ steps.article-fast-path.outputs.eligible != 'true' }}
+        if: ${{ needs.article-fast-path.outputs.eligible != 'true' }}
       - run: pnpm generate
-        if: ${{ steps.article-fast-path.outputs.eligible != 'true' }}
+        if: ${{ needs.article-fast-path.outputs.eligible != 'true' }}
       - run: pnpm check:smoke
-        if: ${{ steps.article-fast-path.outputs.eligible != 'true' }}
+        if: ${{ needs.article-fast-path.outputs.eligible != 'true' }}
       - run: pnpm check:links
-        if: ${{ steps.article-fast-path.outputs.eligible != 'true' }}
+        if: ${{ needs.article-fast-path.outputs.eligible != 'true' }}
       - run: pnpm check:secrets
-        if: ${{ steps.article-fast-path.outputs.eligible != 'true' }}
+        if: ${{ needs.article-fast-path.outputs.eligible != 'true' }}
 
   mobile-quality:
-    needs: verify
-    if: ${{ needs.verify.outputs.article-fast-path != 'true' }}
+    needs: article-fast-path
+    if: ${{ needs.article-fast-path.outputs.eligible != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 35
     env:
@@ -86,6 +97,7 @@ jobs:
         with:
           version: 11.8.0
           dest: ${{ runner.temp }}/setup-pnpm
+          cache: true
       - uses: actions/setup-node@v6
         with:
           node-version: 24
