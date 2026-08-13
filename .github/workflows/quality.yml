@@ -2,10 +2,7 @@ name: Quality
 
 on:
   pull_request:
-  push:
-    branches: ['**']
-    paths-ignore:
-      - 'backups/**'
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -15,7 +12,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  article-fast-path:
+  article_fast_path:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -43,47 +40,47 @@ jobs:
           fi
 
   verify:
-    needs: article-fast-path
+    needs: article_fast_path
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
-        if: ${{ needs.article-fast-path.outputs.eligible != 'true' }}
+        if: ${{ needs.article_fast_path.outputs.eligible != 'true' }}
         with:
           fetch-depth: 2
       - uses: pnpm/action-setup@v6
-        if: ${{ needs.article-fast-path.outputs.eligible != 'true' }}
+        if: ${{ needs.article_fast_path.outputs.eligible != 'true' }}
         with:
           version: 11.8.0
           dest: ${{ runner.temp }}/setup-pnpm
           cache: true
       - uses: actions/setup-node@v6
-        if: ${{ needs.article-fast-path.outputs.eligible != 'true' }}
+        if: ${{ needs.article_fast_path.outputs.eligible != 'true' }}
         with:
           node-version: 24
           package-manager-cache: false
       - run: pnpm install --frozen-lockfile
-        if: ${{ needs.article-fast-path.outputs.eligible != 'true' }}
+        if: ${{ needs.article_fast_path.outputs.eligible != 'true' }}
       - run: pnpm lint
-        if: ${{ needs.article-fast-path.outputs.eligible != 'true' }}
+        if: ${{ needs.article_fast_path.outputs.eligible != 'true' }}
       - run: pnpm typecheck
-        if: ${{ needs.article-fast-path.outputs.eligible != 'true' }}
+        if: ${{ needs.article_fast_path.outputs.eligible != 'true' }}
       - run: pnpm test:unit
-        if: ${{ needs.article-fast-path.outputs.eligible != 'true' }}
+        if: ${{ needs.article_fast_path.outputs.eligible != 'true' }}
       - run: pnpm test:workers
-        if: ${{ needs.article-fast-path.outputs.eligible != 'true' }}
+        if: ${{ needs.article_fast_path.outputs.eligible != 'true' }}
       - run: pnpm generate
-        if: ${{ needs.article-fast-path.outputs.eligible != 'true' }}
+        if: ${{ needs.article_fast_path.outputs.eligible != 'true' }}
       - run: pnpm check:smoke
-        if: ${{ needs.article-fast-path.outputs.eligible != 'true' }}
+        if: ${{ needs.article_fast_path.outputs.eligible != 'true' }}
       - run: pnpm check:links
-        if: ${{ needs.article-fast-path.outputs.eligible != 'true' }}
+        if: ${{ needs.article_fast_path.outputs.eligible != 'true' }}
       - run: pnpm check:secrets
-        if: ${{ needs.article-fast-path.outputs.eligible != 'true' }}
+        if: ${{ needs.article_fast_path.outputs.eligible != 'true' }}
 
   mobile-quality:
-    needs: article-fast-path
-    if: ${{ needs.article-fast-path.outputs.eligible != 'true' }}
+    needs: article_fast_path
+    if: ${{ needs.article_fast_path.outputs.eligible != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 35
     env:
