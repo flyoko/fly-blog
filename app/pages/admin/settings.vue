@@ -49,6 +49,7 @@ interface ArticleAdValidationError {
 }
 type NavigationItem = NavigationConfig[number]['items'][number]
 type FooterItem = FooterConfig['iconNav'][number]
+type CategoryItem = CategoriesConfig[number]
 
 const tabs: Array<{ id: SettingsKind, kind: SettingsKind, label: string, description: string, icon: string }> = [
 	{ id: 'categories', kind: 'categories', label: '分类', description: '整理文章使用的分类名称、图标和颜色。', icon: 'tabler:category' },
@@ -78,6 +79,7 @@ const citySearching = ref(false)
 const citySearchError = ref<string | null>(null)
 const moduleUnsaved = ref(false)
 const articleAdErrors = reactive<Record<string, Partial<Record<ArticleAdErrorField, string>>>>({})
+const categoryRowIds = new WeakMap<CategoryItem, string>()
 
 const currentTab = computed(() => tabs.find(tab => tab.kind === selected.value) ?? tabs[0]!)
 useSeoMeta({ title: '站点设置', robots: 'noindex, nofollow' })
@@ -190,8 +192,23 @@ async function validateArticleAds() {
 	return false
 }
 
-function addCategory() {
+function categoryRowId(category: CategoryItem) {
+	let id = categoryRowIds.get(category)
+	if (!id) {
+		id = newConfigId('category-row')
+		categoryRowIds.set(category, id)
+	}
+	return id
+}
+
+async function addCategory() {
 	categories.value.push({ name: '新分类', icon: 'tabler:folder', color: '#5f9ea0' })
+	await nextTick()
+	const category = categories.value.at(-1)
+	if (!category)
+		return
+	const rowId = categoryRowId(category)
+	document.querySelector<HTMLInputElement>(`[data-category-row-id="${rowId}"] [data-category-name-input]`)?.select()
 }
 
 function removeCategory(index: number) {
@@ -302,16 +319,16 @@ function currentContent() {
 	throw new Error('模块配置请在“模块管理”中调整。')
 }
 
-function contentFor(kind: Exclude<SettingsKind, 'modules'>) {
+function draftContentFor(kind: Exclude<SettingsKind, 'modules'>) {
 	if (kind === 'article')
 		return article.value
 	if (kind === 'categories')
-		return categoriesConfigSchema.parse(categories.value)
+		return categories.value
 	if (kind === 'navigation')
-		return navigationConfigSchema.parse(navigation.value)
+		return navigation.value
 	if (kind === 'footer')
-		return footerConfigSchema.parse(footer.value)
-	return weatherConfigSchema.parse(weather)
+		return footer.value
+	return weather
 }
 
 function fingerprint(value: unknown) {
@@ -319,10 +336,10 @@ function fingerprint(value: unknown) {
 }
 
 const editableKinds = ['article', 'categories', 'navigation', 'footer', 'weather'] as const
-const currentFingerprint = computed(() => selected.value === 'modules' ? '' : fingerprint(contentFor(selected.value)))
+const currentFingerprint = computed(() => selected.value === 'modules' ? '' : fingerprint(draftContentFor(selected.value)))
 const selectedChanged = computed(() => selected.value !== 'modules' && Boolean(baselineFingerprints[selected.value]) && baselineFingerprints[selected.value] !== currentFingerprint.value)
 const hasUnsavedEditableSettings = computed(() => editableKinds.some((kind) => {
-	const current = fingerprint(contentFor(kind))
+	const current = fingerprint(draftContentFor(kind))
 	return Boolean(baselineFingerprints[kind])
 		&& baselineFingerprints[kind] !== current
 		&& submittedFingerprints[kind] !== current
@@ -373,7 +390,7 @@ async function loadDeployedConfigs() {
 		footer.value = footerConfigSchema.parse(footerConfig.content)
 		Object.assign(weather, weatherConfigSchema.parse(weatherConfig.content))
 		for (const kind of ['article', 'categories', 'navigation', 'footer', 'weather'] as const)
-			baselineFingerprints[kind] = fingerprint(contentFor(kind))
+			baselineFingerprints[kind] = fingerprint(draftContentFor(kind))
 		Object.keys(submittedFingerprints).forEach(key => delete submittedFingerprints[key])
 		syncedAt.value = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
 	}
@@ -547,8 +564,8 @@ onMounted(loadDeployedConfigs)
 				</section>
 			</div>
 			<div v-else-if="selected === 'categories'" class="admin-category-editor">
-				<div v-for="(category, index) in categories" :key="`${category.name}-${index}`" class="admin-category-row">
-					<label class="admin-field"><span>名称</span><input v-model="category.name" type="text"></label>
+				<div v-for="(category, index) in categories" :key="categoryRowId(category)" class="admin-category-row" :data-category-row-id="categoryRowId(category)">
+					<label class="admin-field"><span>名称</span><input v-model="category.name" data-category-name-input type="text"></label>
 					<label class="admin-field"><span>图标</span><input v-model="category.icon" type="text"></label>
 					<label class="admin-field"><span>颜色</span><input v-model="category.color" type="text"></label>
 					<button class="admin-icon-button" type="button" aria-label="删除分类" :disabled="categories.length <= 1" @click="removeCategory(index)">
