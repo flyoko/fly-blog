@@ -417,7 +417,7 @@ export class PublishingService {
 				body: await this.createPullRequestRun({
 					branchKind: `config/${input.kind}`,
 					resourcePath: definition.path,
-					content: `${JSON.stringify(content, null, 2)}\n`,
+					content: JSON.stringify(content, null, 2),
 					commitMode: 'atomic',
 					expectedHeadSha: input.expectedHeadSha,
 					title: input.title ?? `更新${input.kind}配置`,
