@@ -1,6 +1,6 @@
 import type { D1Migration } from '@cloudflare/vitest-pool-workers'
 import type { AppEnvironment, Env } from '../src/env'
-import type { FinanceFlashAdapter } from '../src/features/finance/service'
+import type { FinanceFlashAdapter, FinanceFlashSourceItem } from '../src/features/finance/service'
 import { applyD1Migrations, env } from 'cloudflare:test'
 import { Hono } from 'hono'
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
@@ -114,6 +114,37 @@ describe('finance flash service', () => {
 		expect(data.prototype).toBe(false)
 		expect(data.total).toBe(1)
 		expect(data.items[0]?.sourceName).toBe('实时来源')
+	})
+
+	it('updates the rolling snapshot incrementally and removes only stale rows', async () => {
+		let items: FinanceFlashSourceItem[] = [
+			{ id: '1', title: '快讯一', publishedAt: '2026-08-13T14:00:00.000Z', category: 'market' as const, categoryLabel: '市场', important: false, importanceOrigin: 'upstream' as const, sourceName: '测试源' },
+			{ id: '2', title: '快讯二', publishedAt: '2026-08-13T14:01:00.000Z', category: 'company' as const, categoryLabel: '公司', important: true, importanceOrigin: 'upstream' as const, sourceName: '测试源' },
+		]
+		const adapter: FinanceFlashAdapter = {
+			id: 'incremental-source',
+			prototype: false,
+			fetch: async () => items,
+		}
+		const service = new FinanceFlashService(runtimeEnv(), adapter, new PrototypeFinanceFlashAdapter())
+		const first = await service.sync()
+		expect(first).toMatchObject({ changedCount: 2, deletedCount: 0, unchangedCount: 0 })
+		const firstRows = await testEnv.DB.prepare('SELECT id, updated_at FROM finance_flash_items WHERE source_id = ? ORDER BY id').bind(adapter.id).all<{ id: string, updated_at: string }>()
+
+		const second = await service.sync()
+		expect(second).toMatchObject({ changedCount: 0, deletedCount: 0, unchangedCount: 2 })
+		const secondRows = await testEnv.DB.prepare('SELECT id, updated_at FROM finance_flash_items WHERE source_id = ? ORDER BY id').bind(adapter.id).all<{ id: string, updated_at: string }>()
+		expect(secondRows.results).toEqual(firstRows.results)
+
+		items = [
+			{ ...items[1]!, title: '快讯二更新' },
+			{ id: '3', title: '快讯三', publishedAt: '2026-08-13T14:02:00.000Z', category: 'macro' as const, categoryLabel: '宏观', important: false, importanceOrigin: 'upstream' as const, sourceName: '测试源' },
+		]
+		const third = await service.sync()
+		expect(third).toMatchObject({ changedCount: 2, deletedCount: 1, unchangedCount: 0 })
+		const data = await service.list({ limit: 10 })
+		expect(data.items.map(item => item.id)).toEqual(['incremental-source:3', 'incremental-source:2'])
+		expect(data.items.find(item => item.id === 'incremental-source:2')?.title).toBe('快讯二更新')
 	})
 
 	it('retains the last successful snapshot when an upstream sync fails', async () => {

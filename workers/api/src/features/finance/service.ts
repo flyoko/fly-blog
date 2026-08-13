@@ -61,6 +61,9 @@ export interface FinanceSyncResult {
 	sourceId: string
 	status: 'success' | 'failed'
 	itemCount: number
+	changedCount?: number
+	deletedCount?: number
+	unchangedCount?: number
 	error?: string
 }
 
@@ -107,47 +110,96 @@ export class FinanceFlashService {
 			const items = await adapter.fetch()
 			if (!items.length)
 				throw new Error('Finance source returned no usable items')
-			const statements = [
-				this.env.DB.prepare('DELETE FROM finance_flash_items WHERE source_id = ?').bind(adapter.id),
-				...items.map(item => this.env.DB.prepare(`
-					INSERT INTO finance_flash_items (
-						id, source_id, title, summary, published_at, category, category_label, topic,
-						important, importance_origin, importance_score, source_name, source_url, fetched_at, updated_at
-					) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-				`).bind(
-					`${adapter.id}:${item.id}`,
-					adapter.id,
-					item.title,
-					item.summary || null,
-					item.publishedAt,
-					item.category,
-					item.categoryLabel,
-					item.topic || null,
-					item.important ? 1 : 0,
-					item.importanceOrigin,
-					item.importanceScore ?? null,
-					item.sourceName,
-					item.sourceUrl || null,
-					now,
-					now,
-				)),
-				this.env.DB.prepare(`
-					INSERT INTO finance_flash_sync_state (source_id, status, item_count, last_success_at, last_error, updated_at)
-					VALUES (?, 'success', ?, ?, NULL, ?)
-					ON CONFLICT(source_id) DO UPDATE SET
-						status = 'success', item_count = excluded.item_count,
-						last_success_at = excluded.last_success_at, last_error = NULL,
-						updated_at = excluded.updated_at
-				`).bind(adapter.id, items.length, now, now),
-			]
+
+			const existing = await this.env.DB.prepare('SELECT * FROM finance_flash_items WHERE source_id = ?')
+				.bind(adapter.id)
+				.all<FinanceFlashRow>()
+			const existingById = new Map(existing.results.map(row => [row.id, row]))
+			const incomingIds = new Set<string>()
+			const changedItems: Array<{ id: string, item: FinanceFlashSourceItem }> = []
+
+			for (const item of items) {
+				const id = `${adapter.id}:${item.id}`
+				incomingIds.add(id)
+				const row = existingById.get(id)
+				const unchanged = row
+					&& row.title === item.title
+					&& row.summary === (item.summary || null)
+					&& row.published_at === item.publishedAt
+					&& row.category === item.category
+					&& row.category_label === item.categoryLabel
+					&& row.topic === (item.topic || null)
+					&& Boolean(row.important) === item.important
+					&& row.importance_origin === item.importanceOrigin
+					&& row.importance_score === (item.importanceScore ?? null)
+					&& row.source_name === item.sourceName
+					&& row.source_url === (item.sourceUrl || null)
+				if (!unchanged)
+					changedItems.push({ id, item })
+			}
+
+			const staleIds = existing.results
+				.filter(row => !incomingIds.has(row.id))
+				.map(row => row.id)
+			const statements = changedItems.map(({ id, item }) => this.env.DB.prepare(`
+				INSERT INTO finance_flash_items (
+					id, source_id, title, summary, published_at, category, category_label, topic,
+					important, importance_origin, importance_score, source_name, source_url, fetched_at, updated_at
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				ON CONFLICT(id) DO UPDATE SET
+					title = excluded.title, summary = excluded.summary, published_at = excluded.published_at,
+					category = excluded.category, category_label = excluded.category_label, topic = excluded.topic,
+					important = excluded.important, importance_origin = excluded.importance_origin,
+					importance_score = excluded.importance_score, source_name = excluded.source_name,
+					source_url = excluded.source_url, fetched_at = excluded.fetched_at, updated_at = excluded.updated_at
+			`).bind(
+				id,
+				adapter.id,
+				item.title,
+				item.summary || null,
+				item.publishedAt,
+				item.category,
+				item.categoryLabel,
+				item.topic || null,
+				item.important ? 1 : 0,
+				item.importanceOrigin,
+				item.importanceScore ?? null,
+				item.sourceName,
+				item.sourceUrl || null,
+				now,
+				now,
+			))
+
+			if (staleIds.length) {
+				const placeholders = staleIds.map(() => '?').join(', ')
+				statements.push(this.env.DB.prepare(`DELETE FROM finance_flash_items WHERE source_id = ? AND id IN (${placeholders})`)
+					.bind(adapter.id, ...staleIds))
+			}
+
+			statements.push(this.env.DB.prepare(`
+				INSERT INTO finance_flash_sync_state (source_id, status, item_count, last_success_at, last_error, updated_at)
+				VALUES (?, 'success', ?, ?, NULL, ?)
+				ON CONFLICT(source_id) DO UPDATE SET
+					status = 'success', item_count = excluded.item_count,
+					last_success_at = excluded.last_success_at, last_error = NULL,
+					updated_at = excluded.updated_at
+			`).bind(adapter.id, items.length, now, now))
 			await this.env.DB.batch(statements)
+
 			if (!adapter.prototype && this.fallbackAdapter.id !== adapter.id) {
 				await this.env.DB.batch([
 					this.env.DB.prepare('DELETE FROM finance_flash_items WHERE source_id = ?').bind(this.fallbackAdapter.id),
 					this.env.DB.prepare('DELETE FROM finance_flash_sync_state WHERE source_id = ?').bind(this.fallbackAdapter.id),
 				])
 			}
-			return { sourceId: adapter.id, status: 'success', itemCount: items.length }
+			return {
+				sourceId: adapter.id,
+				status: 'success',
+				itemCount: items.length,
+				changedCount: changedItems.length,
+				deletedCount: staleIds.length,
+				unchangedCount: items.length - changedItems.length,
+			}
 		}
 		catch (cause) {
 			const message = cause instanceof Error ? cause.message : String(cause)

@@ -114,7 +114,7 @@ const MAX_NEWS_IMAGE_REDIRECTS = 3
 const NEWS_IMAGE_REQUEST_TIMEOUT_MS = 12_000
 const NEWS_IMAGE_DOCUMENT_BUDGET_MS = 20_000
 const NEWS_IMAGE_SOURCE_SYNC_BUDGET_MS = 45_000
-const NEWS_RETENTION_DAYS = 90
+const NEWS_RETENTION_DAYS = 15
 const NEWS_BRIEFING_RETENTION_DAYS = 180
 const NEWS_EXCLUSION_RETENTION_DAYS = 180
 const NEWS_IMAGE_MIMES = new Set<NewsImageDto['mime']>([
@@ -1274,12 +1274,12 @@ export class NewsService {
 			DELETE FROM news_documents
 			WHERE item_id IN (
 				SELECT id FROM news_items
-				WHERE selected = 0 AND kind <> 'manual' AND fetched_at < ?
+				WHERE kind <> 'manual' AND fetched_at < ?
 			)
 		`).bind(itemCutoff).run()
 		const deletedItems = await this.env.DB.prepare(`
 			DELETE FROM news_items
-			WHERE selected = 0 AND kind <> 'manual' AND fetched_at < ?
+			WHERE kind <> 'manual' AND fetched_at < ?
 		`).bind(itemCutoff).run()
 		const deletedBriefings = await this.env.DB.prepare('DELETE FROM news_briefings WHERE date < ?')
 			.bind(briefingCutoff)
