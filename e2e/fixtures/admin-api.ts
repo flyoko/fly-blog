@@ -527,6 +527,16 @@ async function respond(route: Route, options: AdminApiMockOptions, capture: Admi
 		return
 	}
 
+	if (path === '/api/admin/finance' && method === 'GET') {
+		await route.fulfill(success({
+			sources: [{ source_id: 'wallstreetcn-7x24', status: 'success', item_count: 100, last_success_at: '2026-08-03T08:05:00.000Z', last_error: null }],
+			total: 100,
+			updatedAt: '2026-08-03T08:05:00.000Z',
+			prototype: false,
+		}))
+		return
+	}
+
 	if (path === '/api/admin/news/sync' && method === 'POST') {
 		capture.newsWrites.push({ action: 'sync' })
 		await route.fulfill(success({ syncedAt: '2026-08-03T08:06:00.000Z', sources: [] }))

@@ -64,6 +64,19 @@ describe('finance flash service', () => {
 		expect(data.items.every(item => item.category === 'company' && item.important)).toBe(true)
 	})
 
+	it('reports finance source health for the admin surface', async () => {
+		const service = prototypeService()
+		await service.sync()
+		const status = await service.status()
+		expect(status.prototype).toBe(true)
+		expect(status.total).toBe(8)
+		expect(status.sources).toEqual([expect.objectContaining({
+			source_id: 'prototype-finance-7x24',
+			status: 'success',
+			item_count: 8,
+		})])
+	})
+
 	it('uses prototype data only as a cold-start fallback when live sync fails', async () => {
 		const failingAdapter: FinanceFlashAdapter = {
 			id: 'live-finance',

@@ -24,6 +24,10 @@ function sourceLabel(sourceId: string) {
 		return '站长资讯'
 	if (sourceId === 'manual')
 		return '手动精选'
+	if (sourceId === 'wallstreetcn-7x24')
+		return '财经 7×24 · 华尔街见闻'
+	if (sourceId === 'prototype-finance-7x24')
+		return '财经 7×24 · 原型回退'
 	return sourceId
 }
 

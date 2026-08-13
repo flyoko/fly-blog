@@ -20,6 +20,13 @@ interface NewsAdminData {
 	sources: NewsSourceState[]
 }
 
+interface FinanceAdminData {
+	sources: NewsSourceState[]
+	total: number
+	updatedAt: string | null
+	prototype: boolean
+}
+
 const tabs = [
 	{ id: 'content', label: '内容管理', description: '筛选、检查和移除公开卡片', icon: 'tabler:news' },
 	{ id: 'manual', label: '手动精选', description: '添加一条自己的精选内容', icon: 'tabler:edit' },
@@ -72,7 +79,11 @@ async function load(background = false) {
 		loading.value = true
 	loadError.value = null
 	try {
-		data.value = await useAdminApi<NewsAdminData>('/api/admin/news')
+		const [news, finance] = await Promise.all([
+			useAdminApi<NewsAdminData>('/api/admin/news'),
+			useAdminApi<FinanceAdminData>('/api/admin/finance'),
+		])
+		data.value = { ...news, sources: [...news.sources, ...finance.sources] }
 	}
 	catch (cause) {
 		loadError.value = toAdminUserMessage(cause, 'AI 阅闻数据加载失败')

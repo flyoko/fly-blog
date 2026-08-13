@@ -223,6 +223,30 @@ export class FinanceFlashService {
 		}
 	}
 
+	async status() {
+		const [sources, list] = await Promise.all([
+			this.env.DB.prepare(`
+				SELECT source_id, status, item_count, last_success_at, last_error, updated_at
+				FROM finance_flash_sync_state
+				ORDER BY updated_at DESC, source_id ASC
+			`).all<{
+				source_id: string
+				status: 'success' | 'failed'
+				item_count: number
+				last_success_at: string | null
+				last_error: string | null
+				updated_at: string
+			}>(),
+			this.list({ limit: 1 }),
+		])
+		return {
+			sources: sources.results,
+			total: list.total,
+			updatedAt: list.updatedAt,
+			prototype: list.prototype,
+		}
+	}
+
 	async listVersion(): Promise<string> {
 		const row = await this.env.DB.prepare(`
 			SELECT MAX(updated_at) AS version, COUNT(*) AS item_count
