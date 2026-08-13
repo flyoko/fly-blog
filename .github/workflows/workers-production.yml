@@ -37,6 +37,7 @@ jobs:
         with:
           version: 11.8.0
           dest: ${{ runner.temp }}/setup-pnpm
+          cache: true
       - uses: actions/setup-node@v6
         with:
           node-version: 24

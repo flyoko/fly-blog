@@ -41,8 +41,10 @@
     "check:production": "unrun scripts/check-production.ts && unrun scripts/check-production-browser.ts",
     "check:secrets": "unrun scripts/verify-no-secrets.ts",
     "verify": "pnpm lint && pnpm typecheck && pnpm test:unit && pnpm test:workers && pnpm generate && pnpm check:smoke && pnpm check:links && pnpm check:secrets",
+    "verify:pages": "pnpm generate && pnpm check:smoke && pnpm check:links && pnpm check:secrets",
     "verify:qmc-samples": "unrun scripts/verify-qmc-samples.ts",
-    "check:smoke": "unrun scripts/check-generated-smoke.ts"
+    "check:smoke": "unrun scripts/check-generated-smoke.ts",
+    "verify:pages-source": "pnpm lint && nuxt typecheck && pnpm test:unit"
   },
   "dependencies": {
     "@bikariya/image-viewer": "catalog:ui",

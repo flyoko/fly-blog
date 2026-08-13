@@ -48,46 +48,71 @@ describe('文章发布工作流', () => {
 		expect(source).toContain('pnpm check:smoke')
 		expect(source).toContain('pnpm check:links')
 		expect(source).toContain('pnpm check:secrets')
-		expect(source).toContain('pnpm verify')
+		expect(source).toContain('pnpm verify:pages')
+		expect(source).not.toContain('\n      - run: pnpm verify\n')
 		expect(source).toContain('id: deploy')
 	})
 
-	it('keeps the verify job successful for article PRs and the full checks for other changes', async () => {
+	it('runs pull-request quality checks in parallel after a lightweight article route decision', async () => {
 		const { source, document } = await workflow('.github/workflows/quality.yml')
 		const jobs = document.jobs ?? {}
-		const job = jobs.verify
+		const routeJob = jobs.article_fast_path
+		const verifyJob = jobs.verify
 		const mobileJob = jobs['mobile-quality']
 
-		expect(job).toBeTruthy()
-		if (!job)
-			throw new Error('verify job missing')
+		expect(Object.keys(jobs)).toEqual(['article_fast_path', 'verify', 'mobile-quality'])
+		expect(routeJob).toBeTruthy()
+		expect(verifyJob).toBeTruthy()
 		expect(mobileJob).toBeTruthy()
-		if (!mobileJob)
-			throw new Error('mobile-quality job missing')
-		expect(Object.keys(jobs)).toEqual(['verify', 'mobile-quality'])
-		expect(job).not.toHaveProperty('if')
-		expect(source).toContain('检测文章 PR 快路径')
-		expect(job.outputs).toHaveProperty('article-fast-path')
-		expect(mobileJob).toHaveProperty('if')
-		expect(mobileJob.needs).toBe('verify')
-		expect(source).toContain('needs.verify.outputs.article-fast-path != \'true\'')
-		expect(source).toContain('fetch-depth: 2')
-		expect(source).toContain('HEAD^1 HEAD^2')
-		expect(source).not.toContain('HEAD^1...HEAD^2')
-		expect(source).toContain('id: article-fast-path')
+		if (!routeJob || !verifyJob || !mobileJob)
+			throw new Error('quality jobs missing')
+		expect(source).toContain('pull_request:')
+		expect(source).toContain('workflow_dispatch:')
+		expect(source).not.toContain('\n  push:')
+		expect(routeJob.outputs).toHaveProperty('eligible')
+		expect(verifyJob.needs).toBe('article_fast_path')
+		expect(mobileJob.needs).toBe('article_fast_path')
+		expect(source).toContain('needs.article_fast_path.outputs.eligible != \'true\'')
+		expect(source).toContain('id: detect')
 		expect(source).toContain('startsWith(github.head_ref, \'admin/article/\')')
 		expect(source).toContain('bash scripts/is-article-fast-path.sh')
-		expect(source).not.toContain('mapfile')
-		expect(source).toContain('steps.article-fast-path.outputs.eligible != \'true\'')
 		expect(source).toContain('pnpm lint')
 		expect(source).toContain('pnpm typecheck')
 		expect(source).toContain('pnpm test:unit')
 		expect(source).toContain('pnpm test:workers')
 		expect(source).toContain('pnpm generate')
-		expect(source).toContain('pnpm check:smoke')
-		expect(source).toContain('pnpm check:links')
-		expect(source).toContain('pnpm check:secrets')
 	})
+
+	it('runs source and Pages build gates in parallel before production deployment', async () => {
+		const { source, document } = await workflow('.github/workflows/pages-production.yml')
+		const jobs = document.jobs ?? {}
+		const sourceJob = jobs.source_quality
+		const buildJob = jobs.build_pages
+		const deployJob = jobs.deploy_production
+		const packageJson = JSON.parse(await readFile(`${root}/package.json`, 'utf8')) as { scripts: Record<string, string> }
+
+		expect(Object.keys(jobs)).toEqual(['source_quality', 'build_pages', 'deploy_production'])
+		expect(sourceJob).toBeTruthy()
+		expect(buildJob).toBeTruthy()
+		expect(deployJob).toBeTruthy()
+		if (!sourceJob || !buildJob || !deployJob)
+			throw new Error('production jobs missing')
+		expect(packageJson.scripts['verify:pages-source']).toBe('pnpm lint && nuxt typecheck && pnpm test:unit')
+		expect(packageJson.scripts['verify:pages']).toBe('pnpm generate && pnpm check:smoke && pnpm check:links && pnpm check:secrets')
+		expect(source).toContain('cancel-in-progress: true')
+		expect(source).toContain('- \'workers/**\'')
+		expect(source).toContain('- \'test/**\'')
+		expect(source).toContain('- \'e2e/**\'')
+		expect(source).toContain('pnpm verify:pages-source')
+		expect(source).toContain('pnpm verify:pages')
+		expect(source).toContain('actions/upload-artifact@v4')
+		expect(source).toContain('actions/download-artifact@v4')
+		expect(deployJob.needs).toEqual(['source_quality', 'build_pages'])
+		expect(source).toContain('pages deploy .output/public --project-name=fly-living --branch=main')
+		expect(source).toContain('pnpm check:production')
+		expect(source).not.toContain('\n      - run: pnpm verify\n')
+	})
+
 	it('isolates pnpm setup per runner for concurrent self-hosted jobs', async () => {
 		const workflowPaths = [
 			'.github/workflows/quality.yml',
