@@ -1,6 +1,8 @@
 <script setup lang="ts">
+import type { AdminFinanceFlashDto, AdminFinanceFlashListDto, FinanceAdminVisibility, FinanceFilter } from '#shared/admin/finance'
 import type { NewsItemDto } from '#shared/admin/news'
 import { toAdminUserMessage } from '#shared/admin/feedback'
+import AdminFinanceInbox from '~/components/admin/news/AdminFinanceInbox.vue'
 import AdminNewsInbox from '~/components/admin/news/AdminNewsInbox.vue'
 import AdminNewsManualForm from '~/components/admin/news/AdminNewsManualForm.vue'
 import AdminNewsSourceHealth from '~/components/admin/news/AdminNewsSourceHealth.vue'
@@ -29,16 +31,20 @@ interface FinanceAdminData {
 
 const tabs = [
 	{ id: 'content', label: '内容管理', description: '筛选、检查和移除公开卡片', icon: 'tabler:news' },
+	{ id: 'finance', label: '财经内容', description: '检查、隐藏和恢复 7×24 快讯', icon: 'tabler:chart-line' },
 	{ id: 'manual', label: '手动精选', description: '添加一条自己的精选内容', icon: 'tabler:edit' },
 	{ id: 'sources', label: '来源健康', description: '查看同步状态和失败原因', icon: 'tabler:heartbeat' },
 ]
 const activeTab = ref('content')
 const data = ref<NewsAdminData | null>(null)
+const financeItems = ref<AdminFinanceFlashListDto | null>(null)
 const loading = ref(true)
+const financeLoading = ref(true)
 const syncing = ref(false)
 const adding = ref(false)
 const deleting = ref(false)
 const loadError = ref<string | null>(null)
+const financeError = ref<string | null>(null)
 const syncError = ref<string | null>(null)
 const manualError = ref<string | null>(null)
 const deleteError = ref<string | null>(null)
@@ -46,6 +52,11 @@ const success = ref<string | null>(null)
 const pendingDelete = ref<NewsItemDto | null>(null)
 const candidateQuery = ref('')
 const sourceFilter = ref('')
+const financeQuery = ref('')
+const financeCategory = ref<FinanceFilter>('all')
+const financeVisibility = ref<FinanceAdminVisibility>('all')
+const financeImportantOnly = ref(false)
+const financeWorkingId = ref<string | null>(null)
 const form = reactive({
 	title: '',
 	summary: '',
@@ -56,9 +67,11 @@ const tabItems = computed(() => tabs.map(tab => ({
 	...tab,
 	count: tab.id === 'content'
 		? data.value?.items.length ?? 0
-		: tab.id === 'sources'
-			? data.value?.sources.length ?? 0
-			: undefined,
+		: tab.id === 'finance'
+			? financeItems.value?.visibleTotal ?? 0
+			: tab.id === 'sources'
+				? data.value?.sources.length ?? 0
+				: undefined,
 })))
 const unhealthySources = computed(() => data.value?.sources.filter(source => source.status !== 'success').length ?? 0)
 const taskStatus = computed(() => {
@@ -68,11 +81,14 @@ const taskStatus = computed(() => {
 		return '正在同步全部来源，当前内容仍可查看'
 	if (unhealthySources.value)
 		return `${unhealthySources.value} 个来源需要处理`
-	return `${data.value?.items.length ?? 0} 条内容 · 来源运行正常`
+	return `${data.value?.items.length ?? 0} 条 AI · ${financeItems.value?.visibleTotal ?? 0} 条财经 · 来源运行正常`
 })
-const taskTone = computed(() => loadError.value || syncError.value ? 'danger' : unhealthySources.value ? 'warning' : 'positive')
+const taskTone = computed(() => loadError.value || financeError.value || syncError.value ? 'danger' : unhealthySources.value ? 'warning' : 'positive')
 
 useSeoMeta({ title: 'AI 阅闻管理', robots: 'noindex, nofollow' })
+
+let financeRequestSerial = 0
+let financeSearchTimer: ReturnType<typeof setTimeout> | null = null
 
 async function load(background = false) {
 	if (!background)
@@ -94,6 +110,34 @@ async function load(background = false) {
 	}
 }
 
+async function loadFinanceItems(background = false) {
+	const requestSerial = ++financeRequestSerial
+	if (!background)
+		financeLoading.value = true
+	financeError.value = null
+	try {
+		const result = await useAdminApi<AdminFinanceFlashListDto>('/api/admin/finance/items', {
+			query: {
+				q: financeQuery.value.trim() || undefined,
+				category: financeCategory.value,
+				visibility: financeVisibility.value,
+				important: financeImportantOnly.value ? 'true' : undefined,
+				limit: 100,
+			},
+		})
+		if (requestSerial === financeRequestSerial)
+			financeItems.value = result
+	}
+	catch (cause) {
+		if (requestSerial === financeRequestSerial)
+			financeError.value = toAdminUserMessage(cause, '财经内容加载失败')
+	}
+	finally {
+		if (!background && requestSerial === financeRequestSerial)
+			financeLoading.value = false
+	}
+}
+
 async function sync() {
 	if (syncing.value)
 		return
@@ -106,7 +150,7 @@ async function sync() {
 			useAdminApi('/api/admin/finance/sync', { method: 'POST' }),
 		])
 		success.value = 'AI 与财经来源同步完成，内容列表已刷新。'
-		await load(true)
+		await Promise.all([load(true), loadFinanceItems(true)])
 	}
 	catch (cause) {
 		syncError.value = toAdminUserMessage(cause, '同步失败，已保留上次成功快照。')
@@ -147,6 +191,27 @@ async function confirmDelete() {
 	}
 }
 
+async function setFinanceHidden(item: AdminFinanceFlashDto, hidden: boolean) {
+	if (financeWorkingId.value)
+		return
+	financeWorkingId.value = item.id
+	financeError.value = null
+	success.value = null
+	try {
+		await useAdminApi(`/api/admin/finance/items/${encodeURIComponent(item.id)}/${hidden ? 'hide' : 'restore'}`, { method: 'POST' })
+		success.value = hidden
+			? `已隐藏财经快讯“${item.title}”，后续自动同步仍保持隐藏。`
+			: `已恢复财经快讯“${item.title}”。`
+		await loadFinanceItems(true)
+	}
+	catch (cause) {
+		financeError.value = toAdminUserMessage(cause, hidden ? '财经快讯隐藏失败' : '财经快讯恢复失败')
+	}
+	finally {
+		financeWorkingId.value = null
+	}
+}
+
 async function addManual() {
 	if (adding.value || !form.title.trim() || !form.url.trim())
 		return
@@ -176,7 +241,18 @@ async function addManual() {
 	}
 }
 
-onMounted(load)
+watch([financeCategory, financeVisibility, financeImportantOnly], () => loadFinanceItems())
+watch(financeQuery, () => {
+	if (financeSearchTimer)
+		clearTimeout(financeSearchTimer)
+	financeSearchTimer = setTimeout(loadFinanceItems, 250)
+})
+
+onMounted(() => Promise.all([load(), loadFinanceItems()]))
+onBeforeUnmount(() => {
+	if (financeSearchTimer)
+		clearTimeout(financeSearchTimer)
+})
 </script>
 
 <template>
@@ -204,6 +280,12 @@ onMounted(load)
 			重新加载
 		</button>
 	</p>
+	<p v-if="financeError" class="admin-error" role="alert">
+		财经内容：{{ financeError }}
+		<button class="admin-button" type="button" @click="loadFinanceItems()">
+			重新加载
+		</button>
+	</p>
 	<p v-if="syncError" class="admin-error" role="alert">
 		同步失败：{{ syncError }}
 	</p>
@@ -226,6 +308,25 @@ onMounted(load)
 		@update:query="candidateQuery = $event"
 		@update:source-filter="sourceFilter = $event"
 		@delete="requestDelete"
+	/>
+	<AdminFinanceInbox
+		v-else-if="activeTab === 'finance'"
+		:items="financeItems?.items ?? []"
+		:total="financeItems?.total ?? 0"
+		:visible-total="financeItems?.visibleTotal ?? 0"
+		:hidden-total="financeItems?.hiddenTotal ?? 0"
+		:loading="financeLoading"
+		:query="financeQuery"
+		:category="financeCategory"
+		:visibility="financeVisibility"
+		:important-only="financeImportantOnly"
+		:working-id="financeWorkingId"
+		@update:query="financeQuery = $event"
+		@update:category="financeCategory = $event"
+		@update:visibility="financeVisibility = $event"
+		@update:important-only="financeImportantOnly = $event"
+		@hide="setFinanceHidden($event, true)"
+		@restore="setFinanceHidden($event, false)"
 	/>
 	<AdminNewsManualForm
 		v-else-if="activeTab === 'manual'"

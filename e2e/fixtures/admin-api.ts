@@ -18,6 +18,7 @@ export interface AdminApiCapture {
 	momentBackupWrites: Array<{ path: string, body: Record<string, unknown> | null }>
 	aboutWrites: Array<Record<string, unknown>>
 	newsWrites: Array<Record<string, unknown>>
+	financeWrites: Array<Record<string, unknown>>
 	musicWrites: Array<Record<string, unknown>>
 	mediaActions: Array<{ method: string, path: string }>
 	mediaUploads: number
@@ -176,6 +177,70 @@ function newsPayload() {
 	}
 }
 
+function financePayload(url: URL, hiddenIds: Set<string>) {
+	const items = [
+		{
+			id: 'wallstreetcn-7x24:1001',
+			sourceId: 'wallstreetcn-7x24',
+			title: '美联储官员表示通胀仍需关注',
+			summary: '测试宏观财经快讯。',
+			publishedAt: '2026-08-03T08:05:00.000Z',
+			category: 'macro',
+			categoryLabel: '宏观',
+			topic: '央行 / 利率',
+			important: true,
+			importanceOrigin: 'rule',
+			importanceScore: 2,
+			sourceName: '华尔街见闻',
+			sourceUrl: 'https://wallstreetcn.com/livenews/1001',
+		},
+		{
+			id: 'wallstreetcn-7x24:1002',
+			sourceId: 'wallstreetcn-7x24',
+			title: '测试公司发布季度经营数据',
+			summary: '测试公司财经快讯。',
+			publishedAt: '2026-08-03T08:00:00.000Z',
+			category: 'company',
+			categoryLabel: '公司',
+			topic: '业绩 / 财报',
+			important: false,
+			importanceOrigin: 'upstream',
+			importanceScore: 1,
+			sourceName: '华尔街见闻',
+			sourceUrl: 'https://wallstreetcn.com/livenews/1002',
+		},
+	].map(item => ({
+		...item,
+		hidden: hiddenIds.has(item.id),
+		hiddenAt: hiddenIds.has(item.id) ? '2026-08-03T08:10:00.000Z' : null,
+	}))
+	const visibility = url.searchParams.get('visibility') || 'all'
+	const category = url.searchParams.get('category') || 'all'
+	const important = url.searchParams.get('important') === 'true'
+	const query = (url.searchParams.get('q') || '').toLocaleLowerCase('zh-CN')
+	const filtered = items.filter((item) => {
+		if (visibility === 'visible' && item.hidden)
+			return false
+		if (visibility === 'hidden' && !item.hidden)
+			return false
+		if (category !== 'all' && item.category !== category)
+			return false
+		if (important && !item.important)
+			return false
+		if (query && ![item.title, item.summary, item.topic, item.sourceName].some(value => value.toLocaleLowerCase('zh-CN').includes(query)))
+			return false
+		return true
+	})
+	return {
+		items: filtered,
+		total: filtered.length,
+		visibleTotal: items.filter(item => !item.hidden).length,
+		hiddenTotal: items.filter(item => item.hidden).length,
+		updatedAt: '2026-08-03T08:05:00.000Z',
+		prototype: false,
+	}
+}
+
 function newsDocument(readerKey: string) {
 	const zaihua = readerKey === zaihuaReaderKey
 	const item = newsPayload().items[zaihua ? 1 : 0]
@@ -308,7 +373,7 @@ function analyticsVisitors(trafficType: string | null, pageSize: number) {
 	}
 }
 
-async function respond(route: Route, options: AdminApiMockOptions, capture: AdminApiCapture, state: { sessionCalls: number, articleConflictTriggered: boolean }) {
+async function respond(route: Route, options: AdminApiMockOptions, capture: AdminApiCapture, state: { sessionCalls: number, articleConflictTriggered: boolean, financeHidden: Set<string> }) {
 	const request = route.request()
 	const url = new URL(request.url())
 	const method = request.method()
@@ -537,6 +602,11 @@ async function respond(route: Route, options: AdminApiMockOptions, capture: Admi
 		return
 	}
 
+	if (path === '/api/admin/finance/items' && method === 'GET') {
+		await route.fulfill(success(financePayload(url, state.financeHidden)))
+		return
+	}
+
 	if (path === '/api/admin/news/sync' && method === 'POST') {
 		capture.newsWrites.push({ action: 'sync' })
 		await route.fulfill(success({ syncedAt: '2026-08-03T08:06:00.000Z', sources: [] }))
@@ -546,6 +616,21 @@ async function respond(route: Route, options: AdminApiMockOptions, capture: Admi
 	if (path === '/api/admin/finance/sync' && method === 'POST') {
 		await route.fulfill(success({ sourceId: 'wallstreetcn-7x24', status: 'success', itemCount: 50 }))
 		return
+	}
+
+	if (path.startsWith('/api/admin/finance/items/') && method === 'POST') {
+		const action = path.endsWith('/restore') ? 'restore' : path.endsWith('/hide') ? 'hide' : null
+		if (action) {
+			const rawId = path.slice('/api/admin/finance/items/'.length, -(`/${action}`.length))
+			const id = decodeURIComponent(rawId)
+			if (action === 'hide')
+				state.financeHidden.add(id)
+			else
+				state.financeHidden.delete(id)
+			capture.financeWrites.push({ action, id })
+			await route.fulfill(success({ id, hidden: action === 'hide' }))
+			return
+		}
 	}
 
 	if (path === '/api/admin/news/manual' && method === 'POST') {
@@ -865,6 +950,7 @@ export async function mockAdminApi(page: Page, options: AdminApiMockOptions = {}
 		momentBackupWrites: [],
 		aboutWrites: [],
 		newsWrites: [],
+		financeWrites: [],
 		musicWrites: [],
 		mediaActions: [],
 		mediaUploads: 0,
@@ -875,7 +961,7 @@ export async function mockAdminApi(page: Page, options: AdminApiMockOptions = {}
 		analyticsVisitorPageSizes: [],
 		mergeCount: 0,
 	}
-	const state = { sessionCalls: 0, articleConflictTriggered: false }
+	const state = { sessionCalls: 0, articleConflictTriggered: false, financeHidden: new Set<string>() }
 	await page.route('**/api/**', route => respond(route, options, capture, state))
 	return capture
 }

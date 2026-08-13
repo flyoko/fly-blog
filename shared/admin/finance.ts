@@ -3,6 +3,7 @@ export const financeCategories = ['market', 'company', 'macro', 'overseas', 'tec
 export type FinanceCategory = typeof financeCategories[number]
 export type FinanceFilter = 'all' | FinanceCategory
 export type FinanceImportanceOrigin = 'upstream' | 'rule' | 'model' | 'prototype'
+export type FinanceAdminVisibility = 'all' | 'visible' | 'hidden'
 
 export interface FinanceFlashDto {
 	id: string
@@ -23,6 +24,20 @@ export interface FinanceFlashDto {
 export interface FinanceFlashListDto {
 	items: FinanceFlashDto[]
 	total: number
+	updatedAt: string | null
+	prototype: boolean
+}
+
+export interface AdminFinanceFlashDto extends FinanceFlashDto {
+	hidden: boolean
+	hiddenAt: string | null
+}
+
+export interface AdminFinanceFlashListDto {
+	items: AdminFinanceFlashDto[]
+	total: number
+	visibleTotal: number
+	hiddenTotal: number
 	updatedAt: string | null
 	prototype: boolean
 }

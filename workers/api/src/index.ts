@@ -26,13 +26,14 @@ import { adminWeatherRoutes, publicWeatherRoutes } from './features/weather/rout
 import { ApiError, failure, normalizeError } from './lib/api-error'
 import { contextMiddleware } from './middleware/context'
 
-export type ScheduledJob = 'analytics-maintenance' | 'finance-sync' | 'news-sync' | 'moment-backup'
+export type ScheduledJob = 'analytics-maintenance' | 'content-maintenance' | 'finance-sync' | 'news-sync' | 'moment-backup'
 
 export interface ScheduledTaskServices {
 	syncNews: () => Promise<unknown>
 	syncFinance: () => Promise<unknown>
 	backupMoments: () => Promise<unknown>
 	maintainAnalytics: () => Promise<unknown>
+	maintainContent: () => Promise<unknown>
 }
 
 export function scheduledJobsFor(cron: string): ScheduledJob[] {
@@ -42,7 +43,7 @@ export function scheduledJobsFor(cron: string): ScheduledJob[] {
 		case '17 19 * * *':
 			return ['moment-backup', 'news-sync', 'finance-sync']
 		case '31 19 * * *':
-			return ['analytics-maintenance']
+			return ['analytics-maintenance', 'content-maintenance']
 		default:
 			return []
 	}
@@ -56,6 +57,13 @@ export async function runScheduledTask(
 		syncFinance: () => new FinanceFlashService(env).sync(),
 		backupMoments: () => new MomentBackupService(env).backup(),
 		maintainAnalytics: () => new AnalyticsService(env).maintain(),
+		maintainContent: async () => {
+			const [news, finance] = await Promise.all([
+				new NewsService(env).cleanupRetention(),
+				new FinanceFlashService(env).cleanupRetention(),
+			])
+			return { news, finance }
+		},
 	},
 ): Promise<void> {
 	const runners: Record<ScheduledJob, () => Promise<unknown>> = {
@@ -63,6 +71,7 @@ export async function runScheduledTask(
 		'finance-sync': services.syncFinance,
 		'moment-backup': services.backupMoments,
 		'analytics-maintenance': services.maintainAnalytics,
+		'content-maintenance': services.maintainContent,
 	}
 	await Promise.all(scheduledJobsFor(cron).map(job => runners[job]()))
 }

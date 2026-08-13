@@ -50,13 +50,13 @@ describe('cycle 3 contracts', () => {
 		const config = newsSourcesConfigSchema.parse({
 			enabled: true,
 			sources: [
-				{ id: 'ai-hot-items', title: 'AI 精选', type: 'rest', url: 'https://aihot.virxact.com/api/v1/items', enabled: true, priority: 0, adapter: 'aihot-items', intervalMinutes: 30, publishItems: true },
-				{ id: 'station-news', title: '站长资讯', type: 'rss', url: 'https://www.zaihua.news/rss.xml', enabled: true, priority: 1, adapter: 'zaihua-rss', intervalMinutes: 60, publishItems: true },
+				{ id: 'ai-hot-items', title: 'AI 精选', type: 'rest', url: 'https://aihot.virxact.com/api/v1/items', enabled: true, priority: 0, adapter: 'aihot-items', intervalMinutes: 15, publishItems: true },
+				{ id: 'station-news', title: '站长资讯', type: 'rss', url: 'https://www.zaihua.news/rss.xml', enabled: true, priority: 1, adapter: 'zaihua-rss', intervalMinutes: 20, publishItems: true },
 			],
 		})
 		expect(config.sources).toEqual(expect.arrayContaining([
-			expect.objectContaining({ adapter: 'aihot-items', intervalMinutes: 30, publishItems: true }),
-			expect.objectContaining({ adapter: 'zaihua-rss', intervalMinutes: 60, publishItems: true }),
+			expect.objectContaining({ adapter: 'aihot-items', intervalMinutes: 15, publishItems: true }),
+			expect.objectContaining({ adapter: 'zaihua-rss', intervalMinutes: 20, publishItems: true }),
 		]))
 	})
 

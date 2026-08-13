@@ -39,6 +39,7 @@ function publicApp() {
 beforeAll(async () => applyD1Migrations(testEnv.DB, testEnv.TEST_MIGRATIONS))
 beforeEach(async () => {
 	await testEnv.DB.batch([
+		testEnv.DB.prepare('DELETE FROM finance_flash_exclusions'),
 		testEnv.DB.prepare('DELETE FROM finance_flash_items'),
 		testEnv.DB.prepare('DELETE FROM finance_flash_sync_state'),
 	])
@@ -126,6 +127,38 @@ describe('finance flash service', () => {
 		const failed = await new FinanceFlashService(runtimeEnv(), failingAdapter).sync()
 		expect(failed).toMatchObject({ status: 'failed', itemCount: 0 })
 		expect((await service.list()).total).toBe(8)
+	})
+
+	it('keeps hidden finance items excluded across sync and supports restore', async () => {
+		const service = prototypeService()
+		await service.sync()
+		const item = (await service.adminList()).items[0]!
+
+		expect(await service.hideItem(item.id)).toMatchObject({ id: item.id, hidden: true })
+		expect((await service.list()).total).toBe(7)
+		expect((await service.adminList({ visibility: 'hidden' })).items).toEqual([
+			expect.objectContaining({ id: item.id, hidden: true }),
+		])
+
+		await service.sync()
+		expect((await service.list()).total).toBe(7)
+
+		expect(await service.restoreItem(item.id)).toMatchObject({ id: item.id, hidden: false })
+		expect((await service.list()).total).toBe(8)
+	})
+
+	it('cleans old orphaned finance exclusion records', async () => {
+		const service = prototypeService()
+		await service.sync()
+		const item = (await service.adminList()).items[0]!
+		await service.hideItem(item.id)
+		await testEnv.DB.prepare('UPDATE finance_flash_exclusions SET created_at = ? WHERE item_id = ?')
+			.bind('2025-01-01T00:00:00.000Z', item.id)
+			.run()
+		await testEnv.DB.prepare('DELETE FROM finance_flash_items WHERE id = ?').bind(item.id).run()
+
+		expect(await service.cleanupRetention(new Date('2026-08-13T00:00:00.000Z'))).toEqual({ deletedExclusions: 1 })
+		expect((await service.adminList({ visibility: 'hidden' })).hiddenTotal).toBe(0)
 	})
 })
 

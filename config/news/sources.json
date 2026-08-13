@@ -9,7 +9,7 @@
       "enabled": true,
       "priority": 0,
       "adapter": "zaihua-rss",
-      "intervalMinutes": 60,
+      "intervalMinutes": 20,
       "publishItems": true
     },
     {
@@ -20,7 +20,7 @@
       "enabled": true,
       "priority": 1,
       "adapter": "aihot-items",
-      "intervalMinutes": 30,
+      "intervalMinutes": 15,
       "publishItems": true
     },
     {
@@ -31,7 +31,7 @@
       "enabled": true,
       "priority": 2,
       "adapter": "aihot-full",
-      "intervalMinutes": 30,
+      "intervalMinutes": 15,
       "publishItems": false
     },
     {
@@ -42,7 +42,7 @@
       "enabled": true,
       "priority": 3,
       "adapter": "aihot-daily",
-      "intervalMinutes": 30,
+      "intervalMinutes": 15,
       "publishItems": false
     }
   ]

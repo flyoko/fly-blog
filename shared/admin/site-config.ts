@@ -190,7 +190,7 @@ const newsSourceSchema = z.object({
 	enabled: z.boolean(),
 	priority: z.number().int().nonnegative(),
 	adapter: newsSourceAdapterSchema,
-	intervalMinutes: z.number().int().min(30).max(1_440),
+	intervalMinutes: z.number().int().min(10).max(1_440),
 	publishItems: z.boolean(),
 })
 

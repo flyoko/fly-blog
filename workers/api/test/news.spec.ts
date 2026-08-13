@@ -53,6 +53,40 @@ describe('news service', () => {
 		await expect(service.addManual({ title: '中间站链接', url: 'https://www.zaihua.news/article/1/' })).rejects.toThrow('Only direct public HTTP(S) news links are allowed')
 	})
 
+	it('cleans stale non-public automatic news while preserving selected and manual content', async () => {
+		const old = '2026-01-01T00:00:00.000Z'
+		const now = new Date('2026-08-13T00:00:00.000Z')
+		await testEnv.DB.batch([
+			testEnv.DB.prepare(`
+				INSERT INTO news_items (id, source_id, kind, title, summary, url, original_url, category, rank, published_at, fetched_at, selected, metadata_json, updated_at)
+				VALUES ('old-hidden', 'ai-hot-items', 'hot', '旧隐藏资讯', NULL, 'https://example.com/old-hidden', NULL, NULL, NULL, ?, ?, 0, '{}', ?)
+			`).bind(old, old, old),
+			testEnv.DB.prepare(`
+				INSERT INTO news_items (id, source_id, kind, title, summary, url, original_url, category, rank, published_at, fetched_at, selected, metadata_json, updated_at)
+				VALUES ('old-selected', 'ai-hot-items', 'hot', '旧公开资讯', NULL, 'https://example.com/old-selected', NULL, NULL, NULL, ?, ?, 1, '{}', ?)
+			`).bind(old, old, old),
+			testEnv.DB.prepare(`
+				INSERT INTO news_items (id, source_id, kind, title, summary, url, original_url, category, rank, published_at, fetched_at, selected, metadata_json, updated_at)
+				VALUES ('old-manual', 'manual', 'manual', '旧手动精选', NULL, 'https://example.com/old-manual', NULL, NULL, NULL, ?, ?, 0, '{}', ?)
+			`).bind(old, old, old),
+			testEnv.DB.prepare(`
+				INSERT INTO news_documents (item_id, reader_key, source_id, source_url, original_url, title, body_text, content_mode, attribution_name, attribution_url, published_at, content_hash, fetched_at, updated_at, images_json)
+				VALUES ('old-hidden', '11111111111111111111111111111111', 'ai-hot-items', 'https://example.com/old-hidden', NULL, '旧隐藏资讯', '正文', 'full', 'example.com', 'https://example.com/old-hidden', ?, 'hash-old-hidden', ?, ?, '[]')
+			`).bind(old, old, old),
+			testEnv.DB.prepare(`
+				INSERT INTO news_briefings (date, title, lead, content_json, source_url, generated_at, fetched_at)
+				VALUES ('2025-01-01', '旧日报', NULL, '[]', 'https://example.com/daily', ?, ?)
+			`).bind(old, old),
+			testEnv.DB.prepare('INSERT INTO news_exclusions (item_id, created_at) VALUES (\'orphan-old\', ?)').bind(old),
+		])
+
+		const result = await new NewsService(runtimeEnv()).cleanupRetention(now)
+		expect(result).toEqual({ deletedItems: 1, deletedBriefings: 1, deletedExclusions: 1 })
+		expect(await testEnv.DB.prepare('SELECT id FROM news_items ORDER BY id').all<{ id: string }>())
+			.toMatchObject({ results: [{ id: 'old-manual' }, { id: 'old-selected' }] })
+		expect(await testEnv.DB.prepare('SELECT COUNT(*) AS count FROM news_documents WHERE item_id = \'old-hidden\'').first()).toEqual({ count: 0 })
+	})
+
 	it('drops non-public links returned by upstream feeds', async () => {
 		vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
 			const url = typeof input === 'string' ? input : input instanceof Request ? input.url : input.toString()

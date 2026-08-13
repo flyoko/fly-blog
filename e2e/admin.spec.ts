@@ -96,6 +96,23 @@ test.describe('admin desktop workflows', () => {
 		await expect(page).toHaveURL(/\/admin\/articles\//u)
 	})
 
+	test('finance content management hides and restores flash items', async ({ page }) => {
+		const capture = await mockAuthenticatedAdmin(page)
+		await page.goto('/admin/ai-news')
+		await expect(page.getByRole('heading', { name: 'AI 阅闻' })).toBeVisible()
+		await page.getByRole('tab', { name: /财经内容/u }).click()
+		await expect(page.getByRole('heading', { name: '财经内容' })).toBeVisible()
+		const macroItem = page.locator('.admin-finance-item').filter({ hasText: '美联储官员表示通胀仍需关注' })
+		await macroItem.getByRole('button', { name: '隐藏' }).click()
+		await expect(macroItem.getByText('已隐藏')).toBeVisible()
+		expect(capture.financeWrites).toContainEqual({ action: 'hide', id: 'wallstreetcn-7x24:1001' })
+		await page.getByLabel('展示状态').selectOption('hidden')
+		await expect(page.locator('.admin-finance-item')).toHaveCount(1)
+		await macroItem.getByRole('button', { name: '恢复公开' }).click()
+		expect(capture.financeWrites).toContainEqual({ action: 'restore', id: 'wallstreetcn-7x24:1001' })
+		await expect(page.getByText('隐藏 0')).toBeVisible()
+	})
+
 	test('article editor inserts repeatable macOS blocks and stays aligned at target widths', async ({ page }) => {
 		await mockAuthenticatedAdmin(page)
 		await page.goto('/admin/articles/new')
@@ -690,4 +707,17 @@ test('mobile visitor analytics keeps the page contained and the dashboard operab
 	expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth + 1)
 	await page.getByRole('button', { name: '打开导航' }).click()
 	await expect(page.getByRole('link', { name: '访问分析', exact: true })).toBeVisible()
+})
+
+test('mobile finance content management stays contained', async ({ page, isMobile }) => {
+	test.skip(!isMobile, 'Mobile finance coverage runs in the mobile project.')
+	await mockAuthenticatedAdmin(page)
+	await page.goto('/admin/ai-news')
+	await page.getByRole('tab', { name: /财经内容/u }).click()
+	await expect(page.getByRole('heading', { name: '财经内容' })).toBeVisible()
+	const dimensions = await page.evaluate(() => ({
+		scrollWidth: document.documentElement.scrollWidth,
+		clientWidth: document.documentElement.clientWidth,
+	}))
+	expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth + 1)
 })

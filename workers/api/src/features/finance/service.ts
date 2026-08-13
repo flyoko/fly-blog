@@ -1,7 +1,9 @@
-import type { FinanceCategory, FinanceFlashDto, FinanceFlashListDto, FinanceImportanceOrigin } from '../../../../../shared/admin/finance'
+import type { AdminFinanceFlashDto, AdminFinanceFlashListDto, FinanceAdminVisibility, FinanceCategory, FinanceFlashDto, FinanceFlashListDto, FinanceImportanceOrigin } from '../../../../../shared/admin/finance'
 import type { Env } from '../../env'
 import { prototypeFinanceItems } from './prototype-data'
 import { WallstreetCnFinanceFlashAdapter } from './wallstreetcn'
+
+const FINANCE_EXCLUSION_RETENTION_DAYS = 180
 
 interface FinanceFlashRow {
 	id: string
@@ -19,6 +21,10 @@ interface FinanceFlashRow {
 	source_url: string | null
 	fetched_at: string
 	updated_at: string
+}
+
+interface AdminFinanceFlashRow extends FinanceFlashRow {
+	hidden_at: string | null
 }
 
 export interface FinanceFlashSourceItem {
@@ -84,6 +90,14 @@ export class FinanceFlashService {
 			importanceScore: row.importance_score,
 			sourceName: row.source_name,
 			sourceUrl: row.source_url,
+		}
+	}
+
+	private adminDto(row: AdminFinanceFlashRow): AdminFinanceFlashDto {
+		return {
+			...this.dto(row),
+			hidden: Boolean(row.hidden_at),
+			hiddenAt: row.hidden_at,
 		}
 	}
 
@@ -186,23 +200,23 @@ export class FinanceFlashService {
 
 	async list(options: { importantOnly?: boolean, category?: FinanceCategory, limit?: number } = {}): Promise<FinanceFlashListDto> {
 		const limit = Math.max(1, Math.min(100, Math.trunc(options.limit || 50)))
-		const conditions: string[] = []
+		const conditions = ['NOT EXISTS (SELECT 1 FROM finance_flash_exclusions e WHERE e.item_id = f.id AND e.restored_at IS NULL)']
 		const bindings: Array<string | number> = []
 		if (options.importantOnly)
-			conditions.push('important = 1')
+			conditions.push('f.important = 1')
 		if (options.category) {
-			conditions.push('category = ?')
+			conditions.push('f.category = ?')
 			bindings.push(options.category)
 		}
-		const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
+		const where = `WHERE ${conditions.join(' AND ')}`
 		const [items, total, state, sourceMix] = await Promise.all([
 			this.env.DB.prepare(`
-				SELECT * FROM finance_flash_items
+				SELECT f.* FROM finance_flash_items f
 				${where}
-				ORDER BY published_at DESC, id DESC
+				ORDER BY f.published_at DESC, f.id DESC
 				LIMIT ?
 			`).bind(...bindings, limit).all<FinanceFlashRow>(),
-			this.env.DB.prepare(`SELECT COUNT(*) AS total FROM finance_flash_items ${where}`)
+			this.env.DB.prepare(`SELECT COUNT(*) AS total FROM finance_flash_items f ${where}`)
 				.bind(...bindings)
 				.first<{ total: number }>(),
 			this.env.DB.prepare('SELECT MAX(last_success_at) AS updated_at FROM finance_flash_sync_state WHERE last_success_at IS NOT NULL')
@@ -221,6 +235,118 @@ export class FinanceFlashService {
 			updatedAt: state?.updated_at || null,
 			prototype: storedTotal > 0 && prototypeCount === storedTotal,
 		}
+	}
+
+	async adminList(options: {
+		importantOnly?: boolean
+		category?: FinanceCategory
+		visibility?: FinanceAdminVisibility
+		query?: string
+		limit?: number
+	} = {}): Promise<AdminFinanceFlashListDto> {
+		const limit = Math.max(1, Math.min(100, Math.trunc(options.limit || 100)))
+		const conditions: string[] = []
+		const bindings: Array<string | number> = []
+		if (options.importantOnly)
+			conditions.push('f.important = 1')
+		if (options.category) {
+			conditions.push('f.category = ?')
+			bindings.push(options.category)
+		}
+		if (options.visibility === 'visible')
+			conditions.push('(e.item_id IS NULL OR e.restored_at IS NOT NULL)')
+		else if (options.visibility === 'hidden')
+			conditions.push('(e.item_id IS NOT NULL AND e.restored_at IS NULL)')
+		const query = options.query?.trim()
+		if (query) {
+			conditions.push(`(
+				f.title LIKE ? OR COALESCE(f.summary, '') LIKE ? OR f.category_label LIKE ?
+				OR COALESCE(f.topic, '') LIKE ? OR f.source_name LIKE ?
+			)`)
+			const like = `%${query.slice(0, 120)}%`
+			bindings.push(like, like, like, like, like)
+		}
+		const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
+		const [items, total, counts, state, sourceMix] = await Promise.all([
+			this.env.DB.prepare(`
+				SELECT f.*, CASE WHEN e.restored_at IS NULL THEN e.created_at ELSE NULL END AS hidden_at
+				FROM finance_flash_items f
+				LEFT JOIN finance_flash_exclusions e ON e.item_id = f.id
+				${where}
+				ORDER BY f.published_at DESC, f.id DESC
+				LIMIT ?
+			`).bind(...bindings, limit).all<AdminFinanceFlashRow>(),
+			this.env.DB.prepare(`
+				SELECT COUNT(*) AS total
+				FROM finance_flash_items f
+				LEFT JOIN finance_flash_exclusions e ON e.item_id = f.id
+				${where}
+			`).bind(...bindings).first<{ total: number }>(),
+			this.env.DB.prepare(`
+				SELECT
+					SUM(CASE WHEN e.item_id IS NULL OR e.restored_at IS NOT NULL THEN 1 ELSE 0 END) AS visible_total,
+					SUM(CASE WHEN e.item_id IS NOT NULL AND e.restored_at IS NULL THEN 1 ELSE 0 END) AS hidden_total
+				FROM finance_flash_items f
+				LEFT JOIN finance_flash_exclusions e ON e.item_id = f.id
+			`).first<{ visible_total: number | null, hidden_total: number | null }>(),
+			this.env.DB.prepare('SELECT MAX(last_success_at) AS updated_at FROM finance_flash_sync_state WHERE last_success_at IS NOT NULL')
+				.first<{ updated_at: string | null }>(),
+			this.env.DB.prepare(`
+				SELECT COUNT(*) AS total,
+					SUM(CASE WHEN importance_origin = 'prototype' THEN 1 ELSE 0 END) AS prototype_count
+				FROM finance_flash_items
+			`).first<{ total: number, prototype_count: number | null }>(),
+		])
+		const storedTotal = sourceMix?.total || 0
+		return {
+			items: items.results.map(row => this.adminDto(row)),
+			total: total?.total || 0,
+			visibleTotal: counts?.visible_total || 0,
+			hiddenTotal: counts?.hidden_total || 0,
+			updatedAt: state?.updated_at || null,
+			prototype: storedTotal > 0 && (sourceMix?.prototype_count || 0) === storedTotal,
+		}
+	}
+
+	async hideItem(id: string): Promise<AdminFinanceFlashDto | null> {
+		const item = await this.env.DB.prepare('SELECT * FROM finance_flash_items WHERE id = ?')
+			.bind(id)
+			.first<FinanceFlashRow>()
+		if (!item)
+			return null
+		const now = new Date().toISOString()
+		await this.env.DB.prepare(`
+			INSERT INTO finance_flash_exclusions (item_id, created_at, restored_at)
+			VALUES (?, ?, NULL)
+			ON CONFLICT(item_id) DO UPDATE SET created_at = excluded.created_at, restored_at = NULL
+		`).bind(id, now).run()
+		return this.adminDto({ ...item, hidden_at: now })
+	}
+
+	async restoreItem(id: string): Promise<AdminFinanceFlashDto | null> {
+		const item = await this.env.DB.prepare(`
+			SELECT f.*, CASE WHEN e.restored_at IS NULL THEN e.created_at ELSE NULL END AS hidden_at
+			FROM finance_flash_items f
+			JOIN finance_flash_exclusions e ON e.item_id = f.id
+			WHERE f.id = ? AND e.restored_at IS NULL
+		`).bind(id).first<AdminFinanceFlashRow>()
+		if (!item)
+			return null
+		const now = new Date().toISOString()
+		await this.env.DB.prepare('UPDATE finance_flash_exclusions SET restored_at = ? WHERE item_id = ?')
+			.bind(now, id)
+			.run()
+		return this.adminDto({ ...item, hidden_at: null })
+	}
+
+	async cleanupRetention(now = new Date()): Promise<{ deletedExclusions: number }> {
+		const cutoff = new Date(now.getTime() - FINANCE_EXCLUSION_RETENTION_DAYS * 86_400_000).toISOString()
+		const result = await this.env.DB.prepare(`
+			DELETE FROM finance_flash_exclusions
+			WHERE COALESCE(restored_at, created_at) < ?
+				AND NOT EXISTS (SELECT 1 FROM finance_flash_items f WHERE f.id = finance_flash_exclusions.item_id)
+		`).bind(cutoff).run()
+		return { deletedExclusions: result.meta.changes || 0 }
 	}
 
 	async status() {
@@ -249,9 +375,15 @@ export class FinanceFlashService {
 
 	async listVersion(): Promise<string> {
 		const row = await this.env.DB.prepare(`
-			SELECT MAX(updated_at) AS version, COUNT(*) AS item_count
-			FROM finance_flash_items
-		`).first<{ version: string | null, item_count: number }>()
-		return `${row?.version || 'empty'}:${row?.item_count || 0}`
+			SELECT
+				(SELECT MAX(version) FROM (
+					SELECT MAX(updated_at) AS version FROM finance_flash_items
+					UNION ALL
+					SELECT MAX(COALESCE(restored_at, created_at)) AS version FROM finance_flash_exclusions
+				)) AS version,
+				(SELECT COUNT(*) FROM finance_flash_items) AS item_count,
+				(SELECT COUNT(*) FROM finance_flash_exclusions WHERE restored_at IS NULL) AS exclusion_count
+		`).first<{ version: string | null, item_count: number, exclusion_count: number }>()
+		return `${row?.version || 'empty'}:${row?.item_count || 0}:${row?.exclusion_count || 0}`
 	}
 }

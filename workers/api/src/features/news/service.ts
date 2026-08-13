@@ -114,6 +114,9 @@ const MAX_NEWS_IMAGE_REDIRECTS = 3
 const NEWS_IMAGE_REQUEST_TIMEOUT_MS = 12_000
 const NEWS_IMAGE_DOCUMENT_BUDGET_MS = 20_000
 const NEWS_IMAGE_SOURCE_SYNC_BUDGET_MS = 45_000
+const NEWS_RETENTION_DAYS = 90
+const NEWS_BRIEFING_RETENTION_DAYS = 180
+const NEWS_EXCLUSION_RETENTION_DAYS = 180
 const NEWS_IMAGE_MIMES = new Set<NewsImageDto['mime']>([
 	'image/png',
 	'image/jpeg',
@@ -1261,6 +1264,36 @@ export class NewsService {
 			this.env.DB.prepare('DELETE FROM news_items WHERE id = ?').bind(id),
 		])
 		return item
+	}
+
+	async cleanupRetention(now = new Date()): Promise<{ deletedItems: number, deletedBriefings: number, deletedExclusions: number }> {
+		const itemCutoff = new Date(now.getTime() - NEWS_RETENTION_DAYS * 86_400_000).toISOString()
+		const briefingCutoff = new Date(now.getTime() - NEWS_BRIEFING_RETENTION_DAYS * 86_400_000).toISOString().slice(0, 10)
+		const exclusionCutoff = new Date(now.getTime() - NEWS_EXCLUSION_RETENTION_DAYS * 86_400_000).toISOString()
+		await this.env.DB.prepare(`
+			DELETE FROM news_documents
+			WHERE item_id IN (
+				SELECT id FROM news_items
+				WHERE selected = 0 AND kind <> 'manual' AND fetched_at < ?
+			)
+		`).bind(itemCutoff).run()
+		const deletedItems = await this.env.DB.prepare(`
+			DELETE FROM news_items
+			WHERE selected = 0 AND kind <> 'manual' AND fetched_at < ?
+		`).bind(itemCutoff).run()
+		const deletedBriefings = await this.env.DB.prepare('DELETE FROM news_briefings WHERE date < ?')
+			.bind(briefingCutoff)
+			.run()
+		const deletedExclusions = await this.env.DB.prepare(`
+			DELETE FROM news_exclusions
+			WHERE created_at < ?
+				AND NOT EXISTS (SELECT 1 FROM news_items n WHERE n.id = news_exclusions.item_id)
+		`).bind(exclusionCutoff).run()
+		return {
+			deletedItems: deletedItems.meta.changes || 0,
+			deletedBriefings: deletedBriefings.meta.changes || 0,
+			deletedExclusions: deletedExclusions.meta.changes || 0,
+		}
 	}
 
 	async sync(options: { force?: boolean, sourceId?: string } = {}): Promise<NewsSyncResult> {
