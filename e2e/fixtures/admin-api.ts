@@ -533,6 +533,11 @@ async function respond(route: Route, options: AdminApiMockOptions, capture: Admi
 		return
 	}
 
+	if (path === '/api/admin/finance/sync' && method === 'POST') {
+		await route.fulfill(success({ sourceId: 'wallstreetcn-7x24', status: 'success', itemCount: 50 }))
+		return
+	}
+
 	if (path === '/api/admin/news/manual' && method === 'POST') {
 		capture.newsWrites.push(request.postDataJSON())
 		await route.fulfill(success(newsPayload().items[0], 201))

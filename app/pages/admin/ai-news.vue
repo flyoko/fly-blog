@@ -90,8 +90,11 @@ async function sync() {
 	syncError.value = null
 	success.value = null
 	try {
-		await useAdminApi('/api/admin/news/sync', { method: 'POST' })
-		success.value = '来源同步完成，内容列表已刷新。'
+		await Promise.all([
+			useAdminApi('/api/admin/news/sync', { method: 'POST' }),
+			useAdminApi('/api/admin/finance/sync', { method: 'POST' }),
+		])
+		success.value = 'AI 与财经来源同步完成，内容列表已刷新。'
 		await load(true)
 	}
 	catch (cause) {

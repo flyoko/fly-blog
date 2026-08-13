@@ -35,7 +35,7 @@ function importantOnly(value: string | undefined) {
 export const publicFinanceRoutes = new Hono<AppEnvironment>()
 publicFinanceRoutes.get('/flash', async (c) => {
 	const service = new FinanceFlashService(c.env)
-	await service.ensurePrototypeSeeded()
+	await service.ensureSeeded()
 	const options = {
 		category: category(c.req.query('category')),
 		importantOnly: importantOnly(c.req.query('important')),

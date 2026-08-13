@@ -5,7 +5,7 @@ import { applyD1Migrations, env } from 'cloudflare:test'
 import { Hono } from 'hono'
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { publicFinanceRoutes } from '../src/features/finance/routes'
-import { FinanceFlashService } from '../src/features/finance/service'
+import { FinanceFlashService, PrototypeFinanceFlashAdapter } from '../src/features/finance/service'
 import { failure, normalizeError } from '../src/lib/api-error'
 import { contextMiddleware } from '../src/middleware/context'
 
@@ -13,6 +13,19 @@ const testEnv = env as typeof env & { DB: D1Database, TEST_MIGRATIONS: D1Migrati
 
 function runtimeEnv(): Env {
 	return { ...testEnv } as unknown as Env
+}
+
+function prototypeService() {
+	return new FinanceFlashService(runtimeEnv(), new PrototypeFinanceFlashAdapter())
+}
+
+async function seedFallbackSnapshot() {
+	await prototypeService().sync()
+	const now = new Date().toISOString()
+	await testEnv.DB.prepare(`
+		INSERT INTO finance_flash_sync_state (source_id, status, item_count, last_success_at, last_error, updated_at)
+		VALUES ('wallstreetcn-7x24', 'failed', 0, NULL, 'upstream unavailable', ?)
+	`).bind(now).run()
 }
 
 function publicApp() {
@@ -33,7 +46,7 @@ beforeEach(async () => {
 
 describe('finance flash service', () => {
 	it('syncs prototype items into the dedicated finance domain', async () => {
-		const service = new FinanceFlashService(runtimeEnv())
+		const service = prototypeService()
 		expect(await service.sync()).toMatchObject({ status: 'success', itemCount: 8 })
 		const data = await service.list()
 		expect(data.prototype).toBe(true)
@@ -43,7 +56,7 @@ describe('finance flash service', () => {
 	})
 
 	it('combines category and important filters', async () => {
-		const service = new FinanceFlashService(runtimeEnv())
+		const service = prototypeService()
 		await service.sync()
 		const data = await service.list({ category: 'company', importantOnly: true })
 		expect(data.total).toBe(2)
@@ -51,8 +64,46 @@ describe('finance flash service', () => {
 		expect(data.items.every(item => item.category === 'company' && item.important)).toBe(true)
 	})
 
+	it('uses prototype data only as a cold-start fallback when live sync fails', async () => {
+		const failingAdapter: FinanceFlashAdapter = {
+			id: 'live-finance',
+			prototype: false,
+			fetch: async () => { throw new Error('upstream unavailable') },
+		}
+		const service = new FinanceFlashService(runtimeEnv(), failingAdapter, new PrototypeFinanceFlashAdapter())
+		await service.ensureSeeded()
+		const data = await service.list()
+		expect(data.prototype).toBe(true)
+		expect(data.total).toBe(8)
+	})
+
+	it('replaces fallback rows after the live source recovers', async () => {
+		await prototypeService().sync()
+		const liveAdapter: FinanceFlashAdapter = {
+			id: 'live-finance',
+			prototype: false,
+			fetch: async () => [{
+				id: 'live-1',
+				title: '实时市场快讯',
+				publishedAt: '2026-08-13T14:00:00.000Z',
+				category: 'market',
+				categoryLabel: '市场',
+				important: false,
+				importanceOrigin: 'upstream',
+				sourceName: '实时来源',
+				sourceUrl: 'https://example.com/live-1',
+			}],
+		}
+		const service = new FinanceFlashService(runtimeEnv(), liveAdapter, new PrototypeFinanceFlashAdapter())
+		expect(await service.sync()).toMatchObject({ status: 'success', itemCount: 1 })
+		const data = await service.list()
+		expect(data.prototype).toBe(false)
+		expect(data.total).toBe(1)
+		expect(data.items[0]?.sourceName).toBe('实时来源')
+	})
+
 	it('retains the last successful snapshot when an upstream sync fails', async () => {
-		const service = new FinanceFlashService(runtimeEnv())
+		const service = prototypeService()
 		await service.sync()
 		const failingAdapter: FinanceFlashAdapter = {
 			id: 'prototype-finance-7x24',
@@ -66,7 +117,8 @@ describe('finance flash service', () => {
 })
 
 describe('finance flash public api', () => {
-	it('seeds the prototype source on first request and returns the public contract', async () => {
+	it('returns the public contract for a stored fallback snapshot', async () => {
+		await seedFallbackSnapshot()
 		const response = await publicApp().request('/api/finance/flash?important=true&category=macro', {}, testEnv)
 		expect(response.status).toBe(200)
 		const body = await response.json() as { data: { total: number, prototype: boolean, items: Array<{ category: string, important: boolean }> } }
@@ -76,6 +128,7 @@ describe('finance flash public api', () => {
 	})
 
 	it('rejects invalid filters', async () => {
+		await seedFallbackSnapshot()
 		const response = await publicApp().request('/api/finance/flash?category=unknown', {}, testEnv)
 		expect(response.status).toBe(400)
 	})

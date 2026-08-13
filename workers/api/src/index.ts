@@ -53,10 +53,7 @@ export async function runScheduledTask(
 	env: Env,
 	services: ScheduledTaskServices = {
 		syncNews: () => new NewsService(env).sync(),
-		syncFinance: async () => {
-			const service = new FinanceFlashService(env)
-			return service.prototype ? undefined : service.sync()
-		},
+		syncFinance: () => new FinanceFlashService(env).sync(),
 		backupMoments: () => new MomentBackupService(env).backup(),
 		maintainAnalytics: () => new AnalyticsService(env).maintain(),
 	},
