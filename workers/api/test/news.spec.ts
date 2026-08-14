@@ -436,6 +436,75 @@ describe('news service', () => {
 		}
 	})
 
+	it('reserves subrequests for source checks and removes retired source state', async () => {
+		let requestCount = 0
+		const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+			requestCount += 1
+			if (requestCount > 50)
+				throw new Error('Too many subrequests by single Worker invocation')
+			const url = typeof input === 'string' ? input : input instanceof Request ? input.url : input.toString()
+			if (url.endsWith('/rss.xml')) {
+				const entries = Array.from({ length: 30 }, (_, index) => `
+					<item>
+						<title>站长资讯 ${index}</title>
+						<link>https://www.zaihua.news/article/budget-${index}/</link>
+						<guid>budget-${index}</guid>
+						<description><![CDATA[<p>摘要 ${index}</p>]]></description>
+					</item>`).join('')
+				return new Response(`<rss><channel>${entries}</channel></rss>`, { status: 200 })
+			}
+			if (url.startsWith('https://www.zaihua.news/article/budget-')) {
+				const id = url.match(/budget-(\d+)/u)?.[1] || '0'
+				return new Response(`
+					<meta property="og:title" content="站长资讯 ${id}">
+					<div class="msg-prose">
+						<img src="https://cdn.example.com/budget-${id}.png" alt="配图 ${id}">
+						<p>正文 ${id}</p>
+						<p><a href="https://example.com/original-${id}">原文</a></p>
+					</div>
+				`, { status: 200 })
+			}
+			if (url.startsWith('https://cdn.example.com/budget-')) {
+				return new Response(Uint8Array.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x33]), {
+					status: 200,
+					headers: { 'content-type': 'image/png' },
+				})
+			}
+			if (url.includes('/api/v1/items'))
+				return Response.json({ items: [] })
+			if (url.endsWith('/feed/full.xml'))
+				return new Response('<rss><channel></channel></rss>', { status: 200 })
+			return Response.json({ report: {
+				date: '2026-08-14',
+				generatedAt: '2026-08-14T15:00:00.000Z',
+				links: { aihot: 'https://aihot.virxact.com/daily/2026-08-14' },
+				sections: [],
+			} })
+		})
+		try {
+			await testEnv.DB.prepare(`
+				INSERT INTO news_sync_state (source_id, status, item_count, last_success_at, last_error, updated_at, etag, last_modified, next_sync_at)
+				VALUES ('ai-hot', 'failed', 2, '2026-08-03T14:26:57.962Z', 'legacy error', '2026-08-03T14:26:57.962Z', NULL, NULL, NULL)
+			`).run()
+			const service = new NewsService(runtimeEnv())
+			expect((await service.list()).sources.map(source => source.source_id)).not.toContain('ai-hot')
+			expect((await service.sourceState()).map(source => source.source_id)).not.toContain('ai-hot')
+
+			const result = await service.sync({ force: true })
+			expect(result.sources).toHaveLength(4)
+			expect(result.sources.every(source => source.status === 'success')).toBe(true)
+			expect(requestCount).toBeLessThanOrEqual(36)
+			expect(fetchSpy.mock.calls.some(([input]) => {
+				const url = typeof input === 'string' ? input : input instanceof Request ? input.url : input.toString()
+				return url.endsWith('/api/v1/dailies/latest')
+			})).toBe(true)
+			expect(await testEnv.DB.prepare('SELECT source_id FROM news_sync_state WHERE source_id = \'ai-hot\'').first()).toBeNull()
+		}
+		finally {
+			vi.restoreAllMocks()
+		}
+	})
+
 	it('keeps deleted automated items excluded after later source syncs', async () => {
 		vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
 			const url = typeof input === 'string' ? input : input instanceof Request ? input.url : input.toString()

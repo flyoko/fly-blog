@@ -114,6 +114,11 @@ const MAX_NEWS_IMAGE_REDIRECTS = 3
 const NEWS_IMAGE_REQUEST_TIMEOUT_MS = 12_000
 const NEWS_IMAGE_DOCUMENT_BUDGET_MS = 20_000
 const NEWS_IMAGE_SOURCE_SYNC_BUDGET_MS = 45_000
+// Workers Free allows 50 external subrequests per invocation. News sync shares the
+// scheduled invocation with finance sync (and, once a day, moment backup), so
+// enrichment must leave headroom for required source checks and sibling jobs.
+const NEWS_OPTIONAL_EXTERNAL_SUBREQUEST_BUDGET = 24
+const NEWS_EXTERNAL_SUBREQUEST_HARD_BUDGET = 36
 const NEWS_RETENTION_DAYS = 15
 const NEWS_BRIEFING_RETENTION_DAYS = 180
 const NEWS_EXCLUSION_RETENTION_DAYS = 180
@@ -123,6 +128,8 @@ const NEWS_IMAGE_MIMES = new Set<NewsImageDto['mime']>([
 	'image/webp',
 	'image/gif',
 ])
+const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308])
+const CONFIGURED_NEWS_SOURCE_IDS = new Set(sourcesConfig.sources.map(source => source.id))
 const CATEGORY_LABELS: Record<string, string> = {
 	'ai-agents': 'AI 智能体',
 	'ai-models': 'AI 模型',
@@ -317,48 +324,69 @@ async function limitedBytes(response: Response): Promise<Uint8Array | null> {
 	return bytes
 }
 
-async function fetchPublicImage(url: string, timeoutMs: number): Promise<Response | null> {
-	let currentUrl = url
-	const signal = AbortSignal.timeout(timeoutMs)
-	for (let redirects = 0; redirects <= MAX_NEWS_IMAGE_REDIRECTS; redirects++) {
-		if (!isPublicHttpUrl(currentUrl))
-			return null
-		const response = await fetch(currentUrl, {
-			headers: { accept: 'image/webp,image/png,image/jpeg,image/gif;q=0.9,*/*;q=0.1' },
-			redirect: 'manual',
-			signal,
-		})
-		if (response.status >= 300 && response.status < 400) {
-			const location = response.headers.get('location')
-			await response.body?.cancel().catch(() => undefined)
-			if (!location || redirects >= MAX_NEWS_IMAGE_REDIRECTS)
-				return null
-			try {
-				currentUrl = new URL(location, currentUrl).toString()
-			}
-			catch {
-				return null
-			}
-			continue
-		}
-		if (response.ok)
-			return response
-		await response.body?.cancel().catch(() => undefined)
-		return null
-	}
-	return null
-}
-
 export class NewsService {
 	private imageSyncDeadline = 0
+	private externalSubrequests = 0
+	private optionalExternalSubrequests = 0
 
 	constructor(private readonly env: Env) {}
+
+	private async externalFetch(input: RequestInfo | URL, init: RequestInit | undefined, optional: boolean): Promise<Response | null> {
+		if (this.externalSubrequests >= NEWS_EXTERNAL_SUBREQUEST_HARD_BUDGET) {
+			if (optional)
+				return null
+			throw new SourceRequestError('来源同步请求预算已耗尽，已保留最近成功快照')
+		}
+		if (optional && this.optionalExternalSubrequests >= NEWS_OPTIONAL_EXTERNAL_SUBREQUEST_BUDGET)
+			return null
+		this.externalSubrequests += 1
+		if (optional)
+			this.optionalExternalSubrequests += 1
+		return fetch(input, { ...init, redirect: 'manual' })
+	}
+
+	private async fetchFollowingRedirects(url: string, init: RequestInit, optional: boolean): Promise<Response | null> {
+		let currentUrl = url
+		for (let redirects = 0; redirects <= MAX_NEWS_IMAGE_REDIRECTS; redirects++) {
+			if (!isPublicHttpUrl(currentUrl))
+				return null
+			const response = await this.externalFetch(currentUrl, init, optional)
+			if (!response)
+				return null
+			if (REDIRECT_STATUSES.has(response.status)) {
+				const location = response.headers.get('location')
+				await response.body?.cancel().catch(() => undefined)
+				if (!location || redirects >= MAX_NEWS_IMAGE_REDIRECTS)
+					return null
+				try {
+					currentUrl = new URL(location, currentUrl).toString()
+				}
+				catch {
+					return null
+				}
+				continue
+			}
+			return response
+		}
+		return null
+	}
+
+	private async fetchPublicImage(url: string, timeoutMs: number): Promise<Response | null> {
+		const response = await this.fetchFollowingRedirects(url, {
+			headers: { accept: 'image/webp,image/png,image/jpeg,image/gif;q=0.9,*/*;q=0.1' },
+			signal: AbortSignal.timeout(timeoutMs),
+		}, true)
+		if (response?.ok)
+			return response
+		await response?.body?.cancel().catch(() => undefined)
+		return null
+	}
 
 	private async syncImage(candidate: ParsedNewsImage, timeoutMs: number): Promise<NewsImageDto | null> {
 		if (!isPublicHttpUrl(candidate.url))
 			return null
 		try {
-			const response = await fetchPublicImage(candidate.url, timeoutMs)
+			const response = await this.fetchPublicImage(candidate.url, timeoutMs)
 			if (!response)
 				return null
 			const bytes = await limitedBytes(response)
@@ -506,10 +534,12 @@ export class NewsService {
 			headers.set('if-none-match', state.etag)
 		if (state?.last_modified)
 			headers.set('if-modified-since', state.last_modified)
-		const response = await fetch(source.url, {
+		const response = await this.fetchFollowingRedirects(source.url, {
 			headers,
 			signal: AbortSignal.timeout(15_000),
-		})
+		}, false)
+		if (!response)
+			throw new SourceRequestError(`${source.title} 请求重定向无效`)
 		if (response.status === 304)
 			return response
 		if (response.status === 429) {
@@ -718,11 +748,11 @@ export class NewsService {
 
 	private async fetchAiHotArticle(url: string): Promise<{ bodyText: string, images: ParsedNewsImage[] } | null> {
 		try {
-			const response = await fetch(url, {
+			const response = await this.fetchFollowingRedirects(url, {
 				headers: { accept: 'text/html,application/xhtml+xml' },
 				signal: AbortSignal.timeout(12_000),
-			})
-			if (!response.ok)
+			}, true)
+			if (!response?.ok)
 				return null
 			return extractAiHotArticle(await response.text(), url)
 		}
@@ -832,11 +862,11 @@ export class NewsService {
 		sourceName: string | null
 	} | null> {
 		try {
-			const response = await fetch(url, {
+			const response = await this.fetchFollowingRedirects(url, {
 				headers: { accept: 'text/html,application/xhtml+xml' },
 				signal: AbortSignal.timeout(12_000),
-			})
-			if (!response.ok)
+			}, true)
+			if (!response?.ok)
 				return null
 			return extractZaihuaArticle(await response.text(), url)
 		}
@@ -1110,7 +1140,7 @@ export class NewsService {
 			briefing: briefing
 				? { ...briefing, source_url: `${this.env.PUBLIC_ORIGIN}/ai.news` }
 				: null,
-			sources: sources.results,
+			sources: sources.results.filter(source => CONFIGURED_NEWS_SOURCE_IDS.has(source.source_id)),
 		}
 	}
 
@@ -1299,6 +1329,14 @@ export class NewsService {
 	async sync(options: { force?: boolean, sourceId?: string } = {}): Promise<NewsSyncResult> {
 		if (!sourcesConfig.enabled)
 			return { sources: [], syncedAt: new Date().toISOString() }
+		this.externalSubrequests = 0
+		this.optionalExternalSubrequests = 0
+		const configuredSourceIds = [...CONFIGURED_NEWS_SOURCE_IDS]
+		if (configuredSourceIds.length) {
+			await this.env.DB.prepare(`DELETE FROM news_sync_state WHERE source_id NOT IN (${configuredSourceIds.map(() => '?').join(', ')})`)
+				.bind(...configuredSourceIds)
+				.run()
+		}
 		const sources = sourcesConfig.sources
 			.filter(source => source.enabled && (!options.sourceId || source.id === options.sourceId))
 			.sort((left, right) => left.priority - right.priority)
@@ -1322,6 +1360,6 @@ export class NewsService {
 	async sourceState(): Promise<SyncStateRow[]> {
 		return this.env.DB.prepare('SELECT * FROM news_sync_state ORDER BY source_id')
 			.all<SyncStateRow>()
-			.then(result => result.results)
+			.then(result => result.results.filter(source => CONFIGURED_NEWS_SOURCE_IDS.has(source.source_id)))
 	}
 }
