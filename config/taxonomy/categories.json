@@ -32,5 +32,10 @@
     "name": "情感",
     "icon": "tabler:folder",
     "color": "#5f9ea0"
+  },
+  {
+    "name": "炒股｜理财",
+    "icon": "tabler:folder",
+    "color": "#5f9ea0"
   }
 ]
