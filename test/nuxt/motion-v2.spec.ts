@@ -137,4 +137,15 @@ describe('motion v2 production integration', () => {
 			expect(weather).toContain(scene)
 		expect(weather).toContain('prefers-reduced-motion: reduce')
 	})
+
+	it('uses organic weather particles without repeating dot grids', () => {
+		const weather = read('app/components/widget/Weather.vue')
+
+		expect(weather).toContain('weatherStarMap')
+		expect(weather).toContain('weather-star-twinkle')
+		expect(weather).toContain('weather-sun-corona')
+		expect(weather).toContain('weather-rain-drop')
+		expect(weather).not.toContain('weather-stars-a')
+		expect(weather).not.toContain('weather-stars-b')
+	})
 })

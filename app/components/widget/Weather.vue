@@ -11,6 +11,37 @@ const weatherIconAliases: Record<string, string> = {
 	'tabler:cloud-sun': 'ri:sun-cloudy-line',
 }
 
+const weatherStarMap = [
+	[7, 17, 1, 0.42],
+	[15, 8, 1.4, 0.65],
+	[27, 25, 0.8, 0.38],
+	[38, 11, 1.8, 0.82],
+	[49, 31, 1, 0.48],
+	[58, 6, 0.8, 0.35],
+	[68, 20, 1.3, 0.68],
+	[79, 10, 0.9, 0.46],
+	[89, 28, 1.7, 0.78],
+	[22, 42, 1.2, 0.58],
+	[44, 50, 0.7, 0.32],
+	[63, 39, 1.5, 0.72],
+	[74, 55, 0.8, 0.4],
+	[92, 45, 1.1, 0.6],
+] as const
+
+const weatherRainDrops = Array.from({ length: 31 }, (_, index) => {
+	const random = (offset: number) => (((index + offset) * 47 + 19) % 101) / 101
+	return {
+		x: `${-3 + (index * 37) % 108}%`,
+		y: `${-18 + (index * 53) % 83}%`,
+		width: `${index % 7 === 0 ? 1.6 : 0.7 + (index % 3) * 0.24}px`,
+		length: `${10 + (index * 11) % 24}px`,
+		duration: `${(0.72 + random(0) * 0.9).toFixed(2)}s`,
+		delay: `${(-random(8) * 3.7).toFixed(2)}s`,
+		alpha: (0.35 + random(4) * 0.5).toFixed(2),
+		drift: `${18 + (index % 6) * 4}px`,
+	}
+})
+
 const weather = ref<PublicWeather | null>(null)
 const loading = ref(false)
 const error = ref(false)
@@ -98,18 +129,45 @@ onMounted(() => {
 		:style="weatherStyle"
 	>
 		<div class="weather-scene" aria-hidden="true">
-			<span class="weather-celestial weather-sun"><i /></span>
+			<span class="weather-celestial weather-sun"><i class="weather-sun-corona" /><b class="weather-sun-glint" /></span>
 			<span class="weather-celestial weather-moon"><i /></span>
-			<span class="weather-stars weather-stars-a" />
-			<span class="weather-stars weather-stars-b" />
+			<span class="weather-stars">
+				<i
+					v-for="([x, y, size, alpha], index) in weatherStarMap" :key="index"
+					class="weather-star-twinkle"
+					:style="{
+						'--star-x': `${x}%`,
+						'--star-y': `${y}%`,
+						'--star-size': `${size}px`,
+						'--star-alpha': alpha,
+						'--star-duration': `${2.4 + (index % 5) * 0.7}s`,
+						'--star-delay': `${-index * 0.37}s`,
+					}"
+				/>
+			</span>
 			<span class="weather-cloud weather-cloud-back"><i /><b /></span>
 			<span class="weather-cloud weather-cloud-front"><i /><b /></span>
-			<span class="weather-rain weather-rain-back" />
-			<span class="weather-rain weather-rain-front" />
+			<span class="weather-rain">
+				<i
+					v-for="(drop, index) in weatherRainDrops" :key="index"
+					class="weather-rain-drop"
+					:style="{
+						'--rain-x': drop.x,
+						'--rain-y': drop.y,
+						'--rain-width': drop.width,
+						'--rain-length': drop.length,
+						'--rain-drop-duration': drop.duration,
+						'--rain-drop-delay': drop.delay,
+						'--rain-drop-alpha': drop.alpha,
+						'--rain-drift': drop.drift,
+					}"
+				/>
+			</span>
+			<span class="weather-storm-flash" />
 			<span class="weather-lightning" />
-			<span class="weather-fog weather-fog-one" />
-			<span class="weather-fog weather-fog-two" />
-			<span class="weather-fog weather-fog-three" />
+			<span class="weather-fog weather-mist-veil weather-fog-one" />
+			<span class="weather-fog weather-mist-veil weather-fog-two" />
+			<span class="weather-fog weather-mist-veil weather-fog-three" />
 			<span class="weather-snow">
 				<i
 					v-for="index in 14" :key="index" :style="{
@@ -242,43 +300,53 @@ onMounted(() => {
 }
 
 .weather-celestial {
-	display: none;
 	position: absolute;
+	opacity: 0;
 	top: 12%;
 	right: 12%;
 	width: 4.5rem;
 	aspect-ratio: 1;
 	border-radius: 50%;
+	transform: scale(0.25);
+	transition: opacity 420ms cubic-bezier(0.2, 0, 0, 1), transform 520ms cubic-bezier(0.2, 0, 0, 1), filter 420ms cubic-bezier(0.2, 0, 0, 1);
+	filter: blur(4px);
 }
 
 .is-day.is-clear .weather-sun,
 .is-day.is-cloudy .weather-sun,
 .is-night.is-clear .weather-moon,
 .is-night.is-cloudy .weather-moon {
-	display: block;
+	opacity: 1;
+	transform: scale(1);
+	filter: blur(0);
 }
 
 .weather-sun {
-	box-shadow: 0 0 0 0.7rem rgb(255 225 99 / 16%), 0 0 2.4rem rgb(255 219 68 / 82%);
-	background: radial-gradient(circle at 38% 36%, #FFF9C0 0 10%, #FFD64F 54%, #FFB62E 100%);
-	animation: weather-sun-pulse 3.2s ease-in-out infinite;
+	box-shadow: 0 0 0 0.75rem rgb(255 225 99 / 12%), 0 0 2.6rem rgb(255 211 86 / 68%);
+	background: radial-gradient(circle at 38% 34%, #FFFBE0 0 8%, #FFDA75 48%, #EEB458 78%);
+	animation: weather-sun-pulse 6.4s ease-in-out infinite alternate;
 }
 
-.weather-sun::before,
-.weather-sun::after {
-	content: "";
+.weather-sun-corona {
 	position: absolute;
+	opacity: 0.7;
 	inset: -1.15rem;
-	background: repeating-conic-gradient(from 0deg, rgb(255 225 98 / 75%) 0 4deg, transparent 4deg 28deg);
-	mask: radial-gradient(circle, transparent 0 58%, #000 60%);
-	animation: weather-sun-spin 18s linear infinite;
+	border-radius: 50%;
+	background: conic-gradient(from 17deg, transparent 0 8%, rgb(255 224 122 / 24%) 12%, transparent 20% 35%, rgb(255 237 170 / 18%) 43%, transparent 52% 70%, rgb(255 211 91 / 20%) 79%, transparent 88%);
+	mask: radial-gradient(circle, transparent 0 54%, #000 59%, transparent 76%);
+	animation: weather-sun-corona 11s ease-in-out -3s infinite alternate;
 }
 
-.weather-sun::after {
-	opacity: 0.52;
-	inset: -0.7rem;
-	animation-direction: reverse;
-	animation-duration: 13s;
+.weather-sun-glint {
+	position: absolute;
+	top: 0.55rem;
+	left: 0.72rem;
+	width: 1rem;
+	height: 0.48rem;
+	border-radius: 50%;
+	background: rgb(255 255 239 / 68%);
+	transform: rotate(-28deg);
+	filter: blur(2px);
 }
 
 .weather-moon {
@@ -287,8 +355,7 @@ onMounted(() => {
 	animation: weather-moon-float 5s ease-in-out infinite;
 }
 
-.weather-moon i,
-.weather-sun i {
+.weather-moon i {
 	position: absolute;
 	inset: 0;
 	border-radius: inherit;
@@ -317,22 +384,32 @@ onMounted(() => {
 }
 
 .weather-stars {
-	display: none;
 	position: absolute;
+	opacity: 0;
 	inset: 0;
-	background-image: radial-gradient(circle, rgb(255 255 255 / 88%) 0 1px, transparent 1.4px);
-	background-size: 2.7rem 2.7rem;
-	animation: weather-stars 3s ease-in-out infinite alternate;
+	transition: opacity 420ms ease;
 }
 
 .is-night.is-clear .weather-stars,
 .is-night.is-cloudy .weather-stars {
-	display: block;
+	opacity: 0.72;
 }
 
-.weather-stars-b {
-	background-size: 4.1rem 4.1rem;
-	animation-delay: -1.5s;
+.weather-card.is-day .weather-stars {
+	opacity: 0;
+	transition-delay: 0ms;
+}
+
+.weather-star-twinkle {
+	position: absolute;
+	top: var(--star-y);
+	left: var(--star-x);
+	width: var(--star-size);
+	aspect-ratio: 1;
+	border-radius: 50%;
+	box-shadow: 0 0 0.35rem rgb(224 240 255 / 34%);
+	background: rgb(247 251 255 / var(--star-alpha));
+	animation: weather-star-twinkle var(--star-duration) ease-in-out var(--star-delay) infinite alternate;
 }
 
 .weather-cloud {
@@ -417,15 +494,7 @@ onMounted(() => {
 	display: none;
 	position: absolute;
 	opacity: var(--weather-rain-opacity);
-	inset: -35%;
-	background:
-		repeating-linear-gradient(
-			calc(90deg + var(--weather-wind-skew)),
-			transparent 0 18px,
-			rgb(230 247 255 / 82%) 18px 20px,
-			transparent 20px 35px
-		);
-	animation: weather-rain var(--weather-rain-duration) linear infinite;
+	inset: 24% -8% 0;
 }
 
 .is-rain .weather-rain,
@@ -433,10 +502,30 @@ onMounted(() => {
 	display: block;
 }
 
-.weather-rain-back {
-	opacity: calc(var(--weather-rain-opacity) * 0.46);
-	background-size: 130% 130%;
-	animation-duration: calc(var(--weather-rain-duration) * 1.45);
+.weather-rain-drop {
+	position: absolute;
+	opacity: 0;
+	top: var(--rain-y);
+	left: var(--rain-x);
+	width: var(--rain-width);
+	height: var(--rain-length);
+	border-radius: 999px;
+	background: linear-gradient(180deg, transparent, rgb(229 247 252 / var(--rain-drop-alpha)) 36%, rgb(245 252 255 / 86%));
+	transform: translate3d(0, -3.25rem, 0) rotate(var(--weather-wind-skew));
+	animation: weather-rain-drop var(--rain-drop-duration) linear var(--rain-drop-delay) infinite;
+}
+
+.weather-storm-flash {
+	display: none;
+	position: absolute;
+	opacity: 0;
+	inset: 0;
+	background: radial-gradient(ellipse at 72% 25%, rgb(255 249 205 / 86%), rgb(191 219 235 / 28%) 26%, transparent 61%);
+}
+
+.is-storm .weather-storm-flash {
+	display: block;
+	animation: weather-storm-flash 6.7s linear infinite;
 }
 
 .weather-lightning {
@@ -634,30 +723,69 @@ onMounted(() => {
 }
 
 @keyframes weather-sun-pulse {
-	50% {
-		box-shadow: 0 0 0 1rem rgb(255 225 99 / 10%), 0 0 3rem rgb(255 219 68 / 95%);
-		transform: scale(1.08);
+	from {
+		opacity: 0.92;
+		transform: scale(0.97);
+	}
+
+	to {
+		opacity: 1;
+		transform: scale(1.04);
 	}
 }
 
-@keyframes weather-sun-spin {
-	to { transform: rotate(1turn); }
+@keyframes weather-sun-corona {
+	from {
+		opacity: 0.48;
+		transform: rotate(-7deg) scale(0.94);
+	}
+
+	to {
+		opacity: 0.82;
+		transform: rotate(9deg) scale(1.08);
+	}
 }
 
 @keyframes weather-moon-float {
 	50% { transform: translateY(-7px); }
 }
 
-@keyframes weather-stars {
-	to { opacity: 0.38; }
+@keyframes weather-star-twinkle {
+	from {
+		opacity: 0.28;
+		transform: scale(0.72);
+	}
+
+	to {
+		opacity: 1;
+		transform: scale(1.18);
+	}
 }
 
 @keyframes weather-cloud-drift {
 	to { transform: translateX(23rem); }
 }
 
-@keyframes weather-rain {
-	to { transform: translate3d(-2.2rem, 5.8rem, 0); }
+@keyframes weather-rain-drop {
+	0% {
+		opacity: 0;
+		transform: translate3d(0, -3.25rem, 0) rotate(var(--weather-wind-skew));
+	}
+
+	10%, 78% { opacity: var(--rain-drop-alpha); }
+
+	100% {
+		opacity: 0;
+		transform: translate3d(var(--rain-drift), 19.5rem, 0) rotate(var(--weather-wind-skew));
+	}
+}
+
+@keyframes weather-storm-flash {
+	0%, 72%, 100% { opacity: 0; }
+	72.7% { opacity: 0.62; }
+	73.4% { opacity: 0.08; }
+	74% { opacity: 0.34; }
+	75.2% { opacity: 0; }
 }
 
 @keyframes weather-lightning {
@@ -695,12 +823,12 @@ onMounted(() => {
 @media (prefers-reduced-motion: reduce) {
 	.weather-skeleton,
 	.weather-sun,
-	.weather-sun::before,
-	.weather-sun::after,
+	.weather-sun-corona,
 	.weather-moon,
-	.weather-stars,
+	.weather-star-twinkle,
 	.weather-cloud,
-	.weather-rain,
+	.weather-rain-drop,
+	.weather-storm-flash,
 	.weather-lightning,
 	.weather-fog,
 	.weather-snow i {
