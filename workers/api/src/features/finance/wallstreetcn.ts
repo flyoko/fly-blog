@@ -16,10 +16,14 @@ interface WallstreetCnLiveResponse {
 	message?: string
 	data?: {
 		items?: WallstreetCnLiveItem[]
+		next_cursor?: string | number | null
 	}
 }
 
-const WALLSTREETCN_LIVE_URL = 'https://api-one.wallstcn.com/apiv1/content/lives?channel=global-channel&limit=100'
+const WALLSTREETCN_LIVE_URL = 'https://api-one.wallstcn.com/apiv1/content/lives?channel=global-channel'
+const FINANCE_SYNC_WINDOW = 125
+const WALLSTREETCN_PAGE_SIZE = 100
+const WALLSTREETCN_MAX_PAGES = 3
 const MAX_TITLE_LENGTH = 180
 const MAX_SUMMARY_LENGTH = 280
 
@@ -201,8 +205,15 @@ export class WallstreetCnFinanceFlashAdapter implements FinanceFlashAdapter {
 
 	constructor(private readonly url = WALLSTREETCN_LIVE_URL) {}
 
-	async fetch(): Promise<FinanceFlashSourceItem[]> {
-		const response = await fetch(this.url, {
+	private async fetchPage(limit: number, cursor: string | null): Promise<{ items: FinanceFlashSourceItem[], nextCursor: string | null }> {
+		const url = new URL(this.url)
+		url.searchParams.set('limit', String(limit))
+		if (cursor)
+			url.searchParams.set('cursor', cursor)
+		else
+			url.searchParams.delete('cursor')
+
+		const response = await fetch(url.toString(), {
 			headers: {
 				'accept': 'application/json',
 				'user-agent': 'fly-living/1.0 (+https://flyovo.cc.cd)',
@@ -211,9 +222,39 @@ export class WallstreetCnFinanceFlashAdapter implements FinanceFlashAdapter {
 		})
 		if (!response.ok)
 			throw new Error(`WallstreetCN finance request failed with HTTP ${response.status}`)
-		const items = mapWallstreetCnFinanceItems(await response.json())
+
+		const payload = await response.json() as WallstreetCnLiveResponse
+		const items = mapWallstreetCnFinanceItems(payload)
+		const rawCursor = payload.data?.next_cursor
+		const nextCursor = rawCursor === undefined || rawCursor === null ? null : String(rawCursor).trim() || null
+		return { items, nextCursor }
+	}
+
+	async fetch(): Promise<FinanceFlashSourceItem[]> {
+		const items: FinanceFlashSourceItem[] = []
+		const seen = new Set<string>()
+		let cursor: string | null = null
+
+		for (let page = 0; page < WALLSTREETCN_MAX_PAGES && items.length < FINANCE_SYNC_WINDOW; page += 1) {
+			const remaining = FINANCE_SYNC_WINDOW - items.length
+			const pageLimit = Math.min(WALLSTREETCN_PAGE_SIZE, remaining)
+			const result = await this.fetchPage(pageLimit, cursor)
+			for (const item of result.items) {
+				if (seen.has(item.id))
+					continue
+				seen.add(item.id)
+				items.push(item)
+				if (items.length >= FINANCE_SYNC_WINDOW)
+					break
+			}
+
+			if (!result.nextCursor || result.nextCursor === cursor || !result.items.length)
+				break
+			cursor = result.nextCursor
+		}
+
 		if (!items.length)
 			throw new Error('WallstreetCN finance response contained no usable items')
-		return items
+		return items.slice(0, FINANCE_SYNC_WINDOW)
 	}
 }
