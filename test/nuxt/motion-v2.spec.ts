@@ -127,6 +127,29 @@ describe('motion v2 production integration', () => {
 		expect(main).not.toMatch(/\.atmosphere-flow \{[\s\S]*?transition: transform/u)
 	})
 
+	it('stabilizes theme switches before recoloring the full-screen atmosphere', () => {
+		const toggle = read('app/components/blog/ThemeToggle.vue')
+		const atmosphere = read('app/components/blog/BlogAtmosphere.vue')
+		const main = read('app/assets/css/main.scss')
+
+		expect(toggle).toContain('useState<boolean>(\'theme-compositor-switching\', () => false)')
+		expect(toggle).toContain('themeSwitching.value = true')
+		expect(toggle).toContain('requestAnimationFrame(() => {')
+		expect(toggle).toContain('cancelAnimationFrame(switchFrame)')
+		expect(toggle).toContain('colorMode.preference = pendingPreference ?? nextPreference')
+		expect(toggle).toContain('themeSwitching.value = false')
+		expect(atmosphere).toContain('useState<boolean>(\'theme-compositor-switching\', () => false)')
+		expect(atmosphere).toContain('&& !isThemeSwitching.value')
+		expect(atmosphere).toContain('watch(isThemeSwitching')
+		expect(atmosphere).toContain('animation.pause()')
+		expect(atmosphere).toContain('animation.play()')
+		expect(main).toContain('.blog-atmosphere.is-theme-switching')
+		expect(main).not.toContain('filter: blur(20px)')
+		expect(main).not.toContain('filter: drop-shadow(0 0 5px var(--c-flow-cyan))')
+		expect(main).not.toContain('filter: drop-shadow(0 0 7px var(--c-flow-cyan))')
+		expect(main).not.toContain('filter: drop-shadow(0 0 7px var(--c-flow-violet))')
+	})
+
 	it('renders condition-specific weather scenes from the production API response', () => {
 		const weather = read('app/components/widget/Weather.vue')
 		expect(weather).toContain('$fetch<ApiSuccess<PublicWeather>>(weatherUrl)')

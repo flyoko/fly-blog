@@ -1,6 +1,49 @@
 <script setup lang="ts">
 const appConfig = useAppConfig()
 const colorMode = useColorMode()
+const themeSwitching = useState<boolean>('theme-compositor-switching', () => false)
+
+const themeSettleMs = 600
+let releaseTimer: ReturnType<typeof setTimeout> | undefined
+let switchFrame: number | undefined
+let pendingPreference: string | undefined
+
+function switchTheme(themeName: string | number) {
+	const nextPreference = String(themeName)
+	if (colorMode.preference === nextPreference && pendingPreference === undefined)
+		return
+
+	if (releaseTimer !== undefined) {
+		clearTimeout(releaseTimer)
+		releaseTimer = undefined
+	}
+	if (switchFrame !== undefined)
+		cancelAnimationFrame(switchFrame)
+
+	// Freeze the full-screen atmosphere first. Web Animations pause is committed
+	// on the next rendering tick in Chromium, so swap the color-mode class only
+	// after that frame instead of invalidating animated SVG layers immediately.
+	themeSwitching.value = true
+	pendingPreference = nextPreference
+	switchFrame = requestAnimationFrame(() => {
+		colorMode.preference = pendingPreference ?? nextPreference
+		pendingPreference = undefined
+		switchFrame = undefined
+		releaseTimer = setTimeout(() => {
+			themeSwitching.value = false
+			releaseTimer = undefined
+		}, themeSettleMs)
+	})
+}
+
+onBeforeUnmount(() => {
+	if (releaseTimer !== undefined)
+		clearTimeout(releaseTimer)
+	if (switchFrame !== undefined)
+		cancelAnimationFrame(switchFrame)
+	pendingPreference = undefined
+	themeSwitching.value = false
+})
 </script>
 
 <template>
@@ -11,7 +54,7 @@ const colorMode = useColorMode()
 		v-tip="themeData.tip"
 		:aria-label="themeData.tip"
 		:class="{ active: colorMode.preference === themeName }"
-		@click="colorMode.preference = themeName"
+		@click="switchTheme(themeName)"
 	>
 		<Icon :name="themeData.icon" />
 	</button>

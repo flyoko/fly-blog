@@ -258,10 +258,9 @@ img {
 }
 
 .flow-halo {
-	opacity: 0.48;
+	opacity: 0.22;
 	stroke-width: 42px;
 	animation: atmosphere-flow-breathe 6.8s ease-in-out infinite;
-	filter: blur(20px);
 }
 
 .flow-thread {
@@ -269,7 +268,6 @@ img {
 	stroke-width: 1.5px;
 	stroke-dasharray: 7 4;
 	animation: atmosphere-flow-travel 7.5s linear infinite;
-	filter: drop-shadow(0 0 5px var(--c-flow-cyan));
 }
 
 .flow-signal {
@@ -278,7 +276,6 @@ img {
 	stroke-linecap: round;
 	stroke-dasharray: 0.18 10.8;
 	animation: atmosphere-flow-travel 4.6s linear infinite;
-	filter: drop-shadow(0 0 7px var(--c-flow-cyan));
 }
 
 .flow-ribbon-secondary .flow-thread {
@@ -291,7 +288,16 @@ img {
 	stroke-dasharray: 0.15 14;
 	animation-duration: 7.2s;
 	animation-name: atmosphere-flow-travel-reverse;
-	filter: drop-shadow(0 0 7px var(--c-flow-violet));
+}
+
+.blog-atmosphere.is-theme-switching {
+	.atmosphere-lens,
+	.flow-ribbon,
+	.flow-halo,
+	.flow-thread,
+	.flow-signal {
+		animation-play-state: paused;
+	}
 }
 
 .atmosphere-pointer {

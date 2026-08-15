@@ -11,6 +11,7 @@ const isFinePointer = useMediaQuery('(pointer: fine)')
 const prefersReducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
 const isMobilePerformanceMode = useMediaQuery('(max-width: 768px), (hover: none) and (pointer: coarse)')
 const isRouteSettling = useState<boolean>('route-compositor-settling', () => false)
+const isThemeSwitching = useState<boolean>('theme-compositor-switching', () => false)
 const pointerIntensity = computed(() => {
 	if (colorMode.value === 'dynamic')
 		return 1
@@ -33,7 +34,7 @@ const { isActive, pause, resume } = useRafFn(() => {
 	const element = root.value
 	const flowElement = flow.value
 	const pointerElement = pointer.value
-	if (!element || !flowElement || !pointerElement || !isFinePointer.value || prefersReducedMotion.value || isMobilePerformanceMode.value || isRouteSettling.value) {
+	if (!element || !flowElement || !pointerElement || !isFinePointer.value || prefersReducedMotion.value || isMobilePerformanceMode.value || isRouteSettling.value || isThemeSwitching.value) {
 		pause()
 		return
 	}
@@ -63,6 +64,7 @@ function canAnimatePointer() {
 		&& !prefersReducedMotion.value
 		&& !isMobilePerformanceMode.value
 		&& !isRouteSettling.value
+		&& !isThemeSwitching.value
 }
 
 function resumePointerAnimation() {
@@ -80,6 +82,28 @@ function resetPointer() {
 function freezePointerAnimation(resumeAt = Number.POSITIVE_INFINITY) {
 	pause()
 	pointerResumeAt = resumeAt
+}
+
+function getAmbientAnimations() {
+	return root.value?.getAnimations({ subtree: true }).filter(animation =>
+		animation instanceof CSSAnimation && animation.animationName.startsWith('atmosphere-')) ?? []
+}
+
+function pauseAmbientAnimations() {
+	for (const animation of getAmbientAnimations())
+		animation.pause()
+}
+
+function resumeAmbientAnimations() {
+	nextTick(() => {
+		requestAnimationFrame(() => {
+			if (isThemeSwitching.value)
+				return
+			for (const animation of getAmbientAnimations())
+				animation.play()
+			resumePointerAnimation()
+		})
+	})
 }
 
 function clearRouteSettleTimer() {
@@ -145,6 +169,17 @@ watch(() => route.fullPath, () => {
 	scheduleRouteResume()
 })
 
+watch(isThemeSwitching, (switching) => {
+	if (switching) {
+		freezePointerAnimation()
+		pauseAmbientAnimations()
+		return
+	}
+
+	pointerResumeAt = 0
+	resumeAmbientAnimations()
+}, { flush: 'sync' })
+
 watch([isFinePointer, prefersReducedMotion, isMobilePerformanceMode], ([fine, reduced, mobile]) => {
 	if (fine && !reduced && !mobile) {
 		pointerResumeAt = 0
@@ -174,7 +209,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-<div ref="root" class="blog-atmosphere" :class="{ 'is-route-settling': isRouteSettling }" aria-hidden="true">
+<div ref="root" class="blog-atmosphere" :class="{ 'is-route-settling': isRouteSettling, 'is-theme-switching': isThemeSwitching }" aria-hidden="true">
 	<div class="atmosphere-lens atmosphere-lens-a" />
 	<div class="atmosphere-lens atmosphere-lens-b" />
 	<svg ref="flow" class="atmosphere-flow" viewBox="0 0 1440 900" preserveAspectRatio="none" focusable="false">
