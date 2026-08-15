@@ -1,27 +1,28 @@
 @mixin dark-theme {
+	--hue-theme: 220deg;
 	--c-text: hsl(var(--hue-theme) 0% 100%);
 	--c-text-1: hsl(var(--hue-theme) 0% 90%);
 	--c-text-2: hsl(var(--hue-theme) 0% 70%);
 	--c-text-3: hsl(var(--hue-theme) 0% 50%);
-	--c-bg: hsl(var(--hue-theme) 0% 7%);
-	--c-bg-1: hsl(var(--hue-theme) 10% 10%);
-	--c-bg-2: hsl(var(--hue-theme) 10% 14%);
-	--c-bg-3: hsl(var(--hue-theme) 10% 18%);
+	--c-bg: hsl(224deg 36% 7%);
+	--c-bg-1: hsl(224deg 34% 9%);
+	--c-bg-2: hsl(222deg 31% 12%);
+	--c-bg-3: hsl(220deg 28% 15%);
 	--c-bg-soft: hsl(var(--hue-theme) 100% 95% / 15%);
 	--c-border: hsl(var(--hue-theme) 10% 20%);
 	--c-bg-a50: hsl(var(--hue-theme) 10% 10% / 50%);
 	--c-bg-a80: hsl(var(--hue-theme) 10% 10% / 80%);
-	--c-primary: hsl(var(--hue-theme) 100% 70%);
+	--c-primary: hsl(190deg 88% 68%);
 	--c-primary-soft: hsl(var(--hue-theme) 100% 60% / 20%);
 	--ld-bg-blur: var(--c-bg-a80);
 	--ld-bg-card: var(--c-bg-3);
 	--ld-bg-active: var(--c-primary-soft);
 	--ld-shadow: var(--c-bg-a50);
-	--c-atmosphere-base: hsl(225deg 31% 6%);
+	--c-atmosphere-base: hsl(224deg 42% 5%);
 	--c-atmosphere-panel: hsl(220deg 25% 10% / 72%);
-	--c-flow-blue: hsl(212deg 100% 67%);
-	--c-flow-cyan: hsl(184deg 92% 62%);
-	--c-flow-violet: hsl(258deg 92% 72%);
+	--c-flow-blue: hsl(205deg 100% 67%);
+	--c-flow-cyan: hsl(181deg 78% 61%);
+	--c-flow-violet: hsl(258deg 88% 73%);
 	--c-flow-signal: hsl(184deg 100% 82% / 92%);
 	--c-flow-signal-alt: hsl(258deg 100% 86% / 78%);
 	--c-atmosphere-lens-blue: hsl(211deg 96% 60% / 18%);
@@ -29,14 +30,19 @@
 	--c-atmosphere-pointer: hsl(190deg 100% 72% / 16%);
 	--c-atmosphere-grain: hsl(210deg 30% 100% / 4%);
 	--c-atmosphere-vignette: hsl(228deg 42% 2% / 68%);
-	--c-surface-fill: hsl(222deg 20% 13% / 76%);
+	--c-surface-fill: hsl(222deg 32% 13% / 76%);
 	--c-surface-highlight: hsl(210deg 25% 100% / 10%);
 	--c-surface-line: hsl(210deg 28% 92% / 10%);
 	--c-surface-border: hsl(190deg 96% 72% / 42%);
 	--c-surface-glow: hsl(190deg 100% 68% / 18%);
 	--c-surface-sheen: hsl(210deg 100% 92% / 14%);
+	--c-surface-proximity-blue: hsl(205deg 100% 67% / 20%);
+	--c-surface-proximity-cyan: hsl(181deg 78% 61% / 24%);
+	--c-surface-proximity-violet: hsl(258deg 88% 73% / 18%);
 	--c-surface-shadow: hsl(228deg 55% 2% / 38%);
 	--c-progress: hsl(190deg 94% 68%);
+	--c-atmosphere-star-far: hsl(205deg 100% 86% / 28%);
+	--c-atmosphere-star-near: hsl(181deg 78% 92% / 48%);
 }
 
 :root,
@@ -61,11 +67,11 @@
 	--ld-bg-card: var(--c-bg);
 	--ld-bg-active: var(--c-bg);
 	--ld-shadow: var(--c-bg-soft);
-	--c-atmosphere-base: hsl(218deg 31% 96%);
+	--c-atmosphere-base: hsl(196deg 30% 96%);
 	--c-atmosphere-panel: hsl(214deg 42% 99% / 56%);
-	--c-flow-blue: hsl(212deg 94% 55%);
-	--c-flow-cyan: hsl(184deg 82% 42%);
-	--c-flow-violet: hsl(257deg 86% 62%);
+	--c-flow-blue: hsl(207deg 64% 52%);
+	--c-flow-cyan: hsl(175deg 48% 42%);
+	--c-flow-violet: hsl(245deg 42% 62%);
 	--c-flow-signal: hsl(190deg 88% 34% / 82%);
 	--c-flow-signal-alt: hsl(258deg 84% 56% / 68%);
 	--c-atmosphere-lens-blue: hsl(211deg 96% 60% / 16%);
@@ -79,6 +85,9 @@
 	--c-surface-border: hsl(190deg 86% 42% / 38%);
 	--c-surface-glow: hsl(190deg 92% 48% / 13%);
 	--c-surface-sheen: hsl(210deg 100% 100% / 46%);
+	--c-surface-proximity-blue: hsl(207deg 64% 52% / 14%);
+	--c-surface-proximity-cyan: hsl(175deg 48% 42% / 18%);
+	--c-surface-proximity-violet: hsl(245deg 42% 62% / 14%);
 	--c-surface-shadow: hsl(220deg 38% 28% / 16%);
 	--c-progress: hsl(190deg 86% 42%);
 	--c-success: #5A5;
@@ -91,7 +100,8 @@
 	color-scheme: only light;
 }
 
-.dark {
+.dark,
+.dynamic {
 	@include dark-theme;
 
 	color-scheme: dark;

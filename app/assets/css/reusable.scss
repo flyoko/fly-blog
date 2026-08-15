@@ -64,28 +64,30 @@
 	--surface-sheen-position: -35%;
 	--surface-glow-color: transparent;
 	--surface-sheen-color: transparent;
+	--surface-proximity-blue: transparent;
+	--surface-proximity-cyan: transparent;
+	--surface-proximity-violet: transparent;
 	--surface-lift: 0px;
 
 	position: relative;
-	background-image:
-		radial-gradient(340px circle at var(--surface-x) var(--surface-y), var(--surface-glow-color), transparent 58%),
-		linear-gradient(108deg, transparent 36%, var(--surface-sheen-color) 49%, transparent 62%);
-	background-position: 0 0, var(--surface-sheen-position) 0;
-	background-repeat: no-repeat;
-	background-size: auto, 240% 100%;
+	background-color: var(--ld-bg-card);
 	transform: translate3d(var(--surface-shift-x), var(--surface-shift-y), 0);
 	transition:
 		background-color 0.24s,
-		background-position 0.16s ease-out,
 		border-color 0.24s,
 		box-shadow 0.24s,
 		scale 0.16s cubic-bezier(0.22, 1, 0.36, 1),
 		transform 0.14s cubic-bezier(0.22, 1, 0.36, 1);
-	will-change: transform;
+	will-change: auto;
 
 	&.is-pointer-active {
 		--surface-glow-color: var(--c-surface-glow);
 		--surface-sheen-color: var(--c-surface-sheen);
+		--surface-proximity-blue: var(--c-surface-proximity-blue);
+		--surface-proximity-cyan: var(--c-surface-proximity-cyan);
+		--surface-proximity-violet: var(--c-surface-proximity-violet);
+
+		will-change: transform;
 	}
 
 	&.is-pressed {
@@ -93,7 +95,7 @@
 	}
 }
 
-.dynamic .card {
+:is(.dark, .dynamic) .card {
 	border-radius: 0.75rem;
 	box-shadow:
 		0 14px 40px var(--c-surface-shadow),
@@ -128,7 +130,7 @@
 		inset 0 1px 0 var(--c-surface-highlight);
 }
 
-.dynamic .gradient-card {
+:is(.dark, .dynamic) .gradient-card {
 	border-radius: 0.625rem;
 
 	&::before {
@@ -147,9 +149,15 @@
 }
 
 @media (prefers-reduced-transparency: reduce) {
-	.dynamic .card {
+	:is(.dark, .dynamic) .card {
 		background-color: var(--ld-bg-card);
 		backdrop-filter: none;
+	}
+
+	:is(.dark, .dynamic) .gradient-card::before {
+		background:
+			linear-gradient(var(--ld-bg-card), var(--ld-bg-card)) padding-box,
+			radial-gradient(180px circle at var(--surface-x) var(--surface-y), var(--c-surface-border), var(--c-surface-line) 48%, transparent 76%) border-box;
 	}
 }
 

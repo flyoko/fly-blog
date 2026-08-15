@@ -37,6 +37,7 @@ const hasAside = computed(() => routeAsideVisible.value)
 	gap: 1rem;
 	position: relative;
 	min-width: 0;
+	background-color: var(--c-atmosphere-base);
 	isolation: isolate;
 
 	// 只把正文抬到氛围背景之上。抽屉、遮罩和固定控件保留各自的层级，

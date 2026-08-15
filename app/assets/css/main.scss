@@ -157,7 +157,7 @@ img {
 }
 
 .blog-atmosphere {
-	contain: paint;
+	contain: layout paint style;
 	display: block;
 	position: fixed;
 	overflow: hidden;
@@ -166,18 +166,19 @@ img {
 		linear-gradient(180deg, var(--c-atmosphere-panel), transparent 38%),
 		var(--c-atmosphere-base);
 	backface-visibility: hidden;
-	transform: translateZ(0);
+	transform: translate3d(0, 0, 0);
+	will-change: transform;
 	isolation: isolate;
 	pointer-events: none;
 	z-index: 0;
 }
 
 .light .blog-atmosphere {
-	opacity: 0.56;
+	opacity: 0.66;
 }
 
 .dark .blog-atmosphere {
-	opacity: 0.74;
+	opacity: 0.88;
 }
 
 .dynamic .blog-atmosphere {
@@ -185,11 +186,11 @@ img {
 }
 
 .light .atmosphere-flow {
-	opacity: 0.62;
+	opacity: 0.72;
 }
 
 .dark .atmosphere-flow {
-	opacity: 0.78;
+	opacity: 0.9;
 }
 
 .dynamic .atmosphere-flow {
@@ -208,23 +209,54 @@ img {
 	width: 54vmax;
 	height: 54vmax;
 	border-radius: 50%;
+	transform: translate3d(0, 0, 0);
 	will-change: transform;
-	filter: blur(clamp(54px, 7vw, 108px));
+
+	// 径向渐变自带软边，避免对半个视口做实时 blur 合成。
+	filter: none;
 }
 
 .atmosphere-lens-a {
 	top: -27vmax;
 	left: -16vmax;
-	background: radial-gradient(circle, var(--c-atmosphere-lens-blue), transparent 68%);
+	background: radial-gradient(circle, var(--c-atmosphere-lens-blue) 0 22%, transparent 70%);
 	animation: atmosphere-lens-a 16s cubic-bezier(0.45, 0, 0.2, 1) infinite;
 }
 
 .atmosphere-lens-b {
 	right: -20vmax;
 	bottom: -31vmax;
-	background: radial-gradient(circle, var(--c-atmosphere-lens-violet), transparent 67%);
+	background: radial-gradient(circle, var(--c-atmosphere-lens-violet) 0 20%, transparent 70%);
 	animation: atmosphere-lens-b 19s cubic-bezier(0.45, 0, 0.2, 1) infinite;
 }
+
+.atmosphere-stars {
+	position: absolute;
+	inset: -8%;
+	background-repeat: repeat;
+	transform: translate3d(0, 0, 0);
+	will-change: transform;
+	pointer-events: none;
+}
+
+.atmosphere-stars-far {
+	background-image: radial-gradient(circle, var(--c-atmosphere-star-far) 0 0.7px, transparent 0.9px);
+	background-size: 31px 31px;
+	animation: atmosphere-stars-far 28s linear infinite;
+}
+
+.atmosphere-stars-near {
+	background-image: radial-gradient(circle, var(--c-atmosphere-star-near) 0 1px, transparent 1.3px);
+	background-size: 73px 73px;
+	animation: atmosphere-stars-near 22s linear infinite;
+}
+
+.light .atmosphere-stars-far { opacity: 0.18; }
+.light .atmosphere-stars-near { opacity: 0.08; }
+.dark .atmosphere-stars-far { opacity: 0.78; }
+.dark .atmosphere-stars-near { opacity: 0.62; }
+.dynamic .atmosphere-stars-far { opacity: 1; }
+.dynamic .atmosphere-stars-near { opacity: 0.92; }
 
 .atmosphere-flow {
 	position: absolute;
@@ -239,8 +271,10 @@ img {
 }
 
 .flow-ribbon {
+	backface-visibility: hidden;
 	transform-box: fill-box;
 	transform-origin: center;
+	will-change: transform;
 
 	> path {
 		fill: none;
@@ -249,19 +283,24 @@ img {
 }
 
 .flow-ribbon-primary {
-	animation: atmosphere-flow-drift 13s ease-in-out infinite alternate;
+	animation: none;
 }
 
 .flow-ribbon-secondary {
 	opacity: 0.62;
-	animation: atmosphere-flow-drift-reverse 17s ease-in-out infinite alternate;
+	animation: none;
 }
 
+.flow-ribbon-tertiary {
+	display: none;
+	opacity: 0.42;
+	animation: none;
+}
+
+:is(.dark, .dynamic) .flow-ribbon-tertiary { display: block; }
+
 .flow-halo {
-	opacity: 0.48;
-	stroke-width: 42px;
-	animation: atmosphere-flow-breathe 6.8s ease-in-out infinite;
-	filter: blur(20px);
+	display: none;
 }
 
 .flow-thread {
@@ -269,7 +308,6 @@ img {
 	stroke-width: 1.5px;
 	stroke-dasharray: 7 4;
 	animation: atmosphere-flow-travel 7.5s linear infinite;
-	filter: drop-shadow(0 0 5px var(--c-flow-cyan));
 }
 
 .flow-signal {
@@ -278,7 +316,6 @@ img {
 	stroke-linecap: round;
 	stroke-dasharray: 0.18 10.8;
 	animation: atmosphere-flow-travel 4.6s linear infinite;
-	filter: drop-shadow(0 0 7px var(--c-flow-cyan));
 }
 
 .flow-ribbon-secondary .flow-thread {
@@ -291,7 +328,6 @@ img {
 	stroke-dasharray: 0.15 14;
 	animation-duration: 7.2s;
 	animation-name: atmosphere-flow-travel-reverse;
-	filter: drop-shadow(0 0 7px var(--c-flow-violet));
 }
 
 .atmosphere-pointer {
@@ -319,6 +355,20 @@ img {
 	background: radial-gradient(ellipse at center, transparent 47%, var(--c-atmosphere-vignette) 100%);
 }
 
+// 动态背景下禁用实时玻璃取样，避免 macOS 在滚动和聚焦时重建整页合成层。
+#blog-root :where(
+	.card,
+	.widget-card,
+	.pagination,
+	.article-window,
+	#blog-panel,
+	#blog-sidebar,
+	#blog-aside .blog-widget,
+	.scene-profile-avatar
+) {
+	backdrop-filter: none;
+}
+
 
 .reading-progress {
 	position: fixed;
@@ -342,13 +392,13 @@ img {
 }
 
 @media (max-width: $breakpoint-mobile), (hover: none) and (pointer: coarse) {
+	.blog-atmosphere {
+		will-change: transform;
+	}
+
 	.atmosphere-lens,
 	.flow-ribbon,
-	.flow-halo,
-	.flow-thread,
-	.flow-signal,
-	.flow-ribbon-secondary .flow-thread,
-	.flow-ribbon-secondary .flow-signal {
+	.flow-halo {
 		animation: none;
 	}
 
@@ -358,17 +408,25 @@ img {
 		height: 116%;
 		transform: scale(1.02);
 		transition: none;
-		will-change: auto;
+		will-change: transform;
 	}
 
 	.atmosphere-lens {
+		transform: none;
 		will-change: auto;
-		filter: blur(32px);
+		filter: none;
 	}
 
 	.flow-ribbon-secondary,
+	.flow-ribbon-tertiary,
+	.atmosphere-stars-near,
 	.atmosphere-grain {
 		display: none;
+	}
+
+	.atmosphere-stars-far {
+		animation-duration: 36s;
+		will-change: transform;
 	}
 
 	.flow-halo {
@@ -379,6 +437,7 @@ img {
 
 	.flow-thread,
 	.flow-signal {
+		animation-duration: 12s;
 		filter: none;
 	}
 
@@ -390,6 +449,7 @@ img {
 @media (prefers-reduced-motion: reduce) {
 	.atmosphere-lens,
 	.flow-ribbon,
+	.atmosphere-stars,
 	.flow-halo,
 	.flow-thread,
 	.flow-signal {

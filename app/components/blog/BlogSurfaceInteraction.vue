@@ -68,8 +68,8 @@ function updateSurface() {
 	const compact = active.matches('.sidebar-nav-item, .pagination')
 	const immersive = active.matches('.about-hero')
 	const intensity = interactionIntensity.value
-	const shiftX = normalizedX * (compact ? 2 : 4.5) * intensity
-	const shiftY = normalizedY * (compact ? 1.5 : 3.25) * intensity
+	const shiftX = normalizedX * (compact ? 0.8 : 1.4) * intensity
+	const shiftY = normalizedY * (compact ? 0.6 : 1) * intensity
 
 	active.style.setProperty('--surface-x', `${x.toFixed(2)}%`)
 	active.style.setProperty('--surface-y', `${y.toFixed(2)}%`)

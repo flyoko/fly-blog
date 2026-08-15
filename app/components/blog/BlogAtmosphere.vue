@@ -3,22 +3,12 @@ import { useEventListener, useMediaQuery, useRafFn } from '@vueuse/core'
 
 const route = useRoute()
 const nuxtApp = useNuxtApp()
-const colorMode = useColorMode()
 const root = useTemplateRef<HTMLElement>('root')
-const flow = useTemplateRef<SVGElement>('flow')
 const pointer = useTemplateRef<HTMLElement>('pointer')
 const isFinePointer = useMediaQuery('(pointer: fine)')
 const prefersReducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
 const isMobilePerformanceMode = useMediaQuery('(max-width: 768px), (hover: none) and (pointer: coarse)')
 const isRouteSettling = useState<boolean>('route-compositor-settling', () => false)
-const pointerIntensity = computed(() => {
-	if (colorMode.value === 'dynamic')
-		return 1
-	if (colorMode.value === 'dark')
-		return 0.72
-	return 0.56
-})
-
 let targetX = 50
 let targetY = 26
 let currentX = 50
@@ -31,9 +21,8 @@ let routeSettleTimer: ReturnType<typeof setTimeout> | undefined
 
 const { isActive, pause, resume } = useRafFn(() => {
 	const element = root.value
-	const flowElement = flow.value
 	const pointerElement = pointer.value
-	if (!element || !flowElement || !pointerElement || !isFinePointer.value || prefersReducedMotion.value || isMobilePerformanceMode.value || isRouteSettling.value) {
+	if (!element || !pointerElement || !isFinePointer.value || prefersReducedMotion.value || isMobilePerformanceMode.value || isRouteSettling.value) {
 		pause()
 		return
 	}
@@ -43,15 +32,10 @@ const { isActive, pause, resume } = useRafFn(() => {
 	currentX += deltaX * 0.09
 	currentY += deltaY * 0.09
 
-	const shiftX = (currentX - 50) / 50 * 22 * pointerIntensity.value
-	const shiftY = (currentY - 50) / 50 * 14 * pointerIntensity.value
 	const pointerX = currentX / 100 * window.innerWidth
 	const pointerY = currentY / 100 * window.innerHeight
 
-	// Keep both moving effects on their own compositor layers. Updating a
-	// full-screen radial-gradient custom property repaints the whole viewport
-	// in macOS Chrome, while transforms only move the cached layer textures.
-	flowElement.style.transform = `translate3d(${shiftX.toFixed(2)}px, ${shiftY.toFixed(2)}px, 0) scale(1.025)`
+	// 只移动独立的指针光晕，避免整张 SVG 背景随鼠标重合成。
 	pointerElement.style.transform = `translate3d(${pointerX.toFixed(2)}px, ${pointerY.toFixed(2)}px, 0)`
 
 	if (Math.abs(deltaX) + Math.abs(deltaY) < 0.02)
@@ -157,7 +141,6 @@ watch([isFinePointer, prefersReducedMotion, isMobilePerformanceMode], ([fine, re
 	targetY = 26
 	currentX = 50
 	currentY = 26
-	flow.value?.style.removeProperty('transform')
 	pointer.value?.style.removeProperty('transform')
 }, { immediate: true })
 
@@ -177,7 +160,9 @@ onBeforeUnmount(() => {
 <div ref="root" class="blog-atmosphere" :class="{ 'is-route-settling': isRouteSettling }" aria-hidden="true">
 	<div class="atmosphere-lens atmosphere-lens-a" />
 	<div class="atmosphere-lens atmosphere-lens-b" />
-	<svg ref="flow" class="atmosphere-flow" viewBox="0 0 1440 900" preserveAspectRatio="none" focusable="false">
+	<div class="atmosphere-stars atmosphere-stars-far" />
+	<div class="atmosphere-stars atmosphere-stars-near" />
+	<svg class="atmosphere-flow" viewBox="0 0 1440 900" preserveAspectRatio="none" focusable="false">
 		<defs>
 			<linearGradient id="flow-primary-gradient" x1="0" y1="0" x2="1" y2="0">
 				<stop offset="0" stop-color="var(--c-flow-blue)" stop-opacity="0" />
@@ -202,6 +187,11 @@ onBeforeUnmount(() => {
 			<path class="flow-halo" d="M -110 118 C 245 35 395 510 748 332 S 1182 96 1560 532" stroke="url(#flow-secondary-gradient)" />
 			<path class="flow-thread" pathLength="100" d="M -110 118 C 245 35 395 510 748 332 S 1182 96 1560 532" stroke="url(#flow-secondary-gradient)" />
 			<path class="flow-signal" pathLength="100" d="M -110 118 C 245 35 395 510 748 332 S 1182 96 1560 532" stroke="var(--c-flow-signal-alt)" />
+		</g>
+		<g class="flow-ribbon flow-ribbon-tertiary">
+			<path class="flow-halo" d="M -160 470 C 220 250 430 790 760 520 S 1220 260 1600 680" stroke="url(#flow-secondary-gradient)" />
+			<path class="flow-thread" pathLength="100" d="M -160 470 C 220 250 430 790 760 520 S 1220 260 1600 680" stroke="url(#flow-secondary-gradient)" />
+			<path class="flow-signal" pathLength="100" d="M -160 470 C 220 250 430 790 760 520 S 1220 260 1600 680" stroke="var(--c-flow-signal-alt)" />
 		</g>
 	</svg>
 	<div ref="pointer" class="atmosphere-pointer" />

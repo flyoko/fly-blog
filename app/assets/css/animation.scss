@@ -28,6 +28,19 @@
 	}
 }
 
+@keyframes atmosphere-stars-far {
+	to { transform: translate3d(-31px, -31px, 0); }
+}
+
+@keyframes atmosphere-stars-near {
+	to { transform: translate3d(36px, -73px, 0); }
+}
+
+@keyframes atmosphere-flow-drift-tertiary {
+	from { transform: translate3d(-1%, -0.8%, 0) rotate(-0.25deg); }
+	to { transform: translate3d(1.4%, 1.1%, 0) rotate(0.3deg); }
+}
+
 @keyframes atmosphere-flow-drift {
 	from {
 		transform: translate3d(-1.6%, 1.2%, 0) rotate(-0.35deg);
@@ -62,11 +75,11 @@
 
 @keyframes atmosphere-flow-breathe {
 	0%, 100% {
-		opacity: 0.42;
+		opacity: 0.12;
 	}
 
 	50% {
-		opacity: 0.72;
+		opacity: 0.22;
 	}
 }
 

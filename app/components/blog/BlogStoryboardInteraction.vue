@@ -6,8 +6,8 @@ const root = useTemplateRef<HTMLElement>('root')
 const isFinePointer = useMediaQuery('(pointer: fine)')
 const prefersReducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
 const isDynamic = computed(() => colorMode.value === 'dynamic')
-const trailDistance = computed(() => isDynamic.value ? 24 : 38)
-const trailInterval = computed(() => isDynamic.value ? 42 : 64)
+const trailDistance = computed(() => isDynamic.value ? 38 : 48)
+const trailInterval = computed(() => isDynamic.value ? 72 : 96)
 
 let previousX = 0
 let previousY = 0
@@ -21,7 +21,7 @@ function appendEffect(element: HTMLElement, timeout = 900) {
 	if (!layer)
 		return
 	layer.append(element)
-	while (layer.childElementCount > 40)
+	while (layer.childElementCount > 18)
 		layer.firstElementChild?.remove()
 	const timer = window.setTimeout(() => {
 		cleanupTimers.delete(timer)
