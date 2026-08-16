@@ -109,7 +109,7 @@ describe('motion v2 production integration', () => {
 		expect(atmosphere).toContain('function canAnimatePointer()')
 		expect(atmosphere).toContain('&& !isRouteSettling.value')
 		expect(atmosphere).toContain('useState<boolean>(\'route-compositor-settling\'')
-		expect(atmosphere).toContain('flowElement.style.transform')
+		expect(atmosphere).not.toContain('flowElement.style.transform')
 		expect(atmosphere).toContain('pointerElement.style.transform')
 		expect(atmosphere).toContain('nuxtApp.hook(\'page:loading:start\', beginRouteSettling)')
 		expect(atmosphere).toContain('nuxtApp.hook(\'page:loading:end\', scheduleRouteResume)')

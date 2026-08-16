@@ -62,6 +62,10 @@ const debouncedSelection = refDebounced(text)
 		color: currentcolor;
 	}
 
+	@media not (max-width: $breakpoint-widescreen) {
+		display: none;
+	}
+
 	@media (max-width: $breakpoint-mobile) {
 		position: fixed;
 		visibility: hidden;

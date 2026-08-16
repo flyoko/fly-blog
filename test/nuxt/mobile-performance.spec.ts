@@ -35,7 +35,7 @@ describe('mobile player and performance contracts', () => {
 		const main = read('app/assets/css/main.scss')
 
 		expect(atmosphere).toContain('isMobilePerformanceMode')
-		expect(atmosphere).toContain('if (!element || !flowElement || !pointerElement || !isFinePointer.value || prefersReducedMotion.value || isMobilePerformanceMode.value || isRouteSettling.value)')
+		expect(atmosphere).toContain('if (!element || !pointerElement || !isFinePointer.value || prefersReducedMotion.value || isMobilePerformanceMode.value || isRouteSettling.value)')
 		expect(main).toMatch(/@media \(max-width: \$breakpoint-mobile\), \(hover: none\) and \(pointer: coarse\)[\s\S]*?\.atmosphere-lens,[\s\S]*?animation: none;/u)
 		expect(main).toMatch(/@media \(max-width: \$breakpoint-mobile\), \(hover: none\) and \(pointer: coarse\)[\s\S]*?\.flow-ribbon-secondary[\s\S]*?display: none;/u)
 	})

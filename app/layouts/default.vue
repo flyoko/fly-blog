@@ -10,8 +10,9 @@ const hasAside = computed(() => routeAsideVisible.value)
 <NuxtLoadingIndicator />
 <NuxtRouteAnnouncer :style="{ position: 'absolute' }" />
 <BlogSkipToContent />
+<BlogTopNav />
 <BlogSidebar />
-<div id="content">
+<div id="content" :class="{ 'has-aside': hasAside }">
 	<main id="main-content">
 		<slot />
 		<BlogFooter />
@@ -85,6 +86,37 @@ const hasAside = computed(() => routeAsideVisible.value)
 			width: 100%;
 			padding-bottom: var(--mobile-content-clearance);
 		}
+	}
+}
+
+// 桌面使用顶部导航 + 正文/右栏双列；窄屏继续沿用原侧栏与抽屉交互。
+@media not (max-width: $breakpoint-widescreen) {
+	#blog-root {
+		display: grid;
+		grid-template-columns: minmax(0, 112rem);
+		place-content: start center;
+		gap: 0.75rem;
+		padding: clamp(0.75rem, 1.4vw, 1.25rem) 1rem 0;
+	}
+
+	#content {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr);
+		align-items: start;
+		gap: 1rem;
+		width: 100%;
+		max-width: 112rem;
+
+		&.has-aside {
+			grid-template-columns: minmax(0, 1fr) clamp(15.5rem, 18vw, 18rem);
+		}
+	}
+
+	#blog-aside {
+		flex: none;
+		top: 1rem;
+		width: auto;
+		height: calc(100dvh - 2rem);
 	}
 }
 </style>
