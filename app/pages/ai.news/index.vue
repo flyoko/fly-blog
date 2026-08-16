@@ -646,9 +646,8 @@ onMounted(load)
 	grid-template-columns: repeat(2, minmax(0, 1fr));
 	gap: 0.35rem;
 	padding: 0.4rem;
-	border: 1px solid var(--c-border);
+	border: 1px solid var(--c-surface-line);
 	border-radius: 0.85rem;
-	background: var(--ld-bg-card);
 }
 
 .news-section-tabs button {
@@ -772,9 +771,8 @@ onMounted(load)
 	align-items: center;
 	gap: 1rem;
 	padding: 0.65rem;
-	border: 1px solid var(--c-border);
+	border: 1px solid var(--c-surface-line);
 	border-radius: 0.85rem;
-	background: var(--ld-bg-card);
 }
 
 .news-filter {
@@ -1525,12 +1523,12 @@ onMounted(load)
 @media not (max-width: $breakpoint-widescreen) {
 	.news-workbench {
 		gap: 0.75rem;
-		margin: 0.65rem 0.5rem 1rem;
+		margin: 0.2rem 0.5rem 1rem;
 	}
 
 	.news-header {
 		gap: 1.25rem;
-		padding: 0.35rem 0 0.1rem;
+		padding: 0.2rem 0 0.1rem;
 	}
 
 	.news-header h1 {
@@ -1551,10 +1549,11 @@ onMounted(load)
 	}
 
 	.news-section-tabs {
-		grid-template-columns: repeat(2, minmax(12rem, 1fr));
-		justify-self: start;
+		grid-template-columns: repeat(2, minmax(12rem, 17rem));
+		justify-content: start;
+		justify-self: stretch;
 		gap: 0.3rem;
-		width: min(34rem, 100%);
+		width: 100%;
 		padding: 0.3rem;
 		border-radius: 0.78rem;
 	}

@@ -684,7 +684,7 @@ async function copyWechatId() {
 
 @media not (max-width: $breakpoint-widescreen) {
 	.home-ad-carousel {
-		margin: 0.65rem 0.5rem 0.75rem;
+		margin: 0.2rem 0.5rem 0.75rem;
 	}
 
 	.home-ad-carousel-header {

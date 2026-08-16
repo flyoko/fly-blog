@@ -94,13 +94,14 @@ const hasAside = computed(() => routeAsideVisible.value)
 	#blog-root {
 		--desktop-shell-width: 88rem;
 		--desktop-shell-gutter: 0.65rem;
+		--desktop-content-gap: 0.35rem;
 		--desktop-top-nav-height: 4rem;
-		--desktop-sticky-top: calc(var(--desktop-shell-gutter) + var(--desktop-top-nav-height) + 0.65rem);
+		--desktop-sticky-top: calc(var(--desktop-shell-gutter) + var(--desktop-top-nav-height) + var(--desktop-content-gap));
 
 		display: grid;
 		grid-template-columns: minmax(0, var(--desktop-shell-width));
 		place-content: start center;
-		gap: 0.65rem;
+		gap: var(--desktop-content-gap);
 		padding: var(--desktop-shell-gutter) 1rem 0;
 	}
 
@@ -113,7 +114,7 @@ const hasAside = computed(() => routeAsideVisible.value)
 		max-width: var(--desktop-shell-width);
 
 		&.has-aside {
-			grid-template-columns: minmax(0, 1fr) clamp(18rem, 20vw, 19.5rem);
+			grid-template-columns: minmax(0, 1fr) clamp(19rem, 21vw, 20.5rem);
 		}
 	}
 

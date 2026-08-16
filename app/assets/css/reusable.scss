@@ -153,7 +153,7 @@
 }
 
 @media (prefers-reduced-transparency: reduce) {
-	:is(.dark, .dynamic) .card {
+	:is(.light, .dark, .dynamic) .card {
 		background-color: var(--ld-bg-card);
 		backdrop-filter: none;
 	}
