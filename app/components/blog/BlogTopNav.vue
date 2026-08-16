@@ -176,6 +176,13 @@ onBeforeUnmount(() => {
 	padding-inline-end: 0.35rem;
 	background: transparent;
 
+	:deep(.blog-nav-brand-scene) {
+		visibility: hidden;
+		opacity: 0;
+		transform: translate3d(0.4rem, 0, 0);
+		transition: opacity 0.2s ease, transform 0.24s ease, visibility 0s linear 0.24s;
+	}
+
 	:deep(.brand-scene-orbit),
 	:deep(.brand-scene-rocket),
 	:deep(.brand-scene-character) {

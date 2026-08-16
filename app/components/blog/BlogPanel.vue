@@ -95,8 +95,10 @@ const { transform } = useAvoidTransform(panelRef, avoidTargets)
 	contain: paint;
 	position: relative;
 	border-radius: 0.5rem;
-	background-color: var(--c-bg-a50);
-	backdrop-filter: blur(0.5rem);
+	background:
+		linear-gradient(145deg, color-mix(in srgb, var(--c-surface-highlight) 30%, transparent), transparent 52%),
+		color-mix(in srgb, var(--c-bg-2) 94%, transparent);
+	backdrop-filter: none;
 	font-size: 1.4rem;
 	z-index: calc(var(--z-index-popover) + 3);
 

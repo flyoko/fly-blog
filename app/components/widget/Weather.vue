@@ -673,8 +673,10 @@ onMounted(() => {
 	padding: 0.48rem 0.55rem;
 	border: 1px solid rgb(255 255 255 / 22%);
 	border-radius: 0.65rem;
-	background: rgb(255 255 255 / 12%);
-	backdrop-filter: blur(8px);
+	background:
+		linear-gradient(145deg, rgb(255 255 255 / 10%), transparent 52%),
+		rgb(255 255 255 / 15%);
+	backdrop-filter: none;
 }
 
 .weather-metrics dt {
