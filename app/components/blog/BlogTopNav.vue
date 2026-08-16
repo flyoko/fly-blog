@@ -57,19 +57,19 @@ const debouncedSelection = refDebounced(text)
 @media not (max-width: $breakpoint-widescreen) {
 	.blog-top-nav {
 		display: grid;
-		grid-template-columns: clamp(15rem, 18vw, 17rem) minmax(0, 1fr) max-content;
+		grid-template-columns: clamp(12.75rem, 15vw, 14.25rem) minmax(0, 1fr) max-content;
 		align-items: center;
-		gap: clamp(0.45rem, 0.8vw, 0.85rem);
+		gap: clamp(0.35rem, 0.65vw, 0.65rem);
 		position: sticky;
-		top: clamp(0.75rem, 1.4vw, 1.25rem);
+		top: var(--desktop-shell-gutter, 0.65rem);
 		width: 100%;
 		min-width: 0;
-		min-height: 5.45rem;
-		padding: 0.42rem 0.5rem;
+		min-height: var(--desktop-top-nav-height, 4rem);
+		padding: 0.32rem 0.38rem;
 		border: 1px solid var(--c-surface-border);
-		border-radius: 1.1rem;
+		border-radius: 0.9rem;
 		box-shadow:
-			0 14px 42px var(--c-surface-shadow),
+			0 10px 30px var(--c-surface-shadow),
 			inset 0 1px 0 var(--c-surface-highlight);
 		background:
 			linear-gradient(145deg, var(--c-surface-highlight), transparent 38%),
@@ -81,16 +81,16 @@ const debouncedSelection = refDebounced(text)
 }
 
 .top-nav-brand {
-	gap: 0.6rem;
+	gap: 0.45rem;
 	overflow: hidden;
 	width: 100%;
 	min-width: 0;
-	min-height: 4.6rem;
+	min-height: 3.2rem;
 	margin: 0;
-	padding: 0.55rem 4.9rem 0.55rem 0.65rem;
-	border-radius: 0.9rem;
+	padding: 0.34rem 3.95rem 0.34rem 0.48rem;
+	border-radius: 0.72rem;
 	box-shadow:
-		0 8px 24px var(--c-surface-shadow),
+		0 6px 18px var(--c-surface-shadow),
 		inset 0 1px 0 var(--c-surface-highlight);
 	line-height: 1.2;
 
@@ -99,11 +99,11 @@ const debouncedSelection = refDebounced(text)
 	}
 
 	:deep(.blog-logo-shell) {
-		height: 3rem;
+		height: 2.25rem;
 	}
 
 	:deep(.blog-logo-shell.circle) {
-		width: 3rem;
+		width: 2.25rem;
 	}
 
 	:deep(.blog-text) {
@@ -112,7 +112,7 @@ const debouncedSelection = refDebounced(text)
 
 	:deep(.header-title) {
 		overflow: hidden;
-		font-size: 1.15rem;
+		font-size: 1rem;
 		white-space: nowrap;
 		text-overflow: ellipsis;
 	}
@@ -120,18 +120,18 @@ const debouncedSelection = refDebounced(text)
 	:deep(.header-subtitle) {
 		display: -webkit-box;
 		overflow: hidden;
-		max-width: 8.5rem;
-		margin-top: 0.18rem;
-		font-size: 0.68rem;
+		max-width: 7.4rem;
+		margin-top: 0.08rem;
+		font-size: 0.62rem;
 		-webkit-line-clamp: 2;
 		line-height: 1.35;
 		-webkit-box-orient: vertical;
 	}
 
 	:deep(.is-header .scene-character) {
-		right: -0.45rem;
-		bottom: -0.8rem;
-		width: 5.15rem;
+		right: -0.32rem;
+		bottom: -0.66rem;
+		width: 4.15rem;
 	}
 
 	:deep(.is-header .scene-rocket) {
@@ -144,19 +144,19 @@ const debouncedSelection = refDebounced(text)
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	gap: clamp(0.1rem, 0.35vw, 0.4rem);
+	gap: clamp(0.05rem, 0.25vw, 0.25rem);
 	min-width: 0;
 }
 
 .top-nav-item {
 	display: inline-flex;
 	align-items: center;
-	gap: 0.35rem;
+	gap: 0.28rem;
 	min-width: 0;
-	padding: 0.5rem clamp(0.4rem, 0.6vw, 0.7rem);
+	padding: 0.4rem clamp(0.34rem, 0.5vw, 0.54rem);
 	border: 1px solid transparent;
-	border-radius: 0.65rem;
-	font-size: 0.8rem;
+	border-radius: 0.55rem;
+	font-size: 0.75rem;
 	white-space: nowrap;
 	color: var(--c-text-2);
 	transition: background-color 0.2s, border-color 0.2s, color 0.2s, transform 0.2s;
@@ -177,7 +177,7 @@ const debouncedSelection = refDebounced(text)
 
 	> .iconify {
 		flex: 0 0 auto;
-		font-size: 1.05rem;
+		font-size: 0.95rem;
 	}
 
 	> .external-tip {
@@ -190,21 +190,21 @@ const debouncedSelection = refDebounced(text)
 	display: flex;
 	align-items: center;
 	justify-content: flex-end;
-	gap: 0.35rem;
+	gap: 0.28rem;
 	min-width: 0;
 }
 
 .top-nav-search {
 	display: flex;
 	align-items: center;
-	gap: 0.4rem;
-	height: 2.25rem;
-	max-width: 8.5rem;
-	padding: 0 0.65rem;
+	gap: 0.34rem;
+	height: 2rem;
+	max-width: 7.25rem;
+	padding: 0 0.52rem;
 	border: 1px solid var(--c-surface-line);
-	border-radius: 0.7rem;
+	border-radius: 0.58rem;
 	background-color: var(--c-surface-fill);
-	font-size: 0.76rem;
+	font-size: 0.72rem;
 	color: var(--c-text-2);
 	transition: border-color 0.2s, color 0.2s;
 	cursor: pointer;
@@ -222,9 +222,9 @@ const debouncedSelection = refDebounced(text)
 
 	> kbd {
 		flex: 0 0 auto;
-		padding: 0.08rem 0.3rem;
+		padding: 0.05rem 0.24rem;
 		border: 1px solid var(--c-surface-line);
-		border-radius: 0.35rem;
+		border-radius: 0.28rem;
 		background-color: var(--c-bg-2);
 		font-size: 0.68rem;
 		color: var(--c-text-3);
@@ -234,17 +234,30 @@ const debouncedSelection = refDebounced(text)
 .top-nav-external {
 	display: flex;
 	align-items: center;
-	padding-inline-start: 0.22rem;
+	padding-inline-start: 0.18rem;
 	border-inline-start: 1px solid var(--c-surface-line);
 
 	:deep(.icon-nav-list) {
+		align-items: center;
 		gap: 0.05rem;
 	}
 
+	:deep(li) {
+		display: flex;
+		align-items: center;
+	}
+
 	:deep(a) {
-		padding: 0.4rem;
-		border-radius: 0.65rem;
+		display: grid;
+		place-items: center;
+		padding: 0.32rem;
+		border-radius: 0.55rem;
+		line-height: 1;
 		color: var(--c-text-2);
+	}
+
+	:deep(.iconify) {
+		font-size: 0.95rem;
 	}
 }
 
@@ -252,11 +265,11 @@ const debouncedSelection = refDebounced(text)
 	margin: 0;
 	padding: 1px;
 	border-color: var(--c-surface-line);
-	border-radius: 0.8rem;
+	border-radius: 0.68rem;
 	background-color: var(--c-surface-fill);
 
 	:deep(button) {
-		padding: 0.32rem 0.42rem;
+		padding: 0.24rem 0.32rem;
 	}
 }
 
@@ -286,35 +299,35 @@ const debouncedSelection = refDebounced(text)
 
 @media (max-width: 1240px) {
 	.top-nav-brand {
-		min-height: 4.1rem;
-		padding: 0.45rem 3.8rem 0.45rem 0.5rem;
+		min-height: 3rem;
+		padding: 0.3rem 3.45rem 0.3rem 0.42rem;
 
 		:deep(.blog-logo-shell) {
-			height: 2.6rem;
+			height: 2.1rem;
 		}
 
 		:deep(.blog-logo-shell.circle) {
-			width: 2.6rem;
+			width: 2.1rem;
 		}
 
 		:deep(.header-title) {
-			font-size: 1rem;
+			font-size: 0.9rem;
 		}
 
 		:deep(.header-subtitle) {
-			max-width: 7rem;
-			font-size: 0.62rem;
+			max-width: 6.4rem;
+			font-size: 0.56rem;
 		}
 
 		:deep(.is-header .scene-character) {
-			width: 4.45rem;
+			width: 3.7rem;
 		}
 	}
 }
 
 @media (max-width: 1160px) {
 	.blog-top-nav {
-		grid-template-columns: 13rem minmax(0, 1fr) max-content;
+		grid-template-columns: 11.75rem minmax(0, 1fr) max-content;
 		gap: 0.35rem;
 		padding-inline: 0.4rem;
 	}
@@ -330,7 +343,7 @@ const debouncedSelection = refDebounced(text)
 
 	.top-nav-search {
 		justify-content: center;
-		width: 2.25rem;
+		width: 2rem;
 		padding: 0;
 
 		> span,

@@ -92,31 +92,36 @@ const hasAside = computed(() => routeAsideVisible.value)
 // 桌面使用顶部导航 + 正文/右栏双列；窄屏继续沿用原侧栏与抽屉交互。
 @media not (max-width: $breakpoint-widescreen) {
 	#blog-root {
+		--desktop-shell-width: 86rem;
+		--desktop-shell-gutter: 0.65rem;
+		--desktop-top-nav-height: 4rem;
+		--desktop-sticky-top: calc(var(--desktop-shell-gutter) + var(--desktop-top-nav-height) + 0.65rem);
+
 		display: grid;
-		grid-template-columns: minmax(0, 112rem);
+		grid-template-columns: minmax(0, var(--desktop-shell-width));
 		place-content: start center;
-		gap: 0.75rem;
-		padding: clamp(0.75rem, 1.4vw, 1.25rem) 1rem 0;
+		gap: 0.65rem;
+		padding: var(--desktop-shell-gutter) 1rem 0;
 	}
 
 	#content {
 		display: grid;
 		grid-template-columns: minmax(0, 1fr);
 		align-items: start;
-		gap: 1rem;
+		gap: 0.85rem;
 		width: 100%;
-		max-width: 112rem;
+		max-width: var(--desktop-shell-width);
 
 		&.has-aside {
-			grid-template-columns: minmax(0, 1fr) clamp(15.5rem, 18vw, 18rem);
+			grid-template-columns: minmax(0, 1fr) clamp(16rem, 18vw, 17rem);
 		}
 	}
 
 	#blog-aside {
 		flex: none;
-		top: 1rem;
+		top: var(--desktop-sticky-top);
 		width: auto;
-		height: calc(100dvh - 2rem);
+		height: calc(100dvh - var(--desktop-sticky-top) - 0.65rem);
 	}
 }
 </style>

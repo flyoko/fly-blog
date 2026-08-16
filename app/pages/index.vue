@@ -90,7 +90,7 @@ const { data: previewCount } = useAsyncData(
 
 <style lang="scss" scoped>
 .post-list {
-	margin: 1rem;
+	margin: 0.75rem 0.5rem 1rem;
 
 	@media (max-width: $breakpoint-mobile) {
 		margin: var(--mobile-page-gutter);

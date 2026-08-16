@@ -101,6 +101,31 @@ const showAllDate = isTimeDiffSignificant(props.date, props.updated)
 	text-underline-offset: 0.2em;
 }
 
+@media not (max-width: $breakpoint-widescreen) {
+	.article-card {
+		margin: 0.78rem 0;
+		border-radius: 0.76rem;
+
+		> article {
+			gap: 0.45em;
+			padding: 0.85rem 0.95rem;
+		}
+	}
+
+	.article-title {
+		font-size: 1.08em;
+	}
+
+	.article-description {
+		font-size: 0.84em;
+		line-height: 1.58;
+	}
+
+	.article-info {
+		font-size: 0.75em;
+	}
+}
+
 @media (prefers-reduced-motion: reduce) {
 	.article-card {
 		animation: none;

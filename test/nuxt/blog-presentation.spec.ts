@@ -36,6 +36,27 @@ describe('public blog presentation', () => {
 		expect(aside).toContain(':show="hasContent && layoutStore.state === \'aside\'"')
 	})
 
+	it('keeps the desktop shell compact and sticky content below the top navigation', () => {
+		const layout = read('app/layouts/default.vue')
+		const topNav = read('app/components/blog/BlogTopNav.vue')
+		const news = read('app/pages/ai.news/index.vue')
+		const homeAds = read('app/components/home/HomeAdCarousel.vue')
+		const article = read('app/components/post/Article.vue')
+
+		expect(layout).toContain('--desktop-shell-width: 86rem')
+		expect(layout).toContain('--desktop-top-nav-height: 4rem')
+		expect(layout).toContain('--desktop-sticky-top: calc(')
+		expect(layout).toContain('grid-template-columns: minmax(0, 1fr) clamp(16rem, 18vw, 17rem)')
+		expect(layout).toContain('top: var(--desktop-sticky-top)')
+		expect(topNav).toContain('min-height: var(--desktop-top-nav-height, 4rem)')
+		expect(topNav).toContain('grid-template-columns: clamp(12.75rem, 15vw, 14.25rem)')
+		expect(news).toContain('width: min(20rem, 100%)')
+		expect(news).toContain('top: var(--desktop-sticky-top, 5.3rem)')
+		expect(news).toContain('grid-template-columns: minmax(0, 1fr) minmax(15.75rem, 17rem)')
+		expect(homeAds).toContain('height: 8.8rem')
+		expect(article).toContain('padding: 0.85rem 0.95rem')
+	})
+
 	it('keeps public GitHub entry points behind one disabled profile switch', () => {
 		const appConfig = read('app/app.config.ts')
 		const footer = read('config/site/footer.json')

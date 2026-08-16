@@ -682,6 +682,50 @@ async function copyWechatId() {
 	}
 }
 
+@media not (max-width: $breakpoint-widescreen) {
+	.home-ad-carousel {
+		margin: 0.65rem 0.5rem 0.75rem;
+	}
+
+	.home-ad-carousel-header {
+		min-height: 2.35rem;
+		margin-bottom: 0.4rem;
+	}
+
+	.home-ad-carousel-heading {
+		font-size: clamp(1.6rem, 2.4vw, 1.9rem);
+	}
+
+	.home-ad-carousel-hint {
+		font-size: 0.66rem;
+	}
+
+	.home-ad-carousel-frame {
+		height: 8.8rem;
+		border-radius: 0.82rem;
+		box-shadow: 0 0.65rem 1.8rem color-mix(in srgb, var(--c-bg) 20%, transparent);
+	}
+
+	.home-ad-carousel-copy {
+		width: min(50%, 24rem);
+		padding: 1rem 3rem;
+
+		> strong {
+			margin-top: 0.38rem;
+			font-size: clamp(1rem, 1.8vw, 1.3rem);
+		}
+
+		> span:not(.home-ad-carousel-action) {
+			font-size: 0.7rem;
+		}
+	}
+
+	.home-ad-carousel-action {
+		margin-top: 0.4rem;
+		font-size: 0.66rem;
+	}
+}
+
 @media (max-width: 680px) {
 	.home-ad-carousel {
 		margin: 0.8rem 0.5rem;
