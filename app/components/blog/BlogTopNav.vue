@@ -124,7 +124,7 @@ onBeforeUnmount(() => {
 
 @media (min-width: 1501px) {
 	.blog-top-nav:not(.is-condensed) {
-		grid-template-columns: 15rem minmax(0, 1fr) max-content;
+		grid-template-columns: 17.5rem minmax(0, 1fr) max-content;
 	}
 }
 
@@ -157,11 +157,20 @@ onBeforeUnmount(() => {
 }
 
 .blog-top-nav:not(.is-condensed) .top-nav-brand {
-	padding-inline-end: 3.7rem;
+	padding-inline-end: 4.8rem;
+
+	:deep(.blog-nav-brand-logo) {
+		width: 2.35rem;
+		height: 2.35rem;
+	}
+
+	:deep(.blog-nav-brand-copy strong) {
+		font-size: 1.03rem;
+	}
 
 	:deep(.blog-nav-brand-copy small) {
 		display: block;
-		max-width: 6.1rem;
+		max-width: 6.7rem;
 		font-size: 0.56rem;
 		line-height: 1.25;
 	}

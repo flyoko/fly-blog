@@ -33,18 +33,7 @@ const appConfig = useAppConfig()
 		<small v-if="!props.compact">{{ appConfig.header.subtitle }}</small>
 	</span>
 	<span v-if="props.scene" class="blog-nav-brand-scene" aria-hidden="true">
-		<span class="brand-scene-orbit brand-scene-orbit-a" />
-		<span class="brand-scene-orbit brand-scene-orbit-b" />
-		<span class="brand-scene-rocket">🚀</span>
-		<img
-			class="brand-scene-character"
-			src="/assets/shinchan-user-cutout.webp"
-			alt=""
-			width="78"
-			height="67"
-			decoding="async"
-			fetchpriority="low"
-		>
+		<BlogShinchanScene variant="header" />
 	</span>
 </UtilLink>
 </template>
@@ -74,7 +63,7 @@ const appConfig = useAppConfig()
 	border-radius: 50%;
 	box-shadow: inset 0 1px 0 var(--c-surface-highlight);
 	background: color-mix(in srgb, var(--c-surface-fill) 86%, transparent);
-	z-index: 2;
+	z-index: 4;
 }
 
 .blog-nav-brand-logo img {
@@ -89,18 +78,54 @@ const appConfig = useAppConfig()
 	gap: 0.08rem;
 	min-width: 0;
 	line-height: 1.16;
-	z-index: 2;
+	z-index: 4;
 }
 
 .blog-nav-brand.has-scene {
-	padding-inline-end: 3.7rem;
+	min-height: 3rem;
+	padding: 0.22rem 4.8rem 0.22rem 0.24rem;
+	border: 1px solid color-mix(in srgb, var(--c-flow-cyan) 44%, var(--c-surface-border));
+	border-radius: 0.95rem;
+	box-shadow:
+		inset 0 1px 0 color-mix(in srgb, var(--c-surface-highlight) 88%, transparent),
+		inset 0 0 0 1px color-mix(in srgb, var(--c-flow-blue) 8%, transparent),
+		0 0.45rem 1.5rem color-mix(in srgb, var(--c-surface-shadow) 38%, transparent);
 	background:
-		linear-gradient(90deg, color-mix(in srgb, var(--c-surface-fill) 28%, transparent), transparent 72%),
-		radial-gradient(circle at 86% 50%, color-mix(in srgb, var(--c-flow-blue) 14%, transparent), transparent 42%);
+		radial-gradient(circle at 10% 36%, var(--c-atmosphere-lens-blue), transparent 40%),
+		radial-gradient(circle at 84% 45%, color-mix(in srgb, var(--c-flow-blue) 18%, transparent), transparent 45%),
+		linear-gradient(112deg, color-mix(in srgb, var(--c-surface-fill) 88%, transparent), color-mix(in srgb, var(--c-surface-fill) 66%, var(--c-flow-blue) 10%));
+}
+
+.blog-nav-brand.has-scene::before,
+.blog-nav-brand.has-scene::after {
+	content: "";
+	position: absolute;
+	pointer-events: none;
+	z-index: 2;
+}
+
+.blog-nav-brand.has-scene::before {
+	inset: 0;
+	border-radius: inherit;
+	background: linear-gradient(108deg, transparent 18%, var(--c-surface-sheen) 46%, transparent 68%);
+	background-size: 220% 100%;
+	animation: nav-brand-scene-scan 5.2s ease-in-out infinite;
+}
+
+.blog-nav-brand.has-scene::after {
+	top: 59%;
+	left: -11%;
+	width: 76%;
+	height: 1px;
+	background: linear-gradient(90deg, transparent, var(--c-flow-cyan), transparent);
+	transform: rotate(-8deg);
+	animation: nav-brand-scene-line 3.8s ease-in-out infinite alternate;
 }
 
 .blog-nav-brand.has-scene.is-compact {
 	padding-inline-end: 0;
+	border: 0;
+	box-shadow: none;
 	background: transparent;
 }
 
@@ -111,74 +136,70 @@ const appConfig = useAppConfig()
 .blog-nav-brand-scene {
 	position: absolute;
 	overflow: hidden;
-	inset: 0 0 0 38%;
+	inset: 0;
 	border-radius: inherit;
 	pointer-events: none;
-	z-index: 1;
+	z-index: 3;
 }
 
-.brand-scene-orbit {
+.blog-nav-brand-scene :deep(.shinchan-scene) {
 	position: absolute;
-	border: 1px solid color-mix(in srgb, var(--c-primary) 36%, transparent);
-	border-radius: 50%;
-	animation: brand-scene-orbit 13s linear infinite;
+	inset: 0;
 }
 
-.brand-scene-orbit::after {
-	content: "";
-	position: absolute;
-	top: -0.12rem;
-	left: 46%;
-	width: 0.25rem;
-	aspect-ratio: 1;
-	border-radius: 50%;
-	box-shadow: 0 0 0.55rem color-mix(in srgb, var(--c-flow-cyan) 68%, transparent);
-	background: color-mix(in srgb, var(--c-flow-cyan) 76%, white);
+.blog-nav-brand-scene :deep(.is-header .scene-character) {
+	right: -0.28rem;
+	bottom: -0.9rem;
+	width: 5.5rem;
 }
 
-.brand-scene-orbit-a {
-	inset: 8% -3% -45% 8%;
+.blog-nav-brand-scene :deep(.is-header .scene-orbit-one) {
+	inset: 5% -12% -32% 42%;
 }
 
-.brand-scene-orbit-b {
-	inset: 30% 14% -62% 24%;
-	border-style: dashed;
-	animation-direction: reverse;
-	animation-duration: 18s;
+.blog-nav-brand-scene :deep(.is-header .scene-orbit-two) {
+	inset: -28% 10% 18% 16%;
 }
 
-.brand-scene-rocket {
-	position: absolute;
-	top: 0.12rem;
-	right: 2.45rem;
-	font-size: 0.78rem;
-	animation: brand-scene-rocket 4.8s ease-in-out infinite;
-	filter: drop-shadow(0 0.2rem 0.4rem color-mix(in srgb, var(--c-primary) 28%, transparent));
+.blog-nav-brand-scene :deep(.is-header .scene-track) {
+	top: 31%;
+	right: -4%;
+	width: 79%;
 }
 
-.brand-scene-character {
-	position: absolute;
-	right: -0.15rem;
-	bottom: -0.38rem;
-	width: 3.45rem;
-	height: auto;
-	transform-origin: 55% 90%;
-	animation: brand-scene-bob 4.2s ease-in-out infinite;
-	object-fit: contain;
+.blog-nav-brand-scene :deep(.is-header .scene-rocket) {
+	top: 5%;
+	right: 35%;
+	font-size: 0.9rem;
 }
 
-@keyframes brand-scene-orbit {
-	to { transform: rotate(1turn); }
+.blog-nav-brand-scene :deep(.is-header .scene-spark-one) {
+	top: 66%;
+	right: 48%;
 }
 
-@keyframes brand-scene-rocket {
-	0%, 100% { transform: translate3d(0, 0.1rem, 0) rotate(-8deg); }
-	50% { transform: translate3d(0.35rem, -0.18rem, 0) rotate(5deg); }
+@keyframes nav-brand-scene-scan {
+	0%, 100% {
+		opacity: 0.18;
+		background-position: 160% 0;
+	}
+
+	50% {
+		opacity: 0.68;
+		background-position: -70% 0;
+	}
 }
 
-@keyframes brand-scene-bob {
-	0%, 100% { transform: translate3d(0, 0.08rem, 0) rotate(-1deg); }
-	50% { transform: translate3d(-0.08rem, -0.16rem, 0) rotate(1deg); }
+@keyframes nav-brand-scene-line {
+	from {
+		opacity: 0.2;
+		transform: translateX(-8%) rotate(-8deg);
+	}
+
+	to {
+		opacity: 0.82;
+		transform: translateX(18%) rotate(-5deg);
+	}
 }
 
 .blog-nav-brand-copy strong,
@@ -235,9 +256,8 @@ const appConfig = useAppConfig()
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.brand-scene-orbit,
-	.brand-scene-rocket,
-	.brand-scene-character {
+	.blog-nav-brand.has-scene::before,
+	.blog-nav-brand.has-scene::after {
 		animation: none;
 	}
 }
