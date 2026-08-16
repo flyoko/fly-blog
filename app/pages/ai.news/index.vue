@@ -333,7 +333,7 @@ onMounted(load)
 		</div>
 	</header>
 
-	<nav class="news-section-tabs card" aria-label="AI 阅闻栏目">
+	<nav class="news-section-tabs card glass-clear" aria-label="AI 阅闻栏目">
 		<button
 			type="button"
 			:class="{ active: activeSection === 'ai' }"
@@ -368,7 +368,7 @@ onMounted(load)
 		</div>
 	</div>
 
-	<section v-if="activeSection === 'ai'" class="news-controls card" aria-label="AI 阅闻筛选与搜索">
+	<section v-if="activeSection === 'ai'" class="news-controls card glass-clear" aria-label="AI 阅闻筛选与搜索">
 		<nav class="news-filter" aria-label="来源筛选">
 			<button
 				v-for="option in filterOptions"

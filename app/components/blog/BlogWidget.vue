@@ -32,7 +32,7 @@ defineExpose({ body })
 	<div
 		ref="widget-body"
 		class="widget-body"
-		:class="{ 'widget-card': card, 'with-bg': bgImg, 'scrollcheck-y scrollbar-hidden': shrink }"
+		:class="{ 'widget-card': card, 'glass-elevated': card, 'with-bg': bgImg, 'scrollcheck-y scrollbar-hidden': shrink }"
 	>
 		<NuxtImg v-if="bgImg" class="bg-img" :class="{ 'bg-right': bgAside }" :src="bgImg" alt="" />
 		<slot />
@@ -134,16 +134,18 @@ defineExpose({ body })
 
 	&.widget-card {
 		padding: 0.65rem 0.85rem;
-		border: 1px solid color-mix(in srgb, var(--c-surface-line) 82%, transparent);
+		border: 1px solid var(--glass-material-border);
 		border-radius: 0.75rem;
 		box-shadow:
 			0 12px 30px var(--c-surface-shadow),
-			inset 0 0 0 1px color-mix(in srgb, var(--c-surface-line) 68%, transparent),
+			inset 0 0 0 1px color-mix(in srgb, var(--glass-material-border) 58%, transparent),
 			inset 0 1px 0 var(--c-surface-highlight);
 		background:
-			linear-gradient(145deg, color-mix(in srgb, var(--c-surface-highlight) 38%, transparent), transparent 34%),
-			color-mix(in srgb, var(--c-surface-fill) 94%, transparent);
-		backdrop-filter: blur(16px) saturate(118%);
+			radial-gradient(190px circle at var(--surface-x) var(--surface-y), color-mix(in srgb, var(--surface-glow-color) 62%, transparent), transparent 72%),
+			linear-gradient(145deg, var(--glass-material-highlight), transparent 34%),
+			radial-gradient(120% 110% at 8% -12%, var(--glass-material-tint), transparent 50%),
+			var(--glass-material-fill);
+		backdrop-filter: var(--glass-material-filter);
 
 		:deep(p) {
 			padding: 0.2em 0;
@@ -153,7 +155,7 @@ defineExpose({ body })
 
 @media (prefers-reduced-transparency: reduce) {
 	.widget-body.widget-card {
-		background-color: var(--ld-bg-card);
+		background: var(--ld-bg-card);
 		backdrop-filter: none;
 	}
 }

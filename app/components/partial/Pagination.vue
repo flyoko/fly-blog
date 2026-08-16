@@ -21,7 +21,7 @@ if (props.avoid) {
 <template>
 <nav
 	ref="pagination"
-	class="pagination"
+	class="pagination glass-floating"
 	:class="{ sticky, expand }"
 	:aria-label="`第${page}页，共${totalPages}页`"
 	:style="{ '--collapsed-width': `${pageArr.length * 2 + 6}em` }"
@@ -65,13 +65,17 @@ if (props.avoid) {
 	min-width: min(18rem, calc(100vw - 2rem));
 	max-width: calc(100vw - 2rem);
 	margin: 1.5rem auto;
-	border: 1px solid var(--c-surface-line);
+	border: 1px solid var(--glass-material-border);
 	border-radius: 0.75rem;
 	box-shadow:
 		0 12px 30px var(--c-surface-shadow),
+		inset 0 0 0 1px color-mix(in srgb, var(--glass-material-border) 48%, transparent),
 		inset 0 1px 0 var(--c-surface-highlight);
-	background-color: var(--c-surface-fill);
-	backdrop-filter: blur(14px) saturate(112%);
+	background:
+		linear-gradient(145deg, var(--glass-material-highlight), transparent 40%),
+		radial-gradient(105% 160% at 15% -30%, var(--glass-material-tint), transparent 60%),
+		var(--glass-material-fill);
+	backdrop-filter: var(--glass-material-filter);
 	transition: max-width 0.2s var(--max-bezier-to-full);
 	font-variant-numeric: tabular-nums;
 
@@ -124,7 +128,7 @@ if (props.avoid) {
 
 @media (prefers-reduced-transparency: reduce) {
 	.pagination {
-		background-color: var(--ld-bg-card);
+		background: var(--ld-bg-card);
 		backdrop-filter: none;
 	}
 }

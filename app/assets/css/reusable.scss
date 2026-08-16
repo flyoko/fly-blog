@@ -68,6 +68,13 @@
 	--surface-proximity-cyan: transparent;
 	--surface-proximity-violet: transparent;
 	--surface-lift: 0px;
+	--glass-material-fill: var(--glass-frost-fill);
+	--glass-material-tint: var(--glass-frost-tint);
+	--glass-material-highlight: var(--glass-frost-highlight);
+	--glass-material-border: var(--glass-frost-border);
+	--glass-material-blur: var(--glass-frost-blur);
+	--glass-material-saturate: var(--glass-frost-saturate);
+	--glass-material-filter: var(--glass-frost-filter);
 
 	position: relative;
 	background-color: var(--ld-bg-card);
@@ -95,18 +102,52 @@
 	}
 }
 
+// Material roles are deliberately just custom-property presets. This keeps
+// component markup semantic while allowing existing card/widget implementations
+// to consume the same liquid-glass system without an extra rendering layer.
+.glass-clear {
+	--glass-material-fill: var(--glass-clear-fill);
+	--glass-material-tint: var(--glass-clear-tint);
+	--glass-material-highlight: var(--glass-clear-highlight);
+	--glass-material-border: var(--glass-clear-border);
+	--glass-material-blur: var(--glass-clear-blur);
+	--glass-material-saturate: var(--glass-clear-saturate);
+	--glass-material-filter: var(--glass-clear-filter);
+}
+
+.glass-elevated {
+	--glass-material-fill: var(--glass-elevated-fill);
+	--glass-material-tint: var(--glass-elevated-tint);
+	--glass-material-highlight: var(--glass-elevated-highlight);
+	--glass-material-border: var(--glass-elevated-border);
+	--glass-material-blur: var(--glass-elevated-blur);
+	--glass-material-saturate: var(--glass-elevated-saturate);
+	--glass-material-filter: var(--glass-elevated-filter);
+}
+
+.glass-floating {
+	--glass-material-fill: var(--glass-floating-fill);
+	--glass-material-tint: var(--glass-floating-tint);
+	--glass-material-highlight: var(--glass-floating-highlight);
+	--glass-material-border: var(--glass-floating-border);
+	--glass-material-blur: var(--glass-floating-blur);
+	--glass-material-saturate: var(--glass-floating-saturate);
+	--glass-material-filter: var(--glass-floating-filter);
+}
+
 :is(.light, .dark, .dynamic) .card {
-	border: 1px solid color-mix(in srgb, var(--c-surface-line) 86%, transparent);
+	border: 1px solid var(--glass-material-border);
 	border-radius: 0.82rem;
 	box-shadow:
 		0 14px 40px var(--c-surface-shadow),
-		inset 0 0 0 1px color-mix(in srgb, var(--c-surface-line) 72%, transparent),
+		inset 0 0 0 1px color-mix(in srgb, var(--glass-material-border) 64%, transparent),
 		inset 0 1px 0 var(--c-surface-highlight);
 	background:
-		linear-gradient(145deg, color-mix(in srgb, var(--c-surface-highlight) 42%, transparent), transparent 34%),
-		radial-gradient(120% 110% at 8% -12%, color-mix(in srgb, var(--c-surface-glow) 18%, transparent), transparent 48%),
-		color-mix(in srgb, var(--c-surface-fill) 94%, transparent);
-	backdrop-filter: blur(18px) saturate(118%);
+		radial-gradient(220px circle at var(--surface-x) var(--surface-y), color-mix(in srgb, var(--surface-glow-color) 72%, transparent), transparent 72%),
+		linear-gradient(145deg, var(--glass-material-highlight), transparent 34%),
+		radial-gradient(120% 110% at 8% -12%, var(--glass-material-tint), transparent 48%),
+		var(--glass-material-fill);
+	backdrop-filter: var(--glass-material-filter);
 	transform: translate3d(var(--surface-shift-x), calc(var(--surface-lift) + var(--surface-shift-y)), 0);
 
 	&.upraise:hover {
@@ -154,7 +195,7 @@
 
 @media (prefers-reduced-transparency: reduce) {
 	:is(.light, .dark, .dynamic) .card {
-		background-color: var(--ld-bg-card);
+		background: var(--ld-bg-card);
 		backdrop-filter: none;
 	}
 

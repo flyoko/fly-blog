@@ -71,16 +71,17 @@ const blogStats = [{
 		overflow: hidden;
 		min-height: 5.65rem;
 		padding: 0.92rem 0.6rem 0.84rem;
-		border: 1px solid color-mix(in srgb, var(--c-surface-line) 88%, transparent);
+		border: 1px solid var(--glass-material-border);
 		border-radius: 1rem;
 		box-shadow:
 			0 14px 36px var(--c-surface-shadow),
 			inset 0 1px 0 var(--c-surface-highlight),
-			inset 0 0 0 1px color-mix(in srgb, var(--c-surface-border) 9%, transparent);
+			inset 0 0 0 1px color-mix(in srgb, var(--glass-material-border) 42%, transparent);
 		background:
-			linear-gradient(145deg, color-mix(in srgb, var(--c-surface-highlight) 62%, transparent), transparent 30%),
-			color-mix(in srgb, var(--c-surface-fill) 92%, transparent);
-		backdrop-filter: blur(18px) saturate(116%);
+			linear-gradient(145deg, color-mix(in srgb, var(--glass-material-highlight) 82%, transparent), transparent 30%),
+			radial-gradient(120% 110% at 8% -12%, var(--glass-material-tint), transparent 52%),
+			var(--glass-material-fill);
+		backdrop-filter: var(--glass-material-filter);
 	}
 
 	:deep(.widget-body.widget-card)::before,

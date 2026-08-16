@@ -11,7 +11,7 @@ const debouncedSelection = refDebounced(text)
 </script>
 
 <template>
-<header class="blog-top-nav" aria-label="桌面导航">
+<header class="blog-top-nav glass-floating" aria-label="桌面导航">
 	<BlogHeader class="top-nav-brand" to="/" />
 
 	<nav class="top-nav-links" aria-label="主导航">
@@ -66,15 +66,17 @@ const debouncedSelection = refDebounced(text)
 		min-width: 0;
 		min-height: var(--desktop-top-nav-height, 4rem);
 		padding: 0.32rem 0.38rem;
-		border: 1px solid var(--c-surface-border);
+		border: 1px solid var(--glass-material-border);
 		border-radius: 0.9rem;
 		box-shadow:
 			0 10px 30px var(--c-surface-shadow),
+			inset 0 0 0 1px color-mix(in srgb, var(--glass-material-border) 52%, transparent),
 			inset 0 1px 0 var(--c-surface-highlight);
 		background:
-			linear-gradient(145deg, var(--c-surface-highlight), transparent 38%),
-			color-mix(in srgb, var(--c-bg-1) 90%, transparent);
-		backdrop-filter: blur(14px) saturate(112%);
+			linear-gradient(145deg, var(--glass-material-highlight), transparent 38%),
+			radial-gradient(85% 130% at 12% -18%, var(--glass-material-tint), transparent 58%),
+			var(--glass-material-fill);
+		backdrop-filter: var(--glass-material-filter);
 		color: var(--c-text-2);
 		z-index: 2;
 	}
@@ -367,7 +369,7 @@ const debouncedSelection = refDebounced(text)
 
 @media (prefers-reduced-transparency: reduce) {
 	.blog-top-nav {
-		background-color: var(--ld-bg-card);
+		background: var(--ld-bg-card);
 		backdrop-filter: none;
 	}
 }

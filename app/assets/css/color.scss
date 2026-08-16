@@ -106,3 +106,55 @@
 
 	color-scheme: dark;
 }
+
+// Liquid-glass material tokens. The values stay theme-aware because the
+// color-mix expressions resolve the active surface / atmosphere variables at
+// use time. Components only choose a material role instead of duplicating
+// translucent colors and blur strengths.
+:root,
+.light,
+.dark,
+.dynamic {
+	--glass-frost-fill: color-mix(in srgb, var(--c-surface-fill) 96%, var(--c-bg) 4%);
+	--glass-frost-tint: color-mix(in srgb, var(--c-flow-blue) 6%, transparent);
+	--glass-frost-highlight: color-mix(in srgb, var(--c-surface-highlight) 42%, transparent);
+	--glass-frost-border: color-mix(in srgb, var(--c-surface-line) 86%, transparent);
+	--glass-frost-blur: 18px;
+	--glass-frost-saturate: 118%;
+	--glass-frost-filter: blur(var(--glass-frost-blur)) saturate(var(--glass-frost-saturate));
+	--glass-clear-fill: color-mix(in srgb, var(--c-surface-fill) 80%, transparent);
+	--glass-clear-tint: color-mix(in srgb, var(--c-flow-cyan) 9%, transparent);
+	--glass-clear-highlight: color-mix(in srgb, var(--c-surface-highlight) 50%, transparent);
+	--glass-clear-border: color-mix(in srgb, var(--c-surface-border) 44%, var(--c-surface-line));
+	--glass-clear-blur: 16px;
+	--glass-clear-saturate: 122%;
+	--glass-clear-filter: blur(var(--glass-clear-blur)) saturate(var(--glass-clear-saturate));
+	--glass-elevated-fill: color-mix(in srgb, var(--c-surface-fill) 92%, var(--c-flow-violet) 2%);
+	--glass-elevated-tint: color-mix(in srgb, var(--c-flow-violet) 8%, transparent);
+	--glass-elevated-highlight: color-mix(in srgb, var(--c-surface-highlight) 46%, transparent);
+	--glass-elevated-border: color-mix(in srgb, var(--c-surface-line) 76%, var(--c-surface-border) 24%);
+	--glass-elevated-blur: 16px;
+	--glass-elevated-saturate: 118%;
+	--glass-elevated-filter: blur(var(--glass-elevated-blur)) saturate(var(--glass-elevated-saturate));
+	--glass-floating-fill: color-mix(in srgb, var(--c-surface-fill) 86%, var(--c-flow-blue) 3%);
+	--glass-floating-tint: color-mix(in srgb, var(--c-flow-blue) 10%, transparent);
+	--glass-floating-highlight: color-mix(in srgb, var(--c-surface-highlight) 58%, transparent);
+	--glass-floating-border: color-mix(in srgb, var(--c-surface-border) 58%, var(--c-surface-line));
+	--glass-floating-blur: 18px;
+	--glass-floating-saturate: 124%;
+	--glass-floating-filter: blur(var(--glass-floating-blur)) saturate(var(--glass-floating-saturate));
+}
+
+// Dynamic mode already disables live backdrop sampling for compositor safety.
+// Make its fills slightly denser so the material still reads as glass while
+// the moving atmosphere supplies the tint behind it.
+.dynamic {
+	--glass-frost-fill: color-mix(in srgb, var(--c-surface-fill) 97%, var(--c-flow-blue) 3%);
+	--glass-clear-fill: color-mix(in srgb, var(--c-surface-fill) 91%, var(--c-flow-cyan) 3%);
+	--glass-elevated-fill: color-mix(in srgb, var(--c-surface-fill) 95%, var(--c-flow-violet) 3%);
+	--glass-floating-fill: color-mix(in srgb, var(--c-surface-fill) 93%, var(--c-flow-blue) 4%);
+	--glass-frost-filter: none;
+	--glass-clear-filter: none;
+	--glass-elevated-filter: none;
+	--glass-floating-filter: none;
+}

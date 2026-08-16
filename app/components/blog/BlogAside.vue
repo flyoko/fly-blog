@@ -54,13 +54,17 @@ watch(() => props.hasContent, (hasContent) => {
 
 		> :deep(.blog-widget) {
 			padding: 0.65rem;
+			border: 1px solid var(--glass-elevated-border);
 			border-radius: 0.75rem;
 			box-shadow:
 				0 14px 36px var(--c-surface-shadow),
-				inset 0 0 0 1px var(--c-surface-line),
+				inset 0 0 0 1px color-mix(in srgb, var(--glass-elevated-border) 52%, transparent),
 				inset 0 1px 0 var(--c-surface-highlight);
-			background-color: var(--c-surface-fill);
-			backdrop-filter: blur(16px) saturate(114%);
+			background:
+				linear-gradient(145deg, var(--glass-elevated-highlight), transparent 36%),
+				radial-gradient(120% 110% at 10% -12%, var(--glass-elevated-tint), transparent 52%),
+				var(--glass-elevated-fill);
+			backdrop-filter: var(--glass-elevated-filter);
 		}
 
 		&.show {
@@ -82,7 +86,7 @@ watch(() => props.hasContent, (hasContent) => {
 
 @media (prefers-reduced-transparency: reduce) {
 	#blog-aside > :deep(.blog-widget) {
-		background-color: var(--ld-bg-card);
+		background: var(--ld-bg-card);
 		backdrop-filter: none;
 	}
 }
