@@ -71,6 +71,8 @@ const formatted = computed(() =>
 
 <style scoped lang="scss">
 .moment-card {
+	content-visibility: auto;
+	contain-intrinsic-size: auto 18rem;
 	display: grid;
 	gap: 1rem;
 	padding: clamp(1rem, 3vw, 1.6rem);

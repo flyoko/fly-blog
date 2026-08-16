@@ -93,9 +93,10 @@ const hasAside = computed(() => routeAsideVisible.value)
 @media not (max-width: $breakpoint-widescreen) {
 	#blog-root {
 		--desktop-shell-width: 88rem;
-		--desktop-shell-gutter: 0.65rem;
-		--desktop-content-gap: 0.35rem;
-		--desktop-top-nav-height: 4rem;
+		--desktop-top-nav-width: min(96rem, calc(100vw - 3rem));
+		--desktop-shell-gutter: 0.75rem;
+		--desktop-content-gap: 0.4rem;
+		--desktop-top-nav-height: 3.75rem;
 		--desktop-sticky-top: calc(var(--desktop-shell-gutter) + var(--desktop-top-nav-height) + var(--desktop-content-gap));
 
 		display: grid;

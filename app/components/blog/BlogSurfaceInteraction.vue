@@ -6,6 +6,7 @@ const colorMode = useColorMode()
 const selector = '.card, .gradient-card, .widget-card, .sidebar-nav-item, .pagination'
 const isFinePointer = useMediaQuery('(pointer: fine)')
 const prefersReducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
+const isCompactPerformanceMode = useMediaQuery('(max-width: 1180px)')
 const interactionIntensity = computed(() => {
 	if (colorMode.value === 'dynamic')
 		return 1
@@ -16,7 +17,9 @@ const interactionIntensity = computed(() => {
 
 let active: HTMLElement | undefined
 let frame = 0
-let pending: PointerEvent | undefined
+let pendingX = 0
+let pendingY = 0
+let hasPending = false
 
 function clearSurface(element = active) {
 	if (!element)
@@ -47,22 +50,23 @@ function deactivateSurface() {
 		cancelAnimationFrame(frame)
 
 	frame = 0
-	pending = undefined
+	hasPending = false
 	clearSurface()
 	active = undefined
 }
 
 function updateSurface() {
 	frame = 0
-	if (!pending || !active)
+	if (!hasPending || !active)
 		return
 
+	hasPending = false
 	const rect = active.getBoundingClientRect()
 	if (!rect.width || !rect.height)
 		return
 
-	const x = Math.max(0, Math.min(100, (pending.clientX - rect.left) / rect.width * 100))
-	const y = Math.max(0, Math.min(100, (pending.clientY - rect.top) / rect.height * 100))
+	const x = Math.max(0, Math.min(100, (pendingX - rect.left) / rect.width * 100))
+	const y = Math.max(0, Math.min(100, (pendingY - rect.top) / rect.height * 100))
 	const normalizedX = (x - 50) / 50
 	const normalizedY = (y - 50) / 50
 	const compact = active.matches('.sidebar-nav-item, .pagination')
@@ -76,28 +80,33 @@ function updateSurface() {
 	active.style.setProperty('--surface-shift-x', `${shiftX.toFixed(2)}px`)
 	active.style.setProperty('--surface-shift-y', `${shiftY.toFixed(2)}px`)
 	active.style.setProperty('--surface-sheen-position', `${x.toFixed(2)}%`)
-	active.style.setProperty('--surface-tilt-x', `${(immersive ? -normalizedY * 2.2 * intensity : 0).toFixed(2)}deg`)
-	active.style.setProperty('--surface-tilt-y', `${(immersive ? normalizedX * 2.8 * intensity : 0).toFixed(2)}deg`)
-	active.style.setProperty('--scene-shift-x', `${(-normalizedX * (compact ? 3 : 7) * intensity).toFixed(2)}px`)
-	active.style.setProperty('--scene-shift-y', `${(-normalizedY * (compact ? 2 : 5) * intensity).toFixed(2)}px`)
-	active.style.setProperty('--scene-avatar-x', `${(-normalizedX * 9 * intensity).toFixed(2)}px`)
-	active.style.setProperty('--scene-avatar-y', `${(-normalizedY * 7 * intensity).toFixed(2)}px`)
-	active.style.setProperty('--scene-character-x', `${(normalizedX * 5 * intensity).toFixed(2)}px`)
-	active.style.setProperty('--scene-character-y', `${(normalizedY * 3.5 * intensity).toFixed(2)}px`)
-	active.style.setProperty('--scene-planet-x', `${(-normalizedX * 2.4 * intensity).toFixed(2)}px`)
-	active.style.setProperty('--scene-planet-y', `${(-normalizedY * 1.8 * intensity).toFixed(2)}px`)
-	active.style.setProperty('--scene-orbit-x', `${(-normalizedX * 4.5 * intensity).toFixed(2)}px`)
-	active.style.setProperty('--scene-orbit-y', `${(-normalizedY * 3 * intensity).toFixed(2)}px`)
+
+	if (immersive) {
+		active.style.setProperty('--surface-tilt-x', `${(-normalizedY * 2.2 * intensity).toFixed(2)}deg`)
+		active.style.setProperty('--surface-tilt-y', `${(normalizedX * 2.8 * intensity).toFixed(2)}deg`)
+		active.style.setProperty('--scene-shift-x', `${(-normalizedX * 7 * intensity).toFixed(2)}px`)
+		active.style.setProperty('--scene-shift-y', `${(-normalizedY * 5 * intensity).toFixed(2)}px`)
+		active.style.setProperty('--scene-avatar-x', `${(-normalizedX * 9 * intensity).toFixed(2)}px`)
+		active.style.setProperty('--scene-avatar-y', `${(-normalizedY * 7 * intensity).toFixed(2)}px`)
+		active.style.setProperty('--scene-character-x', `${(normalizedX * 5 * intensity).toFixed(2)}px`)
+		active.style.setProperty('--scene-character-y', `${(normalizedY * 3.5 * intensity).toFixed(2)}px`)
+		active.style.setProperty('--scene-planet-x', `${(-normalizedX * 2.4 * intensity).toFixed(2)}px`)
+		active.style.setProperty('--scene-planet-y', `${(-normalizedY * 1.8 * intensity).toFixed(2)}px`)
+		active.style.setProperty('--scene-orbit-x', `${(-normalizedX * 4.5 * intensity).toFixed(2)}px`)
+		active.style.setProperty('--scene-orbit-y', `${(-normalizedY * 3 * intensity).toFixed(2)}px`)
+	}
 }
 
 useEventListener('pointermove', (event) => {
-	if (!isFinePointer.value || prefersReducedMotion.value)
+	if (!isFinePointer.value || prefersReducedMotion.value || isCompactPerformanceMode.value)
 		return
 
 	const eventTarget = event.target
-	const target = eventTarget instanceof Element
-		? eventTarget.closest<HTMLElement>(selector) ?? undefined
-		: undefined
+	const target = active && eventTarget instanceof Node && active.contains(eventTarget)
+		? active
+		: eventTarget instanceof Element
+			? eventTarget.closest<HTMLElement>(selector) ?? undefined
+			: undefined
 
 	if (target !== active) {
 		clearSurface()
@@ -108,13 +117,15 @@ useEventListener('pointermove', (event) => {
 	if (!active)
 		return
 
-	pending = event
+	pendingX = event.clientX
+	pendingY = event.clientY
+	hasPending = true
 	if (!frame)
 		frame = requestAnimationFrame(updateSurface)
 }, { passive: true })
 
 useEventListener('pointerdown', (event) => {
-	if (event.button !== 0 || !isFinePointer.value || prefersReducedMotion.value)
+	if (event.button !== 0 || !isFinePointer.value || prefersReducedMotion.value || isCompactPerformanceMode.value)
 		return
 
 	const eventTarget = event.target
@@ -142,8 +153,8 @@ useEventListener('pointerout', (event) => {
 
 useEventListener('pointercancel', deactivateSurface, { passive: true })
 
-watch([isFinePointer, prefersReducedMotion], ([fine, reduced]) => {
-	if (!fine || reduced)
+watch([isFinePointer, prefersReducedMotion, isCompactPerformanceMode], ([fine, reduced, compact]) => {
+	if (!fine || reduced || compact)
 		deactivateSurface()
 })
 

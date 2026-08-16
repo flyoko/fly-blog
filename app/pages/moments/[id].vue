@@ -50,7 +50,7 @@ onMounted(load)
 
 <template>
 <div class="mobile-only">
-	<BlogHeader to="/moments" />
+	<BlogNavBrand class="mobile-page-brand" to="/moments" />
 </div>
 <section class="moment-detail-page">
 	<h1 class="visually-hidden">

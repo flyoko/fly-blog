@@ -41,18 +41,22 @@ describe('motion v2 production integration', () => {
 		}
 	})
 
-	it('enables atmosphere and pointer feedback in light, dark, system-resolved, and dynamic modes', () => {
+	it('keeps normal reading themes static and reserves continuous ambient feedback for dynamic mode', () => {
 		const atmosphere = read('app/components/blog/BlogAtmosphere.vue')
 		const surface = read('app/components/blog/BlogSurfaceInteraction.vue')
 		const storyboard = read('app/components/blog/BlogStoryboardInteraction.vue')
 		const main = read('app/assets/css/main.scss')
-		expect(atmosphere).not.toContain('!isDynamic.value')
+		expect(atmosphere).toContain('!isDynamic.value')
+		expect(atmosphere).toContain('const isDynamic = computed(() => colorMode.value === \'dynamic\')')
 		expect(surface).not.toContain('!isDynamic.value')
-		expect(storyboard).not.toContain('!isDynamic.value')
+		expect(storyboard).toContain('!isDynamic.value')
 		expect(main).toContain('.light .blog-atmosphere')
 		expect(main).toContain('.dark .blog-atmosphere')
 		expect(main).toContain('.dynamic .blog-atmosphere')
+		expect(main).toContain(':is(.light, .dark) .atmosphere-lens')
+		expect(main).toMatch(/:is\(\.light, \.dark\) \.atmosphere-lens,[\s\S]*?animation: none;/u)
 		expect(storyboard).toContain('trailDistance')
+		expect(storyboard).toContain('const trailInterval = 120')
 	})
 
 	it('adds storyboard pointer feedback without intercepting controls', () => {

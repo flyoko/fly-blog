@@ -7,7 +7,15 @@ const showAllDate = isTimeDiffSignificant(props.date, props.updated)
 
 <template>
 <UtilLink class="article-card card upraise">
-	<NuxtImg v-if="image" class="article-cover" :src="image" :alt="title" />
+	<NuxtImg
+		v-if="image"
+		class="article-cover"
+		:src="image"
+		:alt="title"
+		loading="lazy"
+		decoding="async"
+		fetchpriority="low"
+	/>
 	<article>
 		<h2 class="article-title text-creative">
 			{{ title }}
@@ -52,6 +60,8 @@ const showAllDate = isTimeDiffSignificant(props.date, props.updated)
 <style lang="scss" scoped>
 .article-card {
 	container-type: inline-size;
+	content-visibility: auto;
+	contain-intrinsic-size: auto 8.5rem;
 	position: relative;
 	margin: 1.1em 0;
 	border-radius: 0.875rem;

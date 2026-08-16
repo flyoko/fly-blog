@@ -14,7 +14,7 @@ useSeoMeta({
 
 <template>
 <div class="mobile-only">
-	<BlogHeader to="/" />
+	<BlogNavBrand class="mobile-page-brand" to="/" />
 </div>
 
 <section class="link-page">

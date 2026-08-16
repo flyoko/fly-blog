@@ -306,6 +306,19 @@ kbd {
 	font-size: 0.62rem;
 }
 
+@media (max-width: 900px), (hover: none) and (pointer: coarse) {
+	.admin-command-panel {
+		background:
+			linear-gradient(145deg, color-mix(in srgb, var(--admin-glass-highlight) 52%, transparent), transparent 42%),
+			color-mix(in srgb, var(--admin-surface) 95%, var(--admin-accent-soft) 5%);
+		backdrop-filter: none;
+	}
+
+	.admin-command-backdrop {
+		backdrop-filter: none;
+	}
+}
+
 @media (prefers-reduced-transparency: reduce) {
 	.admin-command-panel,
 	.admin-command-search,

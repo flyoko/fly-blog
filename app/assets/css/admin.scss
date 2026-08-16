@@ -1294,6 +1294,17 @@ html.dark-mode,
 	backdrop-filter: var(--admin-glass-clear-filter);
 }
 
+// Data-dense admin cards keep the same glass gradients without live backdrop
+// sampling. This avoids multiplying compositor layers across dashboards,
+// tables, filters, and long management screens.
+.admin-panel,
+.admin-status-card,
+.admin-empty-state,
+.admin-route-fallback,
+.admin-analytics-toolbar {
+	backdrop-filter: none;
+}
+
 .admin-analytics-live-panel {
 	background:
 		linear-gradient(color-mix(in srgb, var(--admin-accent-soft) 54%, transparent), transparent 55%),
@@ -1306,7 +1317,7 @@ html.dark-mode,
 	background:
 		linear-gradient(145deg, color-mix(in srgb, var(--admin-glass-highlight) 52%, transparent), transparent 42%),
 		var(--admin-glass-elevated-fill);
-	backdrop-filter: var(--admin-glass-clear-filter);
+	backdrop-filter: none;
 }
 
 .admin-editor-list,
@@ -1397,6 +1408,32 @@ html.dark-mode,
 .admin-modal-backdrop,
 .admin-command-backdrop {
 	backdrop-filter: blur(10px) saturate(112%);
+}
+
+@media (max-width: 900px), (hover: none) and (pointer: coarse) {
+	.admin-sidebar,
+	.admin-topbar,
+	.admin-mobile-dock,
+	.admin-hero,
+	.admin-login-card,
+	.admin-modal-panel,
+	.admin-toast,
+	.admin-button-ghost,
+	.admin-modal-backdrop,
+	.admin-command-backdrop {
+		backdrop-filter: none;
+	}
+
+	.admin-sidebar,
+	.admin-topbar,
+	.admin-mobile-dock,
+	.admin-login-card,
+	.admin-modal-panel,
+	.admin-toast {
+		background:
+			linear-gradient(145deg, color-mix(in srgb, var(--admin-glass-highlight) 54%, transparent), transparent 42%),
+			color-mix(in srgb, var(--admin-surface) 95%, var(--admin-accent-soft) 5%);
+	}
 }
 
 @supports not (backdrop-filter: blur(1px)) {

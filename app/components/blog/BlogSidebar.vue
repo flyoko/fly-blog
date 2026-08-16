@@ -19,7 +19,7 @@ const debouncedSelection = refDebounced(text)
 
 <!-- 不能用 Transition 实现弹出收起动画，因为半宽屏状态始终显示 -->
 <aside id="blog-sidebar" :class="{ show: layoutStore.state === 'sidebar' }">
-	<BlogHeader class="sidebar-header" to="/" />
+	<BlogNavBrand class="sidebar-header" to="/" />
 
 	<nav class="sidebar-nav scrollcheck-y" aria-label="主导航">
 		<button v-if="searchEnabled" class="search-btn sidebar-nav-item gradient-card" type="button" aria-label="搜索站内内容" @click="layoutStore.toggle('search')">
@@ -75,9 +75,10 @@ const debouncedSelection = refDebounced(text)
 		max-width: calc(100vw - 3rem);
 		padding-bottom: var(--mobile-safe-bottom);
 		box-shadow: inset -1px 0 0 var(--c-surface-line);
-		background-color: var(--c-bg-1);
-		background-color: color-mix(in srgb, var(--c-bg-1) 96%, transparent);
-		backdrop-filter: blur(18px) saturate(116%);
+		background:
+			linear-gradient(145deg, color-mix(in srgb, var(--c-surface-highlight) 38%, transparent), transparent 42%),
+			color-mix(in srgb, var(--c-bg-1) 97%, var(--c-flow-blue) 3%);
+		backdrop-filter: none;
 		color: currentcolor;
 		transform: var(--transform-start-far);
 		transition:
@@ -94,6 +95,17 @@ const debouncedSelection = refDebounced(text)
 			pointer-events: auto;
 		}
 	}
+}
+
+.sidebar-header {
+	margin: 0.7rem 0.75rem 0.25rem;
+	padding: 0.62rem 0.7rem;
+	border: 1px solid var(--c-surface-line);
+	border-radius: 0.9rem;
+	box-shadow: inset 0 1px 0 var(--c-surface-highlight);
+	background:
+		linear-gradient(145deg, color-mix(in srgb, var(--c-surface-highlight) 42%, transparent), transparent 46%),
+		color-mix(in srgb, var(--c-surface-fill) 94%, transparent);
 }
 
 .sidebar-mask {

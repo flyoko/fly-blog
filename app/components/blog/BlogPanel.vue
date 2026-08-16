@@ -319,7 +319,10 @@ button {
 		border: 1px solid color-mix(in srgb, var(--c-border) 82%, transparent);
 		border-radius: 999px;
 		box-shadow: var(--box-shadow-1), 0 0.8rem 2rem color-mix(in srgb, var(--c-bg) 24%, transparent);
-		background-color: color-mix(in srgb, var(--c-bg-2) 82%, transparent);
+		background:
+			linear-gradient(145deg, color-mix(in srgb, var(--c-surface-highlight) 34%, transparent), transparent 48%),
+			color-mix(in srgb, var(--c-bg-2) 94%, transparent);
+		backdrop-filter: none;
 	}
 
 	#blog-panel button {

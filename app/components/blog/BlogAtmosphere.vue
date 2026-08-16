@@ -3,11 +3,13 @@ import { useEventListener, useMediaQuery, useRafFn } from '@vueuse/core'
 
 const route = useRoute()
 const nuxtApp = useNuxtApp()
+const colorMode = useColorMode()
 const root = useTemplateRef<HTMLElement>('root')
 const pointer = useTemplateRef<HTMLElement>('pointer')
 const isFinePointer = useMediaQuery('(pointer: fine)')
 const prefersReducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
 const isMobilePerformanceMode = useMediaQuery('(max-width: 768px), (hover: none) and (pointer: coarse)')
+const isDynamic = computed(() => colorMode.value === 'dynamic')
 const isRouteSettling = useState<boolean>('route-compositor-settling', () => false)
 let targetX = 50
 let targetY = 26
@@ -22,7 +24,7 @@ let routeSettleTimer: ReturnType<typeof setTimeout> | undefined
 const { isActive, pause, resume } = useRafFn(() => {
 	const element = root.value
 	const pointerElement = pointer.value
-	if (!element || !pointerElement || !isFinePointer.value || prefersReducedMotion.value || isMobilePerformanceMode.value || isRouteSettling.value) {
+	if (!element || !pointerElement || !isDynamic.value || !isFinePointer.value || prefersReducedMotion.value || isMobilePerformanceMode.value || isRouteSettling.value) {
 		pause()
 		return
 	}
@@ -43,7 +45,8 @@ const { isActive, pause, resume } = useRafFn(() => {
 }, { immediate: false })
 
 function canAnimatePointer() {
-	return isFinePointer.value
+	return isDynamic.value
+		&& isFinePointer.value
 		&& !prefersReducedMotion.value
 		&& !isMobilePerformanceMode.value
 		&& !isRouteSettling.value
@@ -129,8 +132,8 @@ watch(() => route.fullPath, () => {
 	scheduleRouteResume()
 })
 
-watch([isFinePointer, prefersReducedMotion, isMobilePerformanceMode], ([fine, reduced, mobile]) => {
-	if (fine && !reduced && !mobile) {
+watch([isDynamic, isFinePointer, prefersReducedMotion, isMobilePerformanceMode], ([dynamic, fine, reduced, mobile]) => {
+	if (dynamic && fine && !reduced && !mobile) {
 		pointerResumeAt = 0
 		resumePointerAnimation()
 		return

@@ -17,7 +17,7 @@
 	border-radius: 0.5em;
 	box-shadow: var(--box-shadow-1);
 	background-color: var(--ld-bg-card);
-	transition: all 0.2s;
+	transition: background-color 0.2s, border-color 0.2s, box-shadow 0.2s, transform 0.2s;
 
 	&.upraise:hover {
 		box-shadow: var(--box-shadow-3);
@@ -147,7 +147,10 @@
 		linear-gradient(145deg, var(--glass-material-highlight), transparent 34%),
 		radial-gradient(120% 110% at 8% -12%, var(--glass-material-tint), transparent 48%),
 		var(--glass-material-fill);
-	backdrop-filter: var(--glass-material-filter);
+
+	// Generic list cards use simulated glass. Applying backdrop-filter to every
+	// article or moment card creates one live compositor surface per row.
+	backdrop-filter: none;
 	transform: translate3d(var(--surface-shift-x), calc(var(--surface-lift) + var(--surface-shift-y)), 0);
 
 	&.upraise:hover {
@@ -166,6 +169,12 @@
 			inset 0 0 0 1px var(--c-surface-border),
 			inset 0 1px 0 var(--c-surface-highlight);
 	}
+}
+
+// Keep live backdrop sampling opt-in. Structural controls can still use the
+// stronger material roles, while repeated content cards stay cheap to scroll.
+:is(.light, .dark) .card:is(.glass-clear, .glass-elevated, .glass-floating) {
+	backdrop-filter: var(--glass-material-filter);
 }
 
 :where(.widget-card, .sidebar-nav-item, .pagination).is-pointer-active {
@@ -203,6 +212,18 @@
 		background:
 			linear-gradient(var(--ld-bg-card), var(--ld-bg-card)) padding-box,
 			radial-gradient(180px circle at var(--surface-x) var(--surface-y), var(--c-surface-border), var(--c-surface-line) 48%, transparent 76%) border-box;
+	}
+}
+
+@media (max-width: $breakpoint-mobile), (hover: none) and (pointer: coarse) {
+	.glass-clear,
+	.glass-elevated,
+	.glass-floating {
+		--glass-material-filter: none;
+	}
+
+	:is(.light, .dark, .dynamic) .card {
+		backdrop-filter: none;
 	}
 }
 

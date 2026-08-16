@@ -75,7 +75,7 @@ if (props.avoid) {
 		linear-gradient(145deg, var(--glass-material-highlight), transparent 40%),
 		radial-gradient(105% 160% at 15% -30%, var(--glass-material-tint), transparent 60%),
 		var(--glass-material-fill);
-	backdrop-filter: var(--glass-material-filter);
+	backdrop-filter: none;
 	transition: max-width 0.2s var(--max-bezier-to-full);
 	font-variant-numeric: tabular-nums;
 

@@ -98,7 +98,7 @@ onMounted(load)
 
 <template>
 <div class="mobile-only">
-	<BlogHeader to="/ai.news" />
+	<BlogNavBrand class="mobile-page-brand" to="/ai.news" />
 </div>
 <section class="reader-page">
 	<NuxtLink class="reader-back" to="/ai.news">

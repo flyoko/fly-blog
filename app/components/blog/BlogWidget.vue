@@ -145,7 +145,7 @@ defineExpose({ body })
 			linear-gradient(145deg, var(--glass-material-highlight), transparent 34%),
 			radial-gradient(120% 110% at 8% -12%, var(--glass-material-tint), transparent 50%),
 			var(--glass-material-fill);
-		backdrop-filter: var(--glass-material-filter);
+		backdrop-filter: none;
 
 		:deep(p) {
 			padding: 0.2em 0;

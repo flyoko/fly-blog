@@ -81,7 +81,7 @@ const blogStats = [{
 			linear-gradient(145deg, color-mix(in srgb, var(--glass-material-highlight) 82%, transparent), transparent 30%),
 			radial-gradient(120% 110% at 8% -12%, var(--glass-material-tint), transparent 52%),
 			var(--glass-material-fill);
-		backdrop-filter: var(--glass-material-filter);
+		backdrop-filter: none;
 	}
 
 	:deep(.widget-body.widget-card)::before,

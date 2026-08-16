@@ -485,8 +485,10 @@ async function copyWechatId() {
 	border: 1px solid color-mix(in srgb, var(--c-border) 84%, transparent);
 	border-radius: 0.65rem;
 	box-shadow: 0 0.35rem 0.9rem color-mix(in srgb, var(--c-bg) 26%, transparent);
-	background: color-mix(in srgb, var(--c-bg-2) 78%, transparent);
-	backdrop-filter: blur(0.6rem);
+	background:
+		linear-gradient(145deg, color-mix(in srgb, var(--c-surface-highlight) 42%, transparent), transparent 48%),
+		color-mix(in srgb, var(--c-bg-2) 94%, transparent);
+	backdrop-filter: none;
 	font-size: 1.15rem;
 	color: var(--c-text-1);
 	transform: translateY(-50%) scale(0.92);
@@ -523,8 +525,10 @@ async function copyWechatId() {
 	padding: 0;
 	border: 1px solid color-mix(in srgb, var(--c-border) 84%, transparent);
 	border-radius: 50%;
-	background: color-mix(in srgb, var(--c-bg-2) 78%, transparent);
-	backdrop-filter: blur(0.6rem);
+	background:
+		linear-gradient(145deg, color-mix(in srgb, var(--c-surface-highlight) 42%, transparent), transparent 48%),
+		color-mix(in srgb, var(--c-bg-2) 94%, transparent);
+	backdrop-filter: none;
 	font-size: 0.72rem;
 	color: var(--c-text-2);
 	cursor: pointer;

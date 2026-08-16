@@ -39,7 +39,7 @@ const { data: previewCount } = useAsyncData(
 	<h1 class="visually-hidden">
 		{{ appConfig.title }}
 	</h1>
-	<BlogHeader class="mobile-only" to="/" />
+	<BlogNavBrand class="mobile-only mobile-page-brand" to="/" />
 
 	<UtilHydrateSafe v-if="articlesEnabled">
 		<HomeAdCarousel v-if="homeAds.length" :ads="homeAds" />

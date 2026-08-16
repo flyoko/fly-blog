@@ -53,7 +53,7 @@ function isArchiveYear(year: string) {
 
 <template>
 <div class="mobile-only">
-	<BlogHeader to="/" />
+	<BlogNavBrand class="mobile-page-brand" to="/" />
 </div>
 
 <div class="archive proper-height">

@@ -330,6 +330,19 @@ img {
 	animation-name: atmosphere-flow-travel-reverse;
 }
 
+// Light and dark are the calm reading modes. Keep the atmosphere visible, but
+// reserve continuous lens/star/flow animation for the explicit Dynamic theme.
+// This removes ten always-running CSS animations from normal desktop reading.
+:is(.light, .dark) .atmosphere-lens,
+:is(.light, .dark) .atmosphere-stars,
+:is(.light, .dark) .flow-ribbon,
+:is(.light, .dark) .flow-thread,
+:is(.light, .dark) .flow-signal,
+:is(.light, .dark) .flow-ribbon-secondary .flow-thread,
+:is(.light, .dark) .flow-ribbon-secondary .flow-signal {
+	animation: none;
+}
+
 .atmosphere-pointer {
 	inset: auto;
 	top: 0;
@@ -357,6 +370,7 @@ img {
 
 // 动态背景下禁用实时玻璃取样，避免 macOS 在滚动和聚焦时重建整页合成层。
 .dynamic #blog-root :where(
+	.blog-top-nav,
 	.article-window,
 	#blog-panel,
 	#blog-sidebar,
@@ -390,7 +404,7 @@ img {
 
 @media (max-width: $breakpoint-mobile), (hover: none) and (pointer: coarse) {
 	.blog-atmosphere {
-		will-change: transform;
+		will-change: auto;
 	}
 
 	.atmosphere-lens,
@@ -405,7 +419,7 @@ img {
 		height: 116%;
 		transform: scale(1.02);
 		transition: none;
-		will-change: transform;
+		will-change: auto;
 	}
 
 	.atmosphere-lens {
@@ -422,8 +436,8 @@ img {
 	}
 
 	.atmosphere-stars-far {
-		animation-duration: 36s;
-		will-change: transform;
+		animation: none;
+		will-change: auto;
 	}
 
 	.flow-halo {
@@ -433,8 +447,10 @@ img {
 	}
 
 	.flow-thread,
-	.flow-signal {
-		animation-duration: 12s;
+	.flow-signal,
+	.flow-ribbon-secondary .flow-thread,
+	.flow-ribbon-secondary .flow-signal {
+		animation: none;
 		filter: none;
 	}
 

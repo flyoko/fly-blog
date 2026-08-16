@@ -12,7 +12,7 @@ const debouncedSelection = refDebounced(text)
 
 <template>
 <header class="blog-top-nav glass-floating" aria-label="桌面导航">
-	<BlogHeader class="top-nav-brand" to="/" />
+	<BlogNavBrand class="top-nav-brand" to="/" compact />
 
 	<nav class="top-nav-links" aria-label="主导航">
 		<template v-for="(group, groupIndex) in appConfig.nav" :key="groupIndex">
@@ -56,89 +56,57 @@ const debouncedSelection = refDebounced(text)
 
 @media not (max-width: $breakpoint-widescreen) {
 	.blog-top-nav {
+		contain: layout paint style;
 		display: grid;
-		grid-template-columns: clamp(12.75rem, 15vw, 14.25rem) minmax(0, 1fr) max-content;
+		grid-template-columns: clamp(10.75rem, 13vw, 12.5rem) minmax(0, 1fr) max-content;
 		align-items: center;
-		gap: clamp(0.35rem, 0.65vw, 0.65rem);
+		justify-self: center;
+		gap: clamp(0.35rem, 0.65vw, 0.7rem);
 		position: sticky;
-		top: var(--desktop-shell-gutter, 0.65rem);
-		width: 100%;
+		top: var(--desktop-shell-gutter, 0.75rem);
+		width: var(--desktop-top-nav-width, min(96rem, calc(100vw - 3rem)));
 		min-width: 0;
-		min-height: var(--desktop-top-nav-height, 4rem);
-		padding: 0.32rem 0.38rem;
-		border: 1px solid var(--glass-material-border);
-		border-radius: 0.9rem;
+		min-height: var(--desktop-top-nav-height, 3.75rem);
+		max-width: calc(100vw - 2rem);
+		padding: 0.36rem 0.48rem 0.36rem 0.72rem;
+		border: 1px solid color-mix(in srgb, var(--glass-material-border) 82%, transparent);
+		border-radius: 999px;
 		box-shadow:
-			0 10px 30px var(--c-surface-shadow),
-			inset 0 0 0 1px color-mix(in srgb, var(--glass-material-border) 52%, transparent),
+			0 16px 44px color-mix(in srgb, var(--c-surface-shadow) 78%, transparent),
+			inset 0 0 0 1px color-mix(in srgb, var(--glass-material-border) 46%, transparent),
 			inset 0 1px 0 var(--c-surface-highlight);
 		background:
-			linear-gradient(145deg, var(--glass-material-highlight), transparent 38%),
-			radial-gradient(85% 130% at 12% -18%, var(--glass-material-tint), transparent 58%),
-			var(--glass-material-fill);
-		backdrop-filter: var(--glass-material-filter);
+			linear-gradient(180deg, color-mix(in srgb, var(--glass-material-highlight) 76%, transparent), transparent 54%),
+			radial-gradient(92% 160% at 10% -34%, var(--glass-material-tint), transparent 58%),
+			color-mix(in srgb, var(--glass-material-fill) 93%, var(--c-bg-1) 7%);
+		backdrop-filter: blur(10px) saturate(114%);
 		color: var(--c-text-2);
-		z-index: 2;
+		isolation: isolate;
+		z-index: 30;
 	}
 }
 
 .top-nav-brand {
-	gap: 0.45rem;
 	overflow: hidden;
 	width: 100%;
 	min-width: 0;
-	min-height: 3.2rem;
-	margin: 0;
-	padding: 0.34rem 3.95rem 0.34rem 0.48rem;
-	border-radius: 0.72rem;
-	box-shadow:
-		0 6px 18px var(--c-surface-shadow),
-		inset 0 1px 0 var(--c-surface-highlight);
-	line-height: 1.2;
+	padding-inline: 0.08rem 0.35rem;
+	border-radius: 999px;
 
-	:deep(.emoji-tail) {
+	:deep(.blog-nav-brand-logo) {
+		width: 2.15rem;
+		height: 2.15rem;
+		box-shadow: none;
+		background: color-mix(in srgb, var(--c-surface-fill) 72%, transparent);
+	}
+
+	:deep(.blog-nav-brand-copy strong) {
+		font-size: 0.92rem;
+		letter-spacing: -0.015em;
+	}
+
+	:deep(.blog-nav-brand-copy small) {
 		display: none;
-	}
-
-	:deep(.blog-logo-shell) {
-		height: 2.25rem;
-	}
-
-	:deep(.blog-logo-shell.circle) {
-		width: 2.25rem;
-	}
-
-	:deep(.blog-text) {
-		min-width: 0;
-	}
-
-	:deep(.header-title) {
-		overflow: hidden;
-		font-size: 1rem;
-		white-space: nowrap;
-		text-overflow: ellipsis;
-	}
-
-	:deep(.header-subtitle) {
-		display: -webkit-box;
-		overflow: hidden;
-		max-width: 7.4rem;
-		margin-top: 0.08rem;
-		font-size: 0.62rem;
-		-webkit-line-clamp: 2;
-		line-height: 1.35;
-		-webkit-box-orient: vertical;
-	}
-
-	:deep(.is-header .scene-character) {
-		right: -0.32rem;
-		bottom: -0.66rem;
-		width: 4.15rem;
-	}
-
-	:deep(.is-header .scene-rocket) {
-		top: 8%;
-		right: 31%;
 	}
 }
 
@@ -155,25 +123,24 @@ const debouncedSelection = refDebounced(text)
 	align-items: center;
 	gap: 0.28rem;
 	min-width: 0;
-	padding: 0.4rem clamp(0.34rem, 0.5vw, 0.54rem);
+	padding: 0.42rem clamp(0.38rem, 0.54vw, 0.62rem);
 	border: 1px solid transparent;
-	border-radius: 0.55rem;
+	border-radius: 999px;
 	font-size: 0.75rem;
 	white-space: nowrap;
 	color: var(--c-text-2);
-	transition: background-color 0.2s, border-color 0.2s, color 0.2s, transform 0.2s;
+	transition: background-color 0.18s, border-color 0.18s, color 0.18s;
 
 	&:hover {
 		border-color: var(--c-surface-line);
-		background-color: var(--c-surface-fill);
+		background-color: color-mix(in srgb, var(--c-surface-fill) 76%, transparent);
 		color: var(--c-text);
-		transform: translateY(-1px);
 	}
 
 	&.router-link-active {
 		border-color: var(--c-surface-line);
-		box-shadow: inset 0 -2px 0 var(--c-primary);
-		background-color: var(--c-primary-soft);
+		box-shadow: inset 0 1px 0 var(--c-surface-highlight);
+		background-color: color-mix(in srgb, var(--c-primary-soft) 80%, var(--c-surface-fill));
 		color: var(--c-text);
 	}
 
@@ -204,8 +171,8 @@ const debouncedSelection = refDebounced(text)
 	max-width: 7.25rem;
 	padding: 0 0.52rem;
 	border: 1px solid var(--c-surface-line);
-	border-radius: 0.58rem;
-	background-color: var(--c-surface-fill);
+	border-radius: 999px;
+	background-color: color-mix(in srgb, var(--c-surface-fill) 76%, transparent);
 	font-size: 0.72rem;
 	color: var(--c-text-2);
 	transition: border-color 0.2s, color 0.2s;
@@ -253,7 +220,7 @@ const debouncedSelection = refDebounced(text)
 		display: grid;
 		place-items: center;
 		padding: 0.32rem;
-		border-radius: 0.55rem;
+		border-radius: 999px;
 		line-height: 1;
 		color: var(--c-text-2);
 	}
@@ -267,8 +234,8 @@ const debouncedSelection = refDebounced(text)
 	margin: 0;
 	padding: 1px;
 	border-color: var(--c-surface-line);
-	border-radius: 0.68rem;
-	background-color: var(--c-surface-fill);
+	border-radius: 999px;
+	background-color: color-mix(in srgb, var(--c-surface-fill) 76%, transparent);
 
 	:deep(button) {
 		padding: 0.24rem 0.32rem;
@@ -301,35 +268,20 @@ const debouncedSelection = refDebounced(text)
 
 @media (max-width: 1240px) {
 	.top-nav-brand {
-		min-height: 3rem;
-		padding: 0.3rem 3.45rem 0.3rem 0.42rem;
-
-		:deep(.blog-logo-shell) {
-			height: 2.1rem;
+		:deep(.blog-nav-brand-logo) {
+			width: 2rem;
+			height: 2rem;
 		}
 
-		:deep(.blog-logo-shell.circle) {
-			width: 2.1rem;
-		}
-
-		:deep(.header-title) {
-			font-size: 0.9rem;
-		}
-
-		:deep(.header-subtitle) {
-			max-width: 6.4rem;
-			font-size: 0.56rem;
-		}
-
-		:deep(.is-header .scene-character) {
-			width: 3.7rem;
+		:deep(.blog-nav-brand-copy strong) {
+			font-size: 0.86rem;
 		}
 	}
 }
 
 @media (max-width: 1160px) {
 	.blog-top-nav {
-		grid-template-columns: 11.75rem minmax(0, 1fr) max-content;
+		grid-template-columns: 9.5rem minmax(0, 1fr) max-content;
 		gap: 0.35rem;
 		padding-inline: 0.4rem;
 	}
