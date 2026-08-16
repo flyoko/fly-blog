@@ -68,7 +68,7 @@ describe('public blog presentation', () => {
 		expect(topNav).toContain('window.scrollY > 42')
 		expect(topNav).toContain('\'is-condensed\': isCondensed')
 		expect(topNav).toContain('.blog-top-nav:not(.is-condensed)')
-		expect(topNav).toMatch(/\.blog-top-nav\.is-condensed \.top-nav-brand[\s\S]*?\.blog-nav-brand-scene[\s\S]*?opacity: 0;/u)
+		expect(topNav).toContain(':scene="!isCondensed"')
 		expect(navBrand).toContain('scene?: boolean')
 		expect(navBrand).toContain('/assets/shinchan-user-cutout.webp')
 		expect(navBrand).not.toContain('BlogShinchanScene')
