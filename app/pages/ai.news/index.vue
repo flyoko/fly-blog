@@ -170,7 +170,10 @@ const visibleItems = computed<NewsItemDto[]>(() => {
 	})
 })
 
-const visibleFinanceItems = computed(() => financeData.value?.items || [])
+const visibleFinanceItems = computed(() => {
+	const items = financeData.value?.items || []
+	return financeImportantOnly.value ? items.filter(item => item.important) : items
+})
 
 const financeDayLabel = computed(() => {
 	const value = visibleFinanceItems.value[0]?.publishedAt || financeData.value?.updatedAt
@@ -299,6 +302,10 @@ async function loadFinance() {
 		if (revision === financeRequestRevision)
 			financeLoading.value = false
 	}
+}
+
+function toggleFinanceImportant() {
+	financeImportantOnly.value = !financeImportantOnly.value
 }
 
 watch([activeSection, financeFilter, financeImportantOnly], ([section]) => {
@@ -544,7 +551,7 @@ onMounted(load)
 		</aside>
 	</div>
 
-	<section v-else class="finance-stream card" aria-labelledby="finance-stream-title">
+	<section v-else class="finance-stream card" data-surface-static aria-labelledby="finance-stream-title">
 		<header class="finance-stream-header">
 			<div>
 				<p>{{ financeDayLabel }}</p>
@@ -558,7 +565,8 @@ onMounted(load)
 				type="button"
 				role="switch"
 				:aria-checked="financeImportantOnly"
-				@click="financeImportantOnly = !financeImportantOnly"
+				:aria-busy="financeLoading"
+				@click="toggleFinanceImportant"
 			>
 				<span>只看重要</span>
 				<span class="finance-toggle-track" aria-hidden="true"><span /></span>
@@ -887,9 +895,15 @@ onMounted(load)
 	display: flex;
 	align-items: center;
 	gap: 0.65rem;
+	position: relative;
+	min-height: 2.5rem;
+	padding: 0.3rem 0.1rem 0.3rem 0.45rem;
 	font-size: 0.74rem;
 	white-space: nowrap;
 	color: var(--c-text-2);
+	cursor: pointer;
+	touch-action: manipulation;
+	z-index: 2;
 }
 
 .finance-toggle-track {
@@ -1008,6 +1022,8 @@ onMounted(load)
 }
 
 .finance-flash {
+	content-visibility: auto;
+	contain-intrinsic-size: auto 6.5rem;
 	display: grid;
 	grid-template-columns: 3.4rem 1rem minmax(0, 1fr);
 	gap: 0.55rem;
@@ -1183,6 +1199,8 @@ onMounted(load)
 }
 
 .news-row {
+	content-visibility: auto;
+	contain-intrinsic-size: auto 7.2rem;
 	display: grid;
 	grid-template-columns: 1.15rem minmax(0, 1fr);
 	gap: 0.7rem;

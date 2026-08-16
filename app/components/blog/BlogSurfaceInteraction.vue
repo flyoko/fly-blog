@@ -3,7 +3,7 @@ import { useEventListener, useMediaQuery } from '@vueuse/core'
 
 const route = useRoute()
 const colorMode = useColorMode()
-const selector = '.card, .gradient-card, .widget-card, .sidebar-nav-item, .pagination'
+const selector = '.card.upraise:not([data-surface-static]), .gradient-card:not([data-surface-static]), .sidebar-nav-item:not([data-surface-static]), .about-hero:not([data-surface-static])'
 const isFinePointer = useMediaQuery('(pointer: fine)')
 const prefersReducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
 const isCompactPerformanceMode = useMediaQuery('(max-width: 1180px)')

@@ -115,7 +115,7 @@ const hasAside = computed(() => routeAsideVisible.value)
 		max-width: var(--desktop-shell-width);
 
 		&.has-aside {
-			grid-template-columns: minmax(0, 1fr) clamp(19rem, 21vw, 20.5rem);
+			grid-template-columns: minmax(0, 1fr) clamp(18rem, 19.5vw, 19rem);
 		}
 	}
 

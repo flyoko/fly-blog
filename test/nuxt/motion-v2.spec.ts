@@ -41,7 +41,7 @@ describe('motion v2 production integration', () => {
 		}
 	})
 
-	it('keeps normal reading themes static and reserves continuous ambient feedback for dynamic mode', () => {
+	it('keeps a low-power ambient layer in light and dark while reserving pointer particles for dynamic mode', () => {
 		const atmosphere = read('app/components/blog/BlogAtmosphere.vue')
 		const surface = read('app/components/blog/BlogSurfaceInteraction.vue')
 		const storyboard = read('app/components/blog/BlogStoryboardInteraction.vue')
@@ -53,8 +53,10 @@ describe('motion v2 production integration', () => {
 		expect(main).toContain('.light .blog-atmosphere')
 		expect(main).toContain('.dark .blog-atmosphere')
 		expect(main).toContain('.dynamic .blog-atmosphere')
-		expect(main).toContain(':is(.light, .dark) .atmosphere-lens')
-		expect(main).toMatch(/:is\(\.light, \.dark\) \.atmosphere-lens,[\s\S]*?animation: none;/u)
+		expect(main).toContain(':is(.light, .dark) .atmosphere-lens-a')
+		expect(main).toContain('animation-duration: 26s')
+		expect(main).toContain(':is(.light, .dark) .atmosphere-stars-near')
+		expect(main).toContain('animation-duration: 48s')
 		expect(storyboard).toContain('trailDistance')
 		expect(storyboard).toContain('const trailInterval = 120')
 	})

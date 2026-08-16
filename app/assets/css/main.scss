@@ -330,17 +330,39 @@ img {
 	animation-name: atmosphere-flow-travel-reverse;
 }
 
-// Light and dark are the calm reading modes. Keep the atmosphere visible, but
-// reserve continuous lens/star/flow animation for the explicit Dynamic theme.
-// This removes ten always-running CSS animations from normal desktop reading.
-:is(.light, .dark) .atmosphere-lens,
-:is(.light, .dark) .atmosphere-stars,
-:is(.light, .dark) .flow-ribbon,
-:is(.light, .dark) .flow-thread,
-:is(.light, .dark) .flow-signal,
+// Light and dark keep a low-power ambient motion tier instead of becoming fully
+// static. Only the two soft lenses, far star field and primary signal line move;
+// Dynamic mode keeps the denser multi-layer motion system.
+:is(.light, .dark) .atmosphere-lens-a {
+	animation-duration: 26s;
+}
+
+:is(.light, .dark) .atmosphere-lens-b {
+	animation-duration: 31s;
+}
+
+:is(.light, .dark) .atmosphere-stars-far {
+	animation-duration: 48s;
+}
+
+:is(.light, .dark) .atmosphere-stars-near,
 :is(.light, .dark) .flow-ribbon-secondary .flow-thread,
-:is(.light, .dark) .flow-ribbon-secondary .flow-signal {
+:is(.light, .dark) .flow-ribbon-secondary .flow-signal,
+:is(.light, .dark) .flow-ribbon-tertiary .flow-thread,
+:is(.light, .dark) .flow-ribbon-tertiary .flow-signal {
 	animation: none;
+}
+
+:is(.light, .dark) .flow-thread {
+	animation-duration: 15s;
+}
+
+:is(.light, .dark) .flow-signal {
+	animation-duration: 10.5s;
+}
+
+:is(.light, .dark) .flow-ribbon-secondary {
+	opacity: 0.28;
 }
 
 .atmosphere-pointer {

@@ -197,7 +197,10 @@
 }
 
 @media (pointer: fine) and (prefers-reduced-motion: no-preference) {
-	:where(.card, .gradient-card, .widget-card, .sidebar-nav-item, .pagination):active {
+	// Only scale controls that are themselves the pointer target. Scaling a large
+	// container when one of its child buttons is pressed can move the hit target
+	// between pointerdown and pointerup and cancel the click entirely.
+	:where(a.card.upraise, button.card, a.gradient-card, button.gradient-card, .sidebar-nav-item):active {
 		scale: 0.982;
 	}
 }

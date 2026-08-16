@@ -8,11 +8,34 @@ const searchEnabled = computed(() => isModuleEnabled(appConfig.featureModules, '
 
 const { text } = useTextSelection()
 const debouncedSelection = refDebounced(text)
+const isCondensed = ref(false)
+let scrollFrame = 0
+
+function syncTopNavState() {
+	scrollFrame = 0
+	isCondensed.value = window.scrollY > 42
+}
+
+function scheduleTopNavState() {
+	if (!scrollFrame)
+		scrollFrame = window.requestAnimationFrame(syncTopNavState)
+}
+
+onMounted(() => {
+	syncTopNavState()
+	window.addEventListener('scroll', scheduleTopNavState, { passive: true })
+})
+
+onBeforeUnmount(() => {
+	window.removeEventListener('scroll', scheduleTopNavState)
+	if (scrollFrame)
+		window.cancelAnimationFrame(scrollFrame)
+})
 </script>
 
 <template>
-<header class="blog-top-nav glass-floating" aria-label="桌面导航">
-	<BlogNavBrand class="top-nav-brand" to="/" compact />
+<header class="blog-top-nav glass-floating" :class="{ 'is-condensed': isCondensed }" aria-label="桌面导航">
+	<BlogNavBrand class="top-nav-brand" to="/" scene />
 
 	<nav class="top-nav-links" aria-label="主导航">
 		<template v-for="(group, groupIndex) in appConfig.nav" :key="groupIndex">
@@ -81,8 +104,27 @@ const debouncedSelection = refDebounced(text)
 			color-mix(in srgb, var(--glass-material-fill) 93%, var(--c-bg-1) 7%);
 		backdrop-filter: blur(10px) saturate(114%);
 		color: var(--c-text-2);
+		transition:
+			border-color 0.26s ease,
+			box-shadow 0.3s ease,
+			background-color 0.26s ease,
+			transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
 		isolation: isolate;
 		z-index: 30;
+	}
+
+	.blog-top-nav:not(.is-condensed) {
+		border-color: transparent;
+		box-shadow: none;
+		background: color-mix(in srgb, var(--c-bg-1) 7%, transparent);
+		backdrop-filter: none;
+		transform: translate3d(0, -0.08rem, 0);
+	}
+}
+
+@media (min-width: 1501px) {
+	.blog-top-nav:not(.is-condensed) {
+		grid-template-columns: 15rem minmax(0, 1fr) max-content;
 	}
 }
 
@@ -105,8 +147,39 @@ const debouncedSelection = refDebounced(text)
 		letter-spacing: -0.015em;
 	}
 
+	:deep(.blog-nav-brand-copy small) { display: none; }
+
+	:deep(.blog-nav-brand-scene) {
+		opacity: 0;
+		transform: translate3d(0.4rem, 0, 0);
+		transition: opacity 0.26s ease, transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+	}
+}
+
+.blog-top-nav:not(.is-condensed) .top-nav-brand {
+	padding-inline-end: 3.7rem;
+
 	:deep(.blog-nav-brand-copy small) {
-		display: none;
+		display: block;
+		max-width: 6.1rem;
+		font-size: 0.56rem;
+		line-height: 1.25;
+	}
+
+	:deep(.blog-nav-brand-scene) {
+		opacity: 1;
+		transform: none;
+	}
+}
+
+.blog-top-nav.is-condensed .top-nav-brand {
+	padding-inline-end: 0.35rem;
+	background: transparent;
+
+	:deep(.brand-scene-orbit),
+	:deep(.brand-scene-rocket),
+	:deep(.brand-scene-character) {
+		animation-play-state: paused;
 	}
 }
 
@@ -242,6 +315,16 @@ const debouncedSelection = refDebounced(text)
 	}
 }
 
+@media (max-width: 1500px) {
+	.top-nav-brand :deep(.blog-nav-brand-scene) {
+		display: none;
+	}
+
+	.top-nav-brand :deep(.blog-nav-brand) {
+		padding-inline-end: 0;
+	}
+}
+
 @media (max-width: 1320px) {
 	.top-nav-item {
 		gap: 0.25rem;
@@ -327,6 +410,8 @@ const debouncedSelection = refDebounced(text)
 }
 
 @media (prefers-reduced-motion: reduce) {
+	.blog-top-nav,
+	.top-nav-brand :deep(.blog-nav-brand-scene),
 	.top-nav-item {
 		transition: none;
 	}
