@@ -1551,19 +1551,19 @@ onMounted(load)
 	}
 
 	.news-section-tabs {
-		grid-template-columns: repeat(2, minmax(7.5rem, 1fr));
+		grid-template-columns: repeat(2, minmax(12rem, 1fr));
 		justify-self: start;
-		gap: 0.2rem;
-		width: min(20rem, 100%);
-		padding: 0.25rem;
-		border-radius: 0.72rem;
+		gap: 0.3rem;
+		width: min(34rem, 100%);
+		padding: 0.3rem;
+		border-radius: 0.78rem;
 	}
 
 	.news-section-tabs button {
-		min-height: 2.2rem;
-		padding: 0 0.7rem;
-		border-radius: 0.5rem;
-		font-size: 0.75rem;
+		min-height: 2.45rem;
+		padding: 0 0.9rem;
+		border-radius: 0.58rem;
+		font-size: 0.8rem;
 	}
 
 	.news-controls {

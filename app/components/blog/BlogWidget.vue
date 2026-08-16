@@ -134,13 +134,16 @@ defineExpose({ body })
 
 	&.widget-card {
 		padding: 0.65rem 0.85rem;
+		border: 1px solid color-mix(in srgb, var(--c-surface-line) 82%, transparent);
 		border-radius: 0.75rem;
 		box-shadow:
-			0 10px 28px var(--c-surface-shadow),
-			inset 0 0 0 1px var(--c-surface-line),
+			0 12px 30px var(--c-surface-shadow),
+			inset 0 0 0 1px color-mix(in srgb, var(--c-surface-line) 68%, transparent),
 			inset 0 1px 0 var(--c-surface-highlight);
-		background-color: var(--c-surface-fill);
-		backdrop-filter: blur(14px) saturate(112%);
+		background:
+			linear-gradient(145deg, color-mix(in srgb, var(--c-surface-highlight) 38%, transparent), transparent 34%),
+			color-mix(in srgb, var(--c-surface-fill) 94%, transparent);
+		backdrop-filter: blur(16px) saturate(118%);
 
 		:deep(p) {
 			padding: 0.2em 0;

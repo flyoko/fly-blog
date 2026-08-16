@@ -356,7 +356,7 @@ img {
 }
 
 // 动态背景下禁用实时玻璃取样，避免 macOS 在滚动和聚焦时重建整页合成层。
-#blog-root :where(
+.dynamic #blog-root :where(
 	.card,
 	.widget-card,
 	.pagination,

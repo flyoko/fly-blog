@@ -95,14 +95,18 @@
 	}
 }
 
-:is(.dark, .dynamic) .card {
-	border-radius: 0.75rem;
+:is(.light, .dark, .dynamic) .card {
+	border: 1px solid color-mix(in srgb, var(--c-surface-line) 86%, transparent);
+	border-radius: 0.82rem;
 	box-shadow:
 		0 14px 40px var(--c-surface-shadow),
-		inset 0 0 0 1px var(--c-surface-line),
+		inset 0 0 0 1px color-mix(in srgb, var(--c-surface-line) 72%, transparent),
 		inset 0 1px 0 var(--c-surface-highlight);
-	background-color: var(--c-surface-fill);
-	backdrop-filter: blur(18px) saturate(116%);
+	background:
+		linear-gradient(145deg, color-mix(in srgb, var(--c-surface-highlight) 42%, transparent), transparent 34%),
+		radial-gradient(120% 110% at 8% -12%, color-mix(in srgb, var(--c-surface-glow) 18%, transparent), transparent 48%),
+		color-mix(in srgb, var(--c-surface-fill) 94%, transparent);
+	backdrop-filter: blur(18px) saturate(118%);
 	transform: translate3d(var(--surface-shift-x), calc(var(--surface-lift) + var(--surface-shift-y)), 0);
 
 	&.upraise:hover {

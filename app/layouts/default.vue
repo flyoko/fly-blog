@@ -92,7 +92,7 @@ const hasAside = computed(() => routeAsideVisible.value)
 // 桌面使用顶部导航 + 正文/右栏双列；窄屏继续沿用原侧栏与抽屉交互。
 @media not (max-width: $breakpoint-widescreen) {
 	#blog-root {
-		--desktop-shell-width: 86rem;
+		--desktop-shell-width: 88rem;
 		--desktop-shell-gutter: 0.65rem;
 		--desktop-top-nav-height: 4rem;
 		--desktop-sticky-top: calc(var(--desktop-shell-gutter) + var(--desktop-top-nav-height) + 0.65rem);
@@ -113,7 +113,7 @@ const hasAside = computed(() => routeAsideVisible.value)
 		max-width: var(--desktop-shell-width);
 
 		&.has-aside {
-			grid-template-columns: minmax(0, 1fr) clamp(16rem, 18vw, 17rem);
+			grid-template-columns: minmax(0, 1fr) clamp(18rem, 20vw, 19.5rem);
 		}
 	}
 
