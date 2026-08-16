@@ -47,6 +47,15 @@ jobs:
       - run: pnpm test:workers
       - name: Apply D1 migrations
         run: pnpm --filter @fly-living/api-worker exec wrangler d1 migrations apply DB --remote
+      - name: Ensure content sync queues
+        shell: bash
+        run: |
+          if ! pnpm --filter @fly-living/api-worker exec wrangler queues info fly-living-content-sync >/dev/null 2>&1; then
+            pnpm --filter @fly-living/api-worker exec wrangler queues create fly-living-content-sync
+          fi
+          if ! pnpm --filter @fly-living/api-worker exec wrangler queues info fly-living-content-sync-dlq >/dev/null 2>&1; then
+            pnpm --filter @fly-living/api-worker exec wrangler queues create fly-living-content-sync-dlq
+          fi
       - name: Deploy API Worker
         run: pnpm --filter @fly-living/api-worker exec wrangler deploy
       - name: Deploy edge Worker

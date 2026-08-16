@@ -1,8 +1,10 @@
 import type { AdminUser } from '../../../shared/admin/auth'
+import type { ScheduledTaskMessage } from './scheduled-tasks'
 
 export interface Env {
 	DB: D1Database
 	MEDIA: R2Bucket
+	CONTENT_SYNC_QUEUE: Queue<ScheduledTaskMessage>
 	AUTH_RATE_LIMITER: RateLimit
 	WRITE_RATE_LIMITER: RateLimit
 	ANALYTICS_RATE_LIMITER?: RateLimit

@@ -1,63 +1,75 @@
 import type { Env } from '../src/env'
+import type { ScheduledTaskMessage, ScheduledTaskServices } from '../src/scheduled-tasks'
 import { describe, expect, it, vi } from 'vitest'
-import { runScheduledTask, scheduledJobsFor } from '../src/index'
+import { enqueueScheduledTask, runScheduledJob, scheduledJobsFor, scheduledMessagesFor } from '../src/scheduled-tasks'
+
+function services(): ScheduledTaskServices {
+	return {
+		syncNews: vi.fn().mockResolvedValue(undefined),
+		syncFinance: vi.fn().mockResolvedValue(undefined),
+		backupMoments: vi.fn().mockResolvedValue(undefined),
+		maintainAnalytics: vi.fn().mockResolvedValue(undefined),
+		maintainContent: vi.fn().mockResolvedValue(undefined),
+	}
+}
+
+function message(job: ScheduledTaskMessage['job']): ScheduledTaskMessage {
+	return {
+		version: 1,
+		job,
+		cron: 'test-cron',
+		scheduledAt: '2026-08-16T07:00:00.000Z',
+	}
+}
 
 describe('scheduled task routing', () => {
-	it('runs news and finance sync on the five-minute due-source check', async () => {
-		const syncNews = vi.fn().mockResolvedValue(undefined)
-		const syncFinance = vi.fn().mockResolvedValue(undefined)
-		const backupMoments = vi.fn().mockResolvedValue(undefined)
-		const maintainAnalytics = vi.fn().mockResolvedValue(undefined)
-		const maintainContent = vi.fn().mockResolvedValue(undefined)
-		await runScheduledTask('*/5 * * * *', {} as Env, { syncNews, syncFinance, backupMoments, maintainAnalytics, maintainContent })
-		expect(syncNews).toHaveBeenCalledOnce()
-		expect(syncFinance).toHaveBeenCalledOnce()
-		expect(backupMoments).not.toHaveBeenCalled()
-		expect(maintainAnalytics).not.toHaveBeenCalled()
-		expect(maintainContent).not.toHaveBeenCalled()
-	})
-
-	it('keeps the daily moment backup and also checks news and finance', async () => {
-		const syncNews = vi.fn().mockResolvedValue(undefined)
-		const syncFinance = vi.fn().mockResolvedValue(undefined)
-		const backupMoments = vi.fn().mockResolvedValue(undefined)
-		const maintainAnalytics = vi.fn().mockResolvedValue(undefined)
-		const maintainContent = vi.fn().mockResolvedValue(undefined)
-		await runScheduledTask('17 19 * * *', {} as Env, { syncNews, syncFinance, backupMoments, maintainAnalytics, maintainContent })
-		expect(syncNews).toHaveBeenCalledOnce()
-		expect(syncFinance).toHaveBeenCalledOnce()
-		expect(backupMoments).toHaveBeenCalledOnce()
-		expect(maintainAnalytics).not.toHaveBeenCalled()
-		expect(maintainContent).not.toHaveBeenCalled()
-	})
-
-	it('runs analytics and content maintenance on the daily retention schedule', async () => {
+	it('maps cron expressions to lightweight queue jobs', () => {
+		expect(scheduledJobsFor('*/5 * * * *')).toEqual(['news-sync', 'finance-sync'])
+		expect(scheduledJobsFor('17 19 * * *')).toEqual(['moment-backup', 'news-sync', 'finance-sync'])
 		expect(scheduledJobsFor('31 19 * * *')).toEqual(['analytics-maintenance', 'content-maintenance'])
-		const syncNews = vi.fn().mockResolvedValue(undefined)
-		const syncFinance = vi.fn().mockResolvedValue(undefined)
-		const backupMoments = vi.fn().mockResolvedValue(undefined)
-		const maintainAnalytics = vi.fn().mockResolvedValue(undefined)
-		const maintainContent = vi.fn().mockResolvedValue(undefined)
-		await runScheduledTask('31 19 * * *', {} as Env, { syncNews, syncFinance, backupMoments, maintainAnalytics, maintainContent })
-		expect(maintainAnalytics).toHaveBeenCalledOnce()
-		expect(maintainContent).toHaveBeenCalledOnce()
-		expect(syncNews).not.toHaveBeenCalled()
-		expect(syncFinance).not.toHaveBeenCalled()
-		expect(backupMoments).not.toHaveBeenCalled()
+		expect(scheduledJobsFor('1 2 3 4 5')).toEqual([])
 	})
 
-	it('ignores unknown schedules safely', async () => {
-		expect(scheduledJobsFor('1 2 3 4 5')).toEqual([])
-		const syncNews = vi.fn().mockResolvedValue(undefined)
-		const syncFinance = vi.fn().mockResolvedValue(undefined)
-		const backupMoments = vi.fn().mockResolvedValue(undefined)
-		const maintainAnalytics = vi.fn().mockResolvedValue(undefined)
-		const maintainContent = vi.fn().mockResolvedValue(undefined)
-		await runScheduledTask('1 2 3 4 5', {} as Env, { syncNews, syncFinance, backupMoments, maintainAnalytics, maintainContent })
-		expect(syncNews).not.toHaveBeenCalled()
-		expect(syncFinance).not.toHaveBeenCalled()
-		expect(backupMoments).not.toHaveBeenCalled()
-		expect(maintainAnalytics).not.toHaveBeenCalled()
-		expect(maintainContent).not.toHaveBeenCalled()
+	it('serializes the original scheduled time into every queue message', () => {
+		expect(scheduledMessagesFor('*/5 * * * *', Date.parse('2026-08-16T07:05:00.000Z'))).toEqual([
+			{ version: 1, job: 'news-sync', cron: '*/5 * * * *', scheduledAt: '2026-08-16T07:05:00.000Z' },
+			{ version: 1, job: 'finance-sync', cron: '*/5 * * * *', scheduledAt: '2026-08-16T07:05:00.000Z' },
+		])
+	})
+
+	it('enqueues jobs instead of running sync work inside the cron invocation', async () => {
+		const sendBatch = vi.fn().mockResolvedValue({ metadata: { metrics: { backlogCount: 2, backlogBytes: 256 } } })
+		const env = { CONTENT_SYNC_QUEUE: { sendBatch } } as unknown as Env
+		const count = await enqueueScheduledTask('*/5 * * * *', Date.parse('2026-08-16T07:10:00.000Z'), env)
+		expect(count).toBe(2)
+		expect(sendBatch).toHaveBeenCalledOnce()
+		expect(sendBatch).toHaveBeenCalledWith([
+			{ body: { version: 1, job: 'news-sync', cron: '*/5 * * * *', scheduledAt: '2026-08-16T07:10:00.000Z' }, contentType: 'json' },
+			{ body: { version: 1, job: 'finance-sync', cron: '*/5 * * * *', scheduledAt: '2026-08-16T07:10:00.000Z' }, contentType: 'json' },
+		])
+	})
+
+	it('does not publish anything for an unknown schedule', async () => {
+		const sendBatch = vi.fn()
+		const env = { CONTENT_SYNC_QUEUE: { sendBatch } } as unknown as Env
+		expect(await enqueueScheduledTask('1 2 3 4 5', Date.now(), env)).toBe(0)
+		expect(sendBatch).not.toHaveBeenCalled()
+	})
+
+	it.each([
+		['news-sync', 'syncNews'],
+		['finance-sync', 'syncFinance'],
+		['moment-backup', 'backupMoments'],
+		['analytics-maintenance', 'maintainAnalytics'],
+		['content-maintenance', 'maintainContent'],
+	] as const)('runs only the %s service after queue delivery', async (job, expectedService) => {
+		const mocked = services()
+		await runScheduledJob(message(job), {} as Env, mocked)
+		for (const [name, fn] of Object.entries(mocked)) {
+			if (name === expectedService)
+				expect(fn).toHaveBeenCalledOnce()
+			else
+				expect(fn).not.toHaveBeenCalled()
+		}
 	})
 })

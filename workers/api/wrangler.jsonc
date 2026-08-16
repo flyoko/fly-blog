@@ -65,5 +65,24 @@
         "period": 60
       }
     }
-  ]
+  ],
+  "queues": {
+    "producers": [
+      {
+        "binding": "CONTENT_SYNC_QUEUE",
+        "queue": "fly-living-content-sync"
+      }
+    ],
+    "consumers": [
+      {
+        "queue": "fly-living-content-sync",
+        "max_batch_size": 1,
+        "max_batch_timeout": 1,
+        "max_retries": 3,
+        "dead_letter_queue": "fly-living-content-sync-dlq",
+        "max_concurrency": 1,
+        "retry_delay": 60
+      }
+    ]
+  }
 }

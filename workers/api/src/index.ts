@@ -1,80 +1,28 @@
-import type { AppEnvironment, Env } from './env'
+import type { AppEnvironment } from './env'
+import type { ScheduledTaskMessage } from './scheduled-tasks'
 import { Hono } from 'hono'
 import { aboutRoutes } from './features/about/routes'
 import { adminAnalyticsRoutes, internalAnalyticsRoutes, publicAnalyticsRoutes } from './features/analytics/routes'
-import { AnalyticsService } from './features/analytics/service'
 import { GitHubRepository } from './features/articles/github-repository'
 import { createArticleRoutes } from './features/articles/routes'
 import { authRoutes } from './features/auth/routes'
 import { adminFinanceRoutes, publicFinanceRoutes } from './features/finance/routes'
-import { FinanceFlashService } from './features/finance/service'
 import { healthRoutes } from './features/health/routes'
 import { publicMediaRoutes } from './features/media/public-routes'
 import { mediaRoutes } from './features/media/routes'
 import { momentBackupRoutes } from './features/moment-backups/routes'
-import { MomentBackupService } from './features/moment-backups/service'
 import { publicMomentRoutes } from './features/moments/public-routes'
 import { adminMomentRoutes } from './features/moments/routes'
 import { publicMusicRoutes } from './features/music/public-routes'
 import { musicRoutes } from './features/music/routes'
 import { adminNewsRoutes, publicNewsRoutes } from './features/news/routes'
-import { NewsService } from './features/news/service'
 import { overviewRoutes } from './features/overview/routes'
 import { PublishingService } from './features/publishing/publishing-service'
 import { publishingRoutes } from './features/publishing/routes'
 import { adminWeatherRoutes, publicWeatherRoutes } from './features/weather/routes'
 import { ApiError, failure, normalizeError } from './lib/api-error'
 import { contextMiddleware } from './middleware/context'
-
-export type ScheduledJob = 'analytics-maintenance' | 'content-maintenance' | 'finance-sync' | 'news-sync' | 'moment-backup'
-
-export interface ScheduledTaskServices {
-	syncNews: () => Promise<unknown>
-	syncFinance: () => Promise<unknown>
-	backupMoments: () => Promise<unknown>
-	maintainAnalytics: () => Promise<unknown>
-	maintainContent: () => Promise<unknown>
-}
-
-export function scheduledJobsFor(cron: string): ScheduledJob[] {
-	switch (cron) {
-		case '*/5 * * * *':
-			return ['news-sync', 'finance-sync']
-		case '17 19 * * *':
-			return ['moment-backup', 'news-sync', 'finance-sync']
-		case '31 19 * * *':
-			return ['analytics-maintenance', 'content-maintenance']
-		default:
-			return []
-	}
-}
-
-export async function runScheduledTask(
-	cron: string,
-	env: Env,
-	services: ScheduledTaskServices = {
-		syncNews: () => new NewsService(env).sync(),
-		syncFinance: () => new FinanceFlashService(env).sync(),
-		backupMoments: () => new MomentBackupService(env).backup(),
-		maintainAnalytics: () => new AnalyticsService(env).maintain(),
-		maintainContent: async () => {
-			const [news, finance] = await Promise.all([
-				new NewsService(env).cleanupRetention(),
-				new FinanceFlashService(env).cleanupRetention(),
-			])
-			return { news, finance }
-		},
-	},
-): Promise<void> {
-	const runners: Record<ScheduledJob, () => Promise<unknown>> = {
-		'news-sync': services.syncNews,
-		'finance-sync': services.syncFinance,
-		'moment-backup': services.backupMoments,
-		'analytics-maintenance': services.maintainAnalytics,
-		'content-maintenance': services.maintainContent,
-	}
-	await Promise.all(scheduledJobsFor(cron).map(job => runners[job]()))
-}
+import { enqueueScheduledTask, processScheduledBatch } from './scheduled-tasks'
 
 const app = new Hono<AppEnvironment>()
 const articleRoutes = createArticleRoutes({
@@ -114,6 +62,9 @@ export default {
 		return app.fetch(request, env, ctx)
 	},
 	scheduled(controller: ScheduledController, env: AppEnvironment['Bindings'], ctx: ExecutionContext) {
-		ctx.waitUntil(runScheduledTask(controller.cron, env))
+		ctx.waitUntil(enqueueScheduledTask(controller.cron, controller.scheduledTime, env))
 	},
-} satisfies ExportedHandler<AppEnvironment['Bindings']>
+	async queue(batch: MessageBatch<ScheduledTaskMessage>, env: AppEnvironment['Bindings']) {
+		await processScheduledBatch(batch, env)
+	},
+} satisfies ExportedHandler<AppEnvironment['Bindings'], ScheduledTaskMessage>
