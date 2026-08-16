@@ -57,7 +57,7 @@ describe('public blog presentation', () => {
 		expect(layout).toContain('top: var(--desktop-sticky-top)')
 		expect(topNav).toContain('min-height: var(--desktop-top-nav-height, 4rem)')
 		expect(topNav).toContain('grid-template-columns: clamp(12.75rem, 15vw, 14.25rem)')
-		expect(news).toContain('grid-template-columns: repeat(2, minmax(12rem, 17rem))')
+		expect(news).toContain('grid-template-columns: repeat(2, minmax(0, 1fr))')
 		expect(news).toContain('justify-self: stretch')
 		expect(news).toContain('top: var(--desktop-sticky-top, 5.3rem)')
 		expect(news).toContain('grid-template-columns: minmax(0, 1fr) minmax(15.75rem, 17rem)')

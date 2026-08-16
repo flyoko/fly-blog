@@ -71,9 +71,21 @@ describe('admin shell contracts', () => {
 		expect(redirects).toContain('/ai.news/read/* /200 200')
 	})
 
-	it('supports dark mode and reduced motion in the admin stylesheet', async () => {
-		const stylesheet = await source('app/assets/css/admin.scss')
+	it('supports dark mode, liquid glass, and reduced accessibility fallbacks in admin surfaces', async () => {
+		const [stylesheet, commandPalette] = await Promise.all([
+			source('app/assets/css/admin.scss'),
+			source('app/components/admin/AdminCommandPalette.vue'),
+		])
+
 		expect(stylesheet).toContain('.dark-mode')
+		expect(stylesheet).toContain('--admin-glass-floating-fill:')
+		expect(stylesheet).toContain('--admin-glass-clear-filter:')
+		expect(stylesheet).toContain('.admin-sidebar,')
+		expect(stylesheet).toContain('.admin-panel,')
+		expect(stylesheet).toContain('.admin-editor-shell')
+		expect(stylesheet).toContain('@media (prefers-reduced-transparency: reduce)')
 		expect(stylesheet).toContain('@media (prefers-reduced-motion: reduce)')
+		expect(commandPalette).toContain('var(--admin-glass-floating-fill)')
+		expect(commandPalette).toContain('backdrop-filter: var(--admin-glass-filter)')
 	})
 })

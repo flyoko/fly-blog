@@ -170,10 +170,14 @@ function onKeydown(event: KeyboardEvent) {
 	position: relative;
 	overflow: hidden;
 	width: min(42rem, 100%);
-	border: 1px solid var(--admin-border);
+	border: 1px solid var(--admin-glass-border-strong);
 	border-radius: 1.25rem;
-	box-shadow: 0 32px 100px rgb(0 0 0 / 32%);
-	background: var(--admin-surface);
+	box-shadow: var(--admin-glass-floating-shadow), var(--admin-glass-inset);
+	background:
+		linear-gradient(145deg, var(--admin-glass-highlight), transparent 36%),
+		radial-gradient(120% 130% at 8% -12%, var(--admin-glass-tint), transparent 56%),
+		var(--admin-glass-floating-fill);
+	backdrop-filter: var(--admin-glass-filter);
 	color: var(--admin-text);
 }
 
@@ -206,9 +210,12 @@ function onKeydown(event: KeyboardEvent) {
 	gap: 0.7rem;
 	margin: 0 1rem;
 	padding: 0.78rem 0.9rem;
-	border: 1px solid var(--admin-border);
+	border: 1px solid var(--admin-glass-border);
 	border-radius: 0.85rem;
-	background: var(--admin-surface-soft);
+	box-shadow: inset 0 1px 0 color-mix(in srgb, var(--admin-glass-highlight) 50%, transparent);
+	background:
+		linear-gradient(145deg, color-mix(in srgb, var(--admin-glass-highlight) 42%, transparent), transparent 46%),
+		var(--admin-glass-clear-fill);
 	color: var(--admin-muted);
 }
 
@@ -246,7 +253,9 @@ function onKeydown(event: KeyboardEvent) {
 .admin-command-list button:hover,
 .admin-command-list button:focus-visible,
 .admin-command-list button.is-active {
-	background: var(--admin-accent-soft);
+	background:
+		linear-gradient(145deg, color-mix(in srgb, var(--admin-glass-highlight) 36%, transparent), transparent 48%),
+		color-mix(in srgb, var(--admin-accent-soft) 72%, var(--admin-glass-clear-fill));
 }
 
 .admin-command-icon {
@@ -255,7 +264,7 @@ function onKeydown(event: KeyboardEvent) {
 	width: 2.5rem;
 	height: 2.5rem;
 	border-radius: 0.75rem;
-	background: var(--admin-surface-soft);
+	background: var(--admin-glass-soft-fill);
 	font-size: 1.15rem;
 	color: var(--admin-accent-strong);
 }
@@ -289,12 +298,22 @@ function onKeydown(event: KeyboardEvent) {
 
 kbd {
 	padding: 0.12rem 0.35rem;
-	border: 1px solid var(--admin-border);
+	border: 1px solid var(--admin-glass-border);
 	border-radius: 0.35rem;
-	box-shadow: 0 1px 0 var(--admin-border);
-	background: var(--admin-surface-soft);
+	box-shadow: inset 0 1px 0 color-mix(in srgb, var(--admin-glass-highlight) 46%, transparent);
+	background: var(--admin-glass-soft-fill);
 	font: inherit;
 	font-size: 0.62rem;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+	.admin-command-panel,
+	.admin-command-search,
+	.admin-command-icon,
+	kbd {
+		background: var(--admin-surface);
+		backdrop-filter: none;
+	}
 }
 
 .admin-command-panel footer kbd + kbd {

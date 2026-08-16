@@ -1,3 +1,4 @@
+:root,
 .admin-app {
 	--admin-bg: #F3F7F8;
 	--admin-surface: #FFF;
@@ -12,6 +13,20 @@
 	--admin-warning: #A96A12;
 	--admin-danger: #B84242;
 	--admin-shadow: 0 18px 50px rgb(17 57 59 / 8%);
+	--admin-glass-frost-fill: color-mix(in srgb, var(--admin-surface) 88%, transparent);
+	--admin-glass-clear-fill: color-mix(in srgb, var(--admin-surface) 74%, transparent);
+	--admin-glass-elevated-fill: color-mix(in srgb, var(--admin-surface) 92%, transparent);
+	--admin-glass-floating-fill: color-mix(in srgb, var(--admin-surface) 82%, transparent);
+	--admin-glass-soft-fill: color-mix(in srgb, var(--admin-surface-soft) 78%, transparent);
+	--admin-glass-border: color-mix(in srgb, var(--admin-accent) 14%, var(--admin-border));
+	--admin-glass-border-strong: color-mix(in srgb, var(--admin-accent) 24%, var(--admin-border));
+	--admin-glass-highlight: rgb(255 255 255 / 68%);
+	--admin-glass-tint: rgb(86 191 184 / 10%);
+	--admin-glass-filter: blur(22px) saturate(126%);
+	--admin-glass-clear-filter: blur(16px) saturate(120%);
+	--admin-glass-shadow: 0 20px 56px rgb(17 57 59 / 10%);
+	--admin-glass-floating-shadow: 0 26px 72px rgb(10 45 48 / 16%);
+	--admin-glass-inset: inset 0 1px 0 var(--admin-glass-highlight), inset 0 0 0 1px rgb(255 255 255 / 18%);
 
 	flex: 1 1 100%;
 	width: 100%;
@@ -19,12 +34,16 @@
 	min-height: 100vh;
 	max-width: 100%;
 	background:
-		radial-gradient(circle at 84% 8%, rgb(86 191 184 / 15%), transparent 26rem),
-		var(--admin-bg);
+		radial-gradient(circle at 84% 8%, rgb(86 191 184 / 16%), transparent 26rem),
+		radial-gradient(circle at 8% 44%, rgb(102 153 214 / 9%), transparent 30rem),
+		radial-gradient(circle at 72% 82%, rgb(130 109 204 / 7%), transparent 34rem),
+		linear-gradient(145deg, color-mix(in srgb, var(--admin-bg) 96%, white), var(--admin-bg));
 	font-family: Inter, "Noto Sans SC", sans-serif;
 	color: var(--admin-text);
 }
 
+html.dark,
+html.dark-mode,
 .dark .admin-app,
 .dark-mode .admin-app {
 	--admin-bg: #0F191B;
@@ -40,6 +59,11 @@
 	--admin-warning: #E1AE63;
 	--admin-danger: #EB8A8A;
 	--admin-shadow: 0 24px 60px rgb(0 0 0 / 22%);
+	--admin-glass-highlight: rgb(226 255 252 / 14%);
+	--admin-glass-tint: rgb(101 209 202 / 9%);
+	--admin-glass-shadow: 0 22px 60px rgb(0 0 0 / 24%);
+	--admin-glass-floating-shadow: 0 30px 84px rgb(0 0 0 / 34%);
+	--admin-glass-inset: inset 0 1px 0 rgb(226 255 252 / 12%), inset 0 0 0 1px rgb(226 255 252 / 4%);
 }
 
 .admin-shell {
@@ -1221,4 +1245,200 @@
 @media (prefers-reduced-motion: reduce) {
 	.admin-toast-enter-active,
 	.admin-toast-leave-active { transition: none; }
+}
+
+// Liquid-glass admin material system. Keep real backdrop sampling on structural
+// surfaces only; repeated rows and form controls use translucent simulated
+// glass so long admin lists do not create dozens of compositor layers.
+.admin-sidebar,
+.admin-topbar,
+.admin-mobile-dock {
+	border-color: var(--admin-glass-border);
+	box-shadow: var(--admin-glass-shadow), var(--admin-glass-inset);
+	background:
+		linear-gradient(145deg, var(--admin-glass-highlight), transparent 36%),
+		radial-gradient(110% 150% at 8% -18%, var(--admin-glass-tint), transparent 58%),
+		var(--admin-glass-floating-fill);
+	backdrop-filter: var(--admin-glass-filter);
+}
+
+.admin-topbar {
+	box-shadow:
+		0 12px 36px color-mix(in srgb, var(--admin-accent) 8%, transparent),
+		var(--admin-glass-inset);
+}
+
+.admin-hero {
+	border: 1px solid rgb(239 255 255 / 20%);
+	box-shadow: var(--admin-glass-floating-shadow), inset 0 1px 0 rgb(255 255 255 / 22%);
+	background:
+		radial-gradient(circle at 82% 18%, rgb(239 255 255 / 18%), transparent 17rem),
+		linear-gradient(118deg, rgb(10 102 106 / 92%), rgb(29 143 137 / 78%)),
+		var(--admin-glass-floating-fill);
+	backdrop-filter: var(--admin-glass-filter);
+}
+
+.admin-panel,
+.admin-status-card,
+.admin-empty-state,
+.admin-login-card,
+.admin-route-fallback,
+.admin-analytics-toolbar,
+.admin-modal-panel {
+	border-color: var(--admin-glass-border);
+	box-shadow: var(--admin-glass-shadow), var(--admin-glass-inset);
+	background:
+		linear-gradient(145deg, color-mix(in srgb, var(--admin-glass-highlight) 82%, transparent), transparent 34%),
+		radial-gradient(120% 120% at 8% -16%, var(--admin-glass-tint), transparent 54%),
+		var(--admin-glass-elevated-fill);
+	backdrop-filter: var(--admin-glass-clear-filter);
+}
+
+.admin-analytics-live-panel {
+	background:
+		linear-gradient(color-mix(in srgb, var(--admin-accent-soft) 54%, transparent), transparent 55%),
+		linear-gradient(145deg, color-mix(in srgb, var(--admin-glass-highlight) 72%, transparent), transparent 36%),
+		var(--admin-glass-elevated-fill);
+}
+
+.admin-editor-shell {
+	border-color: var(--admin-glass-border);
+	background:
+		linear-gradient(145deg, color-mix(in srgb, var(--admin-glass-highlight) 52%, transparent), transparent 42%),
+		var(--admin-glass-elevated-fill);
+	backdrop-filter: var(--admin-glass-clear-filter);
+}
+
+.admin-editor-list,
+.admin-editor-meta,
+.admin-editor-pane,
+.admin-format-toolbar,
+.admin-editor-mobile-tabs {
+	background: color-mix(in srgb, var(--admin-glass-soft-fill) 92%, transparent);
+}
+
+.admin-content-row,
+.admin-media-card,
+.admin-media-library-card,
+.admin-publish-status,
+.admin-review-file,
+.admin-category-row,
+.admin-switch-row,
+.admin-attention-item,
+.admin-advanced-details {
+	border-color: var(--admin-glass-border);
+	box-shadow: inset 0 1px 0 color-mix(in srgb, var(--admin-glass-highlight) 60%, transparent);
+	background:
+		linear-gradient(145deg, color-mix(in srgb, var(--admin-glass-highlight) 54%, transparent), transparent 42%),
+		var(--admin-glass-elevated-fill);
+}
+
+.admin-service-item,
+.admin-action-item,
+.admin-review-summary > div,
+.admin-review-meta > div,
+.admin-preview-fallback,
+.admin-advanced-details-icon {
+	background:
+		linear-gradient(145deg, color-mix(in srgb, var(--admin-glass-highlight) 36%, transparent), transparent 46%),
+		var(--admin-glass-soft-fill);
+}
+
+.admin-icon-button,
+.admin-command-trigger,
+.admin-search-field,
+.admin-select-field select,
+.admin-media-upload select,
+.admin-tab-list,
+.admin-task-status,
+.admin-section-tabs,
+.admin-settings-nav-item.is-active,
+.admin-settings-nav-item:hover,
+.admin-analytics-presets,
+.admin-analytics-custom-range input,
+.admin-analytics-filters input,
+.admin-analytics-filters select,
+.admin-field input,
+.admin-field textarea,
+.admin-json-editor {
+	border-color: var(--admin-glass-border);
+	box-shadow: inset 0 1px 0 color-mix(in srgb, var(--admin-glass-highlight) 48%, transparent);
+	background:
+		linear-gradient(145deg, color-mix(in srgb, var(--admin-glass-highlight) 44%, transparent), transparent 46%),
+		var(--admin-glass-clear-fill);
+}
+
+.admin-button:not(.admin-button-primary, .admin-button-danger-solid, .admin-login-button, .admin-button-hero, .admin-button-ghost) {
+	border-color: var(--admin-glass-border);
+	box-shadow: inset 0 1px 0 color-mix(in srgb, var(--admin-glass-highlight) 46%, transparent);
+	background:
+		linear-gradient(145deg, color-mix(in srgb, var(--admin-glass-highlight) 42%, transparent), transparent 48%),
+		var(--admin-glass-clear-fill);
+}
+
+.admin-button-ghost {
+	box-shadow: inset 0 1px 0 rgb(255 255 255 / 18%);
+	background: rgb(255 255 255 / 12%);
+	backdrop-filter: blur(10px) saturate(118%);
+}
+
+.admin-navigation-item:hover,
+.admin-navigation-item.is-active,
+.admin-section-tab:hover,
+.admin-section-tab:focus-visible,
+.admin-section-tab.is-active,
+.admin-tab.is-active,
+.admin-analytics-presets button[aria-pressed="true"] {
+	background:
+		linear-gradient(145deg, color-mix(in srgb, var(--admin-glass-highlight) 42%, transparent), transparent 50%),
+		color-mix(in srgb, var(--admin-accent-soft) 72%, var(--admin-glass-clear-fill));
+}
+
+.admin-modal-backdrop,
+.admin-command-backdrop {
+	backdrop-filter: blur(10px) saturate(112%);
+}
+
+@supports not (backdrop-filter: blur(1px)) {
+	.admin-sidebar,
+	.admin-topbar,
+	.admin-mobile-dock,
+	.admin-hero,
+	.admin-panel,
+	.admin-status-card,
+	.admin-empty-state,
+	.admin-login-card,
+	.admin-route-fallback,
+	.admin-analytics-toolbar,
+	.admin-modal-panel,
+	.admin-editor-shell {
+		background: var(--admin-surface);
+	}
+}
+
+@media (prefers-reduced-transparency: reduce) {
+	.admin-sidebar,
+	.admin-topbar,
+	.admin-mobile-dock,
+	.admin-hero,
+	.admin-panel,
+	.admin-status-card,
+	.admin-empty-state,
+	.admin-login-card,
+	.admin-route-fallback,
+	.admin-analytics-toolbar,
+	.admin-modal-panel,
+	.admin-editor-shell {
+		background: var(--admin-surface);
+		backdrop-filter: none;
+	}
+
+	.admin-hero {
+		background: linear-gradient(118deg, #0A666A, #1D8F89);
+	}
+
+	.admin-button-ghost {
+		background: rgb(255 255 255 / 16%);
+		backdrop-filter: none;
+	}
 }

@@ -1549,8 +1549,7 @@ onMounted(load)
 	}
 
 	.news-section-tabs {
-		grid-template-columns: repeat(2, minmax(12rem, 17rem));
-		justify-content: start;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
 		justify-self: stretch;
 		gap: 0.3rem;
 		width: 100%;
