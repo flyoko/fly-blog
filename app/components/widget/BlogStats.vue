@@ -43,7 +43,136 @@ const blogStats = [{
 </script>
 
 <template>
-<BlogWidget card title="博客统计">
-	<ZDlGroup :items="blogStats" size="small" />
+<BlogWidget class="blog-stats-widget" card title="博客统计">
+	<dl class="blog-stats-grid">
+		<div v-for="{ label, value, tip } in blogStats" :key="label" class="blog-stat">
+			<dt>{{ label }}</dt>
+			<dd :title="toValue(tip)">
+				<component :is="() => toValue(value)" />
+			</dd>
+		</div>
+	</dl>
 </BlogWidget>
 </template>
+
+<style scoped lang="scss">
+.blog-stats-widget {
+	:deep(.widget-header) {
+		padding: 0.48rem 0.3rem 0.58rem;
+		font-size: 0.9rem;
+		font-weight: 700;
+		letter-spacing: 0.025em;
+	}
+
+	:deep(.widget-body.widget-card) {
+		display: flex;
+		align-items: center;
+		position: relative;
+		overflow: hidden;
+		min-height: 5.65rem;
+		padding: 0.92rem 0.6rem 0.84rem;
+		border: 1px solid color-mix(in srgb, var(--c-surface-line) 88%, transparent);
+		border-radius: 1rem;
+		box-shadow:
+			0 14px 36px var(--c-surface-shadow),
+			inset 0 1px 0 var(--c-surface-highlight),
+			inset 0 0 0 1px color-mix(in srgb, var(--c-surface-border) 9%, transparent);
+		background:
+			linear-gradient(145deg, color-mix(in srgb, var(--c-surface-highlight) 62%, transparent), transparent 30%),
+			color-mix(in srgb, var(--c-surface-fill) 92%, transparent);
+		backdrop-filter: blur(18px) saturate(116%);
+	}
+
+	:deep(.widget-body.widget-card)::before,
+	:deep(.widget-body.widget-card)::after {
+		content: "";
+		position: absolute;
+		pointer-events: none;
+	}
+
+	:deep(.widget-body.widget-card)::before {
+		inset: 0;
+		background:
+			radial-gradient(9rem 5rem at 8% 0%, color-mix(in srgb, var(--c-flow-blue) 7%, transparent), transparent 68%),
+			radial-gradient(8rem 5rem at 94% 110%, color-mix(in srgb, var(--c-flow-cyan) 6%, transparent), transparent 70%);
+	}
+
+	:deep(.widget-body.widget-card)::after {
+		inset: 0.05rem 0.85rem auto;
+		height: 1px;
+		background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--c-flow-cyan) 28%, transparent), transparent);
+	}
+}
+
+.blog-stats-grid {
+	display: grid;
+	grid-template-columns: minmax(0, 1.08fr) minmax(0, 1.08fr) minmax(0, 0.84fr);
+	position: relative;
+	width: 100%;
+	margin: 0;
+	z-index: 1;
+}
+
+.blog-stat {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	position: relative;
+	min-width: 0;
+	padding: 0 0.2rem;
+	text-align: center;
+
+	+ .blog-stat::before {
+		content: "";
+		position: absolute;
+		inset: 16% auto 16% 0;
+		width: 1px;
+		background: linear-gradient(transparent, var(--c-surface-line), transparent);
+	}
+
+	dt {
+		font-size: 0.72rem;
+		letter-spacing: 0.01em;
+		line-height: 1.2;
+		white-space: nowrap;
+		color: var(--c-text-2);
+	}
+
+	dd {
+		margin: 0.48rem 0 0;
+		font-size: 0.92rem;
+		font-variant-numeric: tabular-nums;
+		font-weight: 720;
+		letter-spacing: -0.035em;
+		line-height: 1.05;
+		white-space: nowrap;
+		text-shadow: 0 1px 10px color-mix(in srgb, var(--c-surface-highlight) 20%, transparent);
+		color: var(--c-text-1);
+	}
+
+	&:last-child dd {
+		font-size: 1.02rem;
+		color: color-mix(in srgb, var(--c-text) 92%, var(--c-primary) 8%);
+	}
+}
+
+@media (max-width: $breakpoint-widescreen) {
+	.blog-stats-widget {
+		:deep(.widget-header) {
+			padding-top: 0.35rem;
+		}
+
+		:deep(.widget-body.widget-card) {
+			padding: 0.85rem 0.55rem 0.78rem;
+		}
+	}
+}
+
+@media (prefers-reduced-transparency: reduce) {
+	.blog-stats-widget :deep(.widget-body.widget-card) {
+		background: var(--ld-bg-card);
+		backdrop-filter: none;
+	}
+}
+</style>
