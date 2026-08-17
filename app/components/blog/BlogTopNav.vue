@@ -9,11 +9,25 @@ const searchEnabled = computed(() => isModuleEnabled(appConfig.featureModules, '
 const { text } = useTextSelection()
 const debouncedSelection = refDebounced(text)
 const isCondensed = ref(false)
+const condenseScrollY = 72
+const expandScrollY = 24
 let scrollFrame = 0
 
 function syncTopNavState() {
 	scrollFrame = 0
-	isCondensed.value = window.scrollY > 42
+	const scrollY = Math.max(0, window.scrollY)
+
+	// Mac trackpads can hover around a single scroll threshold during inertial
+	// scrolling. A small hysteresis band prevents the header scene and glass
+	// material from mounting/unmounting several times in adjacent frames.
+	if (isCondensed.value) {
+		if (scrollY < expandScrollY)
+			isCondensed.value = false
+		return
+	}
+
+	if (scrollY > condenseScrollY)
+		isCondensed.value = true
 }
 
 function scheduleTopNavState() {
@@ -35,7 +49,7 @@ onBeforeUnmount(() => {
 
 <template>
 <header class="blog-top-nav glass-floating" :class="{ 'is-condensed': isCondensed }" aria-label="桌面导航">
-	<BlogNavBrand class="top-nav-brand" to="/" :scene="!isCondensed" />
+	<BlogHeader class="top-nav-brand top-nav-brand-expanded" to="/" :scene="!isCondensed" />
 
 	<nav class="top-nav-links" aria-label="主导航">
 		<template v-for="(group, groupIndex) in appConfig.nav" :key="groupIndex">
@@ -79,9 +93,12 @@ onBeforeUnmount(() => {
 
 @media not (max-width: $breakpoint-widescreen) {
 	.blog-top-nav {
-		contain: layout paint style;
+		// Keep layout containment but do not paint-contain the sticky compositor.
+		// Paint containment + animated descendants is a common source of macOS
+		// Chrome/Safari layer invalidation when a sticky bar changes material.
+		contain: layout style;
 		display: grid;
-		grid-template-columns: clamp(10.75rem, 13vw, 12.5rem) minmax(0, 1fr) max-content;
+		grid-template-columns: clamp(13rem, 15vw, 14.5rem) minmax(0, 1fr) max-content;
 		align-items: center;
 		justify-self: center;
 		gap: clamp(0.35rem, 0.65vw, 0.7rem);
@@ -89,9 +106,9 @@ onBeforeUnmount(() => {
 		top: var(--desktop-shell-gutter, 0.75rem);
 		width: var(--desktop-top-nav-width, min(96rem, calc(100vw - 3rem)));
 		min-width: 0;
-		min-height: var(--desktop-top-nav-height, 3.75rem);
+		min-height: var(--desktop-top-nav-height, 4rem);
 		max-width: calc(100vw - 2rem);
-		padding: 0.36rem 0.48rem 0.36rem 0.72rem;
+		padding: 0.3rem 0.48rem;
 		border: 1px solid color-mix(in srgb, var(--glass-material-border) 82%, transparent);
 		border-radius: 999px;
 		box-shadow:
@@ -101,14 +118,16 @@ onBeforeUnmount(() => {
 		background:
 			linear-gradient(180deg, color-mix(in srgb, var(--glass-material-highlight) 76%, transparent), transparent 54%),
 			radial-gradient(92% 160% at 10% -34%, var(--glass-material-tint), transparent 58%),
-			color-mix(in srgb, var(--glass-material-fill) 93%, var(--c-bg-1) 7%);
-		backdrop-filter: blur(10px) saturate(114%);
+			color-mix(in srgb, var(--glass-material-fill) 96%, var(--c-bg-1) 4%);
+
+		// The visual glass stays gradient-driven. Avoid live backdrop sampling on
+		// a sticky surface above the continuously animated fixed atmosphere.
+		backdrop-filter: none;
 		color: var(--c-text-2);
 		transition:
 			border-color 0.26s ease,
 			box-shadow 0.3s ease,
-			background-color 0.26s ease,
-			transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+			background-color 0.26s ease;
 		isolation: isolate;
 		z-index: 30;
 	}
@@ -117,8 +136,6 @@ onBeforeUnmount(() => {
 		border-color: transparent;
 		box-shadow: none;
 		background: color-mix(in srgb, var(--c-bg-1) 7%, transparent);
-		backdrop-filter: none;
-		transform: translate3d(0, -0.08rem, 0);
 	}
 }
 
@@ -132,58 +149,87 @@ onBeforeUnmount(() => {
 	overflow: hidden;
 	width: 100%;
 	min-width: 0;
-	padding-inline: 0.08rem 0.35rem;
+}
+
+// Expanded desktop state deliberately reuses the original BlogHeader component.
+// This restores the avatar ring, typography, scan line, orbital scene and the
+// same card material that existed before the lightweight NavBrand migration.
+.top-nav-brand.top-nav-brand-expanded {
+	gap: 0.48rem;
+	min-height: 3.45rem;
+	margin: 0;
+	padding: 0.36rem 4.7rem 0.36rem 0.52rem;
+	border-radius: 1rem;
+	line-height: 1.2;
+
+	:deep(.emoji-tail) {
+		display: none;
+	}
+
+	:deep(.blog-logo-shell) {
+		height: 2.48rem;
+	}
+
+	:deep(.blog-logo-shell.circle) {
+		width: 2.48rem;
+	}
+
+	:deep(.blog-text) {
+		min-width: 0;
+	}
+
+	:deep(.header-title) {
+		overflow: hidden;
+		font-size: 1.08rem;
+		white-space: nowrap;
+		text-overflow: ellipsis;
+	}
+
+	:deep(.header-subtitle) {
+		display: -webkit-box;
+		overflow: hidden;
+		max-width: 8rem;
+		margin-top: 0.06rem;
+		font-size: 0.62rem;
+		-webkit-line-clamp: 2;
+		line-height: 1.28;
+		-webkit-box-orient: vertical;
+	}
+
+	:deep(.is-header .scene-character) {
+		right: -0.38rem;
+		bottom: -0.74rem;
+		width: 4.65rem;
+	}
+
+	:deep(.is-header .scene-rocket) {
+		top: 7%;
+		right: 31%;
+	}
+}
+
+.blog-top-nav.is-condensed .top-nav-brand.top-nav-brand-expanded {
+	gap: 0.38rem;
+	min-height: 2.5rem;
+	padding: 0.2rem 0.42rem;
+	border-color: transparent;
 	border-radius: 999px;
-
-	:deep(.blog-nav-brand-logo) {
-		width: 2.15rem;
-		height: 2.15rem;
-		box-shadow: none;
-		background: color-mix(in srgb, var(--c-surface-fill) 72%, transparent);
-	}
-
-	:deep(.blog-nav-brand-copy strong) {
-		font-size: 0.92rem;
-		letter-spacing: -0.015em;
-	}
-
-	:deep(.blog-nav-brand-copy small) { display: none; }
-
-	:deep(.blog-nav-brand-scene) {
-		opacity: 0;
-		transform: translate3d(0.4rem, 0, 0);
-		transition: opacity 0.26s ease, transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
-	}
-}
-
-.blog-top-nav:not(.is-condensed) .top-nav-brand {
-	padding-inline-end: 4.8rem;
-
-	:deep(.blog-nav-brand-logo) {
-		width: 2.35rem;
-		height: 2.35rem;
-	}
-
-	:deep(.blog-nav-brand-copy strong) {
-		font-size: 1.03rem;
-	}
-
-	:deep(.blog-nav-brand-copy small) {
-		display: block;
-		max-width: 6.7rem;
-		font-size: 0.56rem;
-		line-height: 1.25;
-	}
-
-	:deep(.blog-nav-brand-scene) {
-		opacity: 1;
-		transform: none;
-	}
-}
-
-.blog-top-nav.is-condensed .top-nav-brand {
-	padding-inline-end: 0.35rem;
+	box-shadow: none;
 	background: transparent;
+
+	:deep(.blog-logo-shell),
+	:deep(.blog-logo-shell.circle) {
+		width: 2rem;
+		height: 2rem;
+	}
+
+	:deep(.header-title) {
+		font-size: 0.9rem;
+	}
+
+	:deep(.header-subtitle) {
+		display: none;
+	}
 }
 
 .top-nav-links {
@@ -318,16 +364,6 @@ onBeforeUnmount(() => {
 	}
 }
 
-@media (max-width: 1500px) {
-	.top-nav-brand :deep(.blog-nav-brand-scene) {
-		display: none;
-	}
-
-	.top-nav-brand :deep(.blog-nav-brand) {
-		padding-inline-end: 0;
-	}
-}
-
 @media (max-width: 1320px) {
 	.top-nav-item {
 		gap: 0.25rem;
@@ -353,21 +389,36 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 1240px) {
-	.top-nav-brand {
-		:deep(.blog-nav-brand-logo) {
-			width: 2rem;
-			height: 2rem;
+	.top-nav-brand.top-nav-brand-expanded {
+		min-height: 3.15rem;
+		padding: 0.3rem 3.7rem 0.3rem 0.42rem;
+
+		:deep(.blog-logo-shell) {
+			height: 2.15rem;
 		}
 
-		:deep(.blog-nav-brand-copy strong) {
-			font-size: 0.86rem;
+		:deep(.blog-logo-shell.circle) {
+			width: 2.15rem;
+		}
+
+		:deep(.header-title) {
+			font-size: 0.92rem;
+		}
+
+		:deep(.header-subtitle) {
+			max-width: 6.5rem;
+			font-size: 0.56rem;
+		}
+
+		:deep(.is-header .scene-character) {
+			width: 3.8rem;
 		}
 	}
 }
 
 @media (max-width: 1160px) {
 	.blog-top-nav {
-		grid-template-columns: 9.5rem minmax(0, 1fr) max-content;
+		grid-template-columns: 11.75rem minmax(0, 1fr) max-content;
 		gap: 0.35rem;
 		padding-inline: 0.4rem;
 	}
@@ -414,7 +465,6 @@ onBeforeUnmount(() => {
 
 @media (prefers-reduced-motion: reduce) {
 	.blog-top-nav,
-	.top-nav-brand :deep(.blog-nav-brand-scene),
 	.top-nav-item {
 		transition: none;
 	}

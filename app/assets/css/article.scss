@@ -8,8 +8,11 @@
 		inset 0 1px 0 var(--c-surface-highlight);
 	background:
 		linear-gradient(145deg, var(--c-surface-highlight), transparent 32%),
-		color-mix(in srgb, var(--c-bg-1) 88%, transparent);
-	backdrop-filter: blur(14px) saturate(110%);
+		color-mix(in srgb, var(--c-bg-1) 95%, var(--c-flow-blue) 5%);
+
+	// Keep the article glass material visually intact without sampling the
+	// animated fixed atmosphere through one viewport-sized live blur layer.
+	backdrop-filter: none;
 }
 
 .article-window-body {

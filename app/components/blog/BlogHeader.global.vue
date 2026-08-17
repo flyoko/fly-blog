@@ -2,9 +2,11 @@
 withDefaults(defineProps<{
 	tag?: string
 	compact?: boolean
+	scene?: boolean
 }>(), {
 	tag: 'div',
 	compact: false,
+	scene: true,
 })
 const appConfig = useAppConfig()
 const { data: aboutProfile } = await useAsyncData('about:header-avatar', () =>
@@ -58,7 +60,7 @@ const isRouteSettling = useState<boolean>('route-compositor-settling', () => fal
 		</div>
 	</div>
 
-	<BlogShinchanScene variant="header" />
+	<BlogShinchanScene v-if="scene" variant="header" />
 </UtilLink>
 </template>
 
