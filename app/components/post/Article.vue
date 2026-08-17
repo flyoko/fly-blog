@@ -60,8 +60,6 @@ const showAllDate = isTimeDiffSignificant(props.date, props.updated)
 <style lang="scss" scoped>
 .article-card {
 	container-type: inline-size;
-	content-visibility: auto;
-	contain-intrinsic-size: auto 8.5rem;
 	position: relative;
 	margin: 1.1em 0;
 	border-radius: 0.875rem;
@@ -109,6 +107,13 @@ const showAllDate = isTimeDiffSignificant(props.date, props.updated)
 	text-decoration-thickness: 0.12em;
 	color: var(--c-text-1);
 	text-underline-offset: 0.2em;
+}
+
+@media (max-width: $breakpoint-widescreen) {
+	.article-card {
+		content-visibility: auto;
+		contain-intrinsic-size: auto 8.5rem;
+	}
 }
 
 @media not (max-width: $breakpoint-widescreen) {

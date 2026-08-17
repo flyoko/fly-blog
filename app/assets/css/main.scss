@@ -157,7 +157,10 @@ img {
 }
 
 .blog-atmosphere {
-	contain: layout paint style;
+	// The fixed root never moves. Promoting the whole viewport with translateZ /
+	// will-change forces macOS browsers to maintain one giant texture while its
+	// children animate, which can flash during sticky-layer invalidation.
+	contain: layout style;
 	display: block;
 	position: fixed;
 	overflow: hidden;
@@ -165,9 +168,6 @@ img {
 	background:
 		linear-gradient(180deg, var(--c-atmosphere-panel), transparent 38%),
 		var(--c-atmosphere-base);
-	backface-visibility: hidden;
-	transform: translate3d(0, 0, 0);
-	will-change: transform;
 	isolation: isolate;
 	pointer-events: none;
 	z-index: 0;
@@ -261,20 +261,16 @@ img {
 .atmosphere-flow {
 	position: absolute;
 	overflow: visible;
-	inset: -5%;
-	width: 110%;
-	height: 110%;
-	backface-visibility: hidden;
-	transform: translate3d(0, 0, 0) scale(1.025);
-	transform-origin: center;
-	will-change: transform;
+
+	// Overscan with geometry instead of a permanent full-screen transform layer.
+	inset: -6.4%;
+	width: 112.8%;
+	height: 112.8%;
 }
 
 .flow-ribbon {
-	backface-visibility: hidden;
 	transform-box: fill-box;
 	transform-origin: center;
-	will-change: transform;
 
 	> path {
 		fill: none;
@@ -343,6 +339,10 @@ img {
 
 :is(.light, .dark) .atmosphere-stars-far {
 	animation-duration: 48s;
+}
+
+:is(.light, .dark) .atmosphere-stars-near {
+	will-change: auto;
 }
 
 :is(.light, .dark) .atmosphere-stars-near,

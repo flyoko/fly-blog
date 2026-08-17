@@ -22,7 +22,7 @@ describe('motion v2 production integration', () => {
 		expect(scene).toContain('class="scene-atmosphere"')
 		expect(scene).not.toContain('!isDynamic.value')
 		expect(scene).toContain('prefers-reduced-motion: reduce')
-		expect(read('app/components/blog/BlogHeader.global.vue')).toContain('<BlogShinchanScene variant="header"')
+		expect(read('app/components/blog/BlogHeader.global.vue')).toContain('<BlogShinchanScene v-if="scene" variant="header"')
 		expect(read('app/pages/moments/index.vue')).toContain('variant="moments"')
 		expect(read('app/pages/me.vue')).toContain('variant="about"')
 	})
