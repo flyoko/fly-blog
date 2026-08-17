@@ -269,15 +269,31 @@ img {
 }
 
 @media (max-width: $breakpoint-widescreen) {
-	.atmosphere-flow {
+	.blog-atmosphere {
 		// Keep the established mobile composition pixel-stable; the macOS
 		// compositor workaround is only needed for the desktop sticky shell.
+		contain: layout paint style;
+		backface-visibility: hidden;
+		transform: translate3d(0, 0, 0);
+		will-change: transform;
+	}
+
+	.atmosphere-flow {
 		inset: -5%;
 		width: 110%;
 		height: 110%;
 		backface-visibility: hidden;
 		transform: translate3d(0, 0, 0) scale(1.025);
 		transform-origin: center;
+		will-change: transform;
+	}
+
+	.flow-ribbon {
+		backface-visibility: hidden;
+		will-change: transform;
+	}
+
+	:is(.light, .dark) .atmosphere-stars-near {
 		will-change: transform;
 	}
 }
