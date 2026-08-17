@@ -268,6 +268,20 @@ img {
 	height: 112.8%;
 }
 
+@media (max-width: $breakpoint-widescreen) {
+	.atmosphere-flow {
+		// Keep the established mobile composition pixel-stable; the macOS
+		// compositor workaround is only needed for the desktop sticky shell.
+		inset: -5%;
+		width: 110%;
+		height: 110%;
+		backface-visibility: hidden;
+		transform: translate3d(0, 0, 0) scale(1.025);
+		transform-origin: center;
+		will-change: transform;
+	}
+}
+
 .flow-ribbon {
 	transform-box: fill-box;
 	transform-origin: center;
