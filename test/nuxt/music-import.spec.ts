@@ -137,8 +137,11 @@ describe('qMC WASM wrapper', () => {
 		expect(result.songId).toBe('12345')
 		expect(offsets).toEqual([0, qmcDecryptChunkBytes])
 		const expectedFirstWrite = input.slice(-qmcDecryptChunkBytes)
-		expect(writes[0].byteLength).toBe(expectedFirstWrite.byteLength)
-		expect(writes[0].every((byte, index) => byte === expectedFirstWrite[index])).toBe(true)
+		const firstWrite = writes[0]
+		if (!firstWrite)
+			throw new Error('Expected QMC decryption to write the first block')
+		expect(firstWrite.byteLength).toBe(expectedFirstWrite.byteLength)
+		expect(firstWrite.every((byte, index) => byte === expectedFirstWrite[index])).toBe(true)
 		expect(progress.at(-1)).toBe(input.byteLength - 4)
 		expect(progress).toEqual([...progress].sort((left, right) => left - right))
 		expect(free).toHaveBeenCalledOnce()
