@@ -25,6 +25,19 @@ describe('public blog presentation', () => {
 		expect(2024 - 2002).toBe(22)
 	})
 
+	it('derives the archive update log from recent published article activity', () => {
+		const blogLog = read('app/components/widget/BlogLog.vue')
+
+		expect(blogLog).toContain('useAsyncData(\'blog-log:posts\'')
+		expect(blogLog).toContain('getArticleIndexOptions()')
+		expect(blogLog).toContain('resolveArticleDate(article, true)')
+		expect(blogLog).toContain('.sort((left, right) => right.timestamp - left.timestamp)')
+		expect(blogLog).toContain('.slice(0, 3)')
+		expect(blogLog).toContain('class="blog-log-link"')
+		expect(blogLog).toContain('overflow-wrap: anywhere')
+		expect(blogLog).not.toContain('const blogLog = [')
+	})
+
 	it('does not reserve desktop width for an empty route aside placeholder', () => {
 		const aside = read('app/components/blog/BlogAside.vue')
 		const layout = read('app/layouts/default.vue')
