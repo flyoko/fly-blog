@@ -122,7 +122,7 @@ export function createAdminMarketRoutes(
 			try {
 				if (!await factory(c.env).remove(session.id, symbol.data))
 					throw new ApiError('NOT_FOUND', 404, 'Watchlist stock was not found')
-				return c.body(null, 204)
+				return success(c, { deleted: true })
 			}
 			catch (error) {
 				if (error instanceof ApiError)

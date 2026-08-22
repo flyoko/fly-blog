@@ -319,18 +319,32 @@ export class WatchlistService {
 		const now = this.now().toISOString()
 		await this.env.DB.prepare(`
 			UPDATE market_watchlist
-			SET note = ?, attention_price = ?, tags_json = ?, enabled = ?, sort_order = ?, updated_at = ?
+			SET note = ?, attention_price = ?, tags_json = ?, enabled = ?, updated_at = ?
 			WHERE owner_id = ? AND symbol = ?
 		`).bind(
 			note === undefined ? existing.note : note,
 			attentionPrice === undefined ? existing.attentionPrice : attentionPrice,
 			JSON.stringify(tags === undefined ? existing.tags : tags),
 			(enabled === undefined ? existing.enabled : enabled) ? 1 : 0,
-			sortOrder === undefined ? existing.sortOrder : sortOrder,
 			now,
 			ownerId,
 			symbol,
 		).run()
+
+		if (sortOrder !== undefined) {
+			const ordered = await this.list(ownerId)
+			const moved = ordered.find(item => item.symbol === symbol)
+			if (!moved)
+				throw new WatchlistServiceError('NOT_FOUND', 'Watchlist stock was not found')
+			const remaining = ordered.filter(item => item.symbol !== symbol)
+			remaining.splice(Math.min(sortOrder, remaining.length), 0, moved)
+			await this.env.DB.batch(remaining.map((item, index) => this.env.DB.prepare(`
+				UPDATE market_watchlist
+				SET sort_order = ?, updated_at = ?
+				WHERE owner_id = ? AND symbol = ?
+			`).bind(index, now, ownerId, item.symbol)))
+		}
+
 		return (await this.find(ownerId, symbol))!
 	}
 

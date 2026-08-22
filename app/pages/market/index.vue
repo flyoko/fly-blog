@@ -4,6 +4,7 @@ import type { FinanceFilter, FinanceFlashDto, FinanceFlashListDto, FinanceFlashS
 import type { MarketDataQuality, MarketEnvelope, MarketOverview, SectorFlowItem, SectorKind, SectorWindowDays, WatchlistItem, WatchlistRadarItem, WatchlistRadarResponse } from '#shared/market'
 
 type MarketWorkspace = 'radar' | 'funds' | 'watchlist' | 'signals' | 'strategy'
+type WatchlistSortMode = 'custom' | 'change' | 'attention' | 'turnover'
 
 const workspaceTabs: Array<{ id: MarketWorkspace, label: string, icon: string, note: string }> = [
 	{ id: 'radar', label: '市场雷达', icon: 'tabler:radar', note: '事件与数据门禁' },
@@ -25,6 +26,13 @@ const financeFilters: Array<{ id: FinanceFilter, label: string }> = [
 const sectorKindOptions: Array<{ id: SectorKind, label: string }> = [
 	{ id: 'industry', label: '行业' },
 	{ id: 'concept', label: '概念' },
+]
+
+const watchlistSortOptions: Array<{ id: WatchlistSortMode, label: string }> = [
+	{ id: 'custom', label: '自定义顺序' },
+	{ id: 'change', label: '涨跌幅排序' },
+	{ id: 'attention', label: '距关注价排序' },
+	{ id: 'turnover', label: '成交额排序' },
 ]
 
 const sectorWindowLabels: Record<SectorWindowDays, string> = {
@@ -81,6 +89,7 @@ const watchlistEditAttention = ref('')
 const watchlistEditNote = ref('')
 const watchlistEditTags = ref('')
 const watchlistMutationLoading = ref(false)
+const watchlistSortMode = ref<WatchlistSortMode>('custom')
 const currentClock = ref<Date | null>(null)
 let financeRevision = 0
 let marketOverviewRevision = 0
@@ -137,10 +146,33 @@ const sectorQualityState = computed(() => sectorFlowData.value?.quality === 'una
 
 const watchlistAuthenticated = computed(() => watchlistSession.value?.authenticated === true)
 const watchlistQuoteBySymbol = computed(() => new Map((watchlistData.value?.items || []).map(item => [item.watchlist.symbol, item])))
-const watchlistRows = computed<WatchlistRadarItem[]>(() => watchlistConfig.value.map((config) => {
-	const current = watchlistQuoteBySymbol.value.get(config.symbol)
-	return current || { watchlist: config, quote: null, quality: 'unavailable', staleAgeMs: null, source: null }
-}))
+const watchlistRows = computed<WatchlistRadarItem[]>(() => {
+	const rows = watchlistConfig.value.map<WatchlistRadarItem>((config) => {
+		const current = watchlistQuoteBySymbol.value.get(config.symbol)
+		return current || { watchlist: config, quote: null, quality: 'unavailable', staleAgeMs: null, source: null }
+	})
+	if (watchlistSortMode.value === 'custom')
+		return rows
+	return [...rows].sort((left, right) => {
+		if (watchlistSortMode.value === 'change') {
+			const leftValue = left.quote?.changePct ?? Number.NEGATIVE_INFINITY
+			const rightValue = right.quote?.changePct ?? Number.NEGATIVE_INFINITY
+			return rightValue - leftValue
+		}
+		if (watchlistSortMode.value === 'turnover') {
+			const leftValue = left.quote?.turnover ?? Number.NEGATIVE_INFINITY
+			const rightValue = right.quote?.turnover ?? Number.NEGATIVE_INFINITY
+			return rightValue - leftValue
+		}
+		const leftValue = watchlistAttentionDistanceRatio(left)
+		const rightValue = watchlistAttentionDistanceRatio(right)
+		if (leftValue === null)
+			return rightValue === null ? left.watchlist.sortOrder - right.watchlist.sortOrder : 1
+		if (rightValue === null)
+			return -1
+		return leftValue - rightValue || left.watchlist.sortOrder - right.watchlist.sortOrder
+	})
+})
 const watchlistLiveCount = computed(() => watchlistData.value?.items.filter(item => item.quality === 'live').length || 0)
 const watchlistStaleCount = computed(() => watchlistData.value?.items.filter(item => item.quality === 'stale').length || 0)
 const watchlistUnavailableCount = computed(() => watchlistData.value?.items.filter(item => item.quality === 'unavailable').length || 0)
@@ -344,6 +376,14 @@ function formatTurnover(value: number | null | undefined) {
 	if (Math.abs(value) >= 10_000)
 		return `${(value / 10_000).toFixed(2)}万`
 	return value.toFixed(0)
+}
+
+function watchlistAttentionDistanceRatio(item: WatchlistRadarItem) {
+	const attention = item.watchlist.attentionPrice
+	const price = item.quote?.price
+	if (!attention || price === undefined || price === null)
+		return null
+	return Math.abs((price - attention) / attention)
 }
 
 function watchlistDistance(item: WatchlistRadarItem) {
@@ -1043,6 +1083,21 @@ onBeforeUnmount(() => {
 					<div><span class="live-dot" />{{ isChinaMarketTradingWindow(currentClock || new Date()) ? `${watchlistLiveCount} LIVE` : `${watchlistLiveCount} 最新` }}</div>
 					<div><span class="stale-dot" />{{ watchlistStaleCount }} STALE</div>
 					<div><span class="unavailable-dot" />{{ watchlistUnavailableCount }} UNAVAILABLE</div>
+				</div>
+
+				<div class="market-watchlist-sort" aria-label="自选排序">
+					<span>临时排序</span>
+					<button
+						v-for="option in watchlistSortOptions"
+						:key="option.id"
+						type="button"
+						:class="{ active: watchlistSortMode === option.id }"
+						:aria-pressed="watchlistSortMode === option.id"
+						@click="watchlistSortMode = option.id"
+					>
+						{{ option.label }}
+					</button>
+					<small>仅改变当前视图，不覆盖自定义 sortOrder。</small>
 				</div>
 
 				<div class="market-watchlist-layout">
@@ -2294,9 +2349,21 @@ onBeforeUnmount(() => {
 	color: var(--market-gold);
 }
 .market-watchlist-form-title > .iconify { font-size: 1.1rem; }
-.market-watchlist-form-title > div { display: grid; gap: 0.1rem; }
-.market-watchlist-form-title strong { font-size: 0.72rem; color: var(--market-text); }
-.market-watchlist-form-title span { font: 0.56rem var(--font-monospace); color: var(--market-text-3); }
+
+.market-watchlist-form-title > div {
+	display: grid;
+	gap: 0.1rem;
+}
+
+.market-watchlist-form-title strong {
+	font-size: 0.72rem;
+	color: var(--market-text);
+}
+
+.market-watchlist-form-title span {
+	font: 0.56rem var(--font-monospace);
+	color: var(--market-text-3);
+}
 
 .market-watchlist-add label,
 .market-watch-edit label {
@@ -2320,11 +2387,16 @@ onBeforeUnmount(() => {
 	padding: 0.48rem 0.55rem;
 	border: 1px solid var(--market-border);
 	border-radius: 0.3rem;
+	outline: none;
 	background: var(--market-panel);
 	color: var(--market-text);
-	outline: none;
 }
-.market-watch-edit textarea { min-height: 5.25rem; resize: vertical; }
+
+.market-watch-edit textarea {
+	min-height: 5.25rem;
+	resize: vertical;
+}
+
 .market-watchlist-add input:focus,
 .market-watch-edit input:focus,
 .market-watch-edit textarea:focus { border-color: var(--market-gold); }
@@ -2339,28 +2411,99 @@ onBeforeUnmount(() => {
 	font-size: 0.62rem;
 	color: var(--market-gold-bright);
 }
-.market-watchlist-add > button { display: flex; align-items: center; justify-content: center; gap: 0.3rem; background: var(--market-gold-soft); }
-.market-watchlist-add > button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.market-watchlist-add > button {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.3rem;
+	background: var(--market-gold-soft);
+}
+
+.market-watchlist-add > button:disabled {
+	opacity: 0.45;
+	cursor: not-allowed;
+}
 
 .market-watchlist-summary {
 	display: flex;
 	align-items: stretch;
 	gap: 1px;
+	overflow: hidden;
 	margin: 0.75rem;
 	border: 1px solid var(--market-border);
 	border-radius: 0.35rem;
-	overflow: hidden;
 	background: var(--market-border);
 }
-.market-watchlist-summary > div { display: flex; align-items: center; gap: 0.4rem; min-height: 3.25rem; padding: 0.55rem 0.75rem; background: var(--market-panel); font: 0.6rem var(--font-monospace); color: var(--market-text-2); }
-.market-watchlist-summary > div:first-child { display: grid; min-width: 13rem; margin-right: auto; }
+
+.market-watchlist-summary > div {
+	display: flex;
+	align-items: center;
+	gap: 0.4rem;
+	min-height: 3.25rem;
+	padding: 0.55rem 0.75rem;
+	background: var(--market-panel);
+	font: 0.6rem var(--font-monospace);
+	color: var(--market-text-2);
+}
+
+.market-watchlist-summary > div:first-child {
+	display: grid;
+	min-width: 13rem;
+	margin-right: auto;
+}
+
 .market-watchlist-summary > div:first-child span,
-.market-watchlist-summary small { font-size: 0.55rem; color: var(--market-text-3); }
+.market-watchlist-summary small {
+	font-size: 0.55rem;
+	color: var(--market-text-3);
+}
 .market-watchlist-summary strong { color: var(--market-gold-bright); }
-.live-dot, .stale-dot, .unavailable-dot { width: 0.45rem; height: 0.45rem; border-radius: 50%; }
+
+.live-dot, .stale-dot, .unavailable-dot {
+	width: 0.45rem;
+	height: 0.45rem;
+	border-radius: 50%;
+}
 .live-dot { background: var(--market-down); }
 .stale-dot { background: var(--market-gold); }
 .unavailable-dot { background: var(--market-text-3); }
+
+.market-watchlist-sort {
+	display: flex;
+	align-items: center;
+	gap: 0.35rem;
+	margin: 0 0.75rem 0.75rem;
+	padding: 0.45rem 0.55rem;
+	border: 1px solid var(--market-border);
+	border-radius: 0.35rem;
+	background: var(--market-panel);
+}
+
+.market-watchlist-sort > span,
+.market-watchlist-sort > small {
+	font: 0.54rem var(--font-monospace);
+	color: var(--market-text-3);
+}
+
+.market-watchlist-sort > small {
+	margin-left: auto;
+}
+
+.market-watchlist-sort button {
+	min-height: 2rem;
+	padding: 0.3rem 0.5rem;
+	border: 1px solid var(--market-border);
+	border-radius: 0.25rem;
+	font: 0.56rem var(--font-monospace);
+	color: var(--market-text-2);
+}
+
+.market-watchlist-sort button.active {
+	border-color: var(--market-border-strong);
+	background: var(--market-gold-soft);
+	color: var(--market-gold-bright);
+}
 
 .market-watchlist-layout {
 	display: grid;
@@ -2377,73 +2520,290 @@ onBeforeUnmount(() => {
 	background: var(--market-panel);
 }
 
-.market-watchlist-desktop { overflow-x: auto; max-width: 100%; overscroll-behavior-inline: contain; }
-.market-watchlist-desktop table { width: 100%; min-width: 66rem; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.market-watchlist-desktop {
+	overflow-x: auto;
+	max-width: 100%;
+	overscroll-behavior-inline: contain;
+}
+
+.market-watchlist-desktop table {
+	width: 100%;
+	min-width: 66rem;
+	border-collapse: collapse;
+	font-variant-numeric: tabular-nums;
+}
+
 .market-watchlist-desktop th,
-.market-watchlist-desktop td { padding: 0.65rem 0.7rem; border-bottom: 1px solid var(--market-border); white-space: nowrap; text-align: right; font-size: 0.64rem; }
-.market-watchlist-desktop th { background: var(--market-panel-raised); font: 0.56rem var(--font-monospace); color: var(--market-text-3); }
+.market-watchlist-desktop td {
+	padding: 0.65rem 0.7rem;
+	border-bottom: 1px solid var(--market-border);
+	font-size: 0.64rem;
+	white-space: nowrap;
+	text-align: right;
+}
+
+.market-watchlist-desktop th {
+	background: var(--market-panel-raised);
+	font: 0.56rem var(--font-monospace);
+	color: var(--market-text-3);
+}
+
 .market-watchlist-desktop th:first-child,
-.market-watchlist-desktop td:first-child { position: sticky; left: 0; background: var(--market-panel); text-align: left; z-index: 1; }
-.market-watchlist-desktop th:first-child { background: var(--market-panel-raised); z-index: 2; }
+.market-watchlist-desktop td:first-child {
+	position: sticky;
+	left: 0;
+	background: var(--market-panel);
+	text-align: left;
+	z-index: 1;
+}
+
+.market-watchlist-desktop th:first-child {
+	background: var(--market-panel-raised);
+	z-index: 2;
+}
 .market-watchlist-desktop tbody tr:last-child td { border-bottom: 0; }
 .market-watchlist-desktop tr.paused { opacity: 0.58; }
-.market-watchlist-desktop td:first-child strong { display: block; font-size: 0.72rem; color: var(--market-text); }
-.market-watchlist-desktop td:first-child small { display: block; margin-top: 0.16rem; color: var(--market-text-3); }
+
+.market-watchlist-desktop td:first-child strong {
+	display: block;
+	font-size: 0.72rem;
+	color: var(--market-text);
+}
+
+.market-watchlist-desktop td:first-child small {
+	display: block;
+	margin-top: 0.16rem;
+	color: var(--market-text-3);
+}
 
 .market-watch-range > div,
-.market-watch-range.mobile { display: flex; align-items: center; gap: 0.35rem; }
-.market-watch-range span { font: 0.54rem var(--font-monospace); color: var(--market-text-3); }
-.market-watch-range i { position: relative; display: block; width: 5.5rem; height: 2px; background: var(--market-text-3); }
-.market-watch-range i em { position: absolute; top: 50%; width: 0.45rem; height: 0.45rem; border-radius: 50%; background: var(--market-gold); transform: translate(-50%, -50%); }
+.market-watch-range.mobile {
+	display: flex;
+	align-items: center;
+	gap: 0.35rem;
+}
 
-.market-watch-status { display: inline-flex; align-items: center; min-height: 1.65rem; padding: 0.18rem 0.38rem; border: 1px solid var(--market-border); border-radius: 0.25rem; font: 700 0.54rem var(--font-monospace); color: var(--market-text-2); }
-.market-watch-status[data-tone="live"] { border-color: rgb(73 163 108 / 46%); background: var(--market-down-soft); color: #7DD99D; }
-.market-watch-status[data-tone="stale"] { border-color: var(--market-border-strong); background: var(--market-gold-soft); color: var(--market-gold-bright); }
+.market-watch-range span {
+	font: 0.54rem var(--font-monospace);
+	color: var(--market-text-3);
+}
+
+.market-watch-range i {
+	display: block;
+	position: relative;
+	width: 5.5rem;
+	height: 2px;
+	background: var(--market-text-3);
+}
+
+.market-watch-range i em {
+	position: absolute;
+	top: 50%;
+	width: 0.45rem;
+	height: 0.45rem;
+	border-radius: 50%;
+	background: var(--market-gold);
+	transform: translate(-50%, -50%);
+}
+
+.market-watch-status {
+	display: inline-flex;
+	align-items: center;
+	min-height: 1.65rem;
+	padding: 0.18rem 0.38rem;
+	border: 1px solid var(--market-border);
+	border-radius: 0.25rem;
+	font: 700 0.54rem var(--font-monospace);
+	color: var(--market-text-2);
+}
+
+.market-watch-status[data-tone="live"] {
+	border-color: rgb(73 163 108 / 46%);
+	background: var(--market-down-soft);
+	color: #7DD99D;
+}
+
+.market-watch-status[data-tone="stale"] {
+	border-color: var(--market-border-strong);
+	background: var(--market-gold-soft);
+	color: var(--market-gold-bright);
+}
+
 .market-watch-status[data-tone="unavailable"],
 .market-watch-status[data-tone="paused"] { color: var(--market-text-3); }
 
-.market-watch-actions { display: flex; justify-content: flex-end; gap: 0.25rem; }
-.market-watch-actions button { min-height: 2.4rem; padding-inline: 0.45rem; color: var(--market-text-2); }
+.market-watch-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 0.25rem;
+}
+
+.market-watch-actions button {
+	min-height: 2.4rem;
+	padding-inline: 0.45rem;
+	color: var(--market-text-2);
+}
 .market-watch-actions button.danger { color: var(--market-danger); }
 
 .market-watchlist-mobile { display: none; }
 
-.market-watchlist-side { display: grid; align-content: start; gap: 0.65rem; }
-.market-watchlist-side > section > header { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.7rem; border-bottom: 1px solid var(--market-border); }
-.market-watchlist-side > section > header span { font: 0.52rem var(--font-monospace); letter-spacing: 0.08em; color: var(--market-gold); }
-.market-watchlist-side > section > header h3 { margin: 0.18rem 0 0; font-size: 0.76rem; }
-.market-watchlist-side > section > header b { font: 0.56rem var(--font-monospace); color: var(--market-gold-bright); }
-.market-watchlist-side > section > p { margin: 0; padding: 0.75rem; font-size: 0.64rem; line-height: 1.65; color: var(--market-text-3); }
+.market-watchlist-side {
+	display: grid;
+	align-content: start;
+	gap: 0.65rem;
+}
+
+.market-watchlist-side > section > header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.5rem;
+	padding: 0.7rem;
+	border-bottom: 1px solid var(--market-border);
+}
+
+.market-watchlist-side > section > header span {
+	font: 0.52rem var(--font-monospace);
+	letter-spacing: 0.08em;
+	color: var(--market-gold);
+}
+
+.market-watchlist-side > section > header h3 {
+	margin: 0.18rem 0 0;
+	font-size: 0.76rem;
+}
+
+.market-watchlist-side > section > header b {
+	font: 0.56rem var(--font-monospace);
+	color: var(--market-gold-bright);
+}
+
+.market-watchlist-side > section > p {
+	margin: 0;
+	padding: 0.75rem;
+	font-size: 0.64rem;
+	line-height: 1.65;
+	color: var(--market-text-3);
+}
 
 .market-watch-events { display: grid; }
-.market-watch-events article { display: grid; grid-template-columns: 2.6rem minmax(0, 1fr); gap: 0.45rem; padding: 0.65rem 0.7rem; border-bottom: 1px solid var(--market-border); }
+
+.market-watch-events article {
+	display: grid;
+	grid-template-columns: 2.6rem minmax(0, 1fr);
+	gap: 0.45rem;
+	padding: 0.65rem 0.7rem;
+	border-bottom: 1px solid var(--market-border);
+}
 .market-watch-events article:last-child { border-bottom: 0; }
-.market-watch-events time { font: 0.56rem var(--font-monospace); color: var(--market-gold); }
-.market-watch-events div { display: grid; gap: 0.18rem; }
-.market-watch-events strong { font-size: 0.64rem; line-height: 1.45; }
-.market-watch-events span { font-size: 0.55rem; color: var(--market-text-3); }
 
-.market-watch-edit { display: grid; gap: 0.55rem; padding: 0.7rem; }
+.market-watch-events time {
+	font: 0.56rem var(--font-monospace);
+	color: var(--market-gold);
+}
+
+.market-watch-events div {
+	display: grid;
+	gap: 0.18rem;
+}
+
+.market-watch-events strong {
+	font-size: 0.64rem;
+	line-height: 1.45;
+}
+
+.market-watch-events span {
+	font-size: 0.55rem;
+	color: var(--market-text-3);
+}
+
+.market-watch-edit {
+	display: grid;
+	gap: 0.55rem;
+	padding: 0.7rem;
+}
 .market-watch-edit > strong { font-size: 0.7rem; }
-.market-watch-edit > div { display: flex; gap: 0.35rem; }
 
-.market-watchlist-discipline { display: flex; align-items: center; gap: 0.4rem; margin: 0.75rem; padding: 0.6rem 0.7rem; border: 1px solid var(--market-border); border-radius: 0.35rem; font: 0.58rem/1.5 var(--font-monospace); color: var(--market-text-3); }
+.market-watch-edit > div {
+	display: flex;
+	gap: 0.35rem;
+}
+
+.market-watchlist-discipline {
+	display: flex;
+	align-items: center;
+	gap: 0.4rem;
+	margin: 0.75rem;
+	padding: 0.6rem 0.7rem;
+	border: 1px solid var(--market-border);
+	border-radius: 0.35rem;
+	font: 0.58rem/1.5 var(--font-monospace);
+	color: var(--market-text-3);
+}
 .market-watchlist-discipline .iconify { color: var(--market-gold); }
 
-.market-watch-card { display: grid; gap: 0.65rem; padding: 0.75rem; border-bottom: 1px solid var(--market-border); }
+.market-watch-card {
+	display: grid;
+	gap: 0.65rem;
+	padding: 0.75rem;
+	border-bottom: 1px solid var(--market-border);
+}
 .market-watch-card:last-child { border-bottom: 0; }
 .market-watch-card.paused { opacity: 0.58; }
-.market-watch-card > header { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
-.market-watch-card > header > div { display: flex; align-items: baseline; gap: 0.35rem; }
+
+.market-watch-card > header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.5rem;
+}
+
+.market-watch-card > header > div {
+	display: flex;
+	align-items: baseline;
+	gap: 0.35rem;
+}
 .market-watch-card > header strong { font-size: 0.76rem; }
-.market-watch-card > header div span { font: 0.55rem var(--font-monospace); color: var(--market-text-3); }
-.market-watch-card-price { display: grid; grid-template-columns: auto auto minmax(0, 1fr); align-items: baseline; gap: 0.5rem; }
+
+.market-watch-card > header div span {
+	font: 0.55rem var(--font-monospace);
+	color: var(--market-text-3);
+}
+
+.market-watch-card-price {
+	display: grid;
+	grid-template-columns: auto auto minmax(0, 1fr);
+	align-items: baseline;
+	gap: 0.5rem;
+}
 .market-watch-card-price > strong { font: 700 1.35rem var(--font-monospace); }
 .market-watch-card-price > b { font: 700 0.68rem var(--font-monospace); }
-.market-watch-card-price > span { justify-self: end; font-size: 0.55rem; color: var(--market-text-3); }
-.market-watch-card-price em { display: block; margin-top: 0.15rem; font: 700 0.6rem var(--font-monospace); font-style: normal; }
-.market-watch-range.mobile i { flex: 1 1 auto; width: auto; }
-.market-watch-card > footer { display: flex; justify-content: space-between; gap: 0.5rem; font: 0.55rem var(--font-monospace); color: var(--market-text-3); }
+
+.market-watch-card-price > span {
+	justify-self: end;
+	font-size: 0.55rem;
+	color: var(--market-text-3);
+}
+
+.market-watch-card-price em {
+	display: block;
+	margin-top: 0.15rem;
+	font: 700 0.6rem var(--font-monospace);
+	font-style: normal;
+}
+
+.market-watch-range.mobile i {
+	flex: 1 1 auto;
+	width: auto;
+}
+
+.market-watch-card > footer {
+	display: flex;
+	justify-content: space-between;
+	gap: 0.5rem;
+	font: 0.55rem var(--font-monospace);
+	color: var(--market-text-3);
+}
 
 .market-terminal button,
 .market-terminal a,
@@ -2549,15 +2909,45 @@ onBeforeUnmount(() => {
 	}
 	.market-source-links { justify-content: flex-start; }
 	.market-stage-header { flex-direction: column; }
-	.market-watchlist-header-actions { width: 100%; justify-content: space-between; }
+
+	.market-watchlist-header-actions {
+		justify-content: space-between;
+		width: 100%;
+	}
+
+	.market-watchlist-sort {
+		flex-wrap: wrap;
+		margin-inline: 0.55rem;
+	}
+
+	.market-watchlist-sort button {
+		min-height: 44px;
+	}
+
+	.market-watchlist-sort > small {
+		width: 100%;
+		margin-left: 0;
+	}
 	.market-watchlist-add { grid-template-columns: minmax(0, 1fr); }
 	.market-watchlist-form-title { grid-column: auto; }
 	.market-watchlist-summary { flex-wrap: wrap; }
-	.market-watchlist-summary > div:first-child { width: 100%; margin-right: 0; }
-	.market-watchlist-layout { grid-template-columns: minmax(0, 1fr); margin-inline: 0.55rem; }
+
+	.market-watchlist-summary > div:first-child {
+		width: 100%;
+		margin-right: 0;
+	}
+
+	.market-watchlist-layout {
+		grid-template-columns: minmax(0, 1fr);
+		margin-inline: 0.55rem;
+	}
 	.market-watchlist-desktop { display: none; }
 	.market-watchlist-mobile { display: block; }
 	.market-watchlist-side { grid-template-columns: minmax(0, 1fr); }
+
+	.market-watch-actions button {
+		min-height: 44px;
+	}
 }
 
 @media (max-width: 480px) {
