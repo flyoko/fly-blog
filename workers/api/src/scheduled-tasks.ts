@@ -2,10 +2,11 @@ import type { Env } from './env'
 import { AnalyticsService } from './features/analytics/service'
 import { FinanceFlashService } from './features/finance/service'
 import { MarketService } from './features/market/service'
+import { WatchlistService } from './features/market/watchlist-service'
 import { MomentBackupService } from './features/moment-backups/service'
 import { NewsService } from './features/news/service'
 
-export type ScheduledJob = 'analytics-maintenance' | 'content-maintenance' | 'finance-sync' | 'market-sync' | 'news-sync' | 'moment-backup'
+export type ScheduledJob = 'analytics-maintenance' | 'content-maintenance' | 'finance-sync' | 'market-sync' | 'market-watchlist-sync' | 'news-sync' | 'moment-backup'
 
 export interface ScheduledTaskMessage {
 	version: 1
@@ -18,6 +19,7 @@ export interface ScheduledTaskServices {
 	syncNews: () => Promise<unknown>
 	syncFinance: () => Promise<unknown>
 	syncMarket: () => Promise<unknown>
+	syncWatchlistMarket: () => Promise<unknown>
 	backupMoments: () => Promise<unknown>
 	maintainAnalytics: () => Promise<unknown>
 	maintainContent: () => Promise<unknown>
@@ -26,7 +28,7 @@ export interface ScheduledTaskServices {
 export function scheduledJobsFor(cron: string): ScheduledJob[] {
 	switch (cron) {
 		case '*/5 * * * *':
-			return ['news-sync', 'finance-sync', 'market-sync']
+			return ['news-sync', 'finance-sync', 'market-sync', 'market-watchlist-sync']
 		case '17 19 * * *':
 			return ['moment-backup', 'news-sync', 'finance-sync']
 		case '31 19 * * *':
@@ -54,6 +56,7 @@ function defaultServices(env: Env): ScheduledTaskServices {
 		syncNews: () => new NewsService(env).sync(),
 		syncFinance: () => new FinanceFlashService(env).syncAll(),
 		syncMarket: () => new MarketService(env).syncScheduled(),
+		syncWatchlistMarket: () => new WatchlistService(env).syncScheduled(),
 		backupMoments: () => new MomentBackupService(env).backup(),
 		maintainAnalytics: () => new AnalyticsService(env).maintain(),
 		maintainContent: async () => {
@@ -75,6 +78,7 @@ export async function runScheduledJob(
 		'news-sync': services.syncNews,
 		'finance-sync': services.syncFinance,
 		'market-sync': services.syncMarket,
+		'market-watchlist-sync': services.syncWatchlistMarket,
 		'moment-backup': services.backupMoments,
 		'analytics-maintenance': services.maintainAnalytics,
 		'content-maintenance': services.maintainContent,
