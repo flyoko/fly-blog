@@ -18,13 +18,13 @@ const TAG_LIMIT = 8
 const TAG_MAX_LENGTH = 24
 const FIVE_MINUTES_MS = 5 * 60 * 1000
 
-export type WatchlistServiceErrorCode =
-	| 'LIMIT_REACHED'
-	| 'CONFLICT'
-	| 'NOT_FOUND'
-	| 'INVALID_STOCK'
-	| 'PROVIDER_UNAVAILABLE'
-	| 'VALIDATION_FAILED'
+export type WatchlistServiceErrorCode
+	= | 'LIMIT_REACHED'
+		| 'CONFLICT'
+		| 'NOT_FOUND'
+		| 'INVALID_STOCK'
+		| 'PROVIDER_UNAVAILABLE'
+		| 'VALIDATION_FAILED'
 
 export class WatchlistServiceError extends Error {
 	constructor(

@@ -64,6 +64,14 @@
         "limit": 120,
         "period": 60
       }
+    },
+    {
+      "name": "MARKET_READ_RATE_LIMITER",
+      "namespace_id": "1004",
+      "simple": {
+        "limit": 6,
+        "period": 60
+      }
     }
   ],
   "queues": {

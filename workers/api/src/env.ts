@@ -7,6 +7,7 @@ export interface Env {
 	CONTENT_SYNC_QUEUE: Queue<ScheduledTaskMessage>
 	AUTH_RATE_LIMITER: RateLimit
 	WRITE_RATE_LIMITER: RateLimit
+	MARKET_READ_RATE_LIMITER: RateLimit
 	ANALYTICS_RATE_LIMITER?: RateLimit
 	PUBLIC_ORIGIN: string
 	PAGES_ORIGIN: string
