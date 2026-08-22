@@ -72,3 +72,52 @@ export interface MarketEnvelope<T> {
 	staleAgeMs: number | null
 	quality: MarketDataQuality
 }
+
+export type StockExchange = 'SSE' | 'SZSE' | 'BSE'
+export type StockSymbol = `${StockExchange}:${string}`
+export type WatchlistItemQuality = 'live' | 'stale' | 'unavailable'
+
+export interface WatchlistItem {
+	symbol: StockSymbol
+	exchange: StockExchange
+	code: string
+	name: string
+	sortOrder: number
+	note: string | null
+	attentionPrice: number | null
+	tags: string[]
+	enabled: boolean
+	createdAt: string
+	updatedAt: string
+}
+
+export interface StockQuote {
+	symbol: StockSymbol
+	code: string
+	name: string
+	price: number
+	change: number
+	changePct: number
+	open: number | null
+	high: number | null
+	low: number | null
+	previousClose: number | null
+	volume: number | null
+	turnover: number | null
+	turnoverRate: number | null
+	marketAt: string
+}
+
+export interface WatchlistRadarItem {
+	watchlist: WatchlistItem
+	quote: StockQuote | null
+	quality: WatchlistItemQuality
+	staleAgeMs: number | null
+	source: MarketSourceRef | null
+}
+
+export interface WatchlistRadarResponse {
+	quality: MarketDataQuality
+	fetchedAt: string | null
+	items: WatchlistRadarItem[]
+}
