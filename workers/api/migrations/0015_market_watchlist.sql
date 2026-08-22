@@ -40,3 +40,10 @@ CREATE TABLE market_watchlist_quote_5m (
 
 CREATE INDEX idx_market_watchlist_quote_owner_symbol_market
   ON market_watchlist_quote_5m (owner_id, symbol, market_at DESC);
+
+CREATE TRIGGER trg_market_watchlist_limit
+BEFORE INSERT ON market_watchlist
+WHEN (SELECT COUNT(*) FROM market_watchlist) >= 30
+BEGIN
+  SELECT RAISE(ABORT, 'market_watchlist_limit');
+END;
