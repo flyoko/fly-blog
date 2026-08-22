@@ -1,6 +1,7 @@
 <script setup lang="ts">
+import type { AdminSessionDto } from '#shared/admin/auth'
 import type { FinanceFilter, FinanceFlashDto, FinanceFlashListDto, FinanceFlashSourceDto } from '#shared/admin/finance'
-import type { MarketDataQuality, MarketEnvelope, MarketOverview, SectorFlowItem, SectorKind, SectorWindowDays } from '#shared/market'
+import type { MarketDataQuality, MarketEnvelope, MarketOverview, SectorFlowItem, SectorKind, SectorWindowDays, WatchlistItem, WatchlistRadarItem, WatchlistRadarResponse } from '#shared/market'
 
 type MarketWorkspace = 'radar' | 'funds' | 'watchlist' | 'signals' | 'strategy'
 
@@ -64,12 +65,31 @@ const sectorKind = ref<SectorKind>('industry')
 const sectorFlowData = ref<MarketEnvelope<SectorFlowItem[]> | null>(null)
 const sectorFlowLoading = ref(false)
 const sectorFlowError = ref('')
+const watchlistSession = ref<AdminSessionDto | null>(null)
+const watchlistSessionLoading = ref(false)
+const watchlistConfig = ref<WatchlistItem[]>([])
+const watchlistData = ref<WatchlistRadarResponse | null>(null)
+const watchlistLoading = ref(false)
+const watchlistError = ref('')
+const watchlistMutationError = ref('')
+const watchlistSymbolInput = ref('')
+const watchlistAttentionInput = ref('')
+const watchlistNoteInput = ref('')
+const watchlistTagsInput = ref('')
+const watchlistEditingSymbol = ref('')
+const watchlistEditAttention = ref('')
+const watchlistEditNote = ref('')
+const watchlistEditTags = ref('')
+const watchlistMutationLoading = ref(false)
 const currentClock = ref<Date | null>(null)
 let financeRevision = 0
 let marketOverviewRevision = 0
 let sectorFlowRevision = 0
 let refreshTimer: ReturnType<typeof setInterval> | null = null
 let clockTimer: ReturnType<typeof setInterval> | null = null
+let watchlistTimer: ReturnType<typeof setInterval> | null = null
+let watchlistRequestController: AbortController | null = null
+const watchlistRequestInFlight = ref(false)
 
 const financeItems = computed(() => financeData.value?.items || [])
 const mainlineTopics = computed(() => {
@@ -114,6 +134,25 @@ const marketQualityState = computed(() => qualityState(marketOverview.value?.qua
 const sectorQualityState = computed(() => sectorFlowData.value?.quality === 'unavailable'
 	? { label: '暂无可信资金数据', tone: 'muted' as const }
 	: qualityState(sectorFlowData.value?.quality))
+
+const watchlistAuthenticated = computed(() => watchlistSession.value?.authenticated === true)
+const watchlistQuoteBySymbol = computed(() => new Map((watchlistData.value?.items || []).map(item => [item.watchlist.symbol, item])))
+const watchlistRows = computed<WatchlistRadarItem[]>(() => watchlistConfig.value.map((config) => {
+	const current = watchlistQuoteBySymbol.value.get(config.symbol)
+	return current || { watchlist: config, quote: null, quality: 'unavailable', staleAgeMs: null, source: null }
+}))
+const watchlistLiveCount = computed(() => watchlistData.value?.items.filter(item => item.quality === 'live').length || 0)
+const watchlistStaleCount = computed(() => watchlistData.value?.items.filter(item => item.quality === 'stale').length || 0)
+const watchlistUnavailableCount = computed(() => watchlistData.value?.items.filter(item => item.quality === 'unavailable').length || 0)
+const watchlistRelatedEvents = computed(() => {
+	const terms = watchlistConfig.value.flatMap(item => [item.name, item.code, ...item.tags]).map(term => term.trim()).filter(Boolean)
+	if (!terms.length)
+		return []
+	return financeItems.value.filter((event) => {
+		const haystack = `${event.title} ${event.summary || ''} ${event.topic || ''}`.toLowerCase()
+		return terms.some(term => haystack.includes(term.toLowerCase()))
+	}).slice(0, 4)
+})
 
 useSeoMeta({
 	title: '市场雷达',
@@ -272,6 +311,329 @@ async function loadSectorFlows(options: { background?: boolean } = {}) {
 	}
 }
 
+function shanghaiParts(value: Date) {
+	const formatter = new Intl.DateTimeFormat('en-GB', {
+		weekday: 'short',
+		hour: '2-digit',
+		minute: '2-digit',
+		hourCycle: 'h23',
+		timeZone: 'Asia/Shanghai',
+	})
+	const parts = Object.fromEntries(formatter.formatToParts(value).map(part => [part.type, part.value]))
+	return { weekday: parts.weekday || '', hour: Number(parts.hour), minute: Number(parts.minute) }
+}
+
+function isChinaMarketTradingWindow(value: Date) {
+	const { weekday, hour, minute } = shanghaiParts(value)
+	if (weekday === 'Sat' || weekday === 'Sun')
+		return false
+	const minutes = hour * 60 + minute
+	return (minutes >= 9 * 60 + 20 && minutes <= 11 * 60 + 35)
+		|| (minutes >= 12 * 60 + 55 && minutes <= 15 * 60 + 15)
+}
+
+function formatWatchlistPrice(value: number | null | undefined) {
+	return value === null || value === undefined ? '--' : value.toFixed(2)
+}
+
+function formatTurnover(value: number | null | undefined) {
+	if (value === null || value === undefined)
+		return '--'
+	if (Math.abs(value) >= 100_000_000)
+		return `${(value / 100_000_000).toFixed(2)}亿`
+	if (Math.abs(value) >= 10_000)
+		return `${(value / 10_000).toFixed(2)}万`
+	return value.toFixed(0)
+}
+
+function watchlistDistance(item: WatchlistRadarItem) {
+	const attention = item.watchlist.attentionPrice
+	const price = item.quote?.price
+	if (!attention || price === undefined || price === null)
+		return '--'
+	const delta = price - attention
+	const percent = delta / attention * 100
+	return `${delta > 0 ? '+' : ''}${delta.toFixed(2)} (${percent > 0 ? '+' : ''}${percent.toFixed(2)}%)`
+}
+
+function watchlistRangePosition(item: WatchlistRadarItem) {
+	const quote = item.quote
+	if (!quote || quote.low === null || quote.high === null || quote.high <= quote.low)
+		return 50
+	return Math.max(0, Math.min(100, (quote.price - quote.low) / (quote.high - quote.low) * 100))
+}
+
+function watchlistStatusLabel(item: WatchlistRadarItem) {
+	if (!item.watchlist.enabled)
+		return 'PAUSED'
+	if (item.quality === 'unavailable')
+		return 'UNAVAILABLE'
+	if (item.quality === 'stale') {
+		const minutes = Math.max(1, Math.floor((item.staleAgeMs || 0) / 60_000))
+		return `STALE · ${minutes}m`
+	}
+	if (!isChinaMarketTradingWindow(currentClock.value || new Date()))
+		return item.quote?.marketAt ? `已收盘 · ${formatFinanceTime(item.quote.marketAt)}` : '最近行情'
+	return 'LIVE'
+}
+
+function watchlistStatusTone(item: WatchlistRadarItem) {
+	if (!item.watchlist.enabled)
+		return 'paused'
+	return item.quality
+}
+
+function watchlistOverallLabel() {
+	if (!watchlistData.value)
+		return '等待自选行情'
+	if (!isChinaMarketTradingWindow(currentClock.value || new Date()) && watchlistData.value.items.length)
+		return '最近行情'
+	switch (watchlistData.value.quality) {
+		case 'live': return 'LIVE'
+		case 'degraded': return 'DEGRADED'
+		case 'stale': return 'STALE'
+		default: return 'UNAVAILABLE'
+	}
+}
+
+function csrfToken() {
+	if (!import.meta.client)
+		return ''
+	const prefix = 'fly_admin_csrf='
+	return document.cookie.split(';').map(value => value.trim()).find(value => value.startsWith(prefix))?.slice(prefix.length) || ''
+}
+
+function normalizeWatchlistSymbolInput(value: string) {
+	const normalized = value.trim().toUpperCase()
+	if (/^(?:SSE|SZSE|BSE):\d{6}$/u.test(normalized))
+		return normalized
+	if (!/^\d{6}$/u.test(normalized))
+		throw new Error('请输入 6 位 A 股代码')
+	if (/^6\d{5}$/u.test(normalized))
+		return `SSE:${normalized}`
+	if (/^(?:00[0-3]|30[01])\d{3}$/u.test(normalized))
+		return `SZSE:${normalized}`
+	if (/^[489]\d{5}$/u.test(normalized))
+		return `BSE:${normalized}`
+	throw new Error('暂不支持该股票代码')
+}
+
+function parseOptionalPositive(value: string) {
+	const normalized = value.trim()
+	if (!normalized)
+		return null
+	const parsed = Number(normalized)
+	if (!Number.isFinite(parsed) || parsed <= 0)
+		throw new Error('关注价必须大于 0')
+	return parsed
+}
+
+function parseTags(value: string) {
+	return [...new Set(value.split(/[,，]/u).map(tag => tag.trim()).filter(Boolean))]
+}
+
+async function loadWatchlistSession() {
+	if (watchlistSessionLoading.value)
+		return
+	watchlistSessionLoading.value = true
+	try {
+		const result = await $fetch<{ data: AdminSessionDto }>('/api/auth/session')
+		watchlistSession.value = result.data
+	}
+	catch {
+		watchlistSession.value = { authenticated: false }
+	}
+	finally {
+		watchlistSessionLoading.value = false
+	}
+}
+
+async function loadWatchlistConfig() {
+	if (!watchlistSession.value?.authenticated)
+		return
+	const result = await $fetch<{ data: WatchlistItem[] }>('/api/admin/market/watchlist')
+	watchlistConfig.value = result.data
+}
+
+async function loadWatchlistQuotes(options: { background?: boolean } = {}) {
+	if (activeWorkspace.value !== 'watchlist' || !watchlistSession.value?.authenticated || watchlistRequestInFlight.value)
+		return
+	watchlistRequestInFlight.value = true
+	if (!options.background)
+		watchlistLoading.value = true
+	watchlistError.value = ''
+	const controller = new AbortController()
+	watchlistRequestController = controller
+	try {
+		const result = await $fetch<{ data: WatchlistRadarResponse }>('/api/admin/market/watchlist/quotes', { signal: controller.signal })
+		if (!controller.signal.aborted)
+			watchlistData.value = result.data
+	}
+	catch (cause) {
+		if (!controller.signal.aborted)
+			watchlistError.value = cause instanceof Error ? cause.message : '自选行情加载失败'
+	}
+	finally {
+		if (watchlistRequestController === controller)
+			watchlistRequestController = null
+		watchlistRequestInFlight.value = false
+		if (!options.background)
+			watchlistLoading.value = false
+	}
+}
+
+function stopWatchlistPolling(options: { abort?: boolean } = {}) {
+	if (watchlistTimer) {
+		clearInterval(watchlistTimer)
+		watchlistTimer = null
+	}
+	if (options.abort) {
+		watchlistRequestController?.abort()
+		watchlistRequestController = null
+	}
+}
+
+function startWatchlistPolling() {
+	stopWatchlistPolling()
+	if (!import.meta.client || activeWorkspace.value !== 'watchlist' || !watchlistSession.value?.authenticated)
+		return
+	if (document.visibilityState !== 'visible' || !isChinaMarketTradingWindow(new Date()))
+		return
+	watchlistTimer = setInterval(() => {
+		if (activeWorkspace.value === 'watchlist' && document.visibilityState === 'visible' && isChinaMarketTradingWindow(new Date()))
+			void loadWatchlistQuotes({ background: true })
+		else
+			stopWatchlistPolling()
+	}, 45_000)
+}
+
+async function activateWatchlist() {
+	stopWatchlistPolling({ abort: true })
+	await loadWatchlistSession()
+	if (!watchlistSession.value?.authenticated)
+		return
+	watchlistLoading.value = true
+	watchlistError.value = ''
+	try {
+		await Promise.all([loadWatchlistConfig(), loadWatchlistQuotes()])
+	}
+	catch (cause) {
+		watchlistError.value = cause instanceof Error ? cause.message : '自选配置加载失败'
+	}
+	finally {
+		watchlistLoading.value = false
+		startWatchlistPolling()
+	}
+}
+
+function handleMarketVisibilityChange() {
+	if (document.visibilityState !== 'visible') {
+		stopWatchlistPolling({ abort: true })
+		return
+	}
+	if (activeWorkspace.value === 'watchlist' && watchlistSession.value?.authenticated) {
+		void loadWatchlistQuotes().finally(() => startWatchlistPolling())
+	}
+}
+
+async function mutateWatchlist(path: string, method: 'POST' | 'PATCH' | 'DELETE', body?: Record<string, unknown>) {
+	const token = csrfToken()
+	if (!token)
+		throw new Error('登录状态缺少 CSRF 凭据，请重新登录')
+	return $fetch(path, {
+		method,
+		headers: { 'x-csrf-token': token },
+		...(body ? { body } : {}),
+	})
+}
+
+async function refreshWatchlistAfterMutation() {
+	await loadWatchlistConfig()
+	await loadWatchlistQuotes()
+	startWatchlistPolling()
+}
+
+async function addWatchlistItem() {
+	if (watchlistMutationLoading.value)
+		return
+	watchlistMutationLoading.value = true
+	watchlistMutationError.value = ''
+	try {
+		const symbol = normalizeWatchlistSymbolInput(watchlistSymbolInput.value)
+		await mutateWatchlist('/api/admin/market/watchlist', 'POST', {
+			symbol,
+			attentionPrice: parseOptionalPositive(watchlistAttentionInput.value),
+			note: watchlistNoteInput.value.trim() || null,
+			tags: parseTags(watchlistTagsInput.value),
+		})
+		watchlistSymbolInput.value = ''
+		watchlistAttentionInput.value = ''
+		watchlistNoteInput.value = ''
+		watchlistTagsInput.value = ''
+		await refreshWatchlistAfterMutation()
+	}
+	catch (cause) {
+		watchlistMutationError.value = cause instanceof Error ? cause.message : '添加自选失败'
+	}
+	finally {
+		watchlistMutationLoading.value = false
+	}
+}
+
+function beginWatchlistEdit(item: WatchlistItem) {
+	watchlistEditingSymbol.value = item.symbol
+	watchlistEditAttention.value = item.attentionPrice?.toString() || ''
+	watchlistEditNote.value = item.note || ''
+	watchlistEditTags.value = item.tags.join(', ')
+	watchlistMutationError.value = ''
+}
+
+async function saveWatchlistEdit() {
+	if (!watchlistEditingSymbol.value || watchlistMutationLoading.value)
+		return
+	watchlistMutationLoading.value = true
+	watchlistMutationError.value = ''
+	try {
+		await mutateWatchlist(`/api/admin/market/watchlist/${encodeURIComponent(watchlistEditingSymbol.value)}`, 'PATCH', {
+			attentionPrice: parseOptionalPositive(watchlistEditAttention.value),
+			note: watchlistEditNote.value.trim() || null,
+			tags: parseTags(watchlistEditTags.value),
+		})
+		watchlistEditingSymbol.value = ''
+		await refreshWatchlistAfterMutation()
+	}
+	catch (cause) {
+		watchlistMutationError.value = cause instanceof Error ? cause.message : '保存关注设置失败'
+	}
+	finally {
+		watchlistMutationLoading.value = false
+	}
+}
+
+async function toggleWatchlistItem(item: WatchlistItem) {
+	watchlistMutationError.value = ''
+	try {
+		await mutateWatchlist(`/api/admin/market/watchlist/${encodeURIComponent(item.symbol)}`, 'PATCH', { enabled: !item.enabled })
+		await refreshWatchlistAfterMutation()
+	}
+	catch (cause) {
+		watchlistMutationError.value = cause instanceof Error ? cause.message : '更新自选状态失败'
+	}
+}
+
+async function removeWatchlistItem(item: WatchlistItem) {
+	watchlistMutationError.value = ''
+	try {
+		await mutateWatchlist(`/api/admin/market/watchlist/${encodeURIComponent(item.symbol)}`, 'DELETE')
+		if (watchlistEditingSymbol.value === item.symbol)
+			watchlistEditingSymbol.value = ''
+		await refreshWatchlistAfterMutation()
+	}
+	catch (cause) {
+		watchlistMutationError.value = cause instanceof Error ? cause.message : '删除自选失败'
+	}
+}
+
 function refreshRadar() {
 	void Promise.all([loadFinance(), loadMarketOverview()])
 }
@@ -283,10 +645,15 @@ watch([financeFilter, importantOnly], () => {
 watch([activeWorkspace, sectorKind], ([workspace]) => {
 	if (workspace === 'funds')
 		void loadSectorFlows()
+	if (workspace === 'watchlist')
+		void activateWatchlist()
+	else
+		stopWatchlistPolling({ abort: true })
 })
 
 onMounted(() => {
 	currentClock.value = new Date()
+	document.addEventListener('visibilitychange', handleMarketVisibilityChange)
 	void loadFinance()
 	void loadMarketOverview()
 	refreshTimer = setInterval(() => {
@@ -301,6 +668,8 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+	document.removeEventListener('visibilitychange', handleMarketVisibilityChange)
+	stopWatchlistPolling({ abort: true })
 	if (refreshTimer)
 		clearInterval(refreshTimer)
 	if (clockTimer)
@@ -319,7 +688,7 @@ onBeforeUnmount(() => {
 			</p>
 			<div class="market-title-row">
 				<h1>市场雷达</h1>
-				<span class="market-build">P1</span>
+				<span class="market-build">P2A</span>
 			</div>
 			<p>把财经事件、资金、自选和信号放进一个决策入口；未通过生产验收的数据一律不展示。</p>
 		</div>
@@ -407,10 +776,10 @@ onBeforeUnmount(() => {
 				<footer><Icon name="tabler:chart-dots" aria-hidden="true" />仅按公开财经事件 topic 频次聚合，不使用 LLM</footer>
 			</article>
 			<article class="market-capability">
-				<header><span>WATCHLIST</span><b>NEXT</b></header>
+				<header><span>WATCHLIST</span><b>PRIVATE</b></header>
 				<h3>自选雷达</h3>
-				<p>面向少量自选股做页面轮询与后台 5 分钟扫描，避免高成本全市场扫描。</p>
-				<footer><Icon name="tabler:star" aria-hidden="true" />下一阶段接入 D1 自选表</footer>
+				<p>最多 30 只私有自选；页面按需批量读取，后台每 5 分钟仅扫描已启用自选。</p>
+				<footer><Icon name="tabler:star" aria-hidden="true" />P2A · 不做全市场扫描</footer>
 			</article>
 			<article class="market-capability market-capability-live">
 				<header><span>SECTOR FLOW</span><b>ON DEMAND</b></header>
@@ -612,14 +981,165 @@ onBeforeUnmount(() => {
 		</div>
 	</section>
 
-	<section v-else-if="activeWorkspace === 'watchlist'" class="market-panel market-stage-view">
-		<header class="market-stage-header">
-			<div><span>WATCHLIST RADAR</span><h2>自选</h2><p>目标是 7–30 只自选股的轻量雷达，而不是每分钟扫描全部 A 股。</p></div>
-			<b>NEXT / D1</b>
+	<section v-else-if="activeWorkspace === 'watchlist'" class="market-panel market-stage-view market-watchlist-view">
+		<header class="market-stage-header market-watchlist-header">
+			<div><span>PRIVATE WATCHLIST</span><h2>自选雷达</h2><p>私有自选 · 最多30只。页面只批量读取当前自选，后台 5 分钟仅保存真实快照，不做全市场扫描。</p></div>
+			<div v-if="watchlistAuthenticated" class="market-watchlist-header-actions">
+				<div class="market-watchlist-auto">
+					<span :class="{ active: isChinaMarketTradingWindow(currentClock || new Date()) }" />自动刷新 45s
+				</div>
+				<button class="market-refresh compact" type="button" :disabled="watchlistLoading || watchlistRequestInFlight" @click="loadWatchlistQuotes()">
+					<Icon name="tabler:refresh" aria-hidden="true" />{{ watchlistLoading ? '刷新中' : '刷新' }}
+				</button>
+			</div>
+			<b v-else>PRIVATE</b>
 		</header>
-		<div class="market-stage-empty">
-			<Icon name="tabler:star" /><strong>下一阶段接入 D1 自选表</strong><p>接入后页面打开时可做 30–60 秒轮询，后台继续复用 5 分钟任务。</p><a href="https://stock.zzzai.cc.cd" target="_blank" rel="noopener noreferrer">先去个股深度分析 <Icon name="tabler:arrow-up-right" /></a>
+
+		<div v-if="watchlistSessionLoading" class="market-loading market-flow-loading" aria-label="登录状态加载中">
+			<span v-for="index in 3" :key="index" />
 		</div>
+
+		<div v-else-if="!watchlistAuthenticated" class="market-stage-empty market-watchlist-private">
+			<Icon name="tabler:lock" />
+			<strong>自选雷达 · 私有</strong>
+			<p>登录后查看和维护你的 0–30 只自选股。未登录时不会请求私人自选 API。</p>
+			<a href="/api/auth/login">登录管理端 <Icon name="tabler:login" /></a>
+		</div>
+
+		<template v-else>
+			<form class="market-watchlist-add" @submit.prevent="addWatchlistItem">
+				<div class="market-watchlist-form-title">
+					<Icon name="tabler:star-plus" /><div><strong>添加自选</strong><span>{{ watchlistConfig.length }}/30</span></div>
+				</div>
+				<label><span>股票代码</span><input v-model="watchlistSymbolInput" name="watchlist-symbol" inputmode="numeric" autocomplete="off" placeholder="300308" maxlength="20"></label>
+				<label><span>关注价</span><input v-model="watchlistAttentionInput" name="attention-price" inputmode="decimal" autocomplete="off" placeholder="可选"></label>
+				<label><span>标签</span><input v-model="watchlistTagsInput" name="watchlist-tags" autocomplete="off" placeholder="CPO, 算力"></label>
+				<label class="market-watchlist-note-input"><span>备注</span><input v-model="watchlistNoteInput" name="watchlist-note" autocomplete="off" placeholder="观察理由，可选" maxlength="240"></label>
+				<button type="submit" :disabled="watchlistMutationLoading || !watchlistSymbolInput.trim() || watchlistConfig.length >= 30">
+					<Icon name="tabler:plus" />添加
+				</button>
+			</form>
+
+			<div v-if="watchlistMutationError" class="market-error" role="alert">
+				<Icon name="tabler:alert-triangle" /><div><strong>关注设置未保存</strong><span>{{ watchlistMutationError }}</span></div>
+			</div>
+			<div v-if="watchlistError" class="market-error" role="alert">
+				<Icon name="tabler:alert-triangle" /><div><strong>自选行情暂不可用</strong><span>{{ watchlistError }}</span></div><button type="button" @click="loadWatchlistQuotes()">
+					重新加载
+				</button>
+			</div>
+
+			<div v-if="watchlistLoading && !watchlistData" class="market-loading market-flow-loading" aria-label="自选行情加载中">
+				<span v-for="index in 5" :key="index" />
+			</div>
+
+			<div v-else-if="!watchlistConfig.length" class="market-stage-empty">
+				<Icon name="tabler:star" /><strong>还没有自选股</strong><p>上方输入股票代码即可添加。空自选不是行情 unavailable，也不会触发上游报价请求。</p>
+			</div>
+
+			<template v-else>
+				<div class="market-watchlist-summary">
+					<div><span>质量</span><strong>{{ watchlistOverallLabel() }}</strong><small>{{ watchlistData?.fetchedAt ? `更新 ${formatDateTime(watchlistData.fetchedAt)}` : '等待首次行情' }}</small></div>
+					<div><span class="live-dot" />{{ isChinaMarketTradingWindow(currentClock || new Date()) ? `${watchlistLiveCount} LIVE` : `${watchlistLiveCount} 最新` }}</div>
+					<div><span class="stale-dot" />{{ watchlistStaleCount }} STALE</div>
+					<div><span class="unavailable-dot" />{{ watchlistUnavailableCount }} UNAVAILABLE</div>
+				</div>
+
+				<div class="market-watchlist-layout">
+					<div class="market-watchlist-radar">
+						<div class="market-watchlist-desktop">
+							<table>
+								<thead><tr><th>股票</th><th>现价</th><th>涨跌幅</th><th>日内高低</th><th>成交额</th><th>距关注价</th><th>状态</th><th>操作</th></tr></thead>
+								<tbody>
+									<tr v-for="row in watchlistRows" :key="row.watchlist.symbol" :class="{ paused: !row.watchlist.enabled }">
+										<td><strong>{{ row.watchlist.name }}</strong><small>{{ row.watchlist.code }} · {{ row.watchlist.tags.join(' / ') || '未打标签' }}</small></td>
+										<td><b :class="moveClass(row.quote?.changePct ?? null)">{{ formatWatchlistPrice(row.quote?.price) }}</b></td>
+										<td><b :class="moveClass(row.quote?.changePct ?? null)">{{ formatPercent(row.quote?.changePct ?? null) }}</b></td>
+										<td class="market-watch-range">
+											<div><span>{{ formatWatchlistPrice(row.quote?.low) }}</span><i><em :style="{ left: `${watchlistRangePosition(row)}%` }" /></i><span>{{ formatWatchlistPrice(row.quote?.high) }}</span></div>
+										</td>
+										<td>{{ formatTurnover(row.quote?.turnover) }}</td>
+										<td><b :class="moveClass(row.quote && row.watchlist.attentionPrice ? row.quote.price - row.watchlist.attentionPrice : null)">{{ watchlistDistance(row) }}</b></td>
+										<td><span class="market-watch-status" :data-tone="watchlistStatusTone(row)">{{ watchlistStatusLabel(row) }}</span></td>
+										<td>
+											<div class="market-watch-actions">
+												<button type="button" @click="beginWatchlistEdit(row.watchlist)">
+													编辑
+												</button><button type="button" @click="toggleWatchlistItem(row.watchlist)">
+													{{ row.watchlist.enabled ? '停用' : '启用' }}
+												</button><button type="button" class="danger" @click="removeWatchlistItem(row.watchlist)">
+													删除
+												</button>
+											</div>
+										</td>
+									</tr>
+								</tbody>
+							</table>
+						</div>
+
+						<div class="market-watchlist-mobile">
+							<article v-for="row in watchlistRows" :key="row.watchlist.symbol" class="market-watch-card" :class="{ paused: !row.watchlist.enabled }">
+								<header><div><strong>{{ row.watchlist.name }}</strong><span>{{ row.watchlist.code }}</span></div><span class="market-watch-status" :data-tone="watchlistStatusTone(row)">{{ watchlistStatusLabel(row) }}</span></header>
+								<div class="market-watch-card-price">
+									<strong :class="moveClass(row.quote?.changePct ?? null)">{{ formatWatchlistPrice(row.quote?.price) }}</strong><b :class="moveClass(row.quote?.changePct ?? null)">{{ formatPercent(row.quote?.changePct ?? null) }}</b><span>距关注价 <em :class="moveClass(row.quote && row.watchlist.attentionPrice ? row.quote.price - row.watchlist.attentionPrice : null)">{{ watchlistDistance(row) }}</em></span>
+								</div>
+								<div class="market-watch-range mobile">
+									<span>日内高低 {{ formatWatchlistPrice(row.quote?.low) }}</span><i><em :style="{ left: `${watchlistRangePosition(row)}%` }" /></i><span>{{ formatWatchlistPrice(row.quote?.high) }}</span>
+								</div>
+								<footer><span>成交额 {{ formatTurnover(row.quote?.turnover) }}</span><span>{{ row.watchlist.tags.join(' / ') || '未打标签' }}</span></footer>
+								<div class="market-watch-actions">
+									<button type="button" @click="beginWatchlistEdit(row.watchlist)">
+										编辑
+									</button><button type="button" @click="toggleWatchlistItem(row.watchlist)">
+										{{ row.watchlist.enabled ? '停用' : '启用' }}
+									</button><button type="button" class="danger" @click="removeWatchlistItem(row.watchlist)">
+										删除
+									</button>
+								</div>
+							</article>
+						</div>
+					</div>
+
+					<aside class="market-watchlist-side">
+						<section>
+							<header><div><span>EVENT MATCH</span><h3>最近相关事件</h3></div><b>{{ watchlistRelatedEvents.length }}</b></header>
+							<div v-if="watchlistRelatedEvents.length" class="market-watch-events">
+								<article v-for="event in watchlistRelatedEvents" :key="event.id">
+									<time>{{ formatFinanceTime(event.publishedAt) }}</time><div><strong>{{ event.title }}</strong><span>{{ event.topic || event.categoryLabel }} · {{ sourceSummary(event) }}</span></div>
+								</article>
+							</div>
+							<p v-else>
+								当前公开财经事件没有可信的股票名 / 代码 / 标签关联。
+							</p>
+						</section>
+
+						<section>
+							<header><div><span>WATCH SETTINGS</span><h3>关注设置</h3></div><b>{{ watchlistEditingSymbol ? 'EDIT' : 'READY' }}</b></header>
+							<form v-if="watchlistEditingSymbol" class="market-watch-edit" @submit.prevent="saveWatchlistEdit">
+								<strong>{{ watchlistConfig.find(item => item.symbol === watchlistEditingSymbol)?.name }}</strong>
+								<label><span>关注价</span><input v-model="watchlistEditAttention" inputmode="decimal" placeholder="可留空"></label>
+								<label><span>标签</span><input v-model="watchlistEditTags" placeholder="通信, CPO"></label>
+								<label><span>备注</span><textarea v-model="watchlistEditNote" maxlength="240" rows="3" /></label>
+								<div>
+									<button type="submit" :disabled="watchlistMutationLoading">
+										保存
+									</button><button type="button" @click="watchlistEditingSymbol = ''">
+										取消
+									</button>
+								</div>
+							</form>
+							<p v-else>
+								点击任意自选的“编辑”，维护关注价、标签与个人观察备注。关注价仅用于距离计算。
+							</p>
+						</section>
+					</aside>
+				</div>
+			</template>
+
+			<footer class="market-watchlist-discipline">
+				<Icon name="tabler:shield-check" />无真实报价时显示 unavailable / last-good，不生成模拟行情。
+			</footer>
+		</template>
 	</section>
 
 	<section v-else-if="activeWorkspace === 'signals'" class="market-panel market-stage-view">
@@ -1734,6 +2254,197 @@ onBeforeUnmount(() => {
 	color: var(--market-text-3);
 }
 
+.market-watchlist-header { align-items: center; }
+
+.market-watchlist-header-actions,
+.market-watchlist-auto {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+}
+
+.market-watchlist-auto {
+	font: 0.58rem var(--font-monospace);
+	color: var(--market-text-3);
+}
+
+.market-watchlist-auto > span {
+	width: 0.45rem;
+	height: 0.45rem;
+	border-radius: 50%;
+	background: var(--market-text-3);
+}
+.market-watchlist-auto > span.active { background: var(--market-down); }
+
+.market-watchlist-add {
+	display: grid;
+	grid-template-columns: auto minmax(8rem, 0.7fr) minmax(7rem, 0.55fr) minmax(9rem, 0.8fr) minmax(11rem, 1fr) auto;
+	align-items: end;
+	gap: 0.55rem;
+	padding: 0.75rem;
+	border-bottom: 1px solid var(--market-border);
+	background: var(--market-panel-raised);
+}
+
+.market-watchlist-form-title {
+	display: flex;
+	align-items: center;
+	gap: 0.45rem;
+	min-height: 2.75rem;
+	color: var(--market-gold);
+}
+.market-watchlist-form-title > .iconify { font-size: 1.1rem; }
+.market-watchlist-form-title > div { display: grid; gap: 0.1rem; }
+.market-watchlist-form-title strong { font-size: 0.72rem; color: var(--market-text); }
+.market-watchlist-form-title span { font: 0.56rem var(--font-monospace); color: var(--market-text-3); }
+
+.market-watchlist-add label,
+.market-watch-edit label {
+	display: grid;
+	gap: 0.25rem;
+	min-width: 0;
+}
+
+.market-watchlist-add label > span,
+.market-watch-edit label > span {
+	font: 0.56rem var(--font-monospace);
+	color: var(--market-text-3);
+}
+
+.market-watchlist-add input,
+.market-watch-edit input,
+.market-watch-edit textarea {
+	width: 100%;
+	min-width: 0;
+	min-height: 2.75rem;
+	padding: 0.48rem 0.55rem;
+	border: 1px solid var(--market-border);
+	border-radius: 0.3rem;
+	background: var(--market-panel);
+	color: var(--market-text);
+	outline: none;
+}
+.market-watch-edit textarea { min-height: 5.25rem; resize: vertical; }
+.market-watchlist-add input:focus,
+.market-watch-edit input:focus,
+.market-watch-edit textarea:focus { border-color: var(--market-gold); }
+
+.market-watchlist-add > button,
+.market-watch-edit button,
+.market-watch-actions button {
+	min-height: 2.75rem;
+	padding: 0.45rem 0.65rem;
+	border: 1px solid var(--market-border-strong);
+	border-radius: 0.3rem;
+	font-size: 0.62rem;
+	color: var(--market-gold-bright);
+}
+.market-watchlist-add > button { display: flex; align-items: center; justify-content: center; gap: 0.3rem; background: var(--market-gold-soft); }
+.market-watchlist-add > button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.market-watchlist-summary {
+	display: flex;
+	align-items: stretch;
+	gap: 1px;
+	margin: 0.75rem;
+	border: 1px solid var(--market-border);
+	border-radius: 0.35rem;
+	overflow: hidden;
+	background: var(--market-border);
+}
+.market-watchlist-summary > div { display: flex; align-items: center; gap: 0.4rem; min-height: 3.25rem; padding: 0.55rem 0.75rem; background: var(--market-panel); font: 0.6rem var(--font-monospace); color: var(--market-text-2); }
+.market-watchlist-summary > div:first-child { display: grid; min-width: 13rem; margin-right: auto; }
+.market-watchlist-summary > div:first-child span,
+.market-watchlist-summary small { font-size: 0.55rem; color: var(--market-text-3); }
+.market-watchlist-summary strong { color: var(--market-gold-bright); }
+.live-dot, .stale-dot, .unavailable-dot { width: 0.45rem; height: 0.45rem; border-radius: 50%; }
+.live-dot { background: var(--market-down); }
+.stale-dot { background: var(--market-gold); }
+.unavailable-dot { background: var(--market-text-3); }
+
+.market-watchlist-layout {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) minmax(15rem, 19rem);
+	gap: 0.65rem;
+	margin: 0.75rem;
+}
+
+.market-watchlist-radar,
+.market-watchlist-side > section {
+	min-width: 0;
+	border: 1px solid var(--market-border);
+	border-radius: 0.35rem;
+	background: var(--market-panel);
+}
+
+.market-watchlist-desktop { overflow-x: auto; max-width: 100%; overscroll-behavior-inline: contain; }
+.market-watchlist-desktop table { width: 100%; min-width: 66rem; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.market-watchlist-desktop th,
+.market-watchlist-desktop td { padding: 0.65rem 0.7rem; border-bottom: 1px solid var(--market-border); white-space: nowrap; text-align: right; font-size: 0.64rem; }
+.market-watchlist-desktop th { background: var(--market-panel-raised); font: 0.56rem var(--font-monospace); color: var(--market-text-3); }
+.market-watchlist-desktop th:first-child,
+.market-watchlist-desktop td:first-child { position: sticky; left: 0; background: var(--market-panel); text-align: left; z-index: 1; }
+.market-watchlist-desktop th:first-child { background: var(--market-panel-raised); z-index: 2; }
+.market-watchlist-desktop tbody tr:last-child td { border-bottom: 0; }
+.market-watchlist-desktop tr.paused { opacity: 0.58; }
+.market-watchlist-desktop td:first-child strong { display: block; font-size: 0.72rem; color: var(--market-text); }
+.market-watchlist-desktop td:first-child small { display: block; margin-top: 0.16rem; color: var(--market-text-3); }
+
+.market-watch-range > div,
+.market-watch-range.mobile { display: flex; align-items: center; gap: 0.35rem; }
+.market-watch-range span { font: 0.54rem var(--font-monospace); color: var(--market-text-3); }
+.market-watch-range i { position: relative; display: block; width: 5.5rem; height: 2px; background: var(--market-text-3); }
+.market-watch-range i em { position: absolute; top: 50%; width: 0.45rem; height: 0.45rem; border-radius: 50%; background: var(--market-gold); transform: translate(-50%, -50%); }
+
+.market-watch-status { display: inline-flex; align-items: center; min-height: 1.65rem; padding: 0.18rem 0.38rem; border: 1px solid var(--market-border); border-radius: 0.25rem; font: 700 0.54rem var(--font-monospace); color: var(--market-text-2); }
+.market-watch-status[data-tone="live"] { border-color: rgb(73 163 108 / 46%); background: var(--market-down-soft); color: #7DD99D; }
+.market-watch-status[data-tone="stale"] { border-color: var(--market-border-strong); background: var(--market-gold-soft); color: var(--market-gold-bright); }
+.market-watch-status[data-tone="unavailable"],
+.market-watch-status[data-tone="paused"] { color: var(--market-text-3); }
+
+.market-watch-actions { display: flex; justify-content: flex-end; gap: 0.25rem; }
+.market-watch-actions button { min-height: 2.4rem; padding-inline: 0.45rem; color: var(--market-text-2); }
+.market-watch-actions button.danger { color: var(--market-danger); }
+
+.market-watchlist-mobile { display: none; }
+
+.market-watchlist-side { display: grid; align-content: start; gap: 0.65rem; }
+.market-watchlist-side > section > header { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.7rem; border-bottom: 1px solid var(--market-border); }
+.market-watchlist-side > section > header span { font: 0.52rem var(--font-monospace); letter-spacing: 0.08em; color: var(--market-gold); }
+.market-watchlist-side > section > header h3 { margin: 0.18rem 0 0; font-size: 0.76rem; }
+.market-watchlist-side > section > header b { font: 0.56rem var(--font-monospace); color: var(--market-gold-bright); }
+.market-watchlist-side > section > p { margin: 0; padding: 0.75rem; font-size: 0.64rem; line-height: 1.65; color: var(--market-text-3); }
+
+.market-watch-events { display: grid; }
+.market-watch-events article { display: grid; grid-template-columns: 2.6rem minmax(0, 1fr); gap: 0.45rem; padding: 0.65rem 0.7rem; border-bottom: 1px solid var(--market-border); }
+.market-watch-events article:last-child { border-bottom: 0; }
+.market-watch-events time { font: 0.56rem var(--font-monospace); color: var(--market-gold); }
+.market-watch-events div { display: grid; gap: 0.18rem; }
+.market-watch-events strong { font-size: 0.64rem; line-height: 1.45; }
+.market-watch-events span { font-size: 0.55rem; color: var(--market-text-3); }
+
+.market-watch-edit { display: grid; gap: 0.55rem; padding: 0.7rem; }
+.market-watch-edit > strong { font-size: 0.7rem; }
+.market-watch-edit > div { display: flex; gap: 0.35rem; }
+
+.market-watchlist-discipline { display: flex; align-items: center; gap: 0.4rem; margin: 0.75rem; padding: 0.6rem 0.7rem; border: 1px solid var(--market-border); border-radius: 0.35rem; font: 0.58rem/1.5 var(--font-monospace); color: var(--market-text-3); }
+.market-watchlist-discipline .iconify { color: var(--market-gold); }
+
+.market-watch-card { display: grid; gap: 0.65rem; padding: 0.75rem; border-bottom: 1px solid var(--market-border); }
+.market-watch-card:last-child { border-bottom: 0; }
+.market-watch-card.paused { opacity: 0.58; }
+.market-watch-card > header { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.market-watch-card > header > div { display: flex; align-items: baseline; gap: 0.35rem; }
+.market-watch-card > header strong { font-size: 0.76rem; }
+.market-watch-card > header div span { font: 0.55rem var(--font-monospace); color: var(--market-text-3); }
+.market-watch-card-price { display: grid; grid-template-columns: auto auto minmax(0, 1fr); align-items: baseline; gap: 0.5rem; }
+.market-watch-card-price > strong { font: 700 1.35rem var(--font-monospace); }
+.market-watch-card-price > b { font: 700 0.68rem var(--font-monospace); }
+.market-watch-card-price > span { justify-self: end; font-size: 0.55rem; color: var(--market-text-3); }
+.market-watch-card-price em { display: block; margin-top: 0.15rem; font: 700 0.6rem var(--font-monospace); font-style: normal; }
+.market-watch-range.mobile i { flex: 1 1 auto; width: auto; }
+.market-watch-card > footer { display: flex; justify-content: space-between; gap: 0.5rem; font: 0.55rem var(--font-monospace); color: var(--market-text-3); }
+
 .market-terminal button,
 .market-terminal a,
 .market-important-switch {
@@ -1769,6 +2480,9 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 1100px) {
+	.market-watchlist-add { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+	.market-watchlist-form-title { grid-column: 1 / -1; }
+	.market-watchlist-add > button { min-height: 2.75rem; }
 	.market-capability-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 	.market-main-grid { grid-template-columns: minmax(0, 1fr); }
 	.market-side-stack { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -1835,6 +2549,15 @@ onBeforeUnmount(() => {
 	}
 	.market-source-links { justify-content: flex-start; }
 	.market-stage-header { flex-direction: column; }
+	.market-watchlist-header-actions { width: 100%; justify-content: space-between; }
+	.market-watchlist-add { grid-template-columns: minmax(0, 1fr); }
+	.market-watchlist-form-title { grid-column: auto; }
+	.market-watchlist-summary { flex-wrap: wrap; }
+	.market-watchlist-summary > div:first-child { width: 100%; margin-right: 0; }
+	.market-watchlist-layout { grid-template-columns: minmax(0, 1fr); margin-inline: 0.55rem; }
+	.market-watchlist-desktop { display: none; }
+	.market-watchlist-mobile { display: block; }
+	.market-watchlist-side { grid-template-columns: minmax(0, 1fr); }
 }
 
 @media (max-width: 480px) {
