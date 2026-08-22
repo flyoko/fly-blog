@@ -60,3 +60,16 @@ export function isChinaMarketSyncWindow(date: Date): boolean {
 	const afternoon = minutes >= 12 * 60 + 55 && minutes <= 15 * 60 + 15
 	return morning || afternoon
 }
+
+export interface StockQuoteProviderResult {
+	quotes: Map<import('../../../../../shared/market').StockSymbol, import('../../../../../shared/market').StockQuote>
+	missing: import('../../../../../shared/market').StockSymbol[]
+	source: MarketSourceRef
+	fetchedAt: string
+	latencyMs: number
+}
+
+export interface StockQuoteProvider {
+	sourceId?: () => string
+	fetchQuotes: (symbols: import('../../../../../shared/market').StockSymbol[]) => Promise<StockQuoteProviderResult>
+}
