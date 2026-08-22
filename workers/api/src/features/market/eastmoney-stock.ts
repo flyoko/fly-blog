@@ -4,7 +4,7 @@ import type { StockQuoteProvider, StockQuoteProviderResult } from './contracts'
 export type StockFetch = typeof fetch
 
 const workerFetch: StockFetch = (input, init) => fetch(input, init)
-const PUSH2_HOSTS = ['https://push2.eastmoney.com', 'https://push2delay.eastmoney.com'] as const
+const PUSH2_HOSTS = ['https://push2delay.eastmoney.com', 'https://push2.eastmoney.com'] as const
 const REQUEST_TIMEOUT_MS = 2_500
 const SOURCE_NAME = '东方财富'
 const SOURCE_ID = 'eastmoney-stock-push2'

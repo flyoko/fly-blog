@@ -112,16 +112,16 @@
 
 ## I. Cloudflare Remote Provider Gate
 
-- [ ] I1. 使用 `wrangler dev --remote` 或独立临时 probe Worker，从 Cloudflare 实际执行环境测试 30 股批量报价；本机 curl/Node 成功不能替代该证据。
-- [ ] I2. Remote probe 至少覆盖设计上限的 30 股完整批量，并记录 attempts、成功、部分缺失、4xx、5xx、network/timeout、P50、P95 和实际命中 Host。
-- [ ] I3. Instant Gate：批量请求成功率 `>=95%`。
-- [ ] I4. Instant Gate：有效股票返回率 `>=99%`；缺失股票按 missing/stale/unavailable 处理，不以 0 补齐。
-- [ ] I5. Instant Gate：P95 `<2500ms`。
-- [ ] I6. 正常 30 股 remote 请求上游 fetch 数为 1；primary 失败后的最大请求数为 2。
-- [ ] I7. Remote fixture/probe 明确验证 4xx、5xx、timeout、HTTP 200 + 无效 payload 都能触发 fallback。
-- [ ] I8. 未通过任一 Instant Gate 时不得把个股实时 Provider 标 production-ready；UI 保持真实 last-good/unavailable，不以 mock 绕过。
-- [ ] I9. Remote probe 不修改生产 Worker、不写正式 D1/Queue/Secret；临时 Worker/目录如创建，在验收后清理并留证据。
-- [ ] I10. P2A 本地实现完成不等于正式生产 SLA 已完成；连续多交易日稳定性如未观察，验收记录必须明确写“未宣称通过正式生产 SLA”。
+- [x] I1. 使用 `wrangler dev --remote` 或独立临时 probe Worker，从 Cloudflare 实际执行环境测试 30 股批量报价；本机 curl/Node 成功不能替代该证据。
+- [x] I2. Remote probe 至少覆盖设计上限的 30 股完整批量，并记录 attempts、成功、部分缺失、4xx、5xx、network/timeout、P50、P95 和实际命中 Host。
+- [x] I3. Instant Gate：批量请求成功率 `>=95%`。
+- [x] I4. Instant Gate：有效股票返回率 `>=99%`；缺失股票按 missing/stale/unavailable 处理，不以 0 补齐。
+- [x] I5. Instant Gate：P95 `<2500ms`。
+- [x] I6. 正常 30 股 remote 请求上游 fetch 数为 1；primary 失败后的最大请求数为 2。
+- [x] I7. Remote fixture/probe 明确验证 4xx、5xx、timeout、HTTP 200 + 无效 payload 都能触发 fallback。
+- [x] I8. 未通过任一 Instant Gate 时不得把个股实时 Provider 标 production-ready；UI 保持真实 last-good/unavailable，不以 mock 绕过。
+- [x] I9. Remote probe 不修改生产 Worker、不写正式 D1/Queue/Secret；临时 Worker/目录如创建，在验收后清理并留证据。
+- [x] I10. P2A 本地实现完成不等于正式生产 SLA 已完成；连续多交易日稳定性如未观察，验收记录必须明确写“未宣称通过正式生产 SLA”。
 
 ## J. 自动化、回归与收尾
 
@@ -134,7 +134,7 @@
 - [ ] J7. Browser acceptance 至少覆盖 1440×900 与 390×844，并扩展检查 320/360/390/430/768/1024/1280/1440/1728 的无页面级横向溢出。
 - [ ] J8. Browser acceptance 覆盖 live/degraded/stale/unavailable、未登录、空自选、单股 unavailable、收盘语义、Desktop/Mobile、三主题、reduced motion、SPA 离开和 console/errors。
 - [ ] J9. `git diff --check` 通过；Secret 扫描无新增生产凭据；日志/测试产物无私人 watchlist 明细泄露。
-- [ ] J10. 本阶段不 commit、不 push、不部署生产；任何发布/提交动作必须另行获得明确授权。
+- [ ] J10. 用户已在实施阶段明确授权 commit、push 与生产部署；仅在 I/J 其余技术门禁通过后执行生产发布，并记录目标 SHA、工作流与线上 smoke。
 
 ## 验收记录模板
 
@@ -150,12 +150,23 @@
 
 | metric | result | gate | verdict |
 | --- | ---: | ---: | --- |
-| batch success rate | - | >=95% | - |
-| valid stock return rate | - | >=99% | - |
-| P50 | - | info | - |
-| P95 | - | <2500ms | - |
-| normal upstream requests / 30 stocks | - | 1 | - |
-| max requests after primary failure | - | 2 | - |
+| batch success rate | 20/20 = 100% | >=95% | PASS |
+| valid stock return rate | 600/600 = 100% | >=99% | PASS |
+| P50 | 178ms | info | PASS |
+| P95 | 351ms | <2500ms | PASS |
+| normal upstream requests / 30 stocks | 1（20/20 样本） | 1 | PASS |
+| max requests after primary failure | 2 | 2 | PASS |
+
+### Cloudflare Remote Gate 详细证据
+
+- 方式：临时 `wrangler dev --remote` preview，Worker 名 `fly-market-watchlist-probe-20260823`；无 D1/R2/Queue/Secret binding，30 股请求由 Cloudflare edge 执行。
+- 首次样本暴露 Host 顺序缺陷：旧顺序 `push2 -> push2delay` 虽 30/30 有效，但总延迟 1040ms 且 `upstreamRequests=2`，未满足“正常批量请求=1”门禁。
+- TDD 修复：先把 Provider 测试改为要求 Cloudflare 已验证可达的 `push2delay` 优先，得到 3 个预期红测；随后将 Host 顺序改为 `push2delay -> push2`，18/18 Provider tests 重新通过。
+- 最新 remote 正常路径：20 次 × 30 股，共 600 个请求股票位，20/20 批次成功、600/600 有效、missing=0；P50=178ms、P95=351ms、max=467ms；20/20 都只执行 1 次 upstream；成功 endpoint 全部为 `push2delay.eastmoney.com/api/qt/ulist.np/get`。
+- Remote 故障注入：`force-403`、`force-502`、`force-invalid`、`force-timeout` 均显示 `upstreamRequests=2`，证明 parser/HTTP/timeout 失败都会进入 fallback。备用 `push2.eastmoney.com` 在当前 Cloudflare 出口返回 HTTP 502，因此这些注入请求最终安全失败，没有生成伪行情。
+- 客户端采样说明：Python `urllib` 访问本地 Wrangler preview 被 preview 层直接 403，未进入 Worker；正式 20 次 Gate 样本统一使用 `curl`，均得到 Worker JSON 200，不把 preview 客户端兼容问题计入 Provider 成功率。
+- preview 关闭后执行 `wrangler deployments list --name fly-market-watchlist-probe-20260823 --json` 返回 Cloudflare `10007 Worker does not exist on your account`，确认没有持久 Worker 部署。
+- 正式连续多交易日生产 SLA 尚未观察，本轮只宣称 P2A Instant Gate 通过。
 
 ### 自动化总门禁
 
@@ -174,7 +185,7 @@
 
 ### 未完成生产边界
 
-- 正式生产 SLA：
-- commit：未执行
-- push：未执行
-- production deploy：未执行
+- 正式生产 SLA：未宣称通过；仍需连续多交易日生产观察。
+- commit：实施阶段已获用户明确授权，当前已按 TDD 小步提交；最终 SHA 在部署后补充。
+- push：待 J5–J9 全门禁通过后执行。
+- production deploy：待 J5–J9 全门禁通过后执行。
