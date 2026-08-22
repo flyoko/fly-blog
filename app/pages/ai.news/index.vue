@@ -189,6 +189,22 @@ const financeDayLabel = computed(() => {
 	return month && day && weekday ? `${month}月${day}日 · ${weekday}` : financeDayFormatter.format(date)
 })
 
+const financeStatus = computed(() => {
+	if (financeError.value)
+		return { label: '财经快讯暂未更新', detail: '请求失败，保留已加载内容', degraded: true }
+	if (financeLoading.value && !financeData.value)
+		return { label: '财经快讯加载中', detail: '正在读取财经聚合数据', degraded: false }
+	if (financeData.value?.quality === 'unavailable')
+		return { label: '暂无可信财经快讯', detail: '等待公开来源恢复后再展示', degraded: true }
+	if (financeData.value?.quality === 'stale')
+		return { label: '财经快讯为最后成功快照', detail: `最后成功于 ${formatDateTime(financeData.value.updatedAt)}`, degraded: true }
+	if (financeData.value?.quality === 'degraded')
+		return { label: '部分财经来源暂未更新', detail: `最近成功于 ${formatDateTime(financeData.value.updatedAt)}`, degraded: true }
+	if (financeData.value?.prototype)
+		return { label: '财经原型已加载', detail: '原型数据 · 非实时', degraded: false }
+	return { label: '财经快讯持续更新', detail: `更新于 ${formatDateTime(financeData.value?.updatedAt || null)}`, degraded: false }
+})
+
 const degradedSources = computed(() =>
 	data.value?.sources.filter(source => source.status === 'failed') || [],
 )
@@ -331,11 +347,11 @@ onMounted(load)
 				每天浏览值得关注的 AI 动态、财经快讯与技术资讯。
 			</p>
 		</div>
-		<div class="news-sync" :class="{ degraded: activeSection === 'finance' ? Boolean(financeError) : Boolean(degradedSources.length) }">
+		<div class="news-sync" :class="{ degraded: activeSection === 'finance' ? financeStatus.degraded : Boolean(degradedSources.length) }">
 			<span class="news-sync-dot" aria-hidden="true" />
 			<div>
-				<strong>{{ activeSection === 'finance' ? financeError ? '财经快讯暂未更新' : financeLoading ? '财经快讯加载中' : financeData?.prototype ? '财经原型已加载' : '财经快讯持续更新' : degradedSources.length ? '部分内容暂未更新' : '内容持续更新' }}</strong>
-				<span>{{ activeSection === 'finance' ? financeData?.prototype ? '原型数据 · 非实时' : `更新于 ${formatDateTime(financeData?.updatedAt || null)}` : `更新于 ${formatDateTime(latestSyncAt)}` }}</span>
+				<strong>{{ activeSection === 'finance' ? financeStatus.label : degradedSources.length ? '部分内容暂未更新' : '内容持续更新' }}</strong>
+				<span>{{ activeSection === 'finance' ? financeStatus.detail : `更新于 ${formatDateTime(latestSyncAt)}` }}</span>
 			</div>
 		</div>
 	</header>

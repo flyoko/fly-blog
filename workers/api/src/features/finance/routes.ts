@@ -75,7 +75,7 @@ adminFinanceRoutes.get('/items', async c => success(c, await new FinanceFlashSer
 })))
 adminFinanceRoutes.post('/sync', requireCsrf, async (c) => {
 	const session = c.get('session')!
-	return enforceRateLimit(c.env.WRITE_RATE_LIMITER, `${session.sessionId}:finance-sync`, async () => success(c, await new FinanceFlashService(c.env).sync()))
+	return enforceRateLimit(c.env.WRITE_RATE_LIMITER, `${session.sessionId}:finance-sync`, async () => success(c, await new FinanceFlashService(c.env).syncAll()))
 })
 adminFinanceRoutes.post('/items/:id/hide', requireCsrf, async (c) => {
 	const session = c.get('session')!

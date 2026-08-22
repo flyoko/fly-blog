@@ -10,16 +10,22 @@
         "url": "/"
       },
       {
-        "id": "moments",
-        "icon": "tabler:sparkles",
-        "text": "瞬间",
-        "url": "/moments"
-      },
-      {
         "id": "ai-news",
         "icon": "tabler:news",
         "text": "AI 阅闻",
         "url": "/ai.news"
+      },
+      {
+        "id": "market",
+        "icon": "tabler:chart-candle",
+        "text": "市场",
+        "url": "/market"
+      },
+      {
+        "id": "moments",
+        "icon": "tabler:sparkles",
+        "text": "瞬间",
+        "url": "/moments"
       },
       {
         "id": "about",

@@ -73,7 +73,7 @@ const tabItems = computed(() => tabs.map(tab => ({
 				? data.value?.sources.length ?? 0
 				: undefined,
 })))
-const unhealthySources = computed(() => data.value?.sources.filter(source => source.status !== 'success').length ?? 0)
+const unhealthySources = computed(() => data.value?.sources.filter(source => !['success', 'disabled'].includes(source.status)).length ?? 0)
 const taskStatus = computed(() => {
 	if (loading.value)
 		return '正在加载 AI 阅闻…'

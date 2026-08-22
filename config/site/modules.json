@@ -10,33 +10,38 @@
     "order": 1
   },
   {
-    "id": "moments",
+    "id": "market",
     "enabled": true,
     "order": 2
   },
   {
-    "id": "about",
+    "id": "moments",
     "enabled": true,
     "order": 3
   },
   {
-    "id": "weather",
+    "id": "about",
     "enabled": true,
     "order": 4
   },
   {
-    "id": "music",
+    "id": "weather",
     "enabled": true,
     "order": 5
   },
   {
+    "id": "music",
+    "enabled": true,
+    "order": 6
+  },
+  {
     "id": "links",
     "enabled": false,
-    "order": 6
+    "order": 7
   },
   {
     "id": "archive",
     "enabled": true,
-    "order": 7
+    "order": 8
   }
 ]

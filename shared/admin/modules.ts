@@ -5,9 +5,10 @@ export type ModuleId = ModulesConfig[number]['id']
 
 export const navigationModuleIds = [
 	'articles',
-	'about',
-	'moments',
 	'ai-news',
+	'market',
+	'moments',
+	'about',
 	'links',
 	'archive',
 ] as const satisfies readonly ModuleId[]
@@ -21,6 +22,7 @@ const modulePublicPathPrefixes: Record<ModuleId, string[]> = {
 	'archive': ['/archive'],
 	'articles': ['/atom.xml', '/preview', '/raw/'],
 	'links': ['/link'],
+	'market': ['/market'],
 	'moments': ['/moments'],
 	'music': [],
 	'weather': [],
@@ -64,6 +66,8 @@ export function moduleIdForPublicPath(path: string): ModuleId | null {
 		return 'moments'
 	if (pathname === '/ai.news' || pathname.startsWith('/ai.news/'))
 		return 'ai-news'
+	if (pathname === '/market' || pathname.startsWith('/market/'))
+		return 'market'
 	if (pathname === '/me' || pathname === '/about/profile')
 		return 'about'
 	if (pathname === '/link')

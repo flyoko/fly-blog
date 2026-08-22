@@ -10,6 +10,7 @@
     "deploy": "wrangler deploy"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "catalog:worker",
     "gray-matter": "catalog:worker",
     "hono": "catalog:worker",
     "jose": "catalog:worker",

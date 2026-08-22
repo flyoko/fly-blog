@@ -33,6 +33,7 @@ const labels: Record<ModulesConfig[number]['id'], { title: string, description: 
 	'about': { title: '自述', description: '站长自述、时间线与链接。', icon: 'tabler:user-circle' },
 	'moments': { title: '瞬间', description: '实时动态、点赞与评论入口。', icon: 'tabler:sparkles' },
 	'ai-news': { title: 'AI 阅闻', description: '站长资讯、AI HOT 与每日早报。', icon: 'tabler:news' },
+	'market': { title: '市场', description: '市场雷达、资金流向与财经决策入口。', icon: 'tabler:chart-candle' },
 	'weather': { title: '城市天气', description: '右侧栏固定站长城市天气。', icon: 'ri:sun-cloudy-line' },
 	'music': { title: '随心听', description: '全站持续播放的个人歌单。', icon: 'tabler:headphones' },
 	'links': { title: '友链', description: '友链页面与订阅信息。', icon: 'tabler:friends' },

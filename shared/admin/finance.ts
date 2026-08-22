@@ -5,6 +5,13 @@ export type FinanceFilter = 'all' | FinanceCategory
 export type FinanceImportanceOrigin = 'upstream' | 'rule' | 'model' | 'prototype'
 export type FinanceAdminVisibility = 'all' | 'visible' | 'hidden'
 
+export interface FinanceFlashSourceDto {
+	sourceId: string
+	sourceName: string
+	sourceUrl: string | null
+	publishedAt: string
+}
+
 export interface FinanceFlashDto {
 	id: string
 	sourceId: string
@@ -19,16 +26,23 @@ export interface FinanceFlashDto {
 	importanceScore: number | null
 	sourceName: string
 	sourceUrl: string | null
+	sourceCount?: number
+	sources?: FinanceFlashSourceDto[]
 }
+
+export type FinanceFlashQuality = 'live' | 'degraded' | 'stale' | 'prototype' | 'unavailable'
 
 export interface FinanceFlashListDto {
 	items: FinanceFlashDto[]
 	total: number
 	updatedAt: string | null
 	prototype: boolean
+	stale: boolean
+	quality: FinanceFlashQuality
 }
 
 export interface AdminFinanceFlashDto extends FinanceFlashDto {
+	publicVisible: boolean
 	hidden: boolean
 	hiddenAt: string | null
 }

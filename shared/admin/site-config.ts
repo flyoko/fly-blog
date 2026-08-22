@@ -126,6 +126,7 @@ export const allowedModuleIds = [
 	'about',
 	'moments',
 	'ai-news',
+	'market',
 	'weather',
 	'music',
 	'links',

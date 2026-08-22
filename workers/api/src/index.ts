@@ -8,6 +8,7 @@ import { createArticleRoutes } from './features/articles/routes'
 import { authRoutes } from './features/auth/routes'
 import { adminFinanceRoutes, publicFinanceRoutes } from './features/finance/routes'
 import { healthRoutes } from './features/health/routes'
+import { publicMarketRoutes } from './features/market/routes'
 import { publicMediaRoutes } from './features/media/public-routes'
 import { mediaRoutes } from './features/media/routes'
 import { momentBackupRoutes } from './features/moment-backups/routes'
@@ -41,6 +42,7 @@ app.route('/api/auth', authRoutes)
 app.route('/api/health', healthRoutes)
 app.route('/api/admin/finance', adminFinanceRoutes)
 app.route('/api/finance', publicFinanceRoutes)
+app.route('/api/market', publicMarketRoutes)
 app.route('/api/admin/media', mediaRoutes)
 app.route('/api/admin/music', musicRoutes)
 app.route('/api/music', publicMusicRoutes)

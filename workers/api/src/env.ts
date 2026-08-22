@@ -27,6 +27,10 @@ export interface Env {
 	VISITOR_HMAC_KEY?: string
 	ANALYTICS_ENABLED?: string
 	ANALYTICS_HASH_SECRET?: string
+	JIN10_MCP_TOKEN?: string
+	SINA_INEWS_APP_KEY?: string
+	SINA_INEWS_APP_SECRET?: string
+	SINA_INEWS_TYPE_IDS?: string
 }
 
 export interface Variables {

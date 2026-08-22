@@ -26,6 +26,10 @@ function sourceLabel(sourceId: string) {
 		return '手动精选'
 	if (sourceId === 'wallstreetcn-7x24')
 		return '财经 7×24 · 华尔街见闻'
+	if (sourceId === 'jin10-mcp-7x24')
+		return '财经 7×24 · 金十数据'
+	if (sourceId === 'sina-inews-7x24')
+		return '财经 7×24 · 新浪财经'
 	if (sourceId === 'prototype-finance-7x24')
 		return '财经 7×24 · 原型回退'
 	return sourceId
@@ -34,7 +38,11 @@ function sourceLabel(sourceId: string) {
 function statusMeta(status: string) {
 	if (status === 'success')
 		return { label: '同步正常', tone: 'positive' as const }
-	if (status === 'pending' || status === 'running')
+	if (status === 'disabled')
+		return { label: '未启用', tone: 'neutral' as const }
+	if (status === 'pending')
+		return { label: '待首次同步', tone: 'warning' as const }
+	if (status === 'running')
 		return { label: '同步中', tone: 'warning' as const }
 	return { label: '需要处理', tone: 'danger' as const }
 }

@@ -1,5 +1,7 @@
-import type { AdminFinanceFlashDto, AdminFinanceFlashListDto, FinanceAdminVisibility, FinanceCategory, FinanceFlashDto, FinanceFlashListDto, FinanceImportanceOrigin } from '../../../../../shared/admin/finance'
+import type { AdminFinanceFlashDto, AdminFinanceFlashListDto, FinanceAdminVisibility, FinanceCategory, FinanceFlashDto, FinanceFlashListDto, FinanceFlashQuality, FinanceImportanceOrigin } from '../../../../../shared/admin/finance'
 import type { Env } from '../../env'
+import { groupFinanceEvents } from './dedupe'
+import { Jin10FinanceFlashAdapter } from './jin10'
 import { prototypeFinanceItems } from './prototype-data'
 import { WallstreetCnFinanceFlashAdapter } from './wallstreetcn'
 
@@ -19,6 +21,7 @@ interface FinanceFlashRow {
 	importance_score: number | null
 	source_name: string
 	source_url: string | null
+	public_visible: number
 	fetched_at: string
 	updated_at: string
 }
@@ -40,6 +43,7 @@ export interface FinanceFlashSourceItem {
 	importanceScore?: number | null
 	sourceName: string
 	sourceUrl?: string | null
+	publicVisible?: boolean
 }
 
 export interface FinanceFlashAdapter {
@@ -59,11 +63,12 @@ export class PrototypeFinanceFlashAdapter implements FinanceFlashAdapter {
 
 export interface FinanceSyncResult {
 	sourceId: string
-	status: 'success' | 'failed'
+	status: 'success' | 'failed' | 'skipped'
 	itemCount: number
 	changedCount?: number
 	deletedCount?: number
 	unchangedCount?: number
+	reason?: 'missing-secret'
 	error?: string
 }
 
@@ -76,6 +81,12 @@ export class FinanceFlashService {
 
 	get prototype() {
 		return this.adapter.prototype
+	}
+
+	private publicRowCondition(alias = 'f'): string {
+		const prefix = alias ? `${alias}.` : ''
+		const visible = `${prefix}public_visible = 1`
+		return this.adapter.prototype ? visible : `${visible} AND ${prefix}importance_origin <> 'prototype'`
 	}
 
 	private dto(row: FinanceFlashRow): FinanceFlashDto {
@@ -99,12 +110,13 @@ export class FinanceFlashService {
 	private adminDto(row: AdminFinanceFlashRow): AdminFinanceFlashDto {
 		return {
 			...this.dto(row),
+			publicVisible: Boolean(row.public_visible),
 			hidden: Boolean(row.hidden_at),
 			hiddenAt: row.hidden_at,
 		}
 	}
 
-	private async syncAdapter(adapter: FinanceFlashAdapter): Promise<FinanceSyncResult> {
+	private async syncAdapter(adapter: FinanceFlashAdapter, options: { replaceFallback?: boolean } = {}): Promise<FinanceSyncResult> {
 		const now = new Date().toISOString()
 		try {
 			const items = await adapter.fetch()
@@ -134,6 +146,7 @@ export class FinanceFlashService {
 					&& row.importance_score === (item.importanceScore ?? null)
 					&& row.source_name === item.sourceName
 					&& row.source_url === (item.sourceUrl || null)
+					&& Boolean(row.public_visible) === (item.publicVisible ?? true)
 				if (!unchanged)
 					changedItems.push({ id, item })
 			}
@@ -144,14 +157,16 @@ export class FinanceFlashService {
 			const statements = changedItems.map(({ id, item }) => this.env.DB.prepare(`
 				INSERT INTO finance_flash_items (
 					id, source_id, title, summary, published_at, category, category_label, topic,
-					important, importance_origin, importance_score, source_name, source_url, fetched_at, updated_at
-				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+					important, importance_origin, importance_score, source_name, source_url, fetched_at, updated_at,
+					public_visible
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 				ON CONFLICT(id) DO UPDATE SET
 					title = excluded.title, summary = excluded.summary, published_at = excluded.published_at,
 					category = excluded.category, category_label = excluded.category_label, topic = excluded.topic,
 					important = excluded.important, importance_origin = excluded.importance_origin,
 					importance_score = excluded.importance_score, source_name = excluded.source_name,
-					source_url = excluded.source_url, fetched_at = excluded.fetched_at, updated_at = excluded.updated_at
+					source_url = excluded.source_url, public_visible = excluded.public_visible,
+					fetched_at = excluded.fetched_at, updated_at = excluded.updated_at
 			`).bind(
 				id,
 				adapter.id,
@@ -168,6 +183,7 @@ export class FinanceFlashService {
 				item.sourceUrl || null,
 				now,
 				now,
+				item.publicVisible === false ? 0 : 1,
 			))
 
 			if (staleIds.length) {
@@ -186,7 +202,7 @@ export class FinanceFlashService {
 			`).bind(adapter.id, items.length, now, now))
 			await this.env.DB.batch(statements)
 
-			if (!adapter.prototype && this.fallbackAdapter.id !== adapter.id) {
+			if (options.replaceFallback && !adapter.prototype && this.fallbackAdapter.id !== adapter.id) {
 				await this.env.DB.batch([
 					this.env.DB.prepare('DELETE FROM finance_flash_items WHERE source_id = ?').bind(this.fallbackAdapter.id),
 					this.env.DB.prepare('DELETE FROM finance_flash_sync_state WHERE source_id = ?').bind(this.fallbackAdapter.id),
@@ -214,21 +230,37 @@ export class FinanceFlashService {
 	}
 
 	async sync(): Promise<FinanceSyncResult> {
-		return this.syncAdapter(this.adapter)
+		return this.syncAdapter(this.adapter, { replaceFallback: true })
+	}
+
+	async syncAll(): Promise<FinanceSyncResult[]> {
+		const results = [await this.sync()]
+		const jin10 = new Jin10FinanceFlashAdapter(this.env.JIN10_MCP_TOKEN)
+		if (!jin10.enabled) {
+			results.push({
+				sourceId: jin10.id,
+				status: 'skipped',
+				itemCount: 0,
+				reason: 'missing-secret',
+			})
+			return results
+		}
+		results.push(await this.syncAdapter(jin10))
+		return results
 	}
 
 	async ensureSeeded(): Promise<void> {
+		const publicRowCondition = this.publicRowCondition('f')
 		const snapshot = await this.env.DB.prepare(`
-			SELECT COUNT(*) AS count,
-				SUM(CASE WHEN importance_origin = 'prototype' THEN 1 ELSE 0 END) AS prototype_count
-			FROM finance_flash_items
-		`).first<{ count: number, prototype_count: number | null }>()
+			SELECT COUNT(*) AS count
+			FROM finance_flash_items f
+			WHERE ${publicRowCondition}
+		`).first<{ count: number }>()
 		const itemCount = snapshot?.count || 0
-		const prototypeCount = snapshot?.prototype_count || 0
-		if (itemCount > 0 && prototypeCount !== itemCount)
+		if (itemCount > 0)
 			return
 
-		if (itemCount > 0 && !this.adapter.prototype) {
+		if (!this.adapter.prototype) {
 			const state = await this.env.DB.prepare('SELECT updated_at FROM finance_flash_sync_state WHERE source_id = ?')
 				.bind(this.adapter.id)
 				.first<{ updated_at: string | null }>()
@@ -240,52 +272,84 @@ export class FinanceFlashService {
 		const primary = await this.sync()
 		if (primary.status === 'success')
 			return
-		if (itemCount > 0)
-			return
-		if (this.adapter.prototype || this.fallbackAdapter.id === this.adapter.id)
+		if (this.adapter.prototype)
 			throw new Error(primary.error || 'Finance sync failed')
-
-		const fallback = await this.syncAdapter(this.fallbackAdapter)
-		if (fallback.status === 'failed')
-			throw new Error(fallback.error || primary.error || 'Finance fallback sync failed')
+		// 实时来源不可用时保持空列表或最后成功快照，不生成 prototype 新闻。
 	}
 
 	async list(options: { importantOnly?: boolean, category?: FinanceCategory, limit?: number } = {}): Promise<FinanceFlashListDto> {
 		const limit = Math.max(1, Math.min(100, Math.trunc(options.limit || 50)))
-		const conditions = ['NOT EXISTS (SELECT 1 FROM finance_flash_exclusions e WHERE e.item_id = f.id AND e.restored_at IS NULL)']
+		const rawLimit = 500
+		const publicRowCondition = this.publicRowCondition('f')
+		const conditions = [
+			publicRowCondition,
+			'NOT EXISTS (SELECT 1 FROM finance_flash_exclusions e WHERE e.item_id = f.id AND e.restored_at IS NULL)',
+		]
 		const bindings: Array<string | number> = []
-		if (options.importantOnly)
-			conditions.push('f.important = 1')
 		if (options.category) {
 			conditions.push('f.category = ?')
 			bindings.push(options.category)
 		}
 		const where = `WHERE ${conditions.join(' AND ')}`
-		const [items, total, state, sourceMix] = await Promise.all([
+		const [items, state, sourceMix, sourceHealth] = await Promise.all([
 			this.env.DB.prepare(`
 				SELECT f.* FROM finance_flash_items f
 				${where}
 				ORDER BY f.published_at DESC, f.id DESC
 				LIMIT ?
-			`).bind(...bindings, limit).all<FinanceFlashRow>(),
-			this.env.DB.prepare(`SELECT COUNT(*) AS total FROM finance_flash_items f ${where}`)
-				.bind(...bindings)
-				.first<{ total: number }>(),
-			this.env.DB.prepare('SELECT MAX(last_success_at) AS updated_at FROM finance_flash_sync_state WHERE last_success_at IS NOT NULL')
+			`).bind(...bindings, rawLimit).all<FinanceFlashRow>(),
+			this.env.DB.prepare(`
+				SELECT MAX(s.last_success_at) AS updated_at
+				FROM finance_flash_sync_state s
+				WHERE s.last_success_at IS NOT NULL
+					AND EXISTS (
+						SELECT 1 FROM finance_flash_items f
+						WHERE f.source_id = s.source_id AND ${publicRowCondition}
+					)
+			`)
 				.first<{ updated_at: string | null }>(),
 			this.env.DB.prepare(`
 				SELECT COUNT(*) AS total,
-					SUM(CASE WHEN importance_origin = 'prototype' THEN 1 ELSE 0 END) AS prototype_count
-				FROM finance_flash_items
+				SUM(CASE WHEN f.importance_origin = 'prototype' THEN 1 ELSE 0 END) AS prototype_count
+				FROM finance_flash_items f
+				WHERE ${publicRowCondition}
 			`).first<{ total: number, prototype_count: number | null }>(),
+			this.env.DB.prepare(`
+				SELECT
+					SUM(CASE WHEN s.status = 'success' THEN 1 ELSE 0 END) AS success_count,
+					SUM(CASE WHEN s.status = 'failed' THEN 1 ELSE 0 END) AS failed_count
+				FROM finance_flash_sync_state s
+				WHERE EXISTS (
+					SELECT 1 FROM finance_flash_items f
+					WHERE f.source_id = s.source_id AND ${publicRowCondition}
+				)
+			`).first<{ success_count: number | null, failed_count: number | null }>(),
 		])
+		const groupedItems = groupFinanceEvents(items.results.map(row => this.dto(row)))
+		const filteredItems = options.importantOnly
+			? groupedItems.filter(item => item.important)
+			: groupedItems
 		const storedTotal = sourceMix?.total || 0
 		const prototypeCount = sourceMix?.prototype_count || 0
+		const prototype = storedTotal > 0 && prototypeCount === storedTotal
+		const successCount = sourceHealth?.success_count || 0
+		const failedCount = sourceHealth?.failed_count || 0
+		const quality: FinanceFlashQuality = storedTotal === 0
+			? 'unavailable'
+			: prototype
+				? 'prototype'
+				: failedCount > 0 && successCount === 0
+					? 'stale'
+					: failedCount > 0
+						? 'degraded'
+						: 'live'
 		return {
-			items: items.results.map(row => this.dto(row)),
-			total: total?.total || 0,
+			items: filteredItems.slice(0, limit),
+			total: filteredItems.length,
 			updatedAt: state?.updated_at || null,
-			prototype: storedTotal > 0 && prototypeCount === storedTotal,
+			prototype,
+			stale: quality === 'stale',
+			quality,
 		}
 	}
 
@@ -402,23 +466,54 @@ export class FinanceFlashService {
 	}
 
 	async status() {
+		interface SourceHealth {
+			source_id: string
+			status: 'success' | 'failed' | 'pending' | 'disabled'
+			item_count: number
+			last_success_at: string | null
+			last_error: string | null
+			updated_at: string | null
+		}
 		const [sources, list] = await Promise.all([
 			this.env.DB.prepare(`
 				SELECT source_id, status, item_count, last_success_at, last_error, updated_at
 				FROM finance_flash_sync_state
 				ORDER BY updated_at DESC, source_id ASC
-			`).all<{
-				source_id: string
-				status: 'success' | 'failed'
-				item_count: number
-				last_success_at: string | null
-				last_error: string | null
-				updated_at: string
-			}>(),
+			`).all<SourceHealth>(),
 			this.list({ limit: 1 }),
 		])
+		const sourceMap = new Map(sources.results.map(source => [source.source_id, source]))
+		const pending = (sourceId: string): SourceHealth => ({
+			source_id: sourceId,
+			status: 'pending',
+			item_count: 0,
+			last_success_at: null,
+			last_error: null,
+			updated_at: null,
+		})
+		const disabled = (sourceId: string): SourceHealth => ({
+			...sourceMap.get(sourceId),
+			source_id: sourceId,
+			status: 'disabled',
+			item_count: sourceMap.get(sourceId)?.item_count || 0,
+			last_success_at: sourceMap.get(sourceId)?.last_success_at || null,
+			last_error: null,
+			updated_at: sourceMap.get(sourceId)?.updated_at || null,
+		})
+
+		if (!sourceMap.has(this.adapter.id))
+			sourceMap.set(this.adapter.id, pending(this.adapter.id))
+		if (this.env.JIN10_MCP_TOKEN?.trim()) {
+			if (!sourceMap.has('jin10-mcp-7x24'))
+				sourceMap.set('jin10-mcp-7x24', pending('jin10-mcp-7x24'))
+		}
+		else {
+			sourceMap.set('jin10-mcp-7x24', disabled('jin10-mcp-7x24'))
+		}
+		sourceMap.set('sina-inews-7x24', sourceMap.get('sina-inews-7x24') || disabled('sina-inews-7x24'))
+
 		return {
-			sources: sources.results,
+			sources: [...sourceMap.values()],
 			total: list.total,
 			updatedAt: list.updatedAt,
 			prototype: list.prototype,
@@ -426,16 +521,52 @@ export class FinanceFlashService {
 	}
 
 	async listVersion(): Promise<string> {
+		const publicRowCondition = this.publicRowCondition('f')
 		const row = await this.env.DB.prepare(`
 			SELECT
 				(SELECT MAX(version) FROM (
-					SELECT MAX(updated_at) AS version FROM finance_flash_items
+					SELECT MAX(f.updated_at) AS version
+					FROM finance_flash_items f
+					WHERE ${publicRowCondition}
 					UNION ALL
-					SELECT MAX(COALESCE(restored_at, created_at)) AS version FROM finance_flash_exclusions
+					SELECT MAX(COALESCE(e.restored_at, e.created_at)) AS version
+					FROM finance_flash_exclusions e
+					JOIN finance_flash_items f ON f.id = e.item_id
+					WHERE ${publicRowCondition}
 				)) AS version,
-				(SELECT COUNT(*) FROM finance_flash_items) AS item_count,
-				(SELECT COUNT(*) FROM finance_flash_exclusions WHERE restored_at IS NULL) AS exclusion_count
-		`).first<{ version: string | null, item_count: number, exclusion_count: number }>()
-		return `${row?.version || 'empty'}:${row?.item_count || 0}:${row?.exclusion_count || 0}`
+				(SELECT COUNT(*) FROM finance_flash_items f WHERE ${publicRowCondition}) AS item_count,
+				(SELECT COUNT(*)
+				 FROM finance_flash_exclusions e
+				 JOIN finance_flash_items f ON f.id = e.item_id
+				 WHERE e.restored_at IS NULL AND ${publicRowCondition}) AS exclusion_count,
+				(SELECT MAX(s.updated_at)
+				 FROM finance_flash_sync_state s
+				 WHERE EXISTS (
+					 SELECT 1 FROM finance_flash_items f
+					 WHERE f.source_id = s.source_id AND ${publicRowCondition}
+				 )) AS source_state_version,
+				(SELECT COUNT(*)
+				 FROM finance_flash_sync_state s
+				 WHERE s.status = 'success'
+					 AND EXISTS (
+						 SELECT 1 FROM finance_flash_items f
+						 WHERE f.source_id = s.source_id AND ${publicRowCondition}
+					 )) AS success_count,
+				(SELECT COUNT(*)
+				 FROM finance_flash_sync_state s
+				 WHERE s.status = 'failed'
+					 AND EXISTS (
+						 SELECT 1 FROM finance_flash_items f
+						 WHERE f.source_id = s.source_id AND ${publicRowCondition}
+					 )) AS failed_count
+		`).first<{
+			version: string | null
+			item_count: number
+			exclusion_count: number
+			source_state_version: string | null
+			success_count: number
+			failed_count: number
+		}>()
+		return `${row?.version || 'empty'}:${row?.item_count || 0}:${row?.exclusion_count || 0}:${row?.source_state_version || 'no-state'}:${row?.success_count || 0}:${row?.failed_count || 0}`
 	}
 }
