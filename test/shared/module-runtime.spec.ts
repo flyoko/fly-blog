@@ -16,6 +16,7 @@ const modules = modulesConfigSchema.parse([
 	{ id: 'music', enabled: false, order: 5 },
 	{ id: 'links', enabled: true, order: 6 },
 	{ id: 'archive', enabled: false, order: 7 },
+	{ id: 'market', enabled: true, order: 8 },
 ])
 
 describe('public module runtime', () => {

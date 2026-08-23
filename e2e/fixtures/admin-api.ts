@@ -614,7 +614,10 @@ async function respond(route: Route, options: AdminApiMockOptions, capture: Admi
 	}
 
 	if (path === '/api/admin/finance/sync' && method === 'POST') {
-		await route.fulfill(success({ sourceId: 'wallstreetcn-7x24', status: 'success', itemCount: 50 }))
+		await route.fulfill(success([
+			{ sourceId: 'wallstreetcn-7x24', status: 'success', itemCount: 50 },
+			{ sourceId: 'jin10-mcp-7x24', status: 'skipped', itemCount: 0, reason: 'missing-secret' },
+		]))
 		return
 	}
 

@@ -65,20 +65,24 @@ describe('finance flash service', () => {
 		expect(data.items.every(item => item.category === 'company' && item.important)).toBe(true)
 	})
 
-	it('reports finance source health for the admin surface', async () => {
+	it('reports active and disabled finance source health for the admin surface', async () => {
 		const service = prototypeService()
 		await service.sync()
 		const status = await service.status()
 		expect(status.prototype).toBe(true)
 		expect(status.total).toBe(8)
-		expect(status.sources).toEqual([expect.objectContaining({
-			source_id: 'prototype-finance-7x24',
-			status: 'success',
-			item_count: 8,
-		})])
+		expect(status.sources).toEqual(expect.arrayContaining([
+			expect.objectContaining({
+				source_id: 'prototype-finance-7x24',
+				status: 'success',
+				item_count: 8,
+			}),
+			expect.objectContaining({ source_id: 'jin10-mcp-7x24', status: 'disabled', item_count: 0 }),
+			expect.objectContaining({ source_id: 'sina-inews-7x24', status: 'disabled', item_count: 0 }),
+		]))
 	})
 
-	it('uses prototype data only as a cold-start fallback when live sync fails', async () => {
+	it('returns unavailable instead of generating prototype news when live cold-start sync fails', async () => {
 		const failingAdapter: FinanceFlashAdapter = {
 			id: 'live-finance',
 			prototype: false,
@@ -87,8 +91,8 @@ describe('finance flash service', () => {
 		const service = new FinanceFlashService(runtimeEnv(), failingAdapter, new PrototypeFinanceFlashAdapter())
 		await service.ensureSeeded()
 		const data = await service.list()
-		expect(data.prototype).toBe(true)
-		expect(data.total).toBe(8)
+		expect(data).toMatchObject({ prototype: false, stale: false, quality: 'unavailable', total: 0 })
+		expect(data.items).toEqual([])
 	})
 
 	it('replaces fallback rows after the live source recovers', async () => {
@@ -194,14 +198,13 @@ describe('finance flash service', () => {
 })
 
 describe('finance flash public api', () => {
-	it('returns the public contract for a stored fallback snapshot', async () => {
+	it('keeps stored prototype fallback rows out of the public contract', async () => {
 		await seedFallbackSnapshot()
 		const response = await publicApp().request('/api/finance/flash?important=true&category=macro', {}, testEnv)
 		expect(response.status).toBe(200)
-		const body = await response.json() as { data: { total: number, prototype: boolean, items: Array<{ category: string, important: boolean }> } }
-		expect(body.data.prototype).toBe(true)
-		expect(body.data.total).toBe(1)
-		expect(body.data.items[0]).toMatchObject({ category: 'macro', important: true })
+		const body = await response.json() as { data: { total: number, prototype: boolean, stale: boolean, quality: string, items: Array<{ category: string, important: boolean }> } }
+		expect(body.data).toMatchObject({ prototype: false, stale: false, quality: 'unavailable', total: 0 })
+		expect(body.data.items).toEqual([])
 	})
 
 	it('rejects invalid filters', async () => {

@@ -7,6 +7,8 @@ function services(): ScheduledTaskServices {
 	return {
 		syncNews: vi.fn().mockResolvedValue(undefined),
 		syncFinance: vi.fn().mockResolvedValue(undefined),
+		syncMarket: vi.fn().mockResolvedValue(undefined),
+		syncWatchlistMarket: vi.fn().mockResolvedValue(undefined),
 		backupMoments: vi.fn().mockResolvedValue(undefined),
 		maintainAnalytics: vi.fn().mockResolvedValue(undefined),
 		maintainContent: vi.fn().mockResolvedValue(undefined),
@@ -24,7 +26,7 @@ function message(job: ScheduledTaskMessage['job']): ScheduledTaskMessage {
 
 describe('scheduled task routing', () => {
 	it('maps cron expressions to lightweight queue jobs', () => {
-		expect(scheduledJobsFor('*/5 * * * *')).toEqual(['news-sync', 'finance-sync'])
+		expect(scheduledJobsFor('*/5 * * * *')).toEqual(['news-sync', 'finance-sync', 'market-sync', 'market-watchlist-sync'])
 		expect(scheduledJobsFor('17 19 * * *')).toEqual(['moment-backup', 'news-sync', 'finance-sync'])
 		expect(scheduledJobsFor('31 19 * * *')).toEqual(['analytics-maintenance', 'content-maintenance'])
 		expect(scheduledJobsFor('1 2 3 4 5')).toEqual([])
@@ -34,6 +36,8 @@ describe('scheduled task routing', () => {
 		expect(scheduledMessagesFor('*/5 * * * *', Date.parse('2026-08-16T07:05:00.000Z'))).toEqual([
 			{ version: 1, job: 'news-sync', cron: '*/5 * * * *', scheduledAt: '2026-08-16T07:05:00.000Z' },
 			{ version: 1, job: 'finance-sync', cron: '*/5 * * * *', scheduledAt: '2026-08-16T07:05:00.000Z' },
+			{ version: 1, job: 'market-sync', cron: '*/5 * * * *', scheduledAt: '2026-08-16T07:05:00.000Z' },
+			{ version: 1, job: 'market-watchlist-sync', cron: '*/5 * * * *', scheduledAt: '2026-08-16T07:05:00.000Z' },
 		])
 	})
 
@@ -41,11 +45,13 @@ describe('scheduled task routing', () => {
 		const sendBatch = vi.fn().mockResolvedValue({ metadata: { metrics: { backlogCount: 2, backlogBytes: 256 } } })
 		const env = { CONTENT_SYNC_QUEUE: { sendBatch } } as unknown as Env
 		const count = await enqueueScheduledTask('*/5 * * * *', Date.parse('2026-08-16T07:10:00.000Z'), env)
-		expect(count).toBe(2)
+		expect(count).toBe(4)
 		expect(sendBatch).toHaveBeenCalledOnce()
 		expect(sendBatch).toHaveBeenCalledWith([
 			{ body: { version: 1, job: 'news-sync', cron: '*/5 * * * *', scheduledAt: '2026-08-16T07:10:00.000Z' }, contentType: 'json' },
 			{ body: { version: 1, job: 'finance-sync', cron: '*/5 * * * *', scheduledAt: '2026-08-16T07:10:00.000Z' }, contentType: 'json' },
+			{ body: { version: 1, job: 'market-sync', cron: '*/5 * * * *', scheduledAt: '2026-08-16T07:10:00.000Z' }, contentType: 'json' },
+			{ body: { version: 1, job: 'market-watchlist-sync', cron: '*/5 * * * *', scheduledAt: '2026-08-16T07:10:00.000Z' }, contentType: 'json' },
 		])
 	})
 
@@ -59,6 +65,8 @@ describe('scheduled task routing', () => {
 	it.each([
 		['news-sync', 'syncNews'],
 		['finance-sync', 'syncFinance'],
+		['market-sync', 'syncMarket'],
+		['market-watchlist-sync', 'syncWatchlistMarket'],
 		['moment-backup', 'backupMoments'],
 		['analytics-maintenance', 'maintainAnalytics'],
 		['content-maintenance', 'maintainContent'],
