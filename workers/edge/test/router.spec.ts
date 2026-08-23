@@ -21,6 +21,8 @@ describe('route selection', () => {
 		'/api/admin/media/1',
 		'/api/health',
 		'/api/finance/flash',
+		'/api/market/overview',
+		'/api/market/sector-flows',
 		'/api/moments',
 		'/api/moments/11111111-1111-4111-8111-111111111111',
 		'/api/music/playlist',
