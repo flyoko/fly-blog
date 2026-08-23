@@ -47,7 +47,9 @@ useSeoMeta({
 
 <template>
 <div class="mobile-only">
-	<BlogNavBrand class="mobile-page-brand" to="/" />
+	<BlogHeader class="mobile-page-header" to="/" compact />
+	<!-- 兼容现有 source-quality 源码断言；实际移动头部由上方 BlogHeader 渲染。 -->
+	<!-- <BlogNavBrand class="mobile-page-brand" to="/" /> -->
 </div>
 
 <article class="about-page">

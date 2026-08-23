@@ -11,7 +11,7 @@ const { category, categories, listCategorized, setCategory } = useCategory(listS
 
 <template>
 <div class="mobile-only">
-	<BlogNavBrand class="mobile-page-brand" to="/" />
+	<BlogHeader class="mobile-page-header" to="/" />
 </div>
 
 <div class="preview">

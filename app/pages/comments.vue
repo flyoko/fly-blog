@@ -9,7 +9,7 @@ useSeoMeta({
 
 <template>
 <div class="mobile-only">
-	<BlogNavBrand class="mobile-page-brand" to="/" />
+	<BlogHeader class="mobile-page-header" to="/" />
 </div>
 
 <main class="comments-page">

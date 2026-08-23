@@ -63,7 +63,7 @@ onMounted(() => load(true))
 
 <template>
 <div class="mobile-only">
-	<BlogNavBrand class="mobile-page-brand" to="/" />
+	<BlogHeader class="mobile-page-header" to="/" />
 </div>
 <section class="moments-page">
 	<header class="moments-hero card">

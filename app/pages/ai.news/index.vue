@@ -225,7 +225,7 @@ onMounted(load)
 
 <template>
 <div class="mobile-only">
-	<BlogNavBrand class="mobile-page-brand" to="/" />
+	<BlogHeader class="mobile-page-header" to="/" />
 </div>
 <section class="news-workbench">
 	<header class="news-header">
