@@ -65,6 +65,30 @@ describe('cls finance adapter', () => {
 		expect(items[1]?.title).toContain('核聚变')
 	})
 
+	it('does not rebind the native fetch function to the adapter instance', async () => {
+		const responses = [
+			{ errno: 0, data: { roll_data: [{ id: 9, ctime: 190, level: 'C', brief: '财联社1月1日电，绑定检查快讯。', shareurl: 'https://api3.cls.cn/share/article/9' }] } },
+			{ errno: 0, data: { roll_data: [] } },
+		]
+		const nativeLikeFetch = vi.fn(function (this: unknown) {
+			if (this !== undefined && this !== globalThis)
+				throw new TypeError('Illegal invocation')
+			return Promise.resolve(new Response(JSON.stringify(responses.shift()), {
+				status: 200,
+				headers: { 'content-type': 'application/json' },
+			}))
+		})
+		vi.stubGlobal('fetch', nativeLikeFetch)
+		try {
+			const items = await new ClsFinanceFlashAdapter().fetch()
+			expect(items.map(item => item.id)).toEqual(['9'])
+			expect(nativeLikeFetch).toHaveBeenCalledTimes(2)
+		}
+		finally {
+			vi.unstubAllGlobals()
+		}
+	})
+
 	it('paginates with the oldest telegraph timestamp and sends a valid dynamic signature', async () => {
 		const responses = [
 			{

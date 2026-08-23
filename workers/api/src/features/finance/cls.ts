@@ -263,7 +263,7 @@ export class ClsFinanceFlashAdapter implements FinanceFlashAdapter {
 	readonly prototype = false
 
 	constructor(
-		private readonly fetchImpl: ClsFinanceFetch = globalThis.fetch,
+		private readonly fetchImpl?: ClsFinanceFetch,
 		private readonly url = CLS_ROLL_URL,
 	) {}
 
@@ -282,14 +282,24 @@ export class ClsFinanceFlashAdapter implements FinanceFlashAdapter {
 			requestUrl.searchParams.set(key, String(value))
 		requestUrl.searchParams.set('sign', sign)
 
-		const response = await this.fetchImpl(requestUrl.toString(), {
-			headers: {
-				'accept': 'application/json,text/plain,*/*',
-				'referer': 'https://www.cls.cn/telegraph',
-				'user-agent': 'Mozilla/5.0 (compatible; fly-living/1.0; +https://flyovo.cc.cd)',
-			},
-			signal: AbortSignal.timeout(CLS_TIMEOUT_MS),
-		})
+		const request = this.fetchImpl
+			? this.fetchImpl(requestUrl.toString(), {
+					headers: {
+						'accept': 'application/json,text/plain,*/*',
+						'referer': 'https://www.cls.cn/telegraph',
+						'user-agent': 'Mozilla/5.0 (compatible; fly-living/1.0; +https://flyovo.cc.cd)',
+					},
+					signal: AbortSignal.timeout(CLS_TIMEOUT_MS),
+				})
+			: fetch(requestUrl.toString(), {
+					headers: {
+						'accept': 'application/json,text/plain,*/*',
+						'referer': 'https://www.cls.cn/telegraph',
+						'user-agent': 'Mozilla/5.0 (compatible; fly-living/1.0; +https://flyovo.cc.cd)',
+					},
+					signal: AbortSignal.timeout(CLS_TIMEOUT_MS),
+				})
+		const response = await request
 		if (!response.ok)
 			throw new Error(`CLS finance request failed with HTTP ${response.status}`)
 
