@@ -2,12 +2,15 @@
 import type { AdminSessionDto } from '#shared/admin/auth'
 import type { FinanceFilter, FinanceFlashDto, FinanceFlashListDto, FinanceFlashSourceDto } from '#shared/admin/finance'
 import type { CiticFuturesPositionHistory, CiticFuturesSeries, MarketDataQuality, MarketEnvelope, MarketOverview, SectorFlowItem, SectorKind, SectorWindowDays, WatchlistItem, WatchlistRadarItem, WatchlistRadarResponse } from '#shared/market'
+import type { SectorSortDirection, SectorSortKey } from '~/utils/market-sector-table'
 import MarketFuturesPositionChart from '~/components/market/MarketFuturesPositionChart.vue'
 import MarketSignalDesk from '~/components/market/MarketSignalDesk.vue'
 import { isShanghaiMarketWindow, millisecondsUntilNextShanghaiWindow, WATCHLIST_MARKET_WINDOWS } from '~/utils/market-polling'
+import { sectorPageCount as countSectorPages, paginateSectorFlowItems, SECTOR_PAGE_SIZE, sortSectorFlowItems } from '~/utils/market-sector-table'
 
 type MarketWorkspace = 'radar' | 'funds' | 'watchlist' | 'signals' | 'strategy'
 type WatchlistSortMode = 'custom' | 'change' | 'attention' | 'turnover'
+type FundsPanel = 'sectors' | 'citic'
 
 const workspaceTabs: Array<{ id: MarketWorkspace, label: string, icon: string, note: string }> = [
 	{ id: 'radar', label: '市场雷达', icon: 'tabler:radar', note: '行情与财经事件' },
@@ -46,13 +49,13 @@ const watchlistSortOptions: Array<{ id: WatchlistSortMode, label: string }> = [
 	{ id: 'turnover', label: '成交额排序' },
 ]
 
-const sectorWindowLabels: Record<SectorWindowDays, string> = {
-	1: '1D',
-	3: '3D',
-	5: '5D',
-	10: '10D',
-	20: '20D',
-}
+const sectorWindowOptions: Array<{ days: SectorWindowDays, label: string }> = [
+	{ days: 1, label: '1D' },
+	{ days: 3, label: '3D' },
+	{ days: 5, label: '5D' },
+	{ days: 10, label: '10D' },
+	{ days: 20, label: '20D' },
+]
 
 const shanghaiTime = new Intl.DateTimeFormat('zh-CN', {
 	month: '2-digit',
@@ -80,7 +83,11 @@ const financeImportantOnly = ref(false)
 const marketOverview = ref<MarketEnvelope<MarketOverview> | null>(null)
 const marketOverviewLoading = ref(true)
 const marketOverviewError = ref('')
+const fundsPanel = ref<FundsPanel>('sectors')
 const sectorKind = ref<SectorKind>('industry')
+const sectorSortKey = ref<SectorSortKey>('mainNetInflow')
+const sectorSortDirection = ref<SectorSortDirection>('desc')
+const sectorPage = ref(1)
 const sectorFlowData = ref<MarketEnvelope<SectorFlowItem[]> | null>(null)
 const sectorFlowLoading = ref(false)
 const sectorFlowError = ref('')
@@ -171,6 +178,9 @@ const filteredSectorFlowItems = computed(() => {
 		.filter(Boolean)
 		.some(value => String(value).toLocaleLowerCase('zh-CN').includes(keyword)))
 })
+const sortedSectorFlowItems = computed(() => sortSectorFlowItems(filteredSectorFlowItems.value, sectorSortKey.value, sectorSortDirection.value))
+const sectorPages = computed(() => countSectorPages(sortedSectorFlowItems.value.length, SECTOR_PAGE_SIZE))
+const paginatedSectorFlowItems = computed(() => paginateSectorFlowItems(sortedSectorFlowItems.value, sectorPage.value, SECTOR_PAGE_SIZE))
 const latestFuturesPosition = computed(() => futuresPositionData.value?.items.at(-1) || null)
 const previousFuturesPosition = computed(() => futuresPositionData.value?.items.at(-2) || null)
 const futuresQualityState = computed(() => {
@@ -255,6 +265,33 @@ function formatFinanceTime(value: string) {
 	if (Number.isNaN(date.getTime()))
 		return '--:--'
 	return financeTime.format(date)
+}
+
+function sectorSortAria(key: SectorSortKey) {
+	if (sectorSortKey.value !== key)
+		return 'none' as const
+	return sectorSortDirection.value === 'desc' ? 'descending' as const : 'ascending' as const
+}
+
+function toggleSectorSort(key: SectorSortKey) {
+	if (sectorSortKey.value === key) {
+		sectorSortDirection.value = sectorSortDirection.value === 'desc' ? 'asc' : 'desc'
+	}
+	else {
+		sectorSortKey.value = key
+		sectorSortDirection.value = 'desc'
+	}
+	sectorPage.value = 1
+}
+
+function sectorSortIcon(key: SectorSortKey) {
+	if (sectorSortKey.value !== key)
+		return 'tabler:arrows-sort'
+	return sectorSortDirection.value === 'desc' ? 'tabler:arrow-down' : 'tabler:arrow-up'
+}
+
+function goSectorPage(page: number) {
+	sectorPage.value = Math.min(Math.max(1, page), sectorPages.value)
 }
 
 function qualityState(quality?: MarketDataQuality) {
@@ -748,9 +785,13 @@ function refreshRadar() {
 	void Promise.all([loadFinance(), loadMarketOverview()])
 }
 
-watch([activeWorkspace, sectorKind], ([workspace]) => {
-	if (workspace === 'funds')
-		void Promise.all([loadSectorFlows(), loadFuturesPositions()])
+watch(activeWorkspace, (workspace) => {
+	if (workspace === 'funds') {
+		if (fundsPanel.value === 'sectors')
+			void loadSectorFlows()
+		else
+			void loadFuturesPositions()
+	}
 	if (workspace === 'watchlist') {
 		void activateWatchlist()
 	}
@@ -761,8 +802,27 @@ watch([activeWorkspace, sectorKind], ([workspace]) => {
 	}
 })
 
+watch(sectorKind, () => {
+	sectorPage.value = 1
+	if (activeWorkspace.value === 'funds' && fundsPanel.value === 'sectors')
+		void loadSectorFlows()
+})
+
+watch(sectorSearch, () => {
+	sectorPage.value = 1
+})
+
+watch(fundsPanel, (panel) => {
+	if (activeWorkspace.value !== 'funds')
+		return
+	if (panel === 'sectors')
+		void loadSectorFlows()
+	else
+		void loadFuturesPositions()
+})
+
 watch(futuresProduct, () => {
-	if (activeWorkspace.value === 'funds')
+	if (activeWorkspace.value === 'funds' && fundsPanel.value === 'citic')
 		void loadFuturesPositions()
 })
 
@@ -775,7 +835,7 @@ onMounted(() => {
 	refreshTimer = setInterval(() => {
 		void loadFinance({ background: true })
 		void loadMarketOverview({ background: true })
-		if (activeWorkspace.value === 'funds')
+		if (activeWorkspace.value === 'funds' && fundsPanel.value === 'sectors')
 			void loadSectorFlows({ background: true })
 	}, 60_000)
 	clockTimer = setInterval(() => {
@@ -1013,96 +1073,131 @@ onBeforeUnmount(() => {
 
 	<section v-else-if="activeWorkspace === 'funds'" class="market-panel market-stage-view">
 		<header class="market-stage-header market-funds-header">
-			<div><span>CAPITAL FLOW</span><h2>板块资金</h2><p>查看当前主力净流入与 1 / 3 / 5 / 10 / 20 日累计；历史不足时会标记积累天数。</p></div>
-			<div class="market-funds-actions">
-				<b :data-tone="sectorQualityState.tone">{{ sectorQualityState.label }}</b>
-				<div class="market-kind-switch" aria-label="板块资金类型">
-					<button
-						v-for="option in sectorKindOptions"
-						:key="option.id"
-						type="button"
-						:class="{ active: sectorKind === option.id }"
-						:aria-pressed="sectorKind === option.id"
-						@click="sectorKind = option.id"
-					>
-						{{ option.label }}
+			<div><span>CAPITAL FLOW</span><h2>资金观察</h2><p>板块资金看横向强弱，中信期货盘后席位看股指多空增减；两类数据分开阅读。</p></div>
+		</header>
+
+		<nav class="market-funds-subnav" aria-label="资金观察类型">
+			<button type="button" :class="{ active: fundsPanel === 'sectors' }" :aria-pressed="fundsPanel === 'sectors'" @click="fundsPanel = 'sectors'">
+				<Icon name="tabler:chart-bar" aria-hidden="true" />板块资金
+			</button>
+			<button type="button" :class="{ active: fundsPanel === 'citic' }" :aria-pressed="fundsPanel === 'citic'" @click="fundsPanel = 'citic'">
+				<Icon name="tabler:chart-candle" aria-hidden="true" />中信期货
+			</button>
+		</nav>
+
+		<template v-if="fundsPanel === 'sectors'">
+			<div class="market-funds-controls">
+				<div>
+					<b :data-tone="sectorQualityState.tone">{{ sectorQualityState.label }}</b>
+					<div class="market-kind-switch" aria-label="板块资金类型">
+						<button
+							v-for="option in sectorKindOptions"
+							:key="option.id"
+							type="button"
+							:class="{ active: sectorKind === option.id }"
+							:aria-pressed="sectorKind === option.id"
+							@click="sectorKind = option.id"
+						>
+							{{ option.label }}
+						</button>
+					</div>
+					<button class="market-refresh compact" type="button" :disabled="sectorFlowLoading" @click="loadSectorFlows()">
+						<Icon name="tabler:refresh" aria-hidden="true" />{{ sectorFlowLoading ? '刷新中' : '刷新资金' }}
 					</button>
 				</div>
-				<button class="market-refresh compact" type="button" :disabled="sectorFlowLoading" @click="loadSectorFlows()">
-					<Icon name="tabler:refresh" aria-hidden="true" />{{ sectorFlowLoading ? '刷新中' : '刷新资金' }}
+			</div>
+
+			<div class="market-funds-toolbar">
+				<label>
+					<Icon name="tabler:search" aria-hidden="true" />
+					<input v-model="sectorSearch" type="search" autocomplete="off" placeholder="搜索板块 / 代码 / 龙头股">
+				</label>
+				<span>已加载 {{ sectorFlowItems.length }} 个 · 匹配 {{ filteredSectorFlowItems.length }} 个 · 10 条/页</span>
+			</div>
+
+			<div v-if="sectorFlowError" class="market-error" role="alert">
+				<Icon name="tabler:alert-triangle" aria-hidden="true" />
+				<div><strong>资金链路暂不可用</strong><span>{{ sectorFlowError }}</span></div>
+				<button type="button" @click="loadSectorFlows()">
+					重新加载
 				</button>
 			</div>
-		</header>
-		<div class="market-funds-toolbar">
-			<label>
-				<Icon name="tabler:search" aria-hidden="true" />
-				<input v-model="sectorSearch" type="search" autocomplete="off" placeholder="搜索板块 / 代码 / 龙头股">
-			</label>
-			<span>已加载 {{ sectorFlowItems.length }} 个 · 当前匹配 {{ filteredSectorFlowItems.length }} 个</span>
-		</div>
 
-		<div v-if="sectorFlowError" class="market-error" role="alert">
-			<Icon name="tabler:alert-triangle" aria-hidden="true" />
-			<div><strong>资金链路暂不可用</strong><span>{{ sectorFlowError }}</span></div>
-			<button type="button" @click="loadSectorFlows()">
-				重新加载
-			</button>
-		</div>
+			<div v-else-if="sectorFlowLoading && !sectorFlowData" class="market-loading market-flow-loading" aria-label="板块资金加载中">
+				<span v-for="index in 6" :key="index" />
+			</div>
 
-		<div v-else-if="sectorFlowLoading && !sectorFlowData" class="market-loading market-flow-loading" aria-label="板块资金加载中">
-			<span v-for="index in 6" :key="index" />
-		</div>
+			<div v-else-if="sectorFlowItems.length" class="market-table-scroll">
+				<table class="market-flow-table">
+					<thead>
+						<tr>
+							<th>板块</th>
+							<th :aria-sort="sectorSortAria('changePct')">
+								<button class="market-flow-sort" type="button" @click="toggleSectorSort('changePct')">
+									涨跌 <Icon :name="sectorSortIcon('changePct')" />
+								</button>
+							</th>
+							<th :aria-sort="sectorSortAria('mainNetInflow')">
+								<button class="market-flow-sort" type="button" @click="toggleSectorSort('mainNetInflow')">
+									今日主力 <Icon :name="sectorSortIcon('mainNetInflow')" />
+								</button>
+							</th>
+							<th v-for="option in sectorWindowOptions" :key="option.days" :aria-sort="sectorSortAria(option.days)">
+								<button class="market-flow-sort" type="button" @click="toggleSectorSort(option.days)">
+									{{ option.label }} <Icon :name="sectorSortIcon(option.days)" />
+								</button>
+							</th>
+						</tr>
+					</thead>
+					<tbody>
+						<tr v-for="item in paginatedSectorFlowItems" :key="`${item.kind}:${item.code}`">
+							<td><strong>{{ item.name }}</strong><small>{{ item.code }}<template v-if="item.leaderStockName"> · {{ item.leaderStockName }}</template></small></td>
+							<td><b :class="moveClass(item.changePct)">{{ formatPercent(item.changePct) }}</b></td>
+							<td><b :class="moveClass(item.mainNetInflow)">{{ formatFlow(item.mainNetInflow) }}</b></td>
+							<td v-for="window in item.windows" :key="window.days">
+								<b :class="moveClass(window.netInflow)">{{ formatFlow(window.netInflow) }}</b>
+								<small v-if="!window.complete">积累中 {{ window.availableDays }}/{{ window.days }}日</small>
+							</td>
+						</tr>
+						<tr v-if="!filteredSectorFlowItems.length" class="market-flow-search-empty">
+							<td colspan="8">
+								当前 {{ sectorFlowItems.length }} 个板块中没有匹配“{{ sectorSearch }}”的板块。
+							</td>
+						</tr>
+					</tbody>
+				</table>
+				<footer class="market-flow-footer market-flow-pagination">
+					<span>{{ sectorKind === 'industry' ? '行业' : '概念' }} · {{ filteredSectorFlowItems.length }}/{{ sectorFlowItems.length }} 个板块</span>
+					<div>
+						<button type="button" :disabled="sectorPage <= 1" @click="goSectorPage(1)">
+							首页
+						</button>
+						<button type="button" :disabled="sectorPage <= 1" @click="goSectorPage(sectorPage - 1)">
+							上一页
+						</button>
+						<b>第 {{ sectorPage }} / {{ sectorPages }} 页</b>
+						<button type="button" :disabled="sectorPage >= sectorPages" @click="goSectorPage(sectorPage + 1)">
+							下一页
+						</button>
+						<button type="button" :disabled="sectorPage >= sectorPages" @click="goSectorPage(sectorPages)">
+							末页
+						</button>
+					</div>
+					<span>{{ sectorFlowData?.marketAt ? formatDateTime(sectorFlowData.marketAt) : '时间未知' }}</span>
+				</footer>
+			</div>
 
-		<div v-else-if="sectorFlowItems.length" class="market-table-scroll">
-			<table class="market-flow-table">
-				<thead>
-					<tr>
-						<th>板块</th>
-						<th>涨跌</th>
-						<th>今日主力</th>
-						<th v-for="label in sectorWindowLabels" :key="label">
-							{{ label }}
-						</th>
-					</tr>
-				</thead>
-				<tbody>
-					<tr v-for="item in filteredSectorFlowItems" :key="`${item.kind}:${item.code}`">
-						<td>
-							<strong>{{ item.name }}</strong>
-							<small>{{ item.code }}<template v-if="item.leaderStockName"> · {{ item.leaderStockName }}</template></small>
-						</td>
-						<td><b :class="moveClass(item.changePct)">{{ formatPercent(item.changePct) }}</b></td>
-						<td><b :class="moveClass(item.mainNetInflow)">{{ formatFlow(item.mainNetInflow) }}</b></td>
-						<td v-for="window in item.windows" :key="window.days">
-							<b :class="moveClass(window.netInflow)">{{ formatFlow(window.netInflow) }}</b>
-							<small v-if="!window.complete">积累中 {{ window.availableDays }}/{{ window.days }}日</small>
-						</td>
-					</tr>
-					<tr v-if="!filteredSectorFlowItems.length" class="market-flow-search-empty">
-						<td colspan="8">
-							当前 {{ sectorFlowItems.length }} 个板块中没有匹配“{{ sectorSearch }}”的板块。
-						</td>
-					</tr>
-				</tbody>
-			</table>
-			<footer class="market-flow-footer">
-				<span>{{ sectorKind === 'industry' ? '行业' : '概念' }} · {{ filteredSectorFlowItems.length }}/{{ sectorFlowItems.length }} 个板块</span>
-				<span>{{ sectorFlowData?.marketAt ? formatDateTime(sectorFlowData.marketAt) : '时间未知' }}</span>
-			</footer>
-		</div>
+			<div v-else class="market-stage-notice">
+				<Icon name="tabler:database-off" /><div><strong>暂无可信资金数据</strong><p>暂时没有可用的板块资金数据，请稍后刷新。</p></div>
+			</div>
+		</template>
 
-		<div v-else class="market-stage-notice">
-			<Icon name="tabler:database-off" /><div><strong>暂无可信资金数据</strong><p>暂时没有可用的板块资金数据，请稍后刷新。</p></div>
-		</div>
-
-		<section class="market-futures-section" aria-labelledby="citic-futures-title">
+		<section v-else class="market-futures-section" aria-labelledby="citic-futures-title">
 			<header class="market-futures-header">
 				<div>
-					<span>POST-CLOSE POSITION</span>
-					<h3 id="citic-futures-title">
+					<span>POST-CLOSE POSITION</span><h3 id="citic-futures-title">
 						中信期货 · 股指席位
-					</h3>
-					<p>盘后汇总中金所公开排名中的“中信期货(代客)”持买 / 持卖变化；默认统计 IF、IH、IC、IM 股指合计，保留最近30天。</p>
+					</h3><p>盘后汇总中金所公开排名中的“中信期货(代客)”持买 / 持卖变化；默认统计 IF、IH、IC、IM 股指合计，保留最近30天。</p>
 				</div>
 				<div class="market-futures-actions">
 					<b :data-tone="futuresQualityState.tone">{{ futuresQualityState.label }}</b>
@@ -1113,22 +1208,13 @@ onBeforeUnmount(() => {
 			</header>
 
 			<div class="market-futures-tabs" aria-label="股指期货品种">
-				<button
-					v-for="option in futuresProductOptions"
-					:key="option.id"
-					type="button"
-					:class="{ active: futuresProduct === option.id }"
-					:aria-pressed="futuresProduct === option.id"
-					@click="futuresProduct = option.id"
-				>
+				<button v-for="option in futuresProductOptions" :key="option.id" type="button" :class="{ active: futuresProduct === option.id }" :aria-pressed="futuresProduct === option.id" @click="futuresProduct = option.id">
 					{{ option.label }}
 				</button>
 			</div>
 
 			<div v-if="futuresPositionError" class="market-error" role="alert">
-				<Icon name="tabler:alert-triangle" aria-hidden="true" />
-				<div><strong>盘后席位暂不可用</strong><span>{{ futuresPositionError }}</span></div>
-				<button type="button" @click="loadFuturesPositions()">
+				<Icon name="tabler:alert-triangle" aria-hidden="true" /><div><strong>盘后席位暂不可用</strong><span>{{ futuresPositionError }}</span></div><button type="button" @click="loadFuturesPositions()">
 					重新加载
 				</button>
 			</div>
@@ -1142,15 +1228,11 @@ onBeforeUnmount(() => {
 					<div><span>{{ latestFuturesPosition.netChange >= 0 ? '净偏多' : '净偏空' }}</span><strong :class="moveClass(latestFuturesPosition.netChange)">{{ formatLots(latestFuturesPosition.netChange) }}</strong></div>
 				</div>
 				<div v-if="previousFuturesPosition" class="market-futures-previous">
-					<span>{{ previousFuturesPosition.tradeDate }}</span>
-					<strong>多 {{ formatLots(previousFuturesPosition.longChange) }}</strong>
-					<strong>空 {{ formatLots(previousFuturesPosition.shortChange) }}</strong>
-					<b :class="moveClass(previousFuturesPosition.netChange)">{{ previousFuturesPosition.netChange >= 0 ? '净偏多' : '净偏空' }} {{ formatLots(previousFuturesPosition.netChange) }}</b>
+					<span>{{ previousFuturesPosition.tradeDate }}</span><strong>多 {{ formatLots(previousFuturesPosition.longChange) }}</strong><strong>空 {{ formatLots(previousFuturesPosition.shortChange) }}</strong><b :class="moveClass(previousFuturesPosition.netChange)">{{ previousFuturesPosition.netChange >= 0 ? '净偏多' : '净偏空' }} {{ formatLots(previousFuturesPosition.netChange) }}</b>
 				</div>
 				<MarketFuturesPositionChart :points="futuresPositionData.items" />
 				<footer class="market-futures-footnote">
-					<span>最新 {{ latestFuturesPosition.tradeDate }} · 持买上榜 {{ latestFuturesPosition.longRankedContractCount }}/{{ latestFuturesPosition.contractCount }} 合约 · 持卖上榜 {{ latestFuturesPosition.shortRankedContractCount }}/{{ latestFuturesPosition.contractCount }} 合约</span>
-					<a :href="futuresPositionData.sourceUrl" target="_blank" rel="noopener noreferrer">中金所来源 <Icon name="tabler:arrow-up-right" /></a>
+					<span>最新 {{ latestFuturesPosition.tradeDate }} · 持买上榜 {{ latestFuturesPosition.longRankedContractCount }}/{{ latestFuturesPosition.contractCount }} 合约 · 持卖上榜 {{ latestFuturesPosition.shortRankedContractCount }}/{{ latestFuturesPosition.contractCount }} 合约</span><a :href="futuresPositionData.sourceUrl" target="_blank" rel="noopener noreferrer">中金所来源 <Icon name="tabler:arrow-up-right" /></a>
 				</footer>
 				<p class="market-futures-disclaimer">
 					仅汇总中金所公开前20名中出现的中信期货(代客)席位；未上榜合约不按0补齐。该数据不代表中信期货自营观点，也不直接等同于次日涨跌信号。
@@ -2188,6 +2270,51 @@ onBeforeUnmount(() => {
 
 .market-funds-header { align-items: center; }
 
+.market-funds-subnav {
+	display: flex;
+	gap: 0.45rem;
+	padding: 0.75rem 0.8rem 0;
+}
+
+.market-funds-subnav button {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.4rem;
+	min-height: 44px;
+	padding-inline: 0.85rem;
+	border: 1px solid var(--market-border);
+	border-radius: 0.35rem;
+	font-size: 0.68rem;
+	color: var(--market-text-2);
+}
+
+.market-funds-subnav button.active {
+	border-color: var(--market-border-strong);
+	background: var(--market-accent-soft);
+	color: var(--market-accent-strong);
+}
+
+.market-funds-controls {
+	display: flex;
+	justify-content: flex-end;
+	padding: 0.65rem 0.8rem 0;
+}
+
+.market-funds-controls > div {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.45rem;
+}
+
+.market-funds-controls b {
+	padding: 0.25rem 0.42rem;
+	border: 1px solid var(--market-border-strong);
+	border-radius: 0.28rem;
+	font: 700 0.58rem/1.2 var(--font-monospace);
+	color: var(--market-accent-strong);
+}
+
 .market-funds-actions {
 	display: flex;
 	flex-wrap: wrap;
@@ -2267,6 +2394,24 @@ onBeforeUnmount(() => {
 	color: var(--market-text-3);
 }
 
+.market-flow-sort {
+	display: inline-flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 0.25rem;
+	min-height: 32px;
+	margin: -0.35rem -0.35rem -0.35rem 0;
+	padding: 0.35rem;
+	font: inherit;
+	letter-spacing: inherit;
+	color: inherit;
+}
+
+.market-flow-sort:hover,
+.market-flow-sort:focus-visible {
+	color: var(--market-accent-strong);
+}
+
 .market-flow-table th:first-child,
 .market-flow-table td:first-child {
 	position: sticky;
@@ -2309,6 +2454,36 @@ onBeforeUnmount(() => {
 	border-top: 1px solid var(--market-border);
 	font: 0.56rem var(--font-monospace);
 	color: var(--market-text-3);
+}
+
+.market-flow-pagination {
+	align-items: center;
+}
+
+.market-flow-pagination > div {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.3rem;
+}
+
+.market-flow-pagination button {
+	min-height: 36px;
+	padding-inline: 0.55rem;
+	border: 1px solid var(--market-border);
+	border-radius: 0.28rem;
+	color: var(--market-text-2);
+}
+
+.market-flow-pagination button:disabled {
+	opacity: 0.35;
+	cursor: not-allowed;
+}
+
+.market-flow-pagination b {
+	min-width: 6.6rem;
+	text-align: center;
+	color: var(--market-text);
 }
 
 .market-flow-grid {
@@ -3338,6 +3513,29 @@ onBeforeUnmount(() => {
 	.market-funds-toolbar {
 		flex-direction: column;
 		align-items: stretch;
+	}
+
+	.market-funds-subnav {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+
+	.market-funds-subnav button { justify-content: center; }
+
+	.market-funds-controls { justify-content: stretch; }
+
+	.market-funds-controls > div {
+		width: 100%;
+	}
+
+	.market-flow-pagination {
+		flex-direction: column;
+		align-items: stretch;
+	}
+
+	.market-flow-pagination > div {
+		justify-content: flex-start;
+		overflow-x: auto;
 	}
 
 	.market-futures-header {
