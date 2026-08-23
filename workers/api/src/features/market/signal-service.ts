@@ -1,30 +1,29 @@
 import type {
+	MarketSignalDeskResponse,
 	MarketSignalDirection,
 	MarketSignalEvidence,
 	MarketSignalFactor,
 	MarketSignalItem,
 	MarketSignalSeverity,
 	MarketSignalType,
-	MarketSignalDeskResponse,
 	StockSymbol,
 	WatchlistItem,
 } from '../../../../../shared/market'
 import type { Env } from '../../env'
+import type { SignalCandidate, SignalSnapshot } from './signal-engine'
+import { parseStockSymbol } from './eastmoney-stock'
 import {
 	BALANCED_SIGNAL_ENGINE_VERSION,
 	evaluateMarketSignal,
-	type SignalCandidate,
-	type SignalSnapshot,
+	MARKET_SIGNAL_MAX_COOLDOWN_MS,
+	marketSignalCooldownAllows,
+
 } from './signal-engine'
-import { parseStockSymbol } from './eastmoney-stock'
 
 const MAX_TARGETS = 30
 const HISTORY_DAYS = 8
 const RECENT_SCOPE_DAYS = 7
 const RETENTION_DAYS = 30
-const ORDINARY_COOLDOWN_MS = 20 * 60 * 1000
-const ATTENTION_COOLDOWN_MS = 30 * 60 * 1000
-const STRONG_PENETRATION_DELTA = 15
 const SHANGHAI_OFFSET_MS = 8 * 60 * 60 * 1000
 
 const validDirections = new Set<MarketSignalDirection>(['up', 'down', 'neutral'])
@@ -123,13 +122,12 @@ interface EvaluatedCandidate {
 }
 
 function placeholders(count: number) {
-	return Array.from({ length: count }, () => '?').join(', ')
+	return Array.from({ length: count }).fill('?').join(', ')
 }
 
 function pairKey(ownerId: string, symbol: string) {
 	return `${ownerId}\u0000${symbol}`
 }
-
 
 function rowToWatchlist(row: WatchlistRow): WatchlistItem | null {
 	try {
@@ -238,32 +236,6 @@ function signalRowToItem(row: SignalRow): MarketSignalItem | null {
 	}
 }
 
-function isAttentionSignal(type: string) {
-	return type === 'attention_cross_up' || type === 'attention_cross_down'
-}
-
-function cooldownAllows(candidate: SignalCandidate, recentRows: CooldownRow[]) {
-	const attention = isAttentionSignal(candidate.signalType)
-	const cooldown = attention ? ATTENTION_COOLDOWN_MS : ORDINARY_COOLDOWN_MS
-	const currentAt = Date.parse(candidate.marketAt)
-	if (!Number.isFinite(currentAt))
-		return false
-	const relevant = recentRows.filter((row) => {
-		const at = Date.parse(row.market_at)
-		return row.direction === candidate.direction
-			&& isAttentionSignal(row.signal_type) === attention
-			&& Number.isFinite(at)
-			&& at <= currentAt
-			&& currentAt - at < cooldown
-	})
-	if (!relevant.length)
-		return true
-	if (candidate.severity !== 'strong' || relevant.some(row => row.severity === 'strong'))
-		return false
-	const highestWatch = Math.max(...relevant.filter(row => row.severity === 'watch').map(row => row.score), -Infinity)
-	return Number.isFinite(highestWatch) && candidate.score >= highestWatch + STRONG_PENETRATION_DELTA
-}
-
 async function stableSignalId(ownerId: string, symbol: StockSymbol, candidate: SignalCandidate) {
 	const key = `${ownerId}|${symbol}|${candidate.bucketAt}|${candidate.signalType}|${candidate.engineVersion}`
 	const bytes = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(key)))
@@ -330,7 +302,7 @@ export class MarketSignalService {
 		const symbols = [...new Set(candidates.map(value => value.target.watchlist.symbol))]
 		const allowedPairs = new Set(candidates.map(value => pairKey(value.target.ownerId, value.target.watchlist.symbol)))
 		const earliest = Math.min(...candidates.map(value => Date.parse(value.candidate.marketAt)).filter(Number.isFinite))
-		const cutoff = new Date(earliest - ATTENTION_COOLDOWN_MS).toISOString()
+		const cutoff = new Date(earliest - MARKET_SIGNAL_MAX_COOLDOWN_MS).toISOString()
 		const query = `
 			SELECT owner_id, symbol, market_at, signal_type, direction, severity, score
 			FROM market_watchlist_signal
@@ -373,8 +345,15 @@ export class MarketSignalService {
 		let strongCount = 0
 		for (const value of candidates) {
 			const key = pairKey(value.target.ownerId, value.target.watchlist.symbol)
-			if (!cooldownAllows(value.candidate, recent.get(key) ?? []))
+			if (!marketSignalCooldownAllows(value.candidate, (recent.get(key) ?? []).map(row => ({
+				marketAt: row.market_at,
+				signalType: row.signal_type as MarketSignalType,
+				direction: row.direction as MarketSignalDirection,
+				severity: row.severity as MarketSignalSeverity,
+				score: row.score,
+			})))) {
 				continue
+			}
 			const id = await stableSignalId(value.target.ownerId, value.target.watchlist.symbol, value.candidate)
 			const detectedAt = this.now().toISOString()
 			const inserted = await this.env.DB.prepare(`

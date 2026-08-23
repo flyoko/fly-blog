@@ -8,7 +8,11 @@ import type {
 } from '../../../../../shared/market'
 
 export const BALANCED_SIGNAL_ENGINE_VERSION = 'balanced-v1' as const
+export const MARKET_SIGNAL_MAX_COOLDOWN_MS = 30 * 60 * 1000
 
+const ORDINARY_COOLDOWN_MS = 20 * 60 * 1000
+const ATTENTION_COOLDOWN_MS = MARKET_SIGNAL_MAX_COOLDOWN_MS
+const STRONG_PENETRATION_DELTA = 15
 const FIVE_MINUTES_MS = 5 * 60 * 1000
 const SHANGHAI_OFFSET_MS = 8 * 60 * 60 * 1000
 const MIN_TURNOVER_DELTA = 3_000_000
@@ -60,6 +64,40 @@ export interface SignalEvaluation {
 	priceMove5mPct: number | null
 	priceMove10mPct: number | null
 	current: SignalSnapshot | null
+}
+
+export interface MarketSignalCooldownRecord {
+	marketAt: string
+	signalType: MarketSignalType
+	direction: MarketSignalDirection
+	severity: MarketSignalSeverity
+	score: number
+}
+
+function isAttentionSignal(type: MarketSignalType) {
+	return type === 'attention_cross_up' || type === 'attention_cross_down'
+}
+
+export function marketSignalCooldownAllows(candidate: SignalCandidate, recentRows: MarketSignalCooldownRecord[]) {
+	const attention = isAttentionSignal(candidate.signalType)
+	const cooldown = attention ? ATTENTION_COOLDOWN_MS : ORDINARY_COOLDOWN_MS
+	const currentAt = Date.parse(candidate.marketAt)
+	if (!Number.isFinite(currentAt))
+		return false
+	const relevant = recentRows.filter((row) => {
+		const at = Date.parse(row.marketAt)
+		return row.direction === candidate.direction
+			&& isAttentionSignal(row.signalType) === attention
+			&& Number.isFinite(at)
+			&& at <= currentAt
+			&& currentAt - at < cooldown
+	})
+	if (!relevant.length)
+		return true
+	if (candidate.severity !== 'strong' || relevant.some(row => row.severity === 'strong'))
+		return false
+	const highestWatch = Math.max(...relevant.filter(row => row.severity === 'watch').map(row => row.score), -Infinity)
+	return Number.isFinite(highestWatch) && candidate.score >= highestWatch + STRONG_PENETRATION_DELTA
 }
 
 interface ShanghaiParts {
