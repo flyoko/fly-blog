@@ -12,6 +12,7 @@ import type { StockQuoteProvider, StockQuoteProviderResult } from './contracts'
 import { shanghaiDateKey } from '../../../../../shared/market-calendar'
 import { isChinaMarketSyncWindow } from './contracts'
 import { EastMoneyStockQuoteProvider, parseStockSymbol } from './eastmoney-stock'
+import { recordMarketSourceObservation } from './observability'
 import { MarketSignalService } from './signal-service'
 
 const WATCHLIST_LIMIT = 30
@@ -514,7 +515,7 @@ export class WatchlistService {
 		).run()
 	}
 
-	async syncScheduled(): Promise<WatchlistSyncResult> {
+	async syncScheduled(scheduledAt?: string): Promise<WatchlistSyncResult> {
 		const runAt = this.now()
 		if (!isChinaMarketSyncWindow(runAt))
 			return { status: 'skipped', reason: 'outside-market-window', itemCount: 0, missingCount: 0 }
@@ -542,7 +543,41 @@ export class WatchlistService {
 		}
 		catch (error) {
 			await this.writeHealth('failed', 0, errorSummary(error), null)
+			if (scheduledAt) {
+				await recordMarketSourceObservation(this.env, {
+					capability: 'watchlist-sync',
+					status: 'failed',
+					sourceId: this.provider.sourceId?.() || 'stock-provider',
+					endpoint: null,
+					itemCount: 0,
+					expectedItemCount: uniqueSymbols.length,
+					missingCount: uniqueSymbols.length,
+					latencyMs: null,
+					scheduledAt,
+					observedAt: runAt.toISOString(),
+				}).catch(() => undefined)
+			}
 			return { status: 'failed', reason: 'provider-failed', itemCount: 0, missingCount: uniqueSymbols.length }
+		}
+
+		const freshUniqueSymbols = uniqueSymbols.filter((symbol) => {
+			const current = result.quotes.get(symbol)
+			return Boolean(current && isFreshProviderQuote(runAt, current.marketAt))
+		})
+		const missingUniqueCount = uniqueSymbols.length - freshUniqueSymbols.length
+		if (scheduledAt) {
+			await recordMarketSourceObservation(this.env, {
+				capability: 'watchlist-sync',
+				status: missingUniqueCount ? 'partial' : 'success',
+				sourceId: result.source.sourceId,
+				endpoint: result.source.endpoint,
+				itemCount: freshUniqueSymbols.length,
+				expectedItemCount: uniqueSymbols.length,
+				missingCount: missingUniqueCount,
+				latencyMs: result.latencyMs,
+				scheduledAt,
+				observedAt: runAt.toISOString(),
+			}).catch(() => undefined)
 		}
 
 		const createdAt = runAt.toISOString()

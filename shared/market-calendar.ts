@@ -90,3 +90,25 @@ export function chinaAShareHistoryStart(value: Date, priorTradingDays = 5): stri
 	// Reading a little more real history is safer than fabricating readiness when a future calendar is not configured.
 	return new Date(currentMs - 21 * 24 * 60 * 60 * 1000).toISOString()
 }
+
+export function chinaAShareRecentCompletedTradingDates(value: Date, count = 5, closeMinute = 15 * 60 + 15): string[] {
+	const currentMs = value.getTime()
+	if (!Number.isFinite(currentMs) || count < 1)
+		return []
+	const shifted = new Date(currentMs + SHANGHAI_OFFSET_MS)
+	const currentMinute = shifted.getUTCHours() * 60 + shifted.getUTCMinutes()
+	const localMidnightAsUtc = Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth(), shifted.getUTCDate())
+	const dates: string[] = []
+	for (let dayOffset = 0; dayOffset <= 366 && dates.length < count; dayOffset += 1) {
+		if (dayOffset === 0 && currentMinute <= closeMinute)
+			continue
+		const localNoonAsUtc = localMidnightAsUtc - dayOffset * 24 * 60 * 60 * 1000 + 12 * 60 * 60 * 1000
+		const candidate = new Date(localNoonAsUtc - SHANGHAI_OFFSET_MS)
+		if (!isChinaAShareTradingDate(candidate))
+			continue
+		const dateKey = shanghaiDateKey(candidate)
+		if (dateKey)
+			dates.push(dateKey)
+	}
+	return dates.reverse()
+}

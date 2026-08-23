@@ -55,6 +55,19 @@ describe('scheduled task routing', () => {
 		])
 	})
 
+	it('forwards the original cron slot to market sampling services', async () => {
+		const mocked = services()
+		const scheduledAt = '2026-08-24T02:30:00.000Z'
+		await runScheduledJob({ ...message('market-sync'), scheduledAt }, {} as Env, mocked)
+		expect(mocked.syncMarket).toHaveBeenCalledWith(scheduledAt)
+		expect(mocked.syncWatchlistMarket).not.toHaveBeenCalled()
+
+		const watchlistMocked = services()
+		await runScheduledJob({ ...message('market-watchlist-sync'), scheduledAt }, {} as Env, watchlistMocked)
+		expect(watchlistMocked.syncWatchlistMarket).toHaveBeenCalledWith(scheduledAt)
+		expect(watchlistMocked.syncMarket).not.toHaveBeenCalled()
+	})
+
 	it('does not publish anything for an unknown schedule', async () => {
 		const sendBatch = vi.fn()
 		const env = { CONTENT_SYNC_QUEUE: { sendBatch } } as unknown as Env

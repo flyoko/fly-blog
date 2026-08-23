@@ -1,5 +1,5 @@
 import type { D1Migration } from '@cloudflare/vitest-pool-workers'
-import type { MarketSignalDeskResponse, WatchlistItem, WatchlistRadarResponse } from '../../../shared/market'
+import type { MarketObservabilityReport, MarketSignalDeskResponse, WatchlistItem, WatchlistRadarResponse } from '../../../shared/market'
 import type { AppEnvironment, Env } from '../src/env'
 import { applyD1Migrations, env } from 'cloudflare:test'
 import { Hono } from 'hono'
@@ -95,6 +95,21 @@ function serviceStub() {
 	}
 }
 
+function observabilityStub() {
+	const response: MarketObservabilityReport = {
+		calendarVersion: 'sse-szse-bse-2026',
+		generatedAt: '2026-08-28T08:30:00.000Z',
+		window: {
+			requestedTradingDays: 5,
+			expectedTradingDates: ['2026-08-24', '2026-08-25', '2026-08-26', '2026-08-27', '2026-08-28'],
+			observedTradingDates: ['2026-08-24'],
+			complete: false,
+		},
+		metrics: [],
+	}
+	return { report: vi.fn(async () => response) }
+}
+
 function signalStub() {
 	const response: MarketSignalDeskResponse = {
 		engineVersion: 'balanced-v1',
@@ -105,12 +120,12 @@ function signalStub() {
 	return { list: vi.fn(async () => response) }
 }
 
-function testApp(stub = serviceStub(), signals = signalStub()) {
+function testApp(stub = serviceStub(), signals = signalStub(), observability = observabilityStub()) {
 	const app = new Hono<AppEnvironment>()
 	app.use('*', contextMiddleware)
-	app.route('/api/admin/market', createAdminMarketRoutes(() => stub, () => signals))
+	app.route('/api/admin/market', createAdminMarketRoutes(() => stub, () => signals, () => observability))
 	app.onError((error, c) => failure(c, normalizeError(error)))
-	return { app, stub, signals }
+	return { app, stub, signals, observability }
 }
 
 function authHeaders(csrf = false) {
@@ -233,6 +248,31 @@ describe('private market watchlist routes', () => {
 			expect(response.status).toBe(status)
 			expect(await response.json()).toMatchObject({ ok: false, error: { code } })
 		}
+	})
+})
+
+describe('private market observability routes', () => {
+	it('keeps the SLA report private and bounded to an authenticated session', async () => {
+		const unauthenticated = testApp()
+		const denied = await unauthenticated.app.request(`${origin}/api/admin/market/observability?days=5`, {}, runtimeEnv())
+		expect(denied.status).toBe(401)
+		expect(denied.headers.get('cache-control')).toBe('private, no-store')
+
+		await seedSession()
+		const { app, observability } = testApp()
+		const response = await app.request(`${origin}/api/admin/market/observability?days=5`, { headers: authHeaders() }, runtimeEnv())
+		expect(response.status).toBe(200)
+		expect(response.headers.get('cache-control')).toBe('private, no-store')
+		expect(observability.report).toHaveBeenCalledWith(5)
+		expect(await response.json()).toMatchObject({ ok: true, data: { calendarVersion: 'sse-szse-bse-2026' } })
+	})
+
+	it('rejects an out-of-range observation window before reading D1', async () => {
+		await seedSession()
+		const { app, observability } = testApp()
+		const response = await app.request(`${origin}/api/admin/market/observability?days=90`, { headers: authHeaders() }, runtimeEnv())
+		expect(response.status).toBe(400)
+		expect(observability.report).not.toHaveBeenCalled()
 	})
 })
 

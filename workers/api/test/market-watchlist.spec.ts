@@ -77,6 +77,7 @@ beforeAll(async () => applyD1Migrations(testEnv.DB, testEnv.TEST_MIGRATIONS))
 beforeEach(async () => {
 	await testEnv.DB.batch([
 		testEnv.DB.prepare('DELETE FROM market_watchlist_quote_5m'),
+		testEnv.DB.prepare('DELETE FROM market_source_observation'),
 		testEnv.DB.prepare('DELETE FROM market_watchlist'),
 		testEnv.DB.prepare('DELETE FROM market_source_health WHERE capability = \'watchlist-sync\''),
 	])
@@ -221,6 +222,50 @@ describe('watchlist quote quality', () => {
 		await new WatchlistService(runtimeEnv(), provider()).quotes('owner-a')
 		const row = await testEnv.DB.prepare('SELECT COUNT(*) AS count FROM market_watchlist_quote_5m').first<{ count: number }>()
 		expect(row?.count).toBe(0)
+	})
+})
+
+describe('watchlist scheduled observability', () => {
+	it('records unique-symbol validity without exposing owner or symbol details', async () => {
+		await insertWatchlist('owner-a', 'SZSE:300308')
+		await insertWatchlist('owner-b', 'SZSE:300502')
+		const service = new WatchlistService(
+			runtimeEnv(),
+			provider({ missing: ['SZSE:300502'] }),
+			() => new Date('2026-08-24T02:31:00.000Z'),
+		)
+		const data = await service.syncScheduled('2026-08-24T02:30:00.000Z')
+		expect(data.status).toBe('partial')
+		const row = await testEnv.DB.prepare(`
+			SELECT capability, status, item_count, expected_item_count, missing_count, endpoint
+			FROM market_source_observation
+			WHERE capability = 'watchlist-sync'
+			ORDER BY id DESC LIMIT 1
+		`).first<{
+			capability: string
+			status: string
+			item_count: number
+			expected_item_count: number | null
+			missing_count: number
+			endpoint: string | null
+		}>()
+		expect(row).toEqual({
+			capability: 'watchlist-sync',
+			status: 'partial',
+			item_count: 1,
+			expected_item_count: 2,
+			missing_count: 1,
+			endpoint: source.endpoint,
+		})
+	})
+
+	it('does not put interactive quotes or direct sync probes into the SLA ledger', async () => {
+		await insertWatchlist('owner-a', 'SZSE:300308')
+		const service = new WatchlistService(runtimeEnv(), provider(), () => new Date('2026-08-24T02:31:00.000Z'))
+		await service.quotes('owner-a')
+		await service.syncScheduled()
+		const row = await testEnv.DB.prepare('SELECT COUNT(*) AS count FROM market_source_observation').first<{ count: number }>()
+		expect(Number(row?.count || 0)).toBe(0)
 	})
 })
 

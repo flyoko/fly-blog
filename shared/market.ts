@@ -187,3 +187,46 @@ export interface MarketSignalDeskResponse {
 	summary?: MarketSignalSummary
 	items: MarketSignalItem[]
 }
+
+export type MarketObservationCapability = 'indices' | 'breadth' | 'sector-industry' | 'sector-concept' | 'watchlist-sync'
+export type MarketObservationStatus = 'success' | 'partial' | 'failed'
+export type MarketObservationVerdict = 'pass' | 'fail' | 'incomplete' | 'observe'
+
+export interface MarketObservationEndpointCount {
+	endpoint: string
+	count: number
+}
+
+export interface MarketObservationMetric {
+	capability: MarketObservationCapability
+	attemptCount: number
+	expectedAttemptCount: number | null
+	successCount: number
+	partialCount: number
+	failureCount: number
+	batchSuccessRate: number | null
+	itemCount: number
+	expectedItemCount: number | null
+	missingCount: number
+	validReturnRate: number | null
+	p50LatencyMs: number | null
+	p95LatencyMs: number | null
+	observedTradingDays: number
+	complete: boolean
+	endpoints: MarketObservationEndpointCount[]
+	targetBatchSuccessRate: number | null
+	targetValidReturnRate: number | null
+	verdict: MarketObservationVerdict
+}
+
+export interface MarketObservabilityReport {
+	calendarVersion: string
+	generatedAt: string
+	window: {
+		requestedTradingDays: number
+		expectedTradingDates: string[]
+		observedTradingDates: string[]
+		complete: boolean
+	}
+	metrics: MarketObservationMetric[]
+}

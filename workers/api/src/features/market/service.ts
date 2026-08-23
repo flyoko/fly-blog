@@ -14,6 +14,7 @@ import type { MarketCapability, MarketDataProvider, MarketProviderResult } from 
 import { sectorWindowDays } from '../../../../../shared/market'
 import { isChinaMarketSyncWindow, shanghaiParts } from './contracts'
 import { EastMoneyMarketProvider } from './eastmoney'
+import { recordMarketSourceObservation } from './observability'
 
 interface MarketDailySnapshotRow {
 	trade_date: string
@@ -274,6 +275,7 @@ export class MarketService {
 	private async writeHealth(
 		capability: MarketCapability,
 		outcome: CapabilityOutcome<unknown>,
+		scheduledAt?: string,
 	): Promise<MarketSyncCapabilityResult> {
 		const now = this.now().toISOString()
 		const sourceId = outcome.ok
@@ -308,6 +310,20 @@ export class MarketService {
 			error,
 			now,
 		).run()
+		if (scheduledAt) {
+			await recordMarketSourceObservation(this.env, {
+				capability,
+				status: outcome.ok ? 'success' : 'failed',
+				sourceId,
+				endpoint: outcome.ok ? outcome.value.source.endpoint : null,
+				itemCount,
+				expectedItemCount: null,
+				missingCount: 0,
+				latencyMs: outcome.ok ? outcome.value.latencyMs : null,
+				scheduledAt,
+				observedAt: now,
+			}).catch(() => undefined)
+		}
 		return outcome.ok
 			? { capability, status: 'success', itemCount }
 			: { capability, status: 'failed', itemCount: 0, error: error || 'Market provider failed' }
@@ -501,7 +517,7 @@ export class MarketService {
 		}
 	}
 
-	async syncScheduled(): Promise<MarketSyncResult> {
+	async syncScheduled(scheduledAt?: string): Promise<MarketSyncResult> {
 		if (!isChinaMarketSyncWindow(this.now())) {
 			return {
 				status: 'skipped',
@@ -524,7 +540,7 @@ export class MarketService {
 		]
 		const capabilities: MarketSyncCapabilityResult[] = []
 		for (const entry of outcomes)
-			capabilities.push(await this.writeHealth(entry.capability, entry.outcome))
+			capabilities.push(await this.writeHealth(entry.capability, entry.outcome, scheduledAt))
 
 		// 只用指数的真实上游 marketAt 锚定交易日，避免法定休市日用本机日期造出新交易日。
 		if (indicesOutcome.ok)

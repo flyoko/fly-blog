@@ -19,8 +19,8 @@ export interface ScheduledTaskMessage {
 export interface ScheduledTaskServices {
 	syncNews: () => Promise<unknown>
 	syncFinance: () => Promise<unknown>
-	syncMarket: () => Promise<unknown>
-	syncWatchlistMarket: () => Promise<unknown>
+	syncMarket: (scheduledAt: string) => Promise<unknown>
+	syncWatchlistMarket: (scheduledAt: string) => Promise<unknown>
 	backupMoments: () => Promise<unknown>
 	maintainAnalytics: () => Promise<unknown>
 	maintainContent: () => Promise<unknown>
@@ -56,8 +56,8 @@ function defaultServices(env: Env): ScheduledTaskServices {
 	return {
 		syncNews: () => new NewsService(env).sync(),
 		syncFinance: () => new FinanceFlashService(env).syncAll(),
-		syncMarket: () => new MarketService(env).syncScheduled(),
-		syncWatchlistMarket: () => new WatchlistService(env).syncScheduled(),
+		syncMarket: scheduledAt => new MarketService(env).syncScheduled(scheduledAt),
+		syncWatchlistMarket: scheduledAt => new WatchlistService(env).syncScheduled(scheduledAt),
 		backupMoments: () => new MomentBackupService(env).backup(),
 		maintainAnalytics: () => new AnalyticsService(env).maintain(),
 		maintainContent: async () => {
@@ -79,8 +79,8 @@ export async function runScheduledJob(
 	const runners: Record<ScheduledJob, () => Promise<unknown>> = {
 		'news-sync': services.syncNews,
 		'finance-sync': services.syncFinance,
-		'market-sync': services.syncMarket,
-		'market-watchlist-sync': services.syncWatchlistMarket,
+		'market-sync': () => services.syncMarket(message.scheduledAt),
+		'market-watchlist-sync': () => services.syncWatchlistMarket(message.scheduledAt),
 		'moment-backup': services.backupMoments,
 		'analytics-maintenance': services.maintainAnalytics,
 		'content-maintenance': services.maintainContent,

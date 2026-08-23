@@ -107,6 +107,7 @@ beforeAll(async () => applyD1Migrations(testEnv.DB, testEnv.TEST_MIGRATIONS))
 beforeEach(async () => {
 	await testEnv.DB.batch([
 		testEnv.DB.prepare('DELETE FROM market_source_health'),
+		testEnv.DB.prepare('DELETE FROM market_source_observation'),
 		testEnv.DB.prepare('DELETE FROM market_daily_snapshot'),
 		testEnv.DB.prepare('DELETE FROM market_sector_flow_daily'),
 	])
@@ -206,6 +207,33 @@ describe('market overview quality', () => {
 			staleAgeMs: null,
 			quality: 'unavailable',
 		})
+	})
+})
+
+describe('market scheduled observability', () => {
+	it('records one idempotent slot observation per scheduled market capability', async () => {
+		const data = await new MarketService(runtimeEnv(), provider(), () => new Date('2026-08-24T02:31:00.000Z'))
+			.syncScheduled('2026-08-24T02:30:00.000Z')
+		expect(data.status).toBe('success')
+		const rows = await testEnv.DB.prepare(`
+			SELECT capability, status, endpoint, item_count
+			FROM market_source_observation
+			ORDER BY capability
+		`).all<{ capability: string, status: string, endpoint: string | null, item_count: number }>()
+		expect(rows.results).toHaveLength(4)
+		expect(rows.results).toEqual(expect.arrayContaining([
+			expect.objectContaining({ capability: 'indices', status: 'success', endpoint: source.endpoint, item_count: 3 }),
+			expect.objectContaining({ capability: 'breadth', status: 'success', endpoint: source.endpoint, item_count: 1 }),
+			expect.objectContaining({ capability: 'sector-industry', status: 'success', endpoint: source.endpoint, item_count: 1 }),
+			expect.objectContaining({ capability: 'sector-concept', status: 'success', endpoint: source.endpoint, item_count: 1 }),
+		]))
+	})
+
+	it('does not put direct service probes into the production SLA ledger', async () => {
+		const data = await new MarketService(runtimeEnv(), provider(), () => new Date('2026-08-24T02:31:00.000Z')).syncScheduled()
+		expect(data.status).toBe('success')
+		const row = await testEnv.DB.prepare('SELECT COUNT(*) AS count FROM market_source_observation').first<{ count: number }>()
+		expect(Number(row?.count || 0)).toBe(0)
 	})
 })
 

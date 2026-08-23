@@ -53,13 +53,21 @@ export function shanghaiParts(date: Date): { date: string, weekday: string, minu
 	}
 }
 
+export const MARKET_SYNC_INTERVAL_MINUTES = 5
+export const MARKET_SYNC_WINDOWS = [
+	{ startMinute: 9 * 60 + 20, endMinute: 11 * 60 + 35 },
+	{ startMinute: 12 * 60 + 55, endMinute: 15 * 60 + 15 },
+] as const
+export const MARKET_SYNC_SLOTS_PER_TRADING_DAY = MARKET_SYNC_WINDOWS.reduce(
+	(total, window) => total + Math.floor((window.endMinute - window.startMinute) / MARKET_SYNC_INTERVAL_MINUTES) + 1,
+	0,
+)
+
 export function isChinaMarketSyncWindow(date: Date): boolean {
 	const { minutes } = shanghaiParts(date)
 	if (!isChinaAShareTradingDate(date))
 		return false
-	const morning = minutes >= 9 * 60 + 20 && minutes <= 11 * 60 + 35
-	const afternoon = minutes >= 12 * 60 + 55 && minutes <= 15 * 60 + 15
-	return morning || afternoon
+	return MARKET_SYNC_WINDOWS.some(window => minutes >= window.startMinute && minutes <= window.endMinute)
 }
 
 export interface StockQuoteProviderResult {

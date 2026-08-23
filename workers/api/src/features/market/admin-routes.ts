@@ -1,5 +1,6 @@
 import type { Context } from 'hono'
 import type { AppEnvironment, Env } from '../../env'
+import type { MarketObservabilityService } from './observability'
 import type { MarketSignalService } from './signal-service'
 import type { WatchlistService } from './watchlist-service'
 import { Hono } from 'hono'
@@ -7,6 +8,7 @@ import { z } from 'zod'
 import { ApiError, success } from '../../lib/api-error'
 import { enforceRateLimit, requireCsrf, requireSession } from '../../middleware/session'
 import { parseStockSymbol } from './eastmoney-stock'
+import { MarketObservabilityService as DefaultMarketObservabilityService } from './observability'
 import { MarketSignalService as DefaultMarketSignalService } from './signal-service'
 import { WatchlistService as DefaultWatchlistService, WatchlistServiceError } from './watchlist-service'
 
@@ -30,6 +32,10 @@ const updateSchema = z.object({
 	sortOrder: z.number().int().min(0).max(10_000).optional(),
 }).strict().refine(value => Object.keys(value).length > 0, 'Watchlist update is empty')
 
+const observabilityQuerySchema = z.object({
+	days: z.coerce.number().int().min(1).max(20).default(5),
+})
+
 const signalQuerySchema = z.object({
 	scope: z.enum(['today', 'recent']).default('today'),
 	limit: z.coerce.number().int().min(1).max(100).default(50),
@@ -38,6 +44,8 @@ const signalQuerySchema = z.object({
 
 type AdminMarketService = Pick<WatchlistService, 'list' | 'add' | 'update' | 'remove' | 'quotes'>
 type AdminMarketServiceFactory = (env: Env) => AdminMarketService
+type AdminMarketObservabilityService = Pick<MarketObservabilityService, 'report'>
+type AdminMarketObservabilityServiceFactory = (env: Env) => AdminMarketObservabilityService
 type AdminMarketSignalService = Pick<MarketSignalService, 'list'>
 type AdminMarketSignalServiceFactory = (env: Env) => AdminMarketSignalService
 
@@ -67,6 +75,7 @@ async function requestJson(c: Context<AppEnvironment>): Promise<unknown> {
 export function createAdminMarketRoutes(
 	factory: AdminMarketServiceFactory = env => new DefaultWatchlistService(env),
 	signalFactory: AdminMarketSignalServiceFactory = env => new DefaultMarketSignalService(env),
+	observabilityFactory: AdminMarketObservabilityServiceFactory = env => new DefaultMarketObservabilityService(env),
 ) {
 	const routes = new Hono<AppEnvironment>()
 
@@ -79,6 +88,16 @@ export function createAdminMarketRoutes(
 		}
 	})
 	routes.use('*', requireSession)
+
+	routes.get('/observability', async (c) => {
+		const session = c.get('session')!
+		const parsed = observabilityQuerySchema.safeParse(c.req.query())
+		if (!parsed.success)
+			throw new ApiError('VALIDATION_FAILED', 400, 'Market observability query is invalid', parsed.error.flatten())
+		return enforceRateLimit(c.env.MARKET_READ_RATE_LIMITER, `${session.sessionId}:market-observability`, async () => {
+			return success(c, await observabilityFactory(c.env).report(parsed.data.days))
+		})
+	})
 
 	routes.get('/watchlist', async (c) => {
 		const session = c.get('session')!
