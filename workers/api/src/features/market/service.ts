@@ -426,7 +426,6 @@ export class MarketService {
 		if (!items.length)
 			return []
 		const codes = [...new Set(items.map(item => item.code))]
-		const placeholders = codes.map(() => '?').join(',')
 		const history = await this.env.DB.prepare(`
 			SELECT trade_date, sector_kind, sector_code, sector_name, change_pct,
 				main_net_inflow, main_net_inflow_ratio, leader_stock_code, leader_stock_name,
@@ -437,11 +436,12 @@ export class MarketService {
 					ORDER BY trade_date DESC
 				) AS row_number
 				FROM market_sector_flow_daily
-				WHERE sector_kind = ? AND sector_code IN (${placeholders})
+				WHERE sector_kind = ?
+					AND sector_code IN (SELECT CAST(value AS TEXT) FROM json_each(?))
 			)
 			WHERE row_number <= 20
 			ORDER BY sector_code, trade_date DESC
-		`).bind(items[0]!.kind, ...codes).all<MarketSectorFlowRow>()
+		`).bind(items[0]!.kind, JSON.stringify(codes)).all<MarketSectorFlowRow>()
 		const byCode = new Map<string, Map<string, number | null>>()
 		for (const row of history.results) {
 			const values = byCode.get(row.sector_code) || new Map<string, number | null>()

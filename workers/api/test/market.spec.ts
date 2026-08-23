@@ -289,6 +289,29 @@ describe('market scheduled sync and sector history', () => {
 		expect(health?.last_error?.length).toBeLessThanOrEqual(500)
 	})
 
+	it('reads and decorates a full 504-sector concept list without truncation', async () => {
+		const concepts: SectorFlowQuote[] = Array.from({ length: 504 }, (_, index) => ({
+			code: `C${String(index).padStart(4, '0')}`,
+			name: `概念 ${index}`,
+			kind: 'concept',
+			changePct: index / 100,
+			mainNetInflow: 10_000_000 - index,
+			mainNetInflowRatio: 1.5,
+			leaderStockCode: '300308',
+			leaderStockName: '中际旭创',
+			marketAt,
+		}))
+		const fake = provider({
+			fetchSectorFlows: vi.fn(async () => result(concepts)),
+		})
+
+		const response = await new MarketService(runtimeEnv(), fake, () => new Date('2026-08-24T02:31:00.000Z')).sectorFlows('concept', 600)
+
+		expect(response.quality).toBe('live')
+		expect(response.data).toHaveLength(504)
+		expect(response.data?.at(-1)?.code).toBe('C0503')
+	})
+
 	it('persists full-size industry and concept lists with set-based D1 upserts', async () => {
 		const fullSectorList = (kind: SectorKind, count: number): SectorFlowQuote[] => Array.from({ length: count }, (_, index) => ({
 			code: `${kind === 'industry' ? 'I' : 'C'}${String(index).padStart(4, '0')}`,
