@@ -121,3 +121,63 @@ export interface WatchlistRadarResponse {
 	fetchedAt: string | null
 	items: WatchlistRadarItem[]
 }
+
+export type MarketSignalDirection = 'up' | 'down' | 'neutral'
+export type MarketSignalSeverity = 'watch' | 'strong'
+export type MarketSignalType
+	= | 'momentum_up'
+		| 'momentum_down'
+		| 'breakout_up'
+		| 'breakdown_down'
+		| 'attention_cross_up'
+		| 'attention_cross_down'
+		| 'price_spike_up'
+		| 'price_spike_down'
+
+export type MarketSignalFactor
+	= | 'TURNOVER_SURGE'
+		| 'PRICE_ACCELERATION'
+		| 'RANGE_BREAK'
+		| 'ATTENTION_CROSS'
+		| 'DIRECTION_ALIGNMENT'
+
+export interface MarketSignalEvidence {
+	factors: MarketSignalFactor[]
+	priceMove5mPct: number | null
+	priceMove10mPct: number | null
+	flowBasis: 'turnover' | null
+	flowDelta: number | null
+	flowRatio: number | null
+	rangeHigh: number | null
+	rangeLow: number | null
+	attentionPrice: number | null
+}
+
+export interface MarketSignalItem {
+	id: string
+	symbol: StockSymbol
+	code: string
+	name: string
+	signalType: MarketSignalType
+	direction: MarketSignalDirection
+	severity: MarketSignalSeverity
+	score: number
+	title: string
+	marketAt: string
+	detectedAt: string
+	engineVersion: 'balanced-v1'
+	evidence: MarketSignalEvidence
+}
+
+export interface MarketSignalBaselineSummary {
+	enabledCount: number
+	readyCount: number
+	warmingCount: number
+}
+
+export interface MarketSignalDeskResponse {
+	engineVersion: 'balanced-v1'
+	marketAt: string | null
+	baseline: MarketSignalBaselineSummary
+	items: MarketSignalItem[]
+}
