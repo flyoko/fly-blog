@@ -1,10 +1,13 @@
 import type { Context } from 'hono'
 import type { AppEnvironment, Env } from '../../env'
+import type { MarketSignalService } from './signal-service'
 import type { WatchlistService } from './watchlist-service'
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { ApiError, success } from '../../lib/api-error'
 import { enforceRateLimit, requireCsrf, requireSession } from '../../middleware/session'
+import { parseStockSymbol } from './eastmoney-stock'
+import { MarketSignalService as DefaultMarketSignalService } from './signal-service'
 import { WatchlistService as DefaultWatchlistService, WatchlistServiceError } from './watchlist-service'
 
 const symbolSchema = z.string().trim().min(1).max(20)
@@ -27,8 +30,16 @@ const updateSchema = z.object({
 	sortOrder: z.number().int().min(0).max(10_000).optional(),
 }).strict().refine(value => Object.keys(value).length > 0, 'Watchlist update is empty')
 
+const signalQuerySchema = z.object({
+	scope: z.enum(['today', 'recent']).default('today'),
+	limit: z.coerce.number().int().min(1).max(100).default(50),
+	symbol: z.string().trim().min(1).max(20).optional(),
+})
+
 type AdminMarketService = Pick<WatchlistService, 'list' | 'add' | 'update' | 'remove' | 'quotes'>
 type AdminMarketServiceFactory = (env: Env) => AdminMarketService
+type AdminMarketSignalService = Pick<MarketSignalService, 'list'>
+type AdminMarketSignalServiceFactory = (env: Env) => AdminMarketSignalService
 
 function serviceError(error: unknown): never {
 	if (!(error instanceof WatchlistServiceError))
@@ -55,6 +66,7 @@ async function requestJson(c: Context<AppEnvironment>): Promise<unknown> {
 
 export function createAdminMarketRoutes(
 	factory: AdminMarketServiceFactory = env => new DefaultWatchlistService(env),
+	signalFactory: AdminMarketSignalServiceFactory = env => new DefaultMarketSignalService(env),
 ) {
 	const routes = new Hono<AppEnvironment>()
 
@@ -71,6 +83,29 @@ export function createAdminMarketRoutes(
 	routes.get('/watchlist', async (c) => {
 		const session = c.get('session')!
 		return success(c, await factory(c.env).list(session.id))
+	})
+
+	routes.get('/signals', async (c) => {
+		const session = c.get('session')!
+		const parsed = signalQuerySchema.safeParse(c.req.query())
+		if (!parsed.success)
+			throw new ApiError('VALIDATION_FAILED', 400, 'Signal query is invalid', parsed.error.flatten())
+		let symbol: ReturnType<typeof parseStockSymbol>['symbol'] | undefined
+		if (parsed.data.symbol) {
+			try {
+				symbol = parseStockSymbol(parsed.data.symbol).symbol
+			}
+			catch {
+				throw new ApiError('VALIDATION_FAILED', 400, 'Signal symbol is invalid')
+			}
+		}
+		return enforceRateLimit(c.env.MARKET_READ_RATE_LIMITER, `${session.sessionId}:market-signals`, async () => {
+			return success(c, await signalFactory(c.env).list(session.id, {
+				scope: parsed.data.scope,
+				limit: parsed.data.limit,
+				symbol,
+			}))
+		})
 	})
 
 	routes.get('/watchlist/quotes', async (c) => {
