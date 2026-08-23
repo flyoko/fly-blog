@@ -144,3 +144,14 @@
 - P1 的**即时 Cloudflare 接线门槛**已通过，可以保留本地 `/market` 真数据接线。
 - **正式生产 SLA 尚未宣称通过**：仍需部署前/后连续 5 个交易日观察，指数 >=99%、行业/概念资金 >=98%，并持续记录主 Host 与 fallback Host 命中情况。
 - 本轮没有 commit、没有 push、没有部署生产。
+
+### 2026-08-23 · 连续 5 个交易日生产 SLA 采样基础设施上线
+
+- 生产采样 SHA：`9e112af76a137430dd71f862a70e3cf854f06bc3`（`feat: add market production SLA observability`），已 fast-forward 推送 `main`。Workers Production `#74` / run `32635824053` 与 Pages Production `#205` / run `32635824054` 均对该 SHA 完整成功。
+- Workers CI 明确执行 `0017_market_source_observations.sql`：远端 D1 列出该唯一待执行 migration，执行 **4 commands** 后状态 `✅`；随后 API Worker / Edge Worker / same-origin health 均成功。API Worker 本轮 upload `1984.68 KiB / gzip 385.62 KiB`，Edge `15.55 KiB / gzip 4.57 KiB`。
+- 新增 `market_source_observation` 只记录生产定时槽位的聚合可用性：`trade_date / capability / source_id / status / item_count / missing_count / latency / endpoint / scheduled_at`；不记录 owner、股票代码、自选配置、attentionPrice、signal、Cookie/Session 等私人明细。
+- `*/5` 的 P1 生产窗口由单一常量定义为 `09:20–11:35` 与 `12:55–15:15`，即每交易日 **57 个计划槽位**。`(capability, scheduled_at)` 唯一：Queue retry 只覆盖同一槽，不重复扩大分母；页面刷新、人工 service probe、非交易时段均不进入 SLA 账本。
+- 正式 P1 判断严格沿用既有门槛，不新增自创标准：指数 batch success `>=99%`；行业/概念资金 batch success `>=98%`。单个 capability 只有在连续 5 个已完成交易日的 **285/285** 计划槽全部有记录后，才允许得到 `pass/fail`；缺半天、漏 Cron 或数据还没积满时一律 `incomplete`。breadth 继续只做观测，不凭空新增正式阈值。
+- 观测同时统计 P50/P95 与成功 endpoint 命中次数，可直接区分 `push2` / `push2delay` 的实际成功路径。登录态只读入口为 `/api/admin/market/observability?days=5`；路由沿用 session、read limiter 与 `private, no-store`。正式域匿名 smoke 已验证该接口 = `401 UNAUTHENTICATED`，没有把内部 SLA 明细公开。
+- 自动化：fresh `pnpm verify` exit 0；Root **34 files / 287 tests**、Edge **1 / 36**、API **31 / 324**；Nuxt prerender 51 routes；link checker 0 error / 0 warning；candidate secret scan 815 tracked/generated files 0 命中；observability/scheduler/market/watchlist/route 专项 **74/74**。
+- 本基础设施于周日 2026-08-23 上线，因此不会伪造周末样本。首个自然采样日为 **2026-08-24**；若 8/24–8/28 五个真实交易日全部完整，最早在 **2026-08-28 15:15（Asia/Shanghai）之后**才能对这 5 日窗口给出正式 P1 SLA 结论。当前仍为：**正式生产 SLA 未宣称通过**。

@@ -221,3 +221,11 @@
 - commit：已完成；P2A 功能提交链及部署期修复均已提交。
 - push：已完成；生产代码 SHA `d9a251663ed6c3ba37246c824829a20d6fb5d88d` 已在 `main`。
 - production deploy：已完成；Workers run `32613136416`、Pages run `32613227042` 均成功。
+
+### 2026-08-23 · P2A 多交易日生产观测基础设施上线
+
+- 与 P1 共用生产采样 SHA `9e112af76a137430dd71f862a70e3cf854f06bc3`；Workers `#74 / 32635824053`、Pages `#205 / 32635824054` 全部成功，远端 D1 migration `0017_market_source_observations.sql` 已实际应用。
+- `market-watchlist-sync` 只在真实 Queue `scheduledAt` 驱动时写 aggregate observation；用户进入自选页产生的 `quotes()`、45 秒页面轮询、手动刷新和直接 service probe **都不进入**生产 SLA 样本，因此用户开多个标签页不会污染长期稳定性统计。
+- P2A 分母/有效返回数按 **unique symbol** 计算，不按 owner/watchlist row 重复计数；只存 batch 级 `expectedItemCount / itemCount / missingCount / latency / endpoint`，不存 ownerId、symbol 或私人自选配置。Provider fail、partial、success 都可观察。
+- 当前 P2A 设计只有 Instant Gate 的 `>=95% batch / >=99% valid / P95<2500ms` 明确阈值，没有已批准的“连续多交易日正式 SLA”阈值。因此新报告对 P2A 只返回 `observe` 与真实 `validReturnRate`，**没有把 Instant Gate 阈值偷换成长期 SLA，也没有发明新阈值**。
+- 若生产没有 enabled 自选股，则自然不会产生 P2A Provider 样本；这属于“无可观测样本”，不能伪造 30 股数据来宣称长期稳定。正式连续多交易日生产 SLA 仍保持：**未宣称通过**。

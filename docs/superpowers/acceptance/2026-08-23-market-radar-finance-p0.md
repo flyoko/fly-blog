@@ -100,3 +100,9 @@
 - **新浪 iNews**：F3 `BLOCKED_EXTERNAL`。需要正式 `appKey/appSecret`、再展示授权，并在 Cloudflare Worker 连续观测 5 个交易日后才能加入生产 SLA / `syncAll()`。
 - **金十生产启用**：代码、官方 MCP schema/返回和 Worker 打包已验证，但真实生产 Cloudflare Secret 与生产出口连续观测尚未执行；公开展示继续默认关闭。
 - 本次没有部署生产、没有提交、没有 push。
+
+### 2026-08-23 · Finance 回归门禁正式版本化
+
+- 原先只存在本地工作树、未被 Git 版本化的 `finance-dedupe.spec.ts`、`finance-jin10.spec.ts`、`finance-sina-inews.spec.ts` 已审计并正式提交为 `efe355a`（`test: version finance provider regression gates`），不再依赖某一台开发机。
+- 三组新增门禁分别为 dedupe **7 tests**、Jin10 **4 tests**、Sina iNews **4 tests**；随后与市场生产观测一起进入完整 API suite，CI 在生产 SHA `9e112af` 上达到 **31 files / 324 tests PASS**。
+- 这只收口“测试未版本化”的技术债，不改变生产数据授权边界：新浪 F3 仍为 `BLOCKED_EXTERNAL`，在没有正式 `appKey/appSecret`、再展示授权与 5 个真实交易日 Cloudflare 观测前不计入生产 SLA；金十公开展示也继续保持默认关闭，不能用测试通过代替生产 Secret/授权/连续观测。
