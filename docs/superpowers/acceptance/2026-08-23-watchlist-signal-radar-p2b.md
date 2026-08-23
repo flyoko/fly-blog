@@ -208,10 +208,10 @@
 - [x] N11. Browser acceptance 覆盖 1440×900、390×844 与 320–1728 width sweep。
 - [x] N12. Browser 覆盖 locked/warming/empty/watch/strong/up/down、三主题、reduced-motion、SPA cleanup、console/errors。
 - [x] N13. 已有明确 commit/push/production deploy 授权；仅在即时技术门禁通过后发布。
-- [ ] N14. production D1 migration、Workers Production、Pages Production 全部成功并记录最终 SHA/run。
-- [ ] N15. 线上 `/api/health` 200、public Market 200 JSON、未登录 signal/watchlist 都 401。
-- [ ] N16. 线上 `/market` Desktop/Mobile Signal Desk 正常且未登录零私人 signal 泄漏。
-- [ ] N17. 若生产历史不足，warming/0 signal 是合法上线状态；禁止写 fake signal 到 production D1。
+- [x] N14. production D1 migration、Workers Production、Pages Production 全部成功并记录最终 SHA/run。
+- [x] N15. 线上 `/api/health` 200、public Market 200 JSON、未登录 signal/watchlist 都 401。
+- [x] N16. 线上 `/market` Desktop/Mobile Signal Desk 正常且未登录零私人 signal 泄漏。
+- [x] N17. 若生产历史不足，warming/0 signal 是合法上线状态；禁止写 fake signal 到 production D1。
 - [x] N18. 多交易日误报率/信号密度未观察完时明确“未宣称长期 SLA 通过”。
 
 ## 验收记录
@@ -226,4 +226,14 @@
 - 浏览器 fixture acceptance：320/360/390/430/768/1024/1280/1440/1728 均 `scrollWidth == clientWidth`；locked 私有 signal 请求 0；warming/empty/watch/strong/up/down/attention filter 均通过；390 mobile 无 overflow，登录按钮 44px；60s 轮询计数 `1→2`，切 workspace 保持 2，重入 3，hidden 保持 3，visible 恢复 4。
 - 主题方向按最新用户要求更新：去除独立黑金皮肤，`/market` / Signal Desk 继承博客 light/dark/dynamic token；dark/dynamic 的红涨绿跌采用市场页局部高对比语义 token；动态背景恢复可见；无固定黑金色/强制 dark；SPA `/market → /` 无 `--market-*` 泄漏；reduced-motion 有效。最新生成产物以真实 Chrome 复验 1440×900 light/dark/dynamic 与 390×844 mobile signal locked 状态，均无 console/page/network error，390 页面宽度保持 390px；未登录 fixture 日志中 `/api/admin/market/signals` 请求数为 0。
 - M10 上界压力基准：30 股 × 6 交易日 × 48 桶 = 8,640 snapshots；按 replay 重路径执行 8,640 次真实 `evaluateMarketSignal`，约 1.02s，JS heap 增量 762,832 bytes（约 0.73 MiB），RSS 增量 22,102,016 bytes（约 21.1 MiB）。生产每轮仅最多 30 次评估，因此 CPU/内存余量可接受；该基准不冒充生产长期 SLA。
-- 已进入 p10：N13 发布授权与即时技术门禁完成；仍待 N14–N17 的 production migration / Workers / Pages、线上 API / UI smoke 与真实 warming 状态。
+- p10 已完成：N13–N17 的发布授权、production migration、Workers / Pages、线上 API / UI smoke 与“历史不足时 warming/0 signal 且禁止 fake signal”的生产边界均已有证据；当前私人生产 row count 未越权读取。
+
+### 2026-08-23 · P2B 生产发布验收
+
+- 生产功能候选 SHA：`8554c16b23a2a351448bbe63177ee2b5c34e1fa7`。该 SHA 已快进推送到 `origin/main`，无远端分叉。
+- Workers Production `#71` / run `32628787622` 对同一 SHA 全部成功：typecheck、worker tests、D1 migration、queue 检查、API Worker deploy、Edge Worker deploy 与 same-origin health 均为 success。CI 日志明确显示本轮唯一待迁移项为 `0016_market_watchlist_signals.sql`，执行 5 条 DDL 后状态为成功。
+- Pages Production `#202` / run `32628787645` 对同一 SHA 全部成功：source quality、Pages build、artifact 校验、Cloudflare Pages deploy 与 controlled production entries 均为 success。
+- 正式域 API smoke：`/api/health` = 200 JSON、`/api/market/overview` = 200 JSON、未登录 `/api/admin/market/signals` = 401 JSON、未登录 `/api/admin/market/watchlist` = 401 JSON；`/market` 页面 = 200。
+- 正式域真实 Chrome：1440×900 进入 Signal Desk 后稳定展示 `SIGNAL DESK · PRIVATE`、`balanced-v1` 与未登录锁定态；light / dark / dynamic 三主题切换均无 console/page/network error。390×844 Mobile 页面实际宽度保持 390px，进入 Signal Desk 后同样只展示锁定态，无 console/page/network error、无私人 signal 明细。
+- `0016_market_watchlist_signals.sql` 只创建 `market_watchlist_signal` 表、唯一约束、外键与索引，不包含 `INSERT`、seed 或任何模拟 signal。部署后曾尝试用本机 Wrangler 做生产 D1 **只读聚合计数**，Cloudflare API 因当前本机账号授权不足返回 7403，查询未执行且没有任何写操作。因此不猜测当前生产私人 row count，也不宣称当前认证用户一定处于 warming；只确认历史不足时 warming/0 signal 是合法状态，发布链路没有写入 fake signal。
+- P2B 多交易日误报率/信号密度长期 SLA 仍**未宣称通过**；待真实交易日样本自然积累后再做独立观察，不以本次上线成功替代长期统计结论。
