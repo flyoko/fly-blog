@@ -1,13 +1,14 @@
 import type { Env } from './env'
 import { AnalyticsService } from './features/analytics/service'
 import { FinanceFlashService } from './features/finance/service'
+import { FuturesPositionService } from './features/market/futures-position-service'
 import { MarketService } from './features/market/service'
 import { MarketSignalService } from './features/market/signal-service'
 import { WatchlistService } from './features/market/watchlist-service'
 import { MomentBackupService } from './features/moment-backups/service'
 import { NewsService } from './features/news/service'
 
-export type ScheduledJob = 'analytics-maintenance' | 'content-maintenance' | 'finance-sync' | 'market-sync' | 'market-watchlist-sync' | 'news-sync' | 'moment-backup'
+export type ScheduledJob = 'analytics-maintenance' | 'citic-futures-sync' | 'content-maintenance' | 'finance-sync' | 'market-sync' | 'market-watchlist-sync' | 'news-sync' | 'moment-backup'
 
 export interface ScheduledTaskMessage {
 	version: 1
@@ -19,6 +20,7 @@ export interface ScheduledTaskMessage {
 export interface ScheduledTaskServices {
 	syncNews: () => Promise<unknown>
 	syncFinance: () => Promise<unknown>
+	syncCiticFutures?: (scheduledAt: string) => Promise<unknown>
 	syncMarket: (scheduledAt: string) => Promise<unknown>
 	syncWatchlistMarket: (scheduledAt: string) => Promise<unknown>
 	backupMoments: () => Promise<unknown>
@@ -34,6 +36,8 @@ export function scheduledJobsFor(cron: string): ScheduledJob[] {
 			return ['moment-backup', 'news-sync', 'finance-sync']
 		case '31 19 * * *':
 			return ['analytics-maintenance', 'content-maintenance']
+		case '30 9 * * 1-5':
+			return ['citic-futures-sync']
 		default:
 			return []
 	}
@@ -56,6 +60,7 @@ function defaultServices(env: Env): ScheduledTaskServices {
 	return {
 		syncNews: () => new NewsService(env).sync(),
 		syncFinance: () => new FinanceFlashService(env).syncAll(),
+		syncCiticFutures: scheduledAt => new FuturesPositionService(env).syncScheduled(scheduledAt),
 		syncMarket: scheduledAt => new MarketService(env).syncScheduled(scheduledAt),
 		syncWatchlistMarket: scheduledAt => new WatchlistService(env).syncScheduled(scheduledAt),
 		backupMoments: () => new MomentBackupService(env).backup(),
@@ -76,9 +81,15 @@ export async function runScheduledJob(
 	env: Env,
 	services: ScheduledTaskServices = defaultServices(env),
 ): Promise<void> {
+	const syncCiticFutures = () => {
+		if (!services.syncCiticFutures)
+			throw new Error('Citic futures sync service is unavailable')
+		return services.syncCiticFutures(message.scheduledAt)
+	}
 	const runners: Record<ScheduledJob, () => Promise<unknown>> = {
 		'news-sync': services.syncNews,
 		'finance-sync': services.syncFinance,
+		'citic-futures-sync': syncCiticFutures,
 		'market-sync': () => services.syncMarket(message.scheduledAt),
 		'market-watchlist-sync': () => services.syncWatchlistMarket(message.scheduledAt),
 		'moment-backup': services.backupMoments,

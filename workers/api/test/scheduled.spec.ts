@@ -7,6 +7,7 @@ function services(): ScheduledTaskServices {
 	return {
 		syncNews: vi.fn().mockResolvedValue(undefined),
 		syncFinance: vi.fn().mockResolvedValue(undefined),
+		syncCiticFutures: vi.fn().mockResolvedValue(undefined),
 		syncMarket: vi.fn().mockResolvedValue(undefined),
 		syncWatchlistMarket: vi.fn().mockResolvedValue(undefined),
 		backupMoments: vi.fn().mockResolvedValue(undefined),
@@ -29,6 +30,7 @@ describe('scheduled task routing', () => {
 		expect(scheduledJobsFor('*/5 * * * *')).toEqual(['news-sync', 'finance-sync', 'market-sync', 'market-watchlist-sync'])
 		expect(scheduledJobsFor('17 19 * * *')).toEqual(['moment-backup', 'news-sync', 'finance-sync'])
 		expect(scheduledJobsFor('31 19 * * *')).toEqual(['analytics-maintenance', 'content-maintenance'])
+		expect(scheduledJobsFor('30 9 * * 1-5')).toEqual(['citic-futures-sync'])
 		expect(scheduledJobsFor('1 2 3 4 5')).toEqual([])
 	})
 
@@ -78,6 +80,7 @@ describe('scheduled task routing', () => {
 	it.each([
 		['news-sync', 'syncNews'],
 		['finance-sync', 'syncFinance'],
+		['citic-futures-sync', 'syncCiticFutures'],
 		['market-sync', 'syncMarket'],
 		['market-watchlist-sync', 'syncWatchlistMarket'],
 		['moment-backup', 'backupMoments'],

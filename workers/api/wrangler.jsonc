@@ -17,7 +17,8 @@
     "GITHUB_REPO": "fly-blog",
     "GITHUB_DEFAULT_BRANCH": "main",
     "GITHUB_ALLOWED_LOGIN": "flyoko",
-    "ANALYTICS_ENABLED": "true"
+    "ANALYTICS_ENABLED": "true",
+    "JIN10_PUBLIC_VISIBLE": "true"
   },
   "d1_databases": [
     {
@@ -36,6 +37,7 @@
   "triggers": {
     "crons": [
       "*/5 * * * *",
+      "30 9 * * 1-5",
       "17 19 * * *",
       "31 19 * * *"
     ]

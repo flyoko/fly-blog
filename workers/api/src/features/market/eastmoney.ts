@@ -15,6 +15,8 @@ const PUSH2_HOSTS = ['https://push2.eastmoney.com', 'https://push2delay.eastmone
 const BREADTH_HOSTS = ['https://push2ex.eastmoney.com'] as const
 const REQUEST_TIMEOUT_MS = 2_500
 const SOURCE_NAME = '东方财富'
+const SECTOR_PAGE_SIZE = 100
+const MAX_SECTOR_PAGES = 10
 
 const indexSecids: Record<MarketIndexCode, string> = {
 	'000001': '1.000001',
@@ -199,6 +201,14 @@ export function parseEastMoneySectorFlows(payload: unknown, kind: SectorKind, _f
 	}
 }
 
+function parseEastMoneySectorFlowPage(payload: unknown, kind: SectorKind, fetchedAt: string): { data: SectorFlowQuote[], marketAt: string, total: number } {
+	const parsed = parseEastMoneySectorFlows(payload, kind, fetchedAt)
+	const total = requiredNumber(record(record(payload)?.data)?.total, `${kind} sector total`)
+	if (!Number.isInteger(total) || total < parsed.data.length)
+		throw new Error(`EastMoney ${kind} sector total is invalid`)
+	return { ...parsed, total }
+}
+
 function parsePayloadText(raw: string): unknown {
 	const value = raw.trim()
 	if (!value)
@@ -322,9 +332,10 @@ export class EastMoneyMarketProvider implements MarketDataProvider {
 
 	async fetchSectorFlows(kind: SectorKind): Promise<MarketProviderResult<SectorFlowQuote[]>> {
 		const fetchedAt = this.now().toISOString()
-		const params = new URLSearchParams({
-			pn: '1',
-			pz: '100',
+		const startedAt = Date.now()
+		const paramsForPage = (page: number) => new URLSearchParams({
+			pn: String(page),
+			pz: String(SECTOR_PAGE_SIZE),
 			po: '1',
 			np: '1',
 			ut: 'b2884a393a59ad64002292a3e90d46a5',
@@ -335,21 +346,41 @@ export class EastMoneyMarketProvider implements MarketDataProvider {
 			stat: '1',
 			fields: 'f12,f14,f3,f62,f184,f204,f205,f124',
 		})
-		const response = await this.request(
+		const first = await this.request(
 			'/api/qt/clist/get',
-			params,
+			paramsForPage(1),
 			PUSH2_HOSTS,
-			payload => parseEastMoneySectorFlows(payload, kind, fetchedAt),
+			payload => parseEastMoneySectorFlowPage(payload, kind, fetchedAt),
 		)
+		const pageCount = Math.max(1, Math.ceil(first.parsed.total / SECTOR_PAGE_SIZE))
+		if (pageCount > MAX_SECTOR_PAGES)
+			throw new Error(`EastMoney ${kind} sector page count exceeds safety bound`)
+		const remaining = await Promise.all(
+			Array.from({ length: pageCount - 1 }, (_, index) => index + 2).map(page => this.request(
+				'/api/qt/clist/get',
+				paramsForPage(page),
+				PUSH2_HOSTS,
+				payload => parseEastMoneySectorFlowPage(payload, kind, fetchedAt),
+			)),
+		)
+		const pages = [first, ...remaining]
+		const byCode = new Map<string, SectorFlowQuote>()
+		for (const page of pages) {
+			if (page.parsed.total !== first.parsed.total)
+				throw new Error(`EastMoney ${kind} sector total changed during pagination`)
+			for (const item of page.parsed.data)
+				byCode.set(item.code, item)
+		}
 		return {
-			...response.parsed,
+			data: [...byCode.values()],
+			marketAt: latestIso(pages.map(page => page.parsed.marketAt)),
 			source: {
 				sourceId: 'eastmoney-push2',
 				sourceName: SOURCE_NAME,
-				endpoint: response.endpoint,
+				endpoint: first.endpoint,
 			},
 			fetchedAt,
-			latencyMs: response.latencyMs,
+			latencyMs: Math.max(0, Date.now() - startedAt),
 		}
 	}
 }

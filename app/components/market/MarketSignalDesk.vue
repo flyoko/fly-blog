@@ -221,7 +221,7 @@ onBeforeUnmount(() => {
 		<div>
 			<span>SIGNAL DESK · PRIVATE</span>
 			<h2>信号雷达</h2>
-			<p>balanced-v1 · 5 分钟真实快照派生的均衡型观察信号，不自动交易。</p>
+			<p>基于 5 分钟真实行情形成均衡型观察信号，仅用于盘中观察。</p>
 		</div>
 		<div v-if="authenticated" class="signal-header-actions">
 			<span class="signal-auto-state" :data-active="pollingActive">
@@ -231,7 +231,7 @@ onBeforeUnmount(() => {
 				<Icon name="tabler:refresh" aria-hidden="true" />{{ loading ? '刷新中' : '刷新' }}
 			</button>
 		</div>
-		<b>balanced-v1</b>
+		<b>仅观察</b>
 	</header>
 
 	<div v-if="sessionLoading" class="signal-state signal-loading" aria-label="登录状态加载中">
@@ -242,7 +242,7 @@ onBeforeUnmount(() => {
 	<div v-else-if="!authenticated" class="signal-state signal-private">
 		<Icon name="tabler:lock" aria-hidden="true" />
 		<strong>信号雷达 · 私有</strong>
-		<p>登录后查看你的自选股盘中观察信号。未登录不会请求私人 signal API。</p>
+		<p>登录后查看你的私有自选股盘中观察信号。</p>
 		<NuxtLink to="/admin/login">
 			登录管理端
 		</NuxtLink>
@@ -279,7 +279,7 @@ onBeforeUnmount(() => {
 		<div v-else-if="data?.baseline.enabledCount === 0" class="signal-state signal-empty">
 			<Icon name="tabler:star" aria-hidden="true" />
 			<strong>还没有启用的自选股</strong>
-			<p>先在“自选”工作区添加并启用股票，P2B 才会基于真实 5 分钟快照计算观察信号。</p>
+			<p>先在“自选”工作区添加并启用股票，之后会基于真实 5 分钟行情形成观察信号。</p>
 		</div>
 
 		<div v-else-if="data && data.items.length === 0 && data.baseline.warmingCount > 0" class="signal-state signal-warming">

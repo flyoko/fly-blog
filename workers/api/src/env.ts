@@ -29,6 +29,7 @@ export interface Env {
 	ANALYTICS_ENABLED?: string
 	ANALYTICS_HASH_SECRET?: string
 	JIN10_MCP_TOKEN?: string
+	JIN10_PUBLIC_VISIBLE?: string
 	SINA_INEWS_APP_KEY?: string
 	SINA_INEWS_APP_SECRET?: string
 	SINA_INEWS_TYPE_IDS?: string

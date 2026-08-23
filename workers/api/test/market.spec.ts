@@ -289,6 +289,37 @@ describe('market scheduled sync and sector history', () => {
 		expect(health?.last_error?.length).toBeLessThanOrEqual(500)
 	})
 
+	it('persists full-size industry and concept lists with set-based D1 upserts', async () => {
+		const fullSectorList = (kind: SectorKind, count: number): SectorFlowQuote[] => Array.from({ length: count }, (_, index) => ({
+			code: `${kind === 'industry' ? 'I' : 'C'}${String(index).padStart(4, '0')}`,
+			name: `${kind === 'industry' ? '行业' : '概念'} ${index}`,
+			kind,
+			changePct: index / 100,
+			mainNetInflow: 10_000_000 - index,
+			mainNetInflowRatio: 1.5,
+			leaderStockCode: '300308',
+			leaderStockName: '中际旭创',
+			marketAt,
+		}))
+		const fake = provider({
+			fetchSectorFlows: vi.fn(async kind => result(fullSectorList(kind, kind === 'industry' ? 496 : 504))),
+		})
+
+		const sync = await new MarketService(runtimeEnv(), fake, () => new Date('2026-08-24T02:31:00.000Z')).syncScheduled()
+
+		expect(sync.status).toBe('success')
+		const counts = await testEnv.DB.prepare(`
+			SELECT sector_kind, COUNT(*) AS count
+			FROM market_sector_flow_daily
+			GROUP BY sector_kind
+			ORDER BY sector_kind
+		`).all<{ sector_kind: string, count: number }>()
+		expect(counts.results).toEqual([
+			{ sector_kind: 'concept', count: 504 },
+			{ sector_kind: 'industry', count: 496 },
+		])
+	})
+
 	it('upserts the same sector on the same trading day instead of duplicating it', async () => {
 		const first = provider({ fetchSectorFlows: vi.fn(async kind => result(sector(kind, 100))) })
 		await new MarketService(runtimeEnv(), first, () => new Date('2026-08-24T02:31:00.000Z')).syncScheduled()

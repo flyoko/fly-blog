@@ -234,18 +234,24 @@ export class FinanceFlashService {
 	}
 
 	async syncAll(): Promise<FinanceSyncResult[]> {
-		const results = [await this.sync()]
-		const jin10 = new Jin10FinanceFlashAdapter(this.env.JIN10_MCP_TOKEN)
-		if (!jin10.enabled) {
+		const results: FinanceSyncResult[] = []
+		const jin10 = new Jin10FinanceFlashAdapter(
+			this.env.JIN10_MCP_TOKEN,
+			undefined,
+			this.env.JIN10_PUBLIC_VISIBLE?.trim().toLowerCase() === 'true',
+		)
+		if (jin10.enabled) {
+			results.push(await this.syncAdapter(jin10))
+		}
+		else {
 			results.push({
 				sourceId: jin10.id,
 				status: 'skipped',
 				itemCount: 0,
 				reason: 'missing-secret',
 			})
-			return results
 		}
-		results.push(await this.syncAdapter(jin10))
+		results.push(await this.sync())
 		return results
 	}
 

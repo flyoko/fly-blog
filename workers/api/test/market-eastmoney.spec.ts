@@ -51,6 +51,24 @@ function sectorPayload() {
 	}
 }
 
+function sectorPagePayload(page: number, total: number, count: number) {
+	return {
+		data: {
+			total,
+			diff: Array.from({ length: count }, (_, index) => ({
+				f12: `BK${page}${String(index).padStart(3, '0')}`,
+				f14: `板块 ${page}-${index}`,
+				f3: index / 100,
+				f62: 1_000_000 - index,
+				f184: 1.2,
+				f204: '龙头',
+				f205: '300001',
+				f124: marketTimestamp,
+			})),
+		},
+	}
+}
+
 function jsonResponse(value: unknown, status = 200) {
 	return new Response(JSON.stringify(value), {
 		status,
@@ -212,6 +230,38 @@ describe('eastMoney market provider network fallback', () => {
 		await expect(new EastMoneyMarketProvider(failingFetch, () => new Date(fetchedAt)).fetchIndices())
 			.rejects
 			.toThrow(/push2.*push2delay/i)
+	})
+
+	it('paginates sector flows until the upstream total is fully covered', async () => {
+		const fetchImpl = vi.fn<typeof fetch>(async (input) => {
+			const page = Number(new URL(String(input)).searchParams.get('pn'))
+			return jsonResponse(sectorPagePayload(page, 205, page < 3 ? 100 : 5))
+		})
+		const provider = new EastMoneyMarketProvider(fetchImpl, () => new Date(fetchedAt))
+
+		const result = await provider.fetchSectorFlows('industry')
+
+		expect(result.data).toHaveLength(205)
+		expect(fetchImpl).toHaveBeenCalledTimes(3)
+		expect(fetchImpl.mock.calls.map(call => new URL(String(call[0])).searchParams.get('pn'))).toEqual(['1', '2', '3'])
+	})
+
+	it('fails the whole sector batch when a required page fails on both hosts', async () => {
+		const fetchImpl = vi.fn<typeof fetch>(async (input) => {
+			const url = new URL(String(input))
+			const page = Number(url.searchParams.get('pn'))
+			if (page === 2)
+				return jsonResponse({ error: 'page unavailable' }, 503)
+			return jsonResponse(sectorPagePayload(page, 205, page < 3 ? 100 : 5))
+		})
+		const provider = new EastMoneyMarketProvider(fetchImpl, () => new Date(fetchedAt))
+
+		await expect(provider.fetchSectorFlows('concept')).rejects.toThrow(/EastMoney request failed/i)
+		const failedPageHosts = fetchImpl.mock.calls
+			.map(call => new URL(String(call[0])))
+			.filter(url => url.searchParams.get('pn') === '2')
+			.map(url => url.hostname)
+		expect(failedPageHosts).toEqual(['push2.eastmoney.com', 'push2delay.eastmoney.com'])
 	})
 
 	it('requests the dedicated breadth endpoint and handles JSONP safely', async () => {

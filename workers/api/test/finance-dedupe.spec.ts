@@ -55,6 +55,36 @@ describe('finance event dedupe', () => {
 		])
 	})
 
+	it('uses Jin10 as the canonical event when an equivalent public event is available from multiple sources', () => {
+		const grouped = groupFinanceEvents([
+			item({
+				id: 'wallstreetcn-7x24:1',
+				sourceId: 'wallstreetcn-7x24',
+				sourceName: '华尔街见闻',
+				title: '中信建投：海外风险可控 科技等待出清',
+				publishedAt: '2026-08-23T12:25:10.000Z',
+			}),
+			item({
+				id: 'jin10-mcp-7x24:2',
+				sourceId: 'jin10-mcp-7x24',
+				sourceName: '金十数据',
+				title: '【中信建投：海外风险可控 科技等待出清】',
+				publishedAt: '2026-08-23T12:25:28.000Z',
+			}),
+		])
+
+		expect(grouped).toHaveLength(1)
+		expect(grouped[0]).toMatchObject({
+			sourceId: 'jin10-mcp-7x24',
+			sourceName: '金十数据',
+			sourceCount: 2,
+		})
+		expect(grouped[0]?.sources?.map(source => source.sourceId)).toEqual([
+			'jin10-mcp-7x24',
+			'wallstreetcn-7x24',
+		])
+	})
+
 	it('does not merge events with opposite market directions', () => {
 		const grouped = groupFinanceEvents([
 			item({ id: 'a:1', sourceId: 'a', title: '沪指午后上涨1.2%', publishedAt: '2026-08-22T06:00:00.000Z' }),

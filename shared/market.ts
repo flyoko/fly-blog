@@ -73,6 +73,37 @@ export interface MarketEnvelope<T> {
 	quality: MarketDataQuality
 }
 
+export const citicFuturesProducts = ['IF', 'IH', 'IC', 'IM'] as const
+export type CiticFuturesProduct = typeof citicFuturesProducts[number]
+export const citicFuturesSeries = ['ALL', ...citicFuturesProducts] as const
+export type CiticFuturesSeries = typeof citicFuturesSeries[number]
+
+export interface CiticFuturesPositionPoint {
+	tradeDate: string
+	product: CiticFuturesSeries
+	longPosition: number
+	longChange: number
+	shortPosition: number
+	shortChange: number
+	netPosition: number
+	netChange: number
+	contractCount: number
+	longRankedContractCount: number
+	shortRankedContractCount: number
+	complete: boolean
+}
+
+export interface CiticFuturesPositionHistory {
+	product: CiticFuturesSeries
+	productName: string
+	brokerName: '中信期货(代客)'
+	sourceName: '中国金融期货交易所'
+	sourceUrl: string
+	fetchedAt: string | null
+	quality: MarketDataQuality
+	items: CiticFuturesPositionPoint[]
+}
+
 export type StockExchange = 'SSE' | 'SZSE' | 'BSE'
 export type StockSymbol = `${StockExchange}:${string}`
 export type WatchlistItemQuality = 'live' | 'stale' | 'unavailable'

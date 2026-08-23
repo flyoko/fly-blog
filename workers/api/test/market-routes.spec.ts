@@ -56,17 +56,17 @@ describe('market public api', () => {
 
 	it('accepts industry/concept and a bounded integer limit', async () => {
 		const { app, mocked } = publicApp()
-		const response = await app.request('/api/market/sector-flows?kind=concept&limit=12', { headers: { cookie: 'qa=1' } }, {} as Env)
+		const response = await app.request('/api/market/sector-flows?kind=concept&limit=600', { headers: { cookie: 'qa=1' } }, {} as Env)
 
 		expect(response.status).toBe(200)
-		expect(mocked.sectorFlows).toHaveBeenCalledWith('concept', 12)
+		expect(mocked.sectorFlows).toHaveBeenCalledWith('concept', 600)
 	})
 
 	it.each([
 		'/api/market/sector-flows',
 		'/api/market/sector-flows?kind=unknown',
 		'/api/market/sector-flows?kind=industry&limit=0',
-		'/api/market/sector-flows?kind=industry&limit=51',
+		'/api/market/sector-flows?kind=industry&limit=601',
 		'/api/market/sector-flows?kind=industry&limit=1.5',
 	])('rejects invalid sector query %s', async (url) => {
 		const { app } = publicApp()

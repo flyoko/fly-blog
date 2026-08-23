@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import type { FinanceFilter, FinanceFlashListDto } from '#shared/admin/finance'
 import type { NewsItemDto } from '#shared/admin/news'
 
 interface Briefing {
@@ -48,22 +47,11 @@ interface DailyHighlight {
 }
 
 type NewsFilter = 'all' | 'hot' | 'rss' | 'manual'
-type NewsSection = 'ai' | 'finance'
-
 const filterOptions: Array<{ id: NewsFilter, label: string }> = [
 	{ id: 'all', label: '全部' },
 	{ id: 'rss', label: '站长资讯' },
 	{ id: 'hot', label: 'AI 精选' },
 	{ id: 'manual', label: '手动精选' },
-]
-
-const financeFilterOptions: Array<{ id: FinanceFilter, label: string }> = [
-	{ id: 'all', label: '全部' },
-	{ id: 'market', label: '市场' },
-	{ id: 'company', label: '公司' },
-	{ id: 'macro', label: '宏观' },
-	{ id: 'overseas', label: '海外' },
-	{ id: 'tech', label: '科技' },
 ]
 
 const sourceLabels: Record<NewsItemDto['kind'], string> = {
@@ -87,33 +75,12 @@ const ownedCoverDateFormatter = new Intl.DateTimeFormat('zh-CN', {
 	day: '2-digit',
 })
 
-const financeTimeFormatter = new Intl.DateTimeFormat('zh-CN', {
-	hour: '2-digit',
-	minute: '2-digit',
-	hour12: false,
-	timeZone: 'Asia/Shanghai',
-})
-
-const financeDayFormatter = new Intl.DateTimeFormat('zh-CN', {
-	month: '2-digit',
-	day: '2-digit',
-	weekday: 'long',
-	timeZone: 'Asia/Shanghai',
-})
-
 const data = ref<NewsPayload | null>(null)
 const loading = ref(true)
 const error = ref('')
-const activeSection = ref<NewsSection>('ai')
 const filter = ref<NewsFilter>('all')
 const query = ref('')
 const failedImageUrls = ref<Set<string>>(new Set())
-const financeFilter = ref<FinanceFilter>('all')
-const financeImportantOnly = ref(false)
-const financeData = ref<FinanceFlashListDto | null>(null)
-const financeLoading = ref(false)
-const financeError = ref('')
-let financeRequestRevision = 0
 
 const dailySections = computed<DailySection[]>(() => {
 	if (!data.value?.briefing)
@@ -170,41 +137,6 @@ const visibleItems = computed<NewsItemDto[]>(() => {
 	})
 })
 
-const visibleFinanceItems = computed(() => {
-	const items = financeData.value?.items || []
-	return financeImportantOnly.value ? items.filter(item => item.important) : items
-})
-
-const financeDayLabel = computed(() => {
-	const value = visibleFinanceItems.value[0]?.publishedAt || financeData.value?.updatedAt
-	if (!value)
-		return '今日'
-	const date = new Date(value)
-	if (Number.isNaN(date.getTime()))
-		return '今日'
-	const parts = financeDayFormatter.formatToParts(date)
-	const month = parts.find(part => part.type === 'month')?.value
-	const day = parts.find(part => part.type === 'day')?.value
-	const weekday = parts.find(part => part.type === 'weekday')?.value
-	return month && day && weekday ? `${month}月${day}日 · ${weekday}` : financeDayFormatter.format(date)
-})
-
-const financeStatus = computed(() => {
-	if (financeError.value)
-		return { label: '财经快讯暂未更新', detail: '请求失败，保留已加载内容', degraded: true }
-	if (financeLoading.value && !financeData.value)
-		return { label: '财经快讯加载中', detail: '正在读取财经聚合数据', degraded: false }
-	if (financeData.value?.quality === 'unavailable')
-		return { label: '暂无可信财经快讯', detail: '等待公开来源恢复后再展示', degraded: true }
-	if (financeData.value?.quality === 'stale')
-		return { label: '财经快讯为最后成功快照', detail: `最后成功于 ${formatDateTime(financeData.value.updatedAt)}`, degraded: true }
-	if (financeData.value?.quality === 'degraded')
-		return { label: '部分财经来源暂未更新', detail: `最近成功于 ${formatDateTime(financeData.value.updatedAt)}`, degraded: true }
-	if (financeData.value?.prototype)
-		return { label: '财经原型已加载', detail: '原型数据 · 非实时', degraded: false }
-	return { label: '财经快讯持续更新', detail: `更新于 ${formatDateTime(financeData.value?.updatedAt || null)}`, degraded: false }
-})
-
 const degradedSources = computed(() =>
 	data.value?.sources.filter(source => source.status === 'failed') || [],
 )
@@ -222,9 +154,9 @@ const briefingDate = computed(() => data.value?.briefing?.date.replaceAll('-', '
 
 useSeoMeta({
 	title: 'AI 阅闻',
-	description: '在 fly living 内阅读 AI 精选、财经 7×24、站长资讯和每日简报，保留来源与原文入口。',
+	description: '在 fly living 内阅读 AI 精选、站长资讯和每日简报，保留来源与原文入口。',
 	ogTitle: 'AI 阅闻 · fly living',
-	ogDescription: '站内阅读 AI 精选、财经 7×24、站长资讯和每日简报。',
+	ogDescription: '站内阅读 AI 精选、站长资讯和每日简报。',
 })
 
 function sourceLabel(item: NewsItemDto) {
@@ -261,13 +193,6 @@ function formatOwnedCoverDate(value: string | null) {
 	return ownedCoverDateFormatter.format(date).replaceAll('/', '.')
 }
 
-function formatFinanceTime(value: string) {
-	const date = new Date(value)
-	if (Number.isNaN(date.getTime()))
-		return '--:--'
-	return financeTimeFormatter.format(date)
-}
-
 function hasUsableCover(item: NewsItemDto) {
 	return Boolean(item.coverImage && !failedImageUrls.value.has(item.coverImage.url))
 }
@@ -295,40 +220,6 @@ async function load() {
 	}
 }
 
-async function loadFinance() {
-	const revision = ++financeRequestRevision
-	financeLoading.value = true
-	financeError.value = ''
-	try {
-		const result = await $fetch<{ data: FinanceFlashListDto }>('/api/finance/flash', {
-			query: {
-				category: financeFilter.value,
-				important: financeImportantOnly.value ? 'true' : 'false',
-				limit: 50,
-			},
-		})
-		if (revision === financeRequestRevision)
-			financeData.value = result.data
-	}
-	catch (cause) {
-		if (revision === financeRequestRevision)
-			financeError.value = cause instanceof Error ? cause.message : '财经快讯加载失败'
-	}
-	finally {
-		if (revision === financeRequestRevision)
-			financeLoading.value = false
-	}
-}
-
-function toggleFinanceImportant() {
-	financeImportantOnly.value = !financeImportantOnly.value
-}
-
-watch([activeSection, financeFilter, financeImportantOnly], ([section]) => {
-	if (section === 'finance')
-		void loadFinance()
-})
-
 onMounted(load)
 </script>
 
@@ -344,38 +235,19 @@ onMounted(load)
 			</p>
 			<h1>AI 阅闻</h1>
 			<p class="news-intro">
-				每天浏览值得关注的 AI 动态、财经快讯与技术资讯。
+				每天浏览值得关注的 AI 动态与技术资讯。
 			</p>
 		</div>
-		<div class="news-sync" :class="{ degraded: activeSection === 'finance' ? financeStatus.degraded : Boolean(degradedSources.length) }">
+		<div class="news-sync" :class="{ degraded: Boolean(degradedSources.length) }">
 			<span class="news-sync-dot" aria-hidden="true" />
 			<div>
-				<strong>{{ activeSection === 'finance' ? financeStatus.label : degradedSources.length ? '部分内容暂未更新' : '内容持续更新' }}</strong>
-				<span>{{ activeSection === 'finance' ? financeStatus.detail : `更新于 ${formatDateTime(latestSyncAt)}` }}</span>
+				<strong>{{ degradedSources.length ? '部分内容暂未更新' : '内容持续更新' }}</strong>
+				<span>更新于 {{ formatDateTime(latestSyncAt) }}</span>
 			</div>
 		</div>
 	</header>
 
-	<nav class="news-section-tabs card glass-clear" aria-label="AI 阅闻栏目">
-		<button
-			type="button"
-			:class="{ active: activeSection === 'ai' }"
-			:aria-pressed="activeSection === 'ai'"
-			@click="activeSection = 'ai'"
-		>
-			AI 资讯
-		</button>
-		<button
-			type="button"
-			:class="{ active: activeSection === 'finance' }"
-			:aria-pressed="activeSection === 'finance'"
-			@click="activeSection = 'finance'"
-		>
-			财经 7×24
-		</button>
-	</nav>
-
-	<div v-if="activeSection === 'ai' && (error || degradedSources.length)" class="news-notices" aria-live="polite">
+	<div v-if="error || degradedSources.length" class="news-notices" aria-live="polite">
 		<div v-if="degradedSources.length" class="news-notice card">
 			<Icon name="tabler:cloud-off" aria-hidden="true" />
 			<p>
@@ -391,7 +263,7 @@ onMounted(load)
 		</div>
 	</div>
 
-	<section v-if="activeSection === 'ai'" class="news-controls card glass-clear" aria-label="AI 阅闻筛选与搜索">
+	<section class="news-controls card glass-clear" aria-label="AI 阅闻筛选与搜索">
 		<nav class="news-filter" aria-label="来源筛选">
 			<button
 				v-for="option in filterOptions"
@@ -414,7 +286,7 @@ onMounted(load)
 		</label>
 	</section>
 
-	<div v-if="activeSection === 'ai'" class="news-layout">
+	<div class="news-layout">
 		<section class="news-feed card" aria-labelledby="news-feed-title">
 			<header class="news-feed-header">
 				<div>
@@ -566,95 +438,6 @@ onMounted(load)
 			</p>
 		</aside>
 	</div>
-
-	<section v-else class="finance-stream card" data-surface-static aria-labelledby="finance-stream-title">
-		<header class="finance-stream-header">
-			<div>
-				<p>{{ financeDayLabel }}</p>
-				<h2 id="finance-stream-title">
-					财经 7×24
-				</h2>
-				<span>市场、公司、宏观与海外快讯 <b v-if="financeData?.prototype" class="finance-prototype-pill">原型数据源</b></span>
-			</div>
-			<button
-				class="finance-important-toggle"
-				type="button"
-				role="switch"
-				:aria-checked="financeImportantOnly"
-				:aria-busy="financeLoading"
-				@click="toggleFinanceImportant"
-			>
-				<span>只看重要</span>
-				<span class="finance-toggle-track" aria-hidden="true"><span /></span>
-			</button>
-		</header>
-
-		<nav class="finance-filter" aria-label="财经快讯分类">
-			<button
-				v-for="option in financeFilterOptions"
-				:key="option.id"
-				type="button"
-				:class="{ active: financeFilter === option.id }"
-				:aria-pressed="financeFilter === option.id"
-				@click="financeFilter = option.id"
-			>
-				{{ option.label }}
-			</button>
-		</nav>
-
-		<div class="finance-stream-meta">
-			<span>实时快讯 · 按发布时间倒序</span>
-			<strong>{{ financeLoading ? '加载中' : `${financeData?.total || 0} 条` }}</strong>
-		</div>
-
-		<div v-if="financeError" class="finance-error" role="alert">
-			<Icon name="tabler:alert-circle" aria-hidden="true" />
-			<p>
-				{{ financeError }}
-			</p>
-			<button type="button" @click="loadFinance">
-				重新加载
-			</button>
-		</div>
-
-		<div v-else-if="financeLoading && !financeData" class="finance-loading" aria-label="正在加载财经快讯">
-			<span v-for="index in 5" :key="index" />
-		</div>
-
-		<div v-else-if="visibleFinanceItems.length" class="finance-list" aria-live="polite">
-			<article
-				v-for="item in visibleFinanceItems"
-				:key="item.id"
-				class="finance-flash"
-				:class="{ important: item.important }"
-			>
-				<time :datetime="item.publishedAt">{{ formatFinanceTime(item.publishedAt) }}</time>
-				<div class="finance-flash-rail" aria-hidden="true">
-					<span />
-				</div>
-				<div class="finance-flash-card">
-					<header>
-						<span v-if="item.important" class="finance-important-badge">重要</span>
-						<span>{{ item.categoryLabel }}</span>
-						<span v-if="item.topic">{{ item.topic }}</span>
-					</header>
-					<h3>{{ item.title }}</h3>
-					<p v-if="item.summary">
-						{{ item.summary }}
-					</p>
-					<footer>
-						<span>来源：{{ item.sourceName }}</span>
-						<a v-if="item.sourceUrl" :href="item.sourceUrl" target="_blank" rel="noopener noreferrer">原文</a>
-					</footer>
-				</div>
-			</article>
-		</div>
-
-		<div v-else class="finance-empty">
-			<strong>当前筛选下暂无快讯</strong>
-			<p>切换分类或关闭“只看重要”后再试。</p>
-		</div>
-	</section>
 </section>
 </template>
 

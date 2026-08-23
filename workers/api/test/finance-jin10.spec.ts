@@ -71,6 +71,25 @@ describe('jin10 finance MCP adapter', () => {
 		expect(factory).not.toHaveBeenCalled()
 	})
 
+	it('keeps public visibility opt-in and can expose authorized Jin10 items to the unified finance stream', async () => {
+		const close = vi.fn().mockResolvedValue(undefined)
+		const callTool = vi.fn().mockResolvedValue(toolPayload([{
+			title: '测试金十公开开关',
+			content: '仅用于公开开关回归。',
+			time: '2026-08-23T19:00:00+08:00',
+			url: 'https://flash.jin10.com/detail/public-switch-test',
+		}]))
+		const factory = vi.fn(async () => ({ callTool, close }))
+
+		const privateAdapter = new Jin10FinanceFlashAdapter('test-token', factory)
+		const [privateItem] = await privateAdapter.fetch()
+		expect(privateItem?.publicVisible).toBe(false)
+
+		const publicAdapter = new Jin10FinanceFlashAdapter('test-token', factory, true)
+		const [publicItem] = await publicAdapter.fetch()
+		expect(publicItem?.publicVisible).toBe(true)
+	})
+
 	it('redacts the MCP token from adapter errors before they can reach sync state', async () => {
 		const token = 'unit-test-jin10-token'
 		const factory = vi.fn(async () => {

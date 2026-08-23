@@ -14,9 +14,9 @@ const DIRECTION_GROUPS = [
 ] as const
 
 const SOURCE_PRIORITY: Record<string, number> = {
-	'wallstreetcn-7x24': 0,
-	'sina-inews-7x24': 1,
-	'jin10-mcp-7x24': 2,
+	'jin10-mcp-7x24': 0,
+	'wallstreetcn-7x24': 1,
+	'sina-inews-7x24': 2,
 }
 
 interface EventGroup {

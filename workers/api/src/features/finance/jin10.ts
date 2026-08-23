@@ -199,7 +199,7 @@ function envelopeFromToolResult(result: unknown): Jin10FlashEnvelope {
 	throw new Error('Jin10 MCP tool result has no usable JSON payload')
 }
 
-function parseJin10FinanceToolResult(result: unknown): ParsedJin10Result {
+function parseJin10FinanceToolResult(result: unknown, publicVisible = false): ParsedJin10Result {
 	const envelope = envelopeFromToolResult(result)
 	const status = typeof envelope.status === 'number' ? envelope.status : 0
 	if (status !== 200 || !envelope.data || !Array.isArray(envelope.data.items)) {
@@ -238,7 +238,7 @@ function parseJin10FinanceToolResult(result: unknown): ParsedJin10Result {
 			importanceScore: null,
 			sourceName: '金十数据',
 			sourceUrl: safeUrl,
-			publicVisible: false,
+			publicVisible,
 		})
 	}
 
@@ -287,6 +287,7 @@ export class Jin10FinanceFlashAdapter implements FinanceFlashAdapter {
 	constructor(
 		private readonly token?: string,
 		private readonly clientFactory: Jin10McpClientFactory = createJin10McpClient,
+		private readonly publicVisible = false,
 	) {}
 
 	get enabled(): boolean {
@@ -310,7 +311,7 @@ export class Jin10FinanceFlashAdapter implements FinanceFlashAdapter {
 					name: JIN10_TOOL_NAME,
 					arguments: cursor ? { cursor } : {},
 				})
-				const parsed = parseJin10FinanceToolResult(result)
+				const parsed = parseJin10FinanceToolResult(result, this.publicVisible)
 				for (const item of parsed.items) {
 					if (seen.has(item.id))
 						continue

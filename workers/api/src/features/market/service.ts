@@ -234,42 +234,55 @@ export class MarketService {
 		if (!result.data.length)
 			return
 		const updatedAt = this.now().toISOString()
-		const statements = result.data.map((item) => {
-			const tradeDate = shanghaiParts(new Date(item.marketAt)).date
-			return this.env.DB.prepare(`
-				INSERT INTO market_sector_flow_daily (
-					trade_date, sector_kind, sector_code, sector_name, change_pct,
-					main_net_inflow, main_net_inflow_ratio, leader_stock_code, leader_stock_name,
-					market_at, fetched_at, source_id, updated_at
-				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-				ON CONFLICT(trade_date, sector_kind, sector_code) DO UPDATE SET
-					sector_name = excluded.sector_name,
-					change_pct = excluded.change_pct,
-					main_net_inflow = excluded.main_net_inflow,
-					main_net_inflow_ratio = excluded.main_net_inflow_ratio,
-					leader_stock_code = excluded.leader_stock_code,
-					leader_stock_name = excluded.leader_stock_name,
-					market_at = excluded.market_at,
-					fetched_at = excluded.fetched_at,
-					source_id = excluded.source_id,
-					updated_at = excluded.updated_at
-			`).bind(
-				tradeDate,
-				item.kind,
-				item.code,
-				item.name,
-				item.changePct,
-				item.mainNetInflow,
-				item.mainNetInflowRatio,
-				item.leaderStockCode,
-				item.leaderStockName,
-				item.marketAt,
-				result.fetchedAt,
-				result.source.sourceId,
-				updatedAt,
+		const rows = result.data.map(item => ({
+			tradeDate: shanghaiParts(new Date(item.marketAt)).date,
+			sectorKind: item.kind,
+			sectorCode: item.code,
+			sectorName: item.name,
+			changePct: item.changePct,
+			mainNetInflow: item.mainNetInflow,
+			mainNetInflowRatio: item.mainNetInflowRatio,
+			leaderStockCode: item.leaderStockCode,
+			leaderStockName: item.leaderStockName,
+			marketAt: item.marketAt,
+		}))
+		await this.env.DB.prepare(`
+			INSERT INTO market_sector_flow_daily (
+				trade_date, sector_kind, sector_code, sector_name, change_pct,
+				main_net_inflow, main_net_inflow_ratio, leader_stock_code, leader_stock_name,
+				market_at, fetched_at, source_id, updated_at
 			)
-		})
-		await this.env.DB.batch(statements)
+			SELECT
+				json_extract(value, '$.tradeDate'),
+				json_extract(value, '$.sectorKind'),
+				json_extract(value, '$.sectorCode'),
+				json_extract(value, '$.sectorName'),
+				json_extract(value, '$.changePct'),
+				json_extract(value, '$.mainNetInflow'),
+				json_extract(value, '$.mainNetInflowRatio'),
+				json_extract(value, '$.leaderStockCode'),
+				json_extract(value, '$.leaderStockName'),
+				json_extract(value, '$.marketAt'),
+				?, ?, ?
+			FROM json_each(?)
+			WHERE 1
+			ON CONFLICT(trade_date, sector_kind, sector_code) DO UPDATE SET
+				sector_name = excluded.sector_name,
+				change_pct = excluded.change_pct,
+				main_net_inflow = excluded.main_net_inflow,
+				main_net_inflow_ratio = excluded.main_net_inflow_ratio,
+				leader_stock_code = excluded.leader_stock_code,
+				leader_stock_name = excluded.leader_stock_name,
+				market_at = excluded.market_at,
+				fetched_at = excluded.fetched_at,
+				source_id = excluded.source_id,
+				updated_at = excluded.updated_at
+		`).bind(
+			result.fetchedAt,
+			result.source.sourceId,
+			updatedAt,
+			JSON.stringify(rows),
+		).run()
 	}
 
 	private async writeHealth(
