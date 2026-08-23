@@ -75,7 +75,7 @@ onMounted(() => load(true))
 		<Icon class="moments-static-icon" name="tabler:sparkles" />
 		<BlogShinchanScene variant="moments" speech="嘿，记下来！" />
 	</header>
-	<div class="moments-filter card">
+	<div class="moments-filter moments-filter-strip card">
 		<label><span>标签</span><input v-model.trim="tag" type="search" placeholder="全部标签"></label>
 		<label><span>年份</span><input
 			v-model.number="year"
@@ -248,39 +248,67 @@ onMounted(() => load(true))
 
 @media (max-width: 600px) {
 	.moments-page {
-		gap: 0.8rem;
-		margin: 0.75rem;
+		gap: 0.65rem;
+		margin: 0.55rem 0.5rem 1rem;
 	}
 
 	.moments-hero {
-		min-height: 16.75rem;
-		padding: 1.35rem 1.25rem 7.25rem;
+		overflow: hidden;
+		min-height: 14.5rem;
+		padding: 1.05rem 1rem 6.2rem;
+		border-radius: 0.95rem;
 	}
 
 	.moments-hero h1 {
-		font-size: clamp(3rem, 16vw, 4.5rem);
+		font-size: clamp(2.75rem, 15vw, 4rem);
 	}
 
 	.moments-hero p {
-		max-width: 18rem;
-		margin-top: 0.55rem;
-		font-size: 0.9rem;
-		line-height: 1.55;
+		max-width: 16rem;
+		margin-top: 0.45rem;
+		font-size: 0.84rem;
+		line-height: 1.5;
+	}
+
+	.moments-hero :deep(.is-moments .scene-character) {
+		right: -3%;
+		bottom: -7%;
+		width: 8.4rem;
 	}
 
 	.moments-filter {
-		gap: 0.6rem;
-		padding: 0.7rem;
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 0.5rem;
+		padding: 0.6rem;
+		border-radius: 0.95rem;
 	}
 
 	.moments-filter label {
-		flex: 1 1 100%;
+		min-width: 0;
 		min-height: var(--touch-target);
+		padding: 0.42rem 0.6rem;
 	}
 
 	.moments-filter input {
 		flex: 1;
+		width: 100%;
 		min-width: 0;
+	}
+
+	.moments-list {
+		gap: 0.65rem;
+	}
+
+	.moments-more {
+		min-height: var(--touch-target);
+		border-radius: 0.95rem;
+	}
+}
+
+@media (max-width: 360px) {
+	.moments-filter {
+		grid-template-columns: 1fr;
 	}
 }
 

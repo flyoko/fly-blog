@@ -506,6 +506,29 @@ img {
 		filter: none;
 	}
 
+	@media (prefers-reduced-motion: no-preference) {
+		// Dynamic 在手机上只恢复低功耗动画层，次级轨道、颗粒和指针合成层继续关闭。
+		:where(.dynamic) .atmosphere-lens-a {
+			animation: atmosphere-lens-a 28s cubic-bezier(0.45, 0, 0.2, 1) infinite;
+		}
+
+		:where(.dynamic) .atmosphere-lens-b {
+			animation: atmosphere-lens-b 36s cubic-bezier(0.45, 0, 0.2, 1) infinite;
+		}
+
+		:where(.dynamic) .atmosphere-stars-far {
+			animation: atmosphere-stars-far 46s linear infinite;
+		}
+
+		:where(.dynamic) .flow-thread {
+			animation: atmosphere-flow-travel 14s linear infinite;
+		}
+
+		:where(.dynamic) .flow-signal {
+			animation: atmosphere-flow-travel 9s linear infinite;
+		}
+	}
+
 	.atmosphere-pointer {
 		display: none;
 	}

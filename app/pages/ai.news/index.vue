@@ -1550,7 +1550,31 @@ onMounted(load)
 
 @media (max-width: 680px) {
 	.news-workbench {
-		margin: 0.7rem;
+		gap: 0.65rem;
+		margin: 0.5rem 0.5rem 1rem;
+	}
+
+	.news-header {
+		gap: 0.55rem;
+		padding: 0.15rem 0.1rem 0.05rem;
+	}
+
+	.news-header h1 {
+		font-size: 2rem;
+	}
+
+	.news-intro {
+		margin-top: 0.35rem;
+		font-size: 0.82rem;
+		line-height: 1.55;
+	}
+
+	.news-sync {
+		min-width: 0;
+		padding: 0.65rem 0.75rem;
+		border: 1px solid var(--c-surface-line);
+		border-radius: 0.85rem;
+		background: color-mix(in srgb, var(--c-surface-fill) 88%, transparent);
 	}
 
 	.news-section-tabs {
@@ -1561,10 +1585,6 @@ onMounted(load)
 	.news-section-tabs button {
 		min-height: 2.5rem;
 		font-size: 0.78rem;
-	}
-
-	.news-header h1 {
-		font-size: 2rem;
 	}
 
 	.finance-stream-header {
@@ -1627,16 +1647,52 @@ onMounted(load)
 
 	.news-controls {
 		grid-template-columns: minmax(0, 1fr);
+		gap: 0.5rem;
+		padding: 0.55rem;
+		border-radius: 0.9rem;
 	}
 
 	.news-search {
 		grid-row: 1;
+		min-height: var(--touch-target);
+	}
+
+	.news-filter {
+		grid-row: 2;
+		overflow-x: auto;
+		padding-bottom: 0.05rem;
+		scroll-snap-type: x proximity;
+		scrollbar-width: none;
+	}
+
+	.news-filter::-webkit-scrollbar {
+		display: none;
+	}
+
+	.news-filter button {
+		min-height: var(--touch-target);
+		scroll-snap-align: start;
+	}
+
+	.news-layout {
+		gap: 0.65rem;
+	}
+
+	.news-feed {
+		grid-row: 1;
+		overflow: hidden;
+		border-radius: 0.9rem;
+	}
+
+	.news-digest {
+		grid-row: 2;
+		border-radius: 0.9rem;
 	}
 
 	.news-row {
-		grid-template-columns: 0.6rem minmax(0, 1fr);
-		gap: 0.4rem;
-		padding: 0.9rem 0.8rem 0.95rem 0.55rem;
+		grid-template-columns: 0.55rem minmax(0, 1fr);
+		gap: 0.35rem;
+		padding: 0.82rem 0.72rem 0.88rem 0.5rem;
 	}
 
 	.news-row-rail span {
@@ -1644,22 +1700,30 @@ onMounted(load)
 	}
 
 	.news-row h3 {
-		font-size: 1rem;
+		font-size: 0.96rem;
+		line-height: 1.4;
+	}
+
+	.news-row-summary {
+		font-size: 0.73rem;
+		-webkit-line-clamp: 2;
+		line-height: 1.48;
 	}
 
 	.news-row-body.has-image,
 	.news-row-body.has-owned-cover {
-		grid-template-columns: minmax(0, 1fr) 5.6rem;
-		gap: 0.65rem;
+		grid-template-columns: minmax(0, 1fr) 5.25rem;
+		gap: 0.6rem;
 	}
 
 	.news-row-actions {
 		flex-wrap: wrap;
+		gap: 0.45rem 0.7rem;
 	}
 
 	.news-feed-header {
 		align-items: flex-start;
-		padding: 0.85rem;
+		padding: 0.8rem;
 	}
 
 	.news-feed-header p {

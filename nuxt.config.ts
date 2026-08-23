@@ -204,7 +204,7 @@ export default defineNuxtConfig({
 	],
 
 	colorMode: {
-		preference: 'system',
+		preference: 'dynamic',
 		fallback: 'light',
 		classSuffix: '',
 		disableTransition: true,

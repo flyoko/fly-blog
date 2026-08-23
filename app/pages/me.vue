@@ -52,7 +52,7 @@ useSeoMeta({
 	<!-- <BlogNavBrand class="mobile-page-brand" to="/" /> -->
 </div>
 
-<article class="about-page">
+<article class="about-page about-mobile-grid">
 	<header class="about-hero card" :class="{ 'is-dynamic-mode': isDynamicMode }">
 		<span class="about-hero-spotlight" aria-hidden="true" />
 		<div class="about-hero-copy">
@@ -531,13 +531,14 @@ useSeoMeta({
 
 @media (max-width: 600px) {
 	.about-page {
-		gap: 0.6rem;
+		gap: 0.55rem;
 		width: min(calc(100% - 1rem), 72rem);
-		margin: 0.35rem auto 0.8rem;
+		margin: 0.45rem auto 1rem;
 	}
 
 	.about-hero {
 		align-items: flex-start;
+		overflow: hidden;
 		min-height: 13.5rem;
 		padding: 0.9rem 0.85rem 4.7rem;
 		border-radius: 0.95rem;
@@ -550,7 +551,7 @@ useSeoMeta({
 	}
 
 	.about-hero-copy {
-		width: min(72%, 15rem);
+		width: min(70%, 15.5rem);
 	}
 
 	.about-hero .about-eyebrow {
@@ -565,38 +566,68 @@ useSeoMeta({
 	}
 
 	.about-hero p {
-		max-width: 14rem;
+		max-width: 14.5rem;
 		font-size: 0.76rem;
 		line-height: 1.4;
 	}
 
+	.about-hero :deep(.scene-character) {
+		right: -0.05rem;
+		bottom: -3%;
+		width: 4.4rem;
+	}
+
 	.about-section {
-		padding: 0.9rem;
+		padding: 1rem;
+		border-radius: 0.95rem;
 	}
 
 	.about-section-heading h2 {
 		margin-top: 0.16rem;
+		font-size: 1.35rem;
 	}
 
 	.about-timeline,
 	.about-links {
-		margin-top: 1rem;
+		margin-top: 0.9rem;
 	}
 
 	.about-timeline li {
 		grid-template-columns: 1fr;
-		padding-bottom: 1.15rem;
+		gap: 0.4rem;
+		padding: 0 0 1.15rem 0.85rem;
+	}
+
+	.about-timeline time {
+		justify-self: start;
+		padding: 0.18rem 0.45rem;
+		border-radius: 999px;
+		background: var(--c-primary-soft);
+		font-size: 0.68rem;
+	}
+
+	.about-links {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 0.5rem;
+	}
+
+	.about-links a {
+		justify-content: center;
+		min-height: var(--touch-target);
+		padding: 0.55rem 0.7rem;
+		text-align: center;
 	}
 }
 
 @media (max-width: 380px) {
 	.about-hero {
-		min-height: 12.75rem;
-		padding-bottom: 4.35rem;
+		min-height: 13.5rem;
+		padding-bottom: 4.65rem;
 	}
 
 	.about-hero-copy {
-		width: min(74%, 13.5rem);
+		width: min(72%, 13.5rem);
 	}
 
 	.about-hero h1 {
@@ -606,6 +637,10 @@ useSeoMeta({
 	.about-hero p {
 		max-width: 12.5rem;
 		font-size: 0.72rem;
+	}
+
+	.about-links {
+		grid-template-columns: 1fr;
 	}
 }
 
