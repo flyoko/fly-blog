@@ -2,6 +2,7 @@ import type { ArticleDocument } from '#shared/admin/articles'
 import { isProxy, toRaw } from 'vue'
 import { articleDocumentSchema, articleSaveRequestSchema } from '#shared/admin/articles'
 import { toAdminUserMessage } from '#shared/admin/feedback'
+import { getAdminDraftProtectionStorage } from '../utils/admin-draft-protection-storage'
 
 const draftDatabaseName = 'fly-living-admin'
 const draftStoreName = 'article-drafts'
@@ -335,11 +336,12 @@ function snapshotDraftTombstones() {
 	if (!import.meta.client)
 		return { generations, readable: true }
 	try {
-		for (let index = 0; index < localStorage.length; index++) {
-			const key = localStorage.key(index)
+		const storage = getAdminDraftProtectionStorage()
+		for (let index = 0; index < storage.length; index++) {
+			const key = storage.key(index)
 			if (!key?.startsWith(draftTombstonePrefix))
 				continue
-			const generation = localStorage.getItem(key)
+			const generation = storage.getItem(key)
 			if (generation !== null)
 				generations.set(key, generation)
 		}
@@ -415,7 +417,7 @@ export function useAdminDraft() {
 			return null
 		}
 		try {
-			const currentGeneration = localStorage.getItem(tombstoneKey)
+			const currentGeneration = getAdminDraftProtectionStorage().getItem(tombstoneKey)
 			if (currentGeneration !== null) {
 				if (instanceStartTombstones.generations.get(tombstoneKey) === currentGeneration)
 					acknowledgedTombstones.set(tombstoneKey, currentGeneration)
@@ -453,7 +455,7 @@ export function useAdminDraft() {
 			}
 			let tombstone: string | null
 			try {
-				tombstone = localStorage.getItem(tombstoneKey)
+				tombstone = getAdminDraftProtectionStorage().getItem(tombstoneKey)
 			}
 			catch (cause) {
 				error.value = '本地草稿保护状态读取失败，未保存本地草稿。'
@@ -493,7 +495,7 @@ export function useAdminDraft() {
 
 	function suppress(path: string, sha: string | null | undefined) {
 		try {
-			localStorage.setItem(adminDraftTombstoneKey(path, sha), crypto.randomUUID())
+			getAdminDraftProtectionStorage().setItem(adminDraftTombstoneKey(path, sha), crypto.randomUUID())
 			return true
 		}
 		catch (cause) {
