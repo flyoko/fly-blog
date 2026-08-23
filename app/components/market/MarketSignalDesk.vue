@@ -353,7 +353,7 @@ onBeforeUnmount(() => {
 .signal-desk-header > div:first-child > span {
 	font: 600 0.58rem var(--font-monospace);
 	letter-spacing: 0.12em;
-	color: var(--market-gold);
+	color: var(--market-accent);
 }
 
 .signal-desk-header h2 {
@@ -372,9 +372,9 @@ onBeforeUnmount(() => {
 	padding: 0.24rem 0.44rem;
 	border: 1px solid var(--market-border-strong);
 	border-radius: 0.28rem;
-	background: var(--market-gold-soft);
+	background: var(--market-accent-soft);
 	font: 700 0.56rem var(--font-monospace);
-	color: var(--market-gold-bright);
+	color: var(--market-accent-strong);
 }
 
 .signal-header-actions {
@@ -410,8 +410,8 @@ onBeforeUnmount(() => {
 	min-height: 2.75rem;
 	border: 1px solid var(--market-border-strong);
 	border-radius: 0.35rem;
-	background: var(--market-gold-soft);
-	color: var(--market-gold-bright);
+	background: var(--market-accent-soft);
+	color: var(--market-accent-strong);
 }
 
 .signal-header-actions button {
@@ -466,7 +466,7 @@ onBeforeUnmount(() => {
 
 .signal-state > .iconify {
 	font-size: 1.5rem;
-	color: var(--market-gold);
+	color: var(--market-accent);
 }
 
 .signal-state strong {
@@ -505,13 +505,13 @@ onBeforeUnmount(() => {
 	padding: 0.58rem 0.7rem;
 	border: 1px solid var(--market-border);
 	border-radius: 0.35rem;
-	background: var(--market-gold-soft);
+	background: var(--market-accent-soft);
 	font: 0.6rem var(--font-monospace);
 	color: var(--market-text-2);
 }
 
 .signal-warming-banner > .iconify {
-	color: var(--market-gold);
+	color: var(--market-accent);
 }
 
 .signal-filters {
@@ -528,9 +528,9 @@ onBeforeUnmount(() => {
 }
 
 .signal-filters button.active {
-	box-shadow: inset 0 -2px 0 var(--market-gold);
-	background: var(--market-gold-soft);
-	color: var(--market-gold-bright);
+	box-shadow: inset 0 -2px 0 var(--market-accent);
+	background: var(--market-accent-soft);
+	color: var(--market-accent-strong);
 }
 
 .signal-desktop {
@@ -602,7 +602,7 @@ onBeforeUnmount(() => {
 
 .signal-score strong {
 	font: 750 1rem var(--font-monospace);
-	color: var(--market-gold-bright);
+	color: var(--market-accent-strong);
 }
 
 .signal-score[data-severity="strong"] strong {
@@ -621,7 +621,7 @@ onBeforeUnmount(() => {
 	padding: 0.2rem 0.34rem;
 	border: 1px solid var(--market-border);
 	border-radius: 0.25rem;
-	background: rgb(255 255 255 / 2%);
+	background: var(--c-bg-soft);
 	font: 0.54rem var(--font-monospace);
 	color: var(--market-text-2);
 }
@@ -670,7 +670,7 @@ onBeforeUnmount(() => {
 	border: 1px solid var(--market-border-strong);
 	border-radius: 0.25rem;
 	font: 700 0.55rem var(--font-monospace);
-	color: var(--market-gold-bright);
+	color: var(--market-accent-strong);
 }
 
 .signal-card header b[data-severity="strong"] {
@@ -697,7 +697,7 @@ onBeforeUnmount(() => {
 
 .signal-discipline > .iconify {
 	flex: 0 0 auto;
-	color: var(--market-gold);
+	color: var(--market-accent);
 }
 
 @keyframes signal-spin {

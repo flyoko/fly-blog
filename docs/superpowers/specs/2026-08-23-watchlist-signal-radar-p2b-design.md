@@ -529,6 +529,8 @@ interface MarketSignalDeskResponse {
 
 把当前 `DESIGN READY` 占位替换成真实私有 Signal Desk。
 
+> 2026-08-23 主题方向更新：用户最新要求“去除黑金皮肤，恢复博客主题”，因此此前 P0/P1/P2A 的 `/market` 独立黑金视觉约束在 P2B 起被 supersede。市场页与 Signal Desk 继续保留独立信息架构和 A 股红涨绿跌语义，但背景、正文、边框、焦点、Surface 与交互强调统一继承博客现有 `light / dark / dynamic` 主题 token；不得强制 `color-scheme: dark`，不得恢复固定黑金色值。历史 P0/P1/P2A 文档保留原决策记录，不作为 P2B 当前主题验收依据。
+
 ### 17.1 未登录
 
 只显示：

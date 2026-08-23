@@ -724,8 +724,6 @@ onBeforeUnmount(() => {
 
 <template>
 <section class="market-terminal">
-	<div class="market-grid-noise" aria-hidden="true" />
-
 	<header class="market-terminal-header">
 		<div class="market-title-block">
 			<p class="market-kicker">
@@ -1224,24 +1222,25 @@ onBeforeUnmount(() => {
 
 <style scoped lang="scss">
 .market-terminal {
-	--market-bg: #080806;
-	--market-panel: #0F0E0B;
-	--market-panel-raised: #15130E;
-	--market-panel-soft: #1B1811;
-	--market-border: rgb(218 188 112 / 18%);
-	--market-border-strong: rgb(218 188 112 / 38%);
-	--market-gold: #D9BC72;
-	--market-gold-bright: #F0D895;
-	--market-gold-soft: rgb(217 188 114 / 10%);
-	--market-text: #F2EEE4;
-	--market-text-2: #BDB6A6;
-	--market-text-3: #827C6F;
-	--market-up: #EF5D5D;
-	--market-up-soft: rgb(239 93 93 / 12%);
-	--market-down: #49A36C;
-	--market-down-soft: rgb(73 163 108 / 12%);
-	--market-danger: #F17767;
-	--market-focus: #FFE6A7;
+	--market-bg: var(--c-bg);
+	--market-panel: var(--ld-bg-card);
+	--market-panel-raised: var(--ld-bg-card);
+	--market-panel-soft: var(--c-bg-1);
+	--market-panel-2: var(--c-bg-2);
+	--market-border: var(--c-border);
+	--market-border-strong: color-mix(in srgb, var(--c-primary) 30%, var(--c-border));
+	--market-accent: var(--c-primary);
+	--market-accent-strong: var(--c-primary);
+	--market-accent-soft: var(--c-primary-soft);
+	--market-text: var(--c-text);
+	--market-text-2: var(--c-text-2);
+	--market-text-3: var(--c-text-3);
+	--market-up: var(--c-error);
+	--market-up-soft: var(--c-error-soft);
+	--market-down: var(--c-success);
+	--market-down-soft: var(--c-success-soft);
+	--market-danger: var(--c-error);
+	--market-focus: var(--c-primary);
 
 	contain: layout style;
 	position: relative;
@@ -1250,30 +1249,21 @@ onBeforeUnmount(() => {
 	padding: clamp(0.7rem, 1.4vw, 1.15rem);
 	border: 1px solid var(--market-border);
 	border-radius: 0.65rem;
-	box-shadow: inset 0 1px 0 rgb(255 255 255 / 3%);
-	background:
-		radial-gradient(90rem 32rem at 15% -10%, rgb(217 188 114 / 9%), transparent 58%),
-		linear-gradient(180deg, #0B0A08 0%, var(--market-bg) 24rem, #070706 100%);
-	font-family: var(--font-sans-serif);
+	box-shadow: var(--box-shadow-1);
+	background: var(--glass-frost-fill);
+	backdrop-filter: var(--glass-frost-filter);
+	font-family: var(--font-basic);
 	color: var(--market-text);
-	color-scheme: dark;
 	-webkit-font-smoothing: antialiased;
 }
 
-.market-grid-noise {
-	position: absolute;
-	inset: 0;
-	background-image:
-		linear-gradient(rgb(217 188 114 / 2.8%) 1px, transparent 1px),
-		linear-gradient(90deg, rgb(217 188 114 / 2.8%) 1px, transparent 1px);
-	background-size: 36px 36px;
-	mask-image: linear-gradient(to bottom, black, transparent 58%);
-	pointer-events: none;
-}
-
-.market-terminal > :not(.market-grid-noise) {
-	position: relative;
-	z-index: 1;
+:global(.dark) .market-terminal,
+:global(.dynamic) .market-terminal {
+	--market-up: hsl(0deg 84% 72%);
+	--market-up-soft: hsl(0deg 84% 72% / 18%);
+	--market-down: hsl(145deg 55% 64%);
+	--market-down-soft: hsl(145deg 55% 64% / 18%);
+	--market-danger: hsl(0deg 84% 72%);
 }
 
 .market-terminal-header {
@@ -1292,7 +1282,7 @@ onBeforeUnmount(() => {
 	margin: 0;
 	font: 600 0.64rem/1.2 var(--font-monospace);
 	letter-spacing: 0.16em;
-	color: var(--market-gold);
+	color: var(--market-accent);
 }
 
 .market-title-row {
@@ -1317,10 +1307,10 @@ onBeforeUnmount(() => {
 	padding: 0.2rem 0.42rem;
 	border: 1px solid var(--market-border-strong);
 	border-radius: 0.28rem;
-	background: var(--market-gold-soft);
+	background: var(--market-accent-soft);
 	font: 700 0.58rem/1.2 var(--font-monospace);
 	letter-spacing: 0.08em;
-	color: var(--market-gold-bright);
+	color: var(--market-accent-strong);
 }
 
 .market-title-block > p:last-child {
@@ -1348,7 +1338,7 @@ onBeforeUnmount(() => {
 	padding: 0.55rem 0.7rem;
 	border: 1px solid var(--market-border);
 	border-radius: 0.4rem;
-	background: rgb(255 255 255 / 1.7%);
+	background: var(--c-bg-soft);
 }
 
 .market-clock span {
@@ -1361,15 +1351,15 @@ onBeforeUnmount(() => {
 	justify-self: end;
 	font: 700 0.72rem var(--font-monospace);
 	font-variant-numeric: tabular-nums;
-	color: var(--market-gold-bright);
+	color: var(--market-accent-strong);
 }
 
 .market-state-dot {
 	width: 0.55rem;
 	height: 0.55rem;
 	border-radius: 50%;
-	box-shadow: 0 0 0 0.26rem rgb(217 188 114 / 7%);
-	background: var(--market-gold);
+	box-shadow: 0 0 0 0.26rem var(--market-accent-soft);
+	background: var(--market-accent);
 }
 
 .market-connection[data-tone="online"] .market-state-dot {
@@ -1416,7 +1406,7 @@ onBeforeUnmount(() => {
 }
 
 .market-discipline-bar > div:first-child .iconify {
-	color: var(--market-gold);
+	color: var(--market-accent);
 }
 
 .market-discipline-bar strong {
@@ -1425,7 +1415,7 @@ onBeforeUnmount(() => {
 
 .market-discipline-bar > a {
 	margin-left: auto;
-	color: var(--market-gold-bright);
+	color: var(--market-accent-strong);
 }
 
 .market-up-mark,
@@ -1472,9 +1462,9 @@ onBeforeUnmount(() => {
 }
 
 .market-workspaces button.active {
-	box-shadow: inset 0 -2px 0 var(--market-gold);
+	box-shadow: inset 0 -2px 0 var(--market-accent);
 	background: linear-gradient(180deg, var(--market-panel-raised), var(--market-panel));
-	color: var(--market-gold-bright);
+	color: var(--market-accent-strong);
 }
 
 .market-workspaces button > .iconify {
@@ -1523,13 +1513,13 @@ onBeforeUnmount(() => {
 	padding: 0.48rem 0.72rem;
 	border: 1px solid var(--market-border-strong);
 	border-radius: 0.35rem;
-	background: var(--market-gold-soft);
+	background: var(--market-accent-soft);
 	font-size: 0.68rem;
-	color: var(--market-gold-bright);
+	color: var(--market-accent-strong);
 	transition: background-color 0.18s ease, transform 0.18s ease;
 }
 
-.market-refresh:hover:not(:disabled) { background: rgb(217 188 114 / 17%); }
+.market-refresh:hover:not(:disabled) { background: color-mix(in srgb, var(--market-accent) 18%, transparent); }
 .market-refresh:active:not(:disabled) { transform: translateY(1px); }
 
 .market-refresh:disabled {
@@ -1570,7 +1560,7 @@ onBeforeUnmount(() => {
 
 .market-capability header b {
 	font-weight: 700;
-	color: var(--market-gold);
+	color: var(--market-accent);
 }
 
 .market-capability h3 {
@@ -1597,10 +1587,10 @@ onBeforeUnmount(() => {
 
 .market-capability-live {
 	border-color: var(--market-border-strong);
-	background: linear-gradient(150deg, var(--market-gold-soft), var(--market-panel) 48%);
+	background: linear-gradient(150deg, var(--market-accent-soft), var(--market-panel) 48%);
 }
 
-.market-capability-live footer { color: var(--market-gold-bright); }
+.market-capability-live footer { color: var(--market-accent-strong); }
 
 .market-capability p.market-capability-error { color: var(--market-up); }
 
@@ -1723,7 +1713,7 @@ onBeforeUnmount(() => {
 }
 
 .market-important-switch input:checked + span {
-	border-color: rgb(239 93 93 / 45%);
+	border-color: color-mix(in srgb, var(--market-up) 45%, transparent);
 	background: var(--market-up-soft);
 }
 
@@ -1753,8 +1743,8 @@ onBeforeUnmount(() => {
 
 .market-finance-filters button.active {
 	border-color: var(--market-border-strong);
-	background: var(--market-gold-soft);
-	color: var(--market-gold-bright);
+	background: var(--market-accent-soft);
+	color: var(--market-accent-strong);
 }
 
 .market-loading {
@@ -1778,9 +1768,9 @@ onBeforeUnmount(() => {
 	gap: 0.75rem;
 	margin: 0.75rem;
 	padding: 0.75rem;
-	border: 1px solid rgb(241 119 103 / 32%);
+	border: 1px solid color-mix(in srgb, var(--market-danger) 32%, transparent);
 	border-radius: 0.35rem;
-	background: rgb(241 119 103 / 8%);
+	background: var(--market-up-soft);
 	color: var(--market-danger);
 }
 
@@ -1821,7 +1811,7 @@ onBeforeUnmount(() => {
 	font: 700 0.66rem var(--font-monospace);
 	font-variant-numeric: tabular-nums;
 	text-align: right;
-	color: var(--market-gold);
+	color: var(--market-accent);
 }
 
 .market-event-marker {
@@ -1847,8 +1837,8 @@ onBeforeUnmount(() => {
 	height: 0.4rem;
 	margin-top: 1rem;
 	border-radius: 50%;
-	box-shadow: 0 0 0 0.2rem var(--market-gold-soft);
-	background: var(--market-gold);
+	box-shadow: 0 0 0 0.2rem var(--market-accent-soft);
+	background: var(--market-accent);
 	z-index: 1;
 }
 
@@ -1876,11 +1866,11 @@ onBeforeUnmount(() => {
 
 .market-event-body header .market-multisource {
 	border-color: var(--market-border-strong);
-	color: var(--market-gold-bright);
+	color: var(--market-accent-strong);
 }
 
 .market-important-badge {
-	border-color: rgb(239 93 93 / 38%);
+	border-color: color-mix(in srgb, var(--market-up) 38%, transparent);
 	background: var(--market-up-soft);
 	font-weight: 700;
 	color: var(--market-up);
@@ -1931,7 +1921,7 @@ onBeforeUnmount(() => {
 	gap: 0.16rem;
 	min-height: 2.5rem;
 	padding-inline: 0.2rem;
-	color: var(--market-gold-bright);
+	color: var(--market-accent-strong);
 }
 
 .market-empty,
@@ -1948,7 +1938,7 @@ onBeforeUnmount(() => {
 .market-empty > .iconify,
 .market-stage-empty > .iconify {
 	font-size: 1.8rem;
-	color: var(--market-gold);
+	color: var(--market-accent);
 }
 
 .market-empty strong,
@@ -1968,7 +1958,7 @@ onBeforeUnmount(() => {
 	align-items: center;
 	gap: 0.3rem;
 	min-height: 2.75rem;
-	color: var(--market-gold-bright);
+	color: var(--market-accent-strong);
 }
 
 .market-side-stack {
@@ -1988,7 +1978,7 @@ onBeforeUnmount(() => {
 
 .market-rule-list > div > span {
 	font: 0.6rem var(--font-monospace);
-	color: var(--market-gold);
+	color: var(--market-accent);
 }
 
 .market-rule-list p {
@@ -2031,7 +2021,7 @@ onBeforeUnmount(() => {
 
 .market-integrity-panel li .iconify {
 	flex: 0 0 auto;
-	color: var(--market-gold);
+	color: var(--market-accent);
 }
 
 .market-stage-view { min-height: 28rem; }
@@ -2073,7 +2063,7 @@ onBeforeUnmount(() => {
 	border: 1px solid var(--market-border-strong);
 	border-radius: 0.28rem;
 	font: 700 0.58rem/1.2 var(--font-monospace);
-	color: var(--market-gold-bright);
+	color: var(--market-accent-strong);
 }
 
 .market-kind-switch {
@@ -2093,8 +2083,8 @@ onBeforeUnmount(() => {
 }
 
 .market-kind-switch button.active {
-	background: var(--market-gold-soft);
-	color: var(--market-gold-bright);
+	background: var(--market-accent-soft);
+	color: var(--market-accent-strong);
 }
 
 .market-refresh.compact {
@@ -2223,13 +2213,13 @@ onBeforeUnmount(() => {
 	gap: 0.7rem;
 	margin: 0.8rem;
 	padding: 0.85rem;
-	border-left: 2px solid var(--market-gold);
-	background: var(--market-gold-soft);
+	border-left: 2px solid var(--market-accent);
+	background: var(--market-accent-soft);
 }
 
 .market-stage-notice > .iconify {
 	margin-top: 0.1rem;
-	color: var(--market-gold);
+	color: var(--market-accent);
 }
 .market-stage-notice strong { font-size: 0.72rem; }
 
@@ -2257,7 +2247,7 @@ onBeforeUnmount(() => {
 
 .market-signal-matrix span {
 	font: 0.58rem var(--font-monospace);
-	color: var(--market-gold);
+	color: var(--market-accent);
 }
 
 .market-signal-matrix strong {
@@ -2292,7 +2282,7 @@ onBeforeUnmount(() => {
 
 .market-strategy-list > div > span {
 	font: 0.62rem var(--font-monospace);
-	color: var(--market-gold);
+	color: var(--market-accent);
 }
 .market-strategy-list strong { font-size: 0.78rem; }
 
@@ -2344,7 +2334,7 @@ onBeforeUnmount(() => {
 	align-items: center;
 	gap: 0.45rem;
 	min-height: 2.75rem;
-	color: var(--market-gold);
+	color: var(--market-accent);
 }
 .market-watchlist-form-title > .iconify { font-size: 1.1rem; }
 
@@ -2397,7 +2387,7 @@ onBeforeUnmount(() => {
 
 .market-watchlist-add input:focus,
 .market-watch-edit input:focus,
-.market-watch-edit textarea:focus { border-color: var(--market-gold); }
+.market-watch-edit textarea:focus { border-color: var(--market-accent); }
 
 .market-watchlist-add > button,
 .market-watch-edit button,
@@ -2407,7 +2397,7 @@ onBeforeUnmount(() => {
 	border: 1px solid var(--market-border-strong);
 	border-radius: 0.3rem;
 	font-size: 0.62rem;
-	color: var(--market-gold-bright);
+	color: var(--market-accent-strong);
 }
 
 .market-watchlist-add > button {
@@ -2415,7 +2405,7 @@ onBeforeUnmount(() => {
 	align-items: center;
 	justify-content: center;
 	gap: 0.3rem;
-	background: var(--market-gold-soft);
+	background: var(--market-accent-soft);
 }
 
 .market-watchlist-add > button:disabled {
@@ -2456,7 +2446,7 @@ onBeforeUnmount(() => {
 	font-size: 0.55rem;
 	color: var(--market-text-3);
 }
-.market-watchlist-summary strong { color: var(--market-gold-bright); }
+.market-watchlist-summary strong { color: var(--market-accent-strong); }
 
 .live-dot, .stale-dot, .unavailable-dot {
 	width: 0.45rem;
@@ -2464,7 +2454,7 @@ onBeforeUnmount(() => {
 	border-radius: 50%;
 }
 .live-dot { background: var(--market-down); }
-.stale-dot { background: var(--market-gold); }
+.stale-dot { background: var(--market-accent); }
 .unavailable-dot { background: var(--market-text-3); }
 
 .market-watchlist-sort {
@@ -2499,8 +2489,8 @@ onBeforeUnmount(() => {
 
 .market-watchlist-sort button.active {
 	border-color: var(--market-border-strong);
-	background: var(--market-gold-soft);
-	color: var(--market-gold-bright);
+	background: var(--market-accent-soft);
+	color: var(--market-accent-strong);
 }
 
 .market-watchlist-layout {
@@ -2600,7 +2590,7 @@ onBeforeUnmount(() => {
 	width: 0.45rem;
 	height: 0.45rem;
 	border-radius: 50%;
-	background: var(--market-gold);
+	background: var(--market-accent);
 	transform: translate(-50%, -50%);
 }
 
@@ -2616,15 +2606,15 @@ onBeforeUnmount(() => {
 }
 
 .market-watch-status[data-tone="live"] {
-	border-color: rgb(73 163 108 / 46%);
+	border-color: color-mix(in srgb, var(--market-down) 46%, transparent);
 	background: var(--market-down-soft);
-	color: #7DD99D;
+	color: var(--market-down);
 }
 
 .market-watch-status[data-tone="stale"] {
 	border-color: var(--market-border-strong);
-	background: var(--market-gold-soft);
-	color: var(--market-gold-bright);
+	background: var(--market-accent-soft);
+	color: var(--market-accent-strong);
 }
 
 .market-watch-status[data-tone="unavailable"],
@@ -2663,7 +2653,7 @@ onBeforeUnmount(() => {
 .market-watchlist-side > section > header span {
 	font: 0.52rem var(--font-monospace);
 	letter-spacing: 0.08em;
-	color: var(--market-gold);
+	color: var(--market-accent);
 }
 
 .market-watchlist-side > section > header h3 {
@@ -2673,7 +2663,7 @@ onBeforeUnmount(() => {
 
 .market-watchlist-side > section > header b {
 	font: 0.56rem var(--font-monospace);
-	color: var(--market-gold-bright);
+	color: var(--market-accent-strong);
 }
 
 .market-watchlist-side > section > p {
@@ -2697,7 +2687,7 @@ onBeforeUnmount(() => {
 
 .market-watch-events time {
 	font: 0.56rem var(--font-monospace);
-	color: var(--market-gold);
+	color: var(--market-accent);
 }
 
 .market-watch-events div {
@@ -2738,7 +2728,7 @@ onBeforeUnmount(() => {
 	font: 0.58rem/1.5 var(--font-monospace);
 	color: var(--market-text-3);
 }
-.market-watchlist-discipline .iconify { color: var(--market-gold); }
+.market-watchlist-discipline .iconify { color: var(--market-accent); }
 
 .market-watch-card {
 	display: grid;
@@ -2969,10 +2959,6 @@ onBeforeUnmount(() => {
 @media (prefers-reduced-transparency: reduce) {
 	.market-terminal {
 		background: var(--market-bg);
-	}
-
-	.market-grid-noise {
-		display: none;
 	}
 
 	.market-clock,
