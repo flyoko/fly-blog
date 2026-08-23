@@ -237,3 +237,16 @@
 - 正式域真实 Chrome：1440×900 进入 Signal Desk 后稳定展示 `SIGNAL DESK · PRIVATE`、`balanced-v1` 与未登录锁定态；light / dark / dynamic 三主题切换均无 console/page/network error。390×844 Mobile 页面实际宽度保持 390px，进入 Signal Desk 后同样只展示锁定态，无 console/page/network error、无私人 signal 明细。
 - `0016_market_watchlist_signals.sql` 只创建 `market_watchlist_signal` 表、唯一约束、外键与索引，不包含 `INSERT`、seed 或任何模拟 signal。部署后曾尝试用本机 Wrangler 做生产 D1 **只读聚合计数**，Cloudflare API 因当前本机账号授权不足返回 7403，查询未执行且没有任何写操作。因此不猜测当前生产私人 row count，也不宣称当前认证用户一定处于 warming；只确认历史不足时 warming/0 signal 是合法状态，发布链路没有写入 fake signal。
 - P2B 多交易日误报率/信号密度长期 SLA 仍**未宣称通过**；待真实交易日样本自然积累后再做独立观察，不以本次上线成功替代长期统计结论。
+
+### 2026-08-23 · P2B 加固修复后二次生产验收
+
+- 二次加固功能 SHA：`b909144267078218668b9c5aff119ed156496c6d`（`fix: harden market radar lifecycle and freshness`）。从 `4c5ec56` 对 `origin/main` 单提交 fast-forward 推送，推送前重新 fetch，`ahead=1 / behind=0`，未覆盖远端新提交。
+- 本轮在发布前以 RED→GREEN 补齐并修复：真实 `marketAt` 语义与日期展示、signal 完整统计不受 `limit` 截断、`balanced-v1` 列表/冷却版本隔离、AbortController ownership、workspace/unmount 后私有请求与 polling 复活、午休/次交易窗口 wake-up、超过 7 天长假 wake-up、2026 上交所/深交所/北交所同源休市门禁、同日陈旧/前日/无效/未来行情降级、后台旧行情禁止落 5m snapshot/触发 signal、春节后按 5 个真实交易日恢复 historical-slot baseline，以及历史查询 `market_at <= now` 防未来快照污染。
+- 为避免门禁依赖原工作树未跟踪文件，单独从 `b909144` 创建 clean detached worktree，执行 `pnpm install --frozen-lockfile --offline` 后再跑完整 `pnpm verify`，最终 exit 0：Root 34 files / 287 tests；Edge 1 file / 36 tests；API 27 files / 299 tests；Nuxt generate 51 routes；link checker 0 errors / 0 warnings；secret scan 809 tracked/generated files 0 命中。原工作树 3 个无关 finance 未跟踪测试未进入本次 commit，也未参与 clean-commit API 299 tests 结论。
+- clean commit Worker dry-run 再次 exit 0：API `1973.58 KiB / gzip 383.37 KiB`，Edge `15.55 KiB / gzip 4.57 KiB`；bindings 与既有 Cron/Queue 架构不变，没有新增 signal Provider 或独立 Cron。
+- 最新生成产物通过匿名真实 Chrome 代理验收：1440×900 与 390×844 都能切换自选/信号，Signal Desk 仅显示 locked state，light/dark/dynamic 切换无 console/page/network error；390 页面实际宽度保持 390px。代理仅记录 `METHOD + path/query`，未记录 Cookie/Header/Body；切过“自选 → 信号”后只出现 `/api/auth/session`，未出现 `/api/admin/market/watchlist*` 或 `/api/admin/market/signals`。
+- Workers Production `#72` / run `32633589038` 对 `b909144` 全部成功：install、typecheck、worker tests、D1 migration、queue 检查、API Worker deploy、Edge Worker deploy、same-origin health 均 success。CI API 为 27 files / 299 tests、Edge 36 tests；D1 明确返回 `No migrations to apply`，即 `0016_market_watchlist_signals.sql` 已由上一轮生产发布完成，不重复执行 DDL。API Worker 本轮版本 `1e768707-625f-4a1a-be58-e23bfc167263`，Edge Worker 版本 `7d48f23c-b800-40ef-836c-42e9746c5b1f`。
+- Pages Production `#203` / run `32633588997` 对同一 `b909144` 全部成功：`source_quality`、`build_pages`、production artifact、Cloudflare Pages deploy、controlled production entries 均 success。
+- 二次独立正式域 API smoke 全部符合合同：`/api/health` = 200 JSON；`/api/market/overview` = 200 JSON 且当前 `quality=live`；未登录 `/api/admin/market/signals` = 401 / `UNAUTHENTICATED` / `private, no-store`；未登录 `/api/admin/market/watchlist` = 401 / `UNAUTHENTICATED` / `private, no-store`。
+- 二次独立正式域真实 Chrome：1440×900 下真实“资金”工作区能读取行业资金表，Signal Desk 只显示 `SIGNAL DESK · PRIVATE / balanced-v1` locked state，随后 SPA `/market → /` 正常清理；390×844 下 `page_size.width=390`、Signal locked 正常。两种尺寸全程 `console_errors=[] / page_errors=[] / network_errors=[]`，未观察到私人 signal/watchlist 明细泄漏。
+- 长期信号密度 SLA：**样本不足，未宣称通过**。本轮上线和修复只证明即时功能、数据纪律、生命周期、生产发布链路与回归门禁通过，不以部署成功冒充多交易日误报率/密度结论；继续等待真实交易日样本自然积累。
