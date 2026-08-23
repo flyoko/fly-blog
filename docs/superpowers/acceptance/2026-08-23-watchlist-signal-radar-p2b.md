@@ -54,7 +54,7 @@
 - [ ] D3. turnover 不可用但 volume 基线合法时才允许 fallback，并标 `basis=volume`。
 - [ ] D4. PRICE_ACCELERATION 普通：abs(5m)>=1.0% 或合法 abs(10m)>=1.5%。
 - [ ] D5. PRICE_ACCELERATION 极端：abs(5m)>=1.8%。
-- [ ] D6. RANGE_BREAK 使用 current 之前 6 个完整 5m bucket，不含 current。
+- [ ] D6. RANGE_BREAK 使用 current 之前 6 个连续 5m snapshot `price` 的 max/min，不含 current，且绝不使用 P2A 当日累计 `high/low`。
 - [ ] D7. 上破阈值 `current >= previousRangeHigh * 1.002`。
 - [ ] D8. 下破阈值 `current <= previousRangeLow * 0.998`。
 - [ ] D9. 普通 RANGE_BREAK 单独不能形成用户 signal。
@@ -100,7 +100,7 @@
 - [ ] G2. signal evidence 仅保存有限白名单数值/因子，不复制第三方 raw payload。
 - [ ] G3. 每条 row 固化 `engine_version=balanced-v1`。
 - [ ] G4. SignalService 对最多 30 股历史采用批量读取，禁止一股一 SQL 查询放大。
-- [ ] G5. 历史查询仅取约 8 日范围及必要列。
+- [ ] G5. 历史查询仅取约 8 日范围及必要列；P2B 局部 range 不读取/使用 P2A 当日累计 `high/low`。
 - [ ] G6. disabled 股票不参与 signal evaluation。
 - [ ] G7. 删除 watchlist 股票时删除同 owner+symbol 的 P2B signal。
 - [ ] G8. 删除自选不改变 P2A quote_5m 既有 retention 策略。

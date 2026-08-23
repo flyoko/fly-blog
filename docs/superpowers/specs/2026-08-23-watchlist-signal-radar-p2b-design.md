@@ -214,12 +214,14 @@ P2A 抓取窗口为了容错覆盖约 09:20–11:35 / 12:55–15:15，但 P2B �
 
 ### 7.3 局部区间突破 `RANGE_BREAK`
 
-观察当前价格是否首次突破/跌破**此前 6 个完整 5 分钟桶（约 30 分钟）**的局部价格区间。
+观察当前价格是否首次突破/跌破**此前 6 个完整 5 分钟快照价格（约 30 分钟）**形成的局部区间。P2A 的 `high/low` 是当日累计高低，不是 5 分钟区间高低，因此 P2B **禁止**用 snapshot `high/low` 计算 30 分钟 range。
 
+- `previousRangeHigh = max(previousSixSnapshots.price)`
+- `previousRangeLow = min(previousSixSnapshots.price)`
 - 上破：`currentPrice >= previousRangeHigh * 1.002`
 - 下破：`currentPrice <= previousRangeLow * 0.998`
 
-previousRange 不包含当前桶，避免自己证明自己突破。
+previousRange 不包含当前桶，且 6 个 previous price snapshots 必须是连续 5 分钟桶，避免自己证明自己突破或跨缺口拼区间。
 
 普通 range break 不能单独形成用户信号；必须与量能异常或价格加速组合。P2B `balanced-v1` 不定义“单独突破即提醒”的额外隐藏阈值。
 
@@ -446,7 +448,7 @@ function evaluateMarketSignal(input: SignalEngineInput): SignalCandidate | null
 
 - 仅最多 30 个 symbol；
 - 只读最近约 8 个自然日范围；
-- 只选 `symbol/bucket_at/market_at/price/high/low/previous_close/volume/turnover` 等必要列；
+- 只选 `owner_id/symbol/bucket_at/market_at/price/previous_close/volume/turnover/source_id` 等必要列；P2A 的日内累计 `high/low` 不进入 P2B 局部 range 计算；
 - 内存按 symbol 分组；
 - 不做 30 次独立历史 SQL 查询；
 - 不访问第三方 Provider。
@@ -665,7 +667,7 @@ UNIQUE + deterministic id 确保幂等。
 - baseline 样本不足；
 - TURNOVER_SURGE 普通/强阈值边界；
 - PRICE_ACCELERATION 5m/10m/极端边界；
-- RANGE_BREAK 不包含 current；
+- RANGE_BREAK 只用前 6 个连续 snapshot `price` 的 max/min，不读取日内累计 high/low，且不包含 current；
 - attention cross up/down/首桶 previousClose；
 - 单普通量能 <50 不触发；
 - 价量组合达到 watch；
