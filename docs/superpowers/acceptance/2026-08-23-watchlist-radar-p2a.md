@@ -134,7 +134,7 @@
 - [x] J7. Browser acceptance 至少覆盖 1440×900 与 390×844，并扩展检查 320/360/390/430/768/1024/1280/1440/1728 的无页面级横向溢出。
 - [x] J8. Browser acceptance 覆盖 live/degraded/stale/unavailable、未登录、空自选、单股 unavailable、收盘语义、Desktop/Mobile、三主题、reduced motion、SPA 离开和 console/errors。
 - [x] J9. `git diff --check` 通过；Secret 扫描无新增生产凭据；日志/测试产物无私人 watchlist 明细泄露。
-- [ ] J10. 用户已在实施阶段明确授权 commit、push 与生产部署；仅在 I/J 其余技术门禁通过后执行生产发布，并记录目标 SHA、工作流与线上 smoke。
+- [x] J10. 用户已在实施阶段明确授权 commit、push 与生产部署；仅在 I/J 其余技术门禁通过后执行生产发布，并记录目标 SHA、工作流与线上 smoke。
 
 ## 验收记录模板
 
@@ -198,11 +198,26 @@
 - 质量状态：stale 全部 `STALE · 3m`；unavailable 全部 `UNAVAILABLE`；收盘后的真实最新行情显示 `已收盘 · 15:00`，不显示 LIVE；mixed 同时保留收盘/STALE/UNAVAILABLE。
 - 三主题：light/dark/dynamic 下 `/market` 局部 token 一致；reduced-motion matches=true、scrollBehavior=auto、terminalAnimation=none。
 - SPA `/market -> /`：`.market-terminal` 卸载，`body/#blog-root` 无 `--market-gold` 残留；console/page/network errors 最终均为 0。
-- 当前 Agent 最终代码审查：公开 `/api/market/*` 无 watchlist/attentionPrice/tags 泄漏；生产代码无 `Math.random`/mock quote；未发现剩余 Critical/Important。
+- 当前 Agent 最终代码审查：公开 `/api/market/*` 无 watchlist/attentionPrice/tags 泄漏；生产代码无 `Math.random`/mock quote；部署期 Edge 修复只扩展既有 API namespace 到 `/api/market/`，对应 overview/sector-flows 红绿测试与线上 200 JSON 已验证；二次复审未发现剩余 Critical/Important。
+
+### J10 生产发布与 Edge 回归证据
+
+- 最终生产代码 SHA：`d9a251663ed6c3ba37246c824829a20d6fb5d88d`（`fix: route public market api through edge`），已 push 到 `main`。
+- Workers Production：run `32613136416`，PASS。`pnpm typecheck`、`pnpm test:workers`、D1 migrations、Queue 检查、API Worker、Edge Worker、same-origin health 全部成功。
+- Pages Production：run `32613227042`，PASS，且 head SHA 同为 `d9a2516`。`verify:pages-source`、`verify:pages`、artifact、Cloudflare Pages deploy、`Verify controlled production entries` 全部成功。
+- 发布前最终本地总门禁（Edge 路由修复后重跑）：`git diff --check && pnpm verify` exit 0；Root **33 files / 271 tests**，Edge **1 file / 36 tests**，API **28 files / 255 tests**；generate/smoke/links/secrets 全通过。
+- 最新 generate：Nuxt Link Checker 0 error / 0 warning；28 个 generated HTML 无 broken internal href；Secret scan 扫描 789 个 tracked/generated 文件，无 Secret pattern。
+- Edge Worker dry-run：PASS，Total Upload **15.55 KiB / gzip 4.57 KiB**；API Worker 的 P2A dry-run 在前置 i9 已 PASS（1938.38 KiB / gzip 374.52 KiB）。
+- 第一轮真实生产 smoke 暴露 Edge 路由缺陷：`/api/health` 已命中新 API，但 `/api/market/overview` 返回 Pages HTML 404；根因是 `workers/edge/src/index.ts` 的 API prefix 漏掉 `/api/market/`。
+- 该线上缺陷按 TDD 修复：先给 `/api/market/overview`、`/api/market/sector-flows` 增加路由红测，得到 **2 fail / 34 pass**；再只增加 `/api/market/` prefix，复测 **36/36 PASS**，Edge typecheck、全仓 `pnpm verify` 与 dry-run 再次通过后才推送生产。
+- 最终线上 API smoke：`GET /api/health` 200；`GET /api/market/overview` 200 JSON；`GET /api/market/sector-flows?kind=industry&limit=3` 200 JSON；未登录 `GET /api/admin/market/watchlist` 401 / `UNAUTHENTICATED`，证明 public market 已经正确经过 Edge，同时 private watchlist 仍保持登录边界。
+- 最终线上 Desktop 1440×900：`/market` P2A 正常加载，自选工作区未登录时只显示 `自选雷达 · 私有 / 登录后查看和维护你的 0–30 只自选股`，没有私人列表泄露；console/page/network errors 均为 0。
+- 最终线上 Mobile 390×844：单列布局正常，切换自选后保持同一私有登录边界；browser page width=390，console/page/network errors 均为 0。
+- 最终线上离开 `/market` 返回首页后无 browser console/page/network error；P0/P1 的主题/SPA 细节仍由 i9 完整宽度与三主题验收覆盖。
 
 ### 未完成生产边界
 
-- 正式生产 SLA：未宣称通过；仍需连续多交易日生产观察。
-- commit：实施阶段已获用户明确授权，当前已按 TDD 小步提交；最终 SHA 在部署后补充。
-- push：待 J5–J9 全门禁通过后执行。
-- production deploy：待 J5–J9 全门禁通过后执行。
+- 正式生产 SLA：**未宣称通过**；P2A Instant Cloudflare Gate 已通过并已上线，但连续多交易日稳定性仍需后续生产观察。
+- commit：已完成；P2A 功能提交链及部署期修复均已提交。
+- push：已完成；生产代码 SHA `d9a251663ed6c3ba37246c824829a20d6fb5d88d` 已在 `main`。
+- production deploy：已完成；Workers run `32613136416`、Pages run `32613227042` 均成功。
