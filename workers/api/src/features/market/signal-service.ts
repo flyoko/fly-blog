@@ -11,6 +11,7 @@ import type {
 } from '../../../../../shared/market'
 import type { Env } from '../../env'
 import type { SignalCandidate, SignalSnapshot } from './signal-engine'
+import { chinaAShareHistoryStart } from '../../../../../shared/market-calendar'
 import { parseStockSymbol } from './eastmoney-stock'
 import {
 	BALANCED_SIGNAL_ENGINE_VERSION,
@@ -21,7 +22,7 @@ import {
 } from './signal-engine'
 
 const MAX_TARGETS = 30
-const HISTORY_DAYS = 8
+const HISTORY_TRADING_DAYS = 5
 const RECENT_SCOPE_DAYS = 7
 const RETENTION_DAYS = 30
 const SHANGHAI_OFFSET_MS = 8 * 60 * 60 * 1000
@@ -253,6 +254,21 @@ function shanghaiDayBounds(value: Date) {
 	}
 }
 
+function latestSnapshotMarketAt(histories: Map<string, SignalSnapshot[]>) {
+	let latest: string | null = null
+	let latestMs = -Infinity
+	for (const snapshots of histories.values()) {
+		for (const snapshot of snapshots) {
+			const marketMs = Date.parse(snapshot.marketAt)
+			if (Number.isFinite(marketMs) && marketMs > latestMs) {
+				latest = snapshot.marketAt
+				latestMs = marketMs
+			}
+		}
+	}
+	return latest
+}
+
 export class MarketSignalService {
 	constructor(
 		private readonly env: Env,
@@ -269,17 +285,19 @@ export class MarketSignalService {
 		const ownerIds = [...new Set(targets.map(target => target.ownerId))]
 		const symbols = [...new Set(targets.map(target => target.watchlist.symbol))]
 		const allowedPairs = new Set(targets.map(target => pairKey(target.ownerId, target.watchlist.symbol)))
-		const cutoff = new Date(this.now().getTime() - HISTORY_DAYS * 24 * 60 * 60 * 1000).toISOString()
+		const now = this.now()
+		const cutoff = chinaAShareHistoryStart(now, HISTORY_TRADING_DAYS)
+		const upperBound = now.toISOString()
 		const query = `
 			SELECT owner_id, symbol, bucket_at, market_at, price, previous_close, turnover, source_id
 			FROM market_watchlist_quote_5m
-			WHERE market_at >= ?
+			WHERE market_at >= ? AND market_at <= ?
 				AND owner_id IN (${placeholders(ownerIds.length)})
 				AND symbol IN (${placeholders(symbols.length)})
 			ORDER BY owner_id, symbol, market_at, bucket_at
 		`
 		const rows = await this.env.DB.prepare(query)
-			.bind(cutoff, ...ownerIds, ...symbols)
+			.bind(cutoff, upperBound, ...ownerIds, ...symbols)
 			.all<HistoryRow>()
 		for (const row of rows.results) {
 			const key = pairKey(row.owner_id, row.symbol)
@@ -306,12 +324,14 @@ export class MarketSignalService {
 		const query = `
 			SELECT owner_id, symbol, market_at, signal_type, direction, severity, score
 			FROM market_watchlist_signal
-			WHERE market_at >= ?
+			WHERE market_at >= ? AND engine_version = ?
 				AND owner_id IN (${placeholders(ownerIds.length)})
 				AND symbol IN (${placeholders(symbols.length)})
 			ORDER BY market_at DESC
 		`
-		const rows = await this.env.DB.prepare(query).bind(cutoff, ...ownerIds, ...symbols).all<CooldownRow>()
+		const rows = await this.env.DB.prepare(query)
+			.bind(cutoff, BALANCED_SIGNAL_ENGINE_VERSION, ...ownerIds, ...symbols)
+			.all<CooldownRow>()
 		for (const row of rows.results) {
 			const key = pairKey(row.owner_id, row.symbol)
 			if (allowedPairs.has(key))
@@ -425,30 +445,43 @@ export class MarketSignalService {
 		const bounds = scope === 'today'
 			? shanghaiDayBounds(now)
 			: { start: new Date(now.getTime() - RECENT_SCOPE_DAYS * 24 * 60 * 60 * 1000).toISOString(), end: now.toISOString() }
-		const bindings: unknown[] = [ownerId, bounds.start, bounds.end]
+		const filterBindings: unknown[] = [ownerId, bounds.start, bounds.end, BALANCED_SIGNAL_ENGINE_VERSION]
 		let symbolFilter = ''
 		if (options.symbol) {
 			symbolFilter = ' AND s.symbol = ?'
-			bindings.push(options.symbol)
+			filterBindings.push(options.symbol)
 		}
-		bindings.push(limit)
-		const rows = await this.env.DB.prepare(`
-			SELECT s.id, s.owner_id, s.symbol, w.stock_code, w.stock_name, s.market_at, s.detected_at,
-				s.signal_type, s.direction, s.severity, s.score, s.title, s.evidence_json, s.engine_version
-			FROM market_watchlist_signal s
-			INNER JOIN market_watchlist w ON w.owner_id = s.owner_id AND w.symbol = s.symbol
-			WHERE s.owner_id = ? AND s.market_at >= ? AND s.market_at < ?${symbolFilter}
-			ORDER BY s.market_at DESC, s.id DESC
-			LIMIT ?
-		`).bind(...bindings).all<SignalRow>()
+		const whereClause = `s.owner_id = ? AND s.market_at >= ? AND s.market_at < ? AND s.engine_version = ?${symbolFilter}`
+		const [summaryRow, rows] = await Promise.all([
+			this.env.DB.prepare(`
+				SELECT COUNT(*) AS total_count,
+					COALESCE(SUM(CASE WHEN s.severity = 'strong' THEN 1 ELSE 0 END), 0) AS strong_count
+				FROM market_watchlist_signal s
+				INNER JOIN market_watchlist w ON w.owner_id = s.owner_id AND w.symbol = s.symbol
+				WHERE ${whereClause}
+			`).bind(...filterBindings).first<{ total_count: number, strong_count: number }>(),
+			this.env.DB.prepare(`
+				SELECT s.id, s.owner_id, s.symbol, w.stock_code, w.stock_name, s.market_at, s.detected_at,
+					s.signal_type, s.direction, s.severity, s.score, s.title, s.evidence_json, s.engine_version
+				FROM market_watchlist_signal s
+				INNER JOIN market_watchlist w ON w.owner_id = s.owner_id AND w.symbol = s.symbol
+				WHERE ${whereClause}
+				ORDER BY s.market_at DESC, s.id DESC
+				LIMIT ?
+			`).bind(...filterBindings, limit).all<SignalRow>(),
+		])
 		const items = rows.results.map(signalRowToItem).filter((item): item is MarketSignalItem => Boolean(item))
 		return {
 			engineVersion: BALANCED_SIGNAL_ENGINE_VERSION,
-			marketAt: items[0]?.marketAt ?? null,
+			marketAt: latestSnapshotMarketAt(histories) ?? items[0]?.marketAt ?? null,
 			baseline: {
 				enabledCount: targets.length,
 				readyCount,
 				warmingCount: targets.length - readyCount,
+			},
+			summary: {
+				totalCount: Number(summaryRow?.total_count || 0),
+				strongCount: Number(summaryRow?.strong_count || 0),
 			},
 			items,
 		}

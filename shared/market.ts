@@ -175,9 +175,15 @@ export interface MarketSignalBaselineSummary {
 	warmingCount: number
 }
 
+export interface MarketSignalSummary {
+	totalCount: number
+	strongCount: number
+}
+
 export interface MarketSignalDeskResponse {
 	engineVersion: 'balanced-v1'
 	marketAt: string | null
 	baseline: MarketSignalBaselineSummary
+	summary?: MarketSignalSummary
 	items: MarketSignalItem[]
 }

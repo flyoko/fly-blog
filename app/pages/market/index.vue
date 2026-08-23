@@ -3,6 +3,7 @@ import type { AdminSessionDto } from '#shared/admin/auth'
 import type { FinanceFilter, FinanceFlashDto, FinanceFlashListDto, FinanceFlashSourceDto } from '#shared/admin/finance'
 import type { MarketDataQuality, MarketEnvelope, MarketOverview, SectorFlowItem, SectorKind, SectorWindowDays, WatchlistItem, WatchlistRadarItem, WatchlistRadarResponse } from '#shared/market'
 import MarketSignalDesk from '~/components/market/MarketSignalDesk.vue'
+import { isShanghaiMarketWindow, millisecondsUntilNextShanghaiWindow, WATCHLIST_MARKET_WINDOWS } from '~/utils/market-polling'
 
 type MarketWorkspace = 'radar' | 'funds' | 'watchlist' | 'signals' | 'strategy'
 type WatchlistSortMode = 'custom' | 'change' | 'attention' | 'turnover'
@@ -98,7 +99,9 @@ let sectorFlowRevision = 0
 let refreshTimer: ReturnType<typeof setInterval> | null = null
 let clockTimer: ReturnType<typeof setInterval> | null = null
 let watchlistTimer: ReturnType<typeof setInterval> | null = null
+let watchlistWakeTimer: ReturnType<typeof setTimeout> | null = null
 let watchlistRequestController: AbortController | null = null
+let marketPageMounted = false
 const watchlistRequestInFlight = ref(false)
 
 const financeItems = computed(() => financeData.value?.items || [])
@@ -344,25 +347,8 @@ async function loadSectorFlows(options: { background?: boolean } = {}) {
 	}
 }
 
-function shanghaiParts(value: Date) {
-	const formatter = new Intl.DateTimeFormat('en-GB', {
-		weekday: 'short',
-		hour: '2-digit',
-		minute: '2-digit',
-		hourCycle: 'h23',
-		timeZone: 'Asia/Shanghai',
-	})
-	const parts = Object.fromEntries(formatter.formatToParts(value).map(part => [part.type, part.value]))
-	return { weekday: parts.weekday || '', hour: Number(parts.hour), minute: Number(parts.minute) }
-}
-
 function isChinaMarketTradingWindow(value: Date) {
-	const { weekday, hour, minute } = shanghaiParts(value)
-	if (weekday === 'Sat' || weekday === 'Sun')
-		return false
-	const minutes = hour * 60 + minute
-	return (minutes >= 9 * 60 + 20 && minutes <= 11 * 60 + 35)
-		|| (minutes >= 12 * 60 + 55 && minutes <= 15 * 60 + 15)
+	return isShanghaiMarketWindow(value, WATCHLIST_MARKET_WINDOWS)
 }
 
 function formatWatchlistPrice(value: number | null | undefined) {
@@ -490,14 +476,14 @@ async function loadWatchlistSession() {
 }
 
 async function loadWatchlistConfig() {
-	if (!watchlistSession.value?.authenticated)
+	if (!marketPageMounted || activeWorkspace.value !== 'watchlist' || !watchlistSession.value?.authenticated)
 		return
 	const result = await $fetch<{ data: WatchlistItem[] }>('/api/admin/market/watchlist')
 	watchlistConfig.value = result.data
 }
 
 async function loadWatchlistQuotes(options: { background?: boolean } = {}) {
-	if (activeWorkspace.value !== 'watchlist' || !watchlistSession.value?.authenticated || watchlistRequestInFlight.value)
+	if (!marketPageMounted || activeWorkspace.value !== 'watchlist' || !watchlistSession.value?.authenticated || watchlistRequestInFlight.value)
 		return
 	watchlistRequestInFlight.value = true
 	if (!options.background)
@@ -515,11 +501,12 @@ async function loadWatchlistQuotes(options: { background?: boolean } = {}) {
 			watchlistError.value = cause instanceof Error ? cause.message : '自选行情加载失败'
 	}
 	finally {
-		if (watchlistRequestController === controller)
+		if (watchlistRequestController === controller) {
 			watchlistRequestController = null
-		watchlistRequestInFlight.value = false
-		if (!options.background)
-			watchlistLoading.value = false
+			watchlistRequestInFlight.value = false
+			if (!options.background)
+				watchlistLoading.value = false
+		}
 	}
 }
 
@@ -528,30 +515,56 @@ function stopWatchlistPolling(options: { abort?: boolean } = {}) {
 		clearInterval(watchlistTimer)
 		watchlistTimer = null
 	}
-	if (options.abort) {
-		watchlistRequestController?.abort()
-		watchlistRequestController = null
+	if (watchlistWakeTimer) {
+		clearTimeout(watchlistWakeTimer)
+		watchlistWakeTimer = null
 	}
+	if (options.abort) {
+		const controller = watchlistRequestController
+		watchlistRequestController = null
+		watchlistRequestInFlight.value = false
+		watchlistLoading.value = false
+		controller?.abort()
+	}
+}
+
+function scheduleWatchlistWakeup() {
+	const delay = millisecondsUntilNextShanghaiWindow(new Date(), WATCHLIST_MARKET_WINDOWS)
+	if (delay === null)
+		return
+	watchlistWakeTimer = setTimeout(() => {
+		watchlistWakeTimer = null
+		if (activeWorkspace.value !== 'watchlist' || !watchlistSession.value?.authenticated || document.visibilityState !== 'visible')
+			return
+		if (isChinaMarketTradingWindow(new Date()))
+			void loadWatchlistQuotes({ background: true }).finally(() => startWatchlistPolling())
+		else
+			startWatchlistPolling()
+	}, Math.max(250, delay + 250))
 }
 
 function startWatchlistPolling() {
 	stopWatchlistPolling()
-	if (!import.meta.client || activeWorkspace.value !== 'watchlist' || !watchlistSession.value?.authenticated)
+	if (!import.meta.client || !marketPageMounted || activeWorkspace.value !== 'watchlist' || !watchlistSession.value?.authenticated)
 		return
-	if (document.visibilityState !== 'visible' || !isChinaMarketTradingWindow(new Date()))
+	if (document.visibilityState !== 'visible')
 		return
+	if (!isChinaMarketTradingWindow(new Date())) {
+		scheduleWatchlistWakeup()
+		return
+	}
 	watchlistTimer = setInterval(() => {
 		if (activeWorkspace.value === 'watchlist' && document.visibilityState === 'visible' && isChinaMarketTradingWindow(new Date()))
 			void loadWatchlistQuotes({ background: true })
 		else
-			stopWatchlistPolling()
+			startWatchlistPolling()
 	}, 45_000)
 }
 
 async function activateWatchlist() {
 	stopWatchlistPolling({ abort: true })
 	await loadWatchlistSession()
-	if (!watchlistSession.value?.authenticated)
+	if (!marketPageMounted || activeWorkspace.value !== 'watchlist' || !watchlistSession.value?.authenticated)
 		return
 	watchlistLoading.value = true
 	watchlistError.value = ''
@@ -697,6 +710,7 @@ watch([activeWorkspace, sectorKind], ([workspace]) => {
 })
 
 onMounted(() => {
+	marketPageMounted = true
 	currentClock.value = new Date()
 	document.addEventListener('visibilitychange', handleMarketVisibilityChange)
 	void loadFinance()
@@ -713,6 +727,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+	marketPageMounted = false
 	document.removeEventListener('visibilitychange', handleMarketVisibilityChange)
 	stopWatchlistPolling({ abort: true })
 	if (refreshTimer)

@@ -5,6 +5,7 @@ import type {
 	SectorFlowQuote,
 	SectorKind,
 } from '../../../../../shared/market'
+import { isChinaAShareTradingDate } from '../../../../../shared/market-calendar'
 
 export type MarketCapability = 'indices' | 'breadth' | 'sector-industry' | 'sector-concept'
 
@@ -53,8 +54,8 @@ export function shanghaiParts(date: Date): { date: string, weekday: string, minu
 }
 
 export function isChinaMarketSyncWindow(date: Date): boolean {
-	const { weekday, minutes } = shanghaiParts(date)
-	if (weekday === 'Sat' || weekday === 'Sun')
+	const { minutes } = shanghaiParts(date)
+	if (!isChinaAShareTradingDate(date))
 		return false
 	const morning = minutes >= 9 * 60 + 20 && minutes <= 11 * 60 + 35
 	const afternoon = minutes >= 12 * 60 + 55 && minutes <= 15 * 60 + 15

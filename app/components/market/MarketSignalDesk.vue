@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { MarketSignalDeskResponse, MarketSignalItem } from '#shared/market'
+import { isShanghaiMarketWindow, millisecondsUntilNextShanghaiWindow, SIGNAL_MARKET_WINDOWS } from '~/utils/market-polling'
 
 type SignalFilter = 'all' | 'up' | 'down' | 'attention'
 
@@ -15,8 +16,11 @@ const loading = ref(false)
 const error = ref('')
 const filter = ref<SignalFilter>('all')
 const requestInFlight = ref(false)
+const pollingActive = ref(false)
 let timer: ReturnType<typeof setInterval> | null = null
+let wakeTimer: ReturnType<typeof setTimeout> | null = null
 let requestController: AbortController | null = null
+let signalDeskMounted = false
 
 const filters: Array<{ id: SignalFilter, label: string }> = [
 	{ id: 'all', label: '全部' },
@@ -26,6 +30,8 @@ const filters: Array<{ id: SignalFilter, label: string }> = [
 ]
 
 const signalTime = new Intl.DateTimeFormat('zh-CN', {
+	month: '2-digit',
+	day: '2-digit',
 	hour: '2-digit',
 	minute: '2-digit',
 	hour12: false,
@@ -40,23 +46,12 @@ const filteredItems = computed(() => data.value?.items.filter((item) => {
 	return item.direction === filter.value
 }) ?? [])
 
-const strongCount = computed(() => data.value?.items.filter(item => item.severity === 'strong').length ?? 0)
+const totalCount = computed(() => data.value?.summary?.totalCount ?? data.value?.items.length ?? 0)
+const strongCount = computed(() => data.value?.summary?.strongCount ?? data.value?.items.filter(item => item.severity === 'strong').length ?? 0)
 const latestMarketAt = computed(() => data.value?.marketAt ? formatSignalTime(data.value.marketAt) : '--:--')
 
-function shanghaiParts(value: Date) {
-	const shifted = new Date(value.getTime() + 8 * 60 * 60 * 1000)
-	return {
-		weekday: shifted.getUTCDay(),
-		minuteOfDay: shifted.getUTCHours() * 60 + shifted.getUTCMinutes(),
-	}
-}
-
 function isSignalTradingWindow(value = new Date()) {
-	const parts = shanghaiParts(value)
-	if (parts.weekday === 0 || parts.weekday === 6)
-		return false
-	return (parts.minuteOfDay >= 9 * 60 + 30 && parts.minuteOfDay <= 11 * 60 + 30)
-		|| (parts.minuteOfDay >= 13 * 60 && parts.minuteOfDay <= 15 * 60)
+	return isShanghaiMarketWindow(value, SIGNAL_MARKET_WINDOWS)
 }
 
 function formatSignalTime(value: string) {
@@ -104,14 +99,22 @@ function stopPolling(options: { abort?: boolean } = {}) {
 		clearInterval(timer)
 		timer = null
 	}
+	if (wakeTimer) {
+		clearTimeout(wakeTimer)
+		wakeTimer = null
+	}
+	pollingActive.value = false
 	if (options.abort) {
-		requestController?.abort()
+		const controller = requestController
 		requestController = null
+		requestInFlight.value = false
+		loading.value = false
+		controller?.abort()
 	}
 }
 
 async function loadSignals(options: { background?: boolean } = {}) {
-	if (!props.authenticated || requestInFlight.value)
+	if (!signalDeskMounted || !props.authenticated || requestInFlight.value)
 		return
 	requestInFlight.value = true
 	if (!options.background)
@@ -121,6 +124,7 @@ async function loadSignals(options: { background?: boolean } = {}) {
 	requestController = controller
 	try {
 		const response = await $fetch<{ data: MarketSignalDeskResponse }>('/api/admin/market/signals', {
+			query: { limit: 100 },
 			signal: controller.signal,
 		})
 		if (!controller.signal.aborted)
@@ -131,25 +135,46 @@ async function loadSignals(options: { background?: boolean } = {}) {
 			error.value = cause instanceof Error ? cause.message : '信号数据加载失败'
 	}
 	finally {
-		if (requestController === controller)
+		if (requestController === controller) {
 			requestController = null
-		requestInFlight.value = false
-		if (!options.background)
-			loading.value = false
+			requestInFlight.value = false
+			if (!options.background)
+				loading.value = false
+		}
 	}
+}
+
+function schedulePollingWakeup() {
+	const delay = millisecondsUntilNextShanghaiWindow(new Date(), SIGNAL_MARKET_WINDOWS)
+	if (delay === null)
+		return
+	wakeTimer = setTimeout(() => {
+		wakeTimer = null
+		if (!props.authenticated || document.visibilityState !== 'visible')
+			return
+		if (isSignalTradingWindow(new Date()))
+			void loadSignals({ background: true }).finally(() => startPolling())
+		else
+			startPolling()
+	}, Math.max(250, delay + 250))
 }
 
 function startPolling() {
 	stopPolling()
-	if (!import.meta.client || !props.authenticated)
+	if (!import.meta.client || !signalDeskMounted || !props.authenticated)
 		return
-	if (document.visibilityState !== 'visible' || !isSignalTradingWindow(new Date()))
+	if (document.visibilityState !== 'visible')
 		return
+	if (!isSignalTradingWindow(new Date())) {
+		schedulePollingWakeup()
+		return
+	}
+	pollingActive.value = true
 	timer = setInterval(() => {
 		if (props.authenticated && document.visibilityState === 'visible' && isSignalTradingWindow(new Date()))
 			void loadSignals({ background: true })
 		else
-			stopPolling()
+			startPolling()
 	}, 60_000)
 }
 
@@ -177,12 +202,14 @@ watch(() => props.authenticated, (authenticated) => {
 })
 
 onMounted(() => {
+	signalDeskMounted = true
 	document.addEventListener('visibilitychange', handleVisibilityChange)
 	if (props.authenticated)
 		void loadSignals().finally(() => startPolling())
 })
 
 onBeforeUnmount(() => {
+	signalDeskMounted = false
 	document.removeEventListener('visibilitychange', handleVisibilityChange)
 	stopPolling({ abort: true })
 })
@@ -197,8 +224,8 @@ onBeforeUnmount(() => {
 			<p>balanced-v1 · 5 分钟真实快照派生的均衡型观察信号，不自动交易。</p>
 		</div>
 		<div v-if="authenticated" class="signal-header-actions">
-			<span class="signal-auto-state" :data-active="isSignalTradingWindow()">
-				<i aria-hidden="true" />{{ isSignalTradingWindow() ? '60s 自动刷新' : '盘外手动刷新' }}
+			<span class="signal-auto-state" :data-active="pollingActive">
+				<i aria-hidden="true" />{{ pollingActive ? '60s 自动刷新' : '盘外手动刷新' }}
 			</span>
 			<button type="button" :disabled="loading || requestInFlight" @click="refreshSignals">
 				<Icon name="tabler:refresh" aria-hidden="true" />{{ loading ? '刷新中' : '刷新' }}
@@ -223,11 +250,16 @@ onBeforeUnmount(() => {
 
 	<template v-else>
 		<div v-if="data" class="signal-summary" aria-label="信号摘要">
-			<div><span>今日信号</span><strong>{{ data.items.length }}</strong></div>
+			<div><span>今日信号</span><strong>{{ totalCount }}</strong></div>
 			<div><span>重点观察</span><strong>{{ strongCount }}</strong></div>
 			<div><span>基线 READY</span><strong>{{ data.baseline.readyCount }}</strong></div>
 			<div><span>基线积累</span><strong>{{ data.baseline.warmingCount }}</strong></div>
 			<div><span>最后行情</span><strong>{{ latestMarketAt }}</strong></div>
+		</div>
+
+		<div v-if="error && data" class="signal-refresh-warning" role="status">
+			<Icon name="tabler:alert-triangle" aria-hidden="true" />
+			<span><strong>刷新失败，保留上次真实信号</strong><small>{{ error }}</small></span>
 		</div>
 
 		<div v-if="error && !data" class="signal-state signal-error" role="alert">
@@ -263,6 +295,11 @@ onBeforeUnmount(() => {
 		</div>
 
 		<template v-else-if="data">
+			<div v-if="totalCount > data.items.length" class="signal-list-limit" role="note">
+				<Icon name="tabler:list-details" aria-hidden="true" />
+				<span>最近 {{ data.items.length }} / {{ totalCount }} 条 · 顶部统计仍为今日完整计数。</span>
+			</div>
+
 			<div v-if="data.baseline.warmingCount > 0" class="signal-warming-banner">
 				<Icon name="tabler:hourglass-low" aria-hidden="true" />
 				<span>基线积累中：{{ data.baseline.readyCount }} READY · {{ data.baseline.warmingCount }} WARMING</span>
@@ -495,6 +532,53 @@ onBeforeUnmount(() => {
 
 .signal-error > .iconify {
 	color: var(--market-danger);
+}
+
+.signal-list-limit {
+	display: flex;
+	align-items: center;
+	gap: 0.4rem;
+	margin: 0 0 0.7rem;
+	font-size: 0.6rem;
+	color: var(--market-text-3);
+}
+
+.signal-list-limit > .iconify {
+	flex: 0 0 auto;
+	color: var(--market-accent);
+}
+
+.signal-refresh-warning {
+	display: flex;
+	align-items: flex-start;
+	gap: 0.45rem;
+	margin: 0 0 0.7rem;
+	padding: 0.55rem 0.7rem;
+	border: 1px solid var(--market-border);
+	border-radius: 0.35rem;
+	background: var(--market-up-soft);
+	color: var(--market-text-2);
+}
+
+.signal-refresh-warning > .iconify {
+	flex: 0 0 auto;
+	margin-top: 0.05rem;
+	color: var(--market-danger);
+}
+
+.signal-refresh-warning span {
+	display: grid;
+	gap: 0.16rem;
+}
+
+.signal-refresh-warning strong {
+	font-size: 0.68rem;
+	color: var(--market-text);
+}
+
+.signal-refresh-warning small {
+	font-size: 0.6rem;
+	line-height: 1.45;
 }
 
 .signal-warming-banner {

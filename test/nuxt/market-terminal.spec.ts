@@ -1,0 +1,221 @@
+import { existsSync, readFileSync } from 'node:fs'
+import { describe, expect, it } from 'vitest'
+
+const pagePath = 'app/pages/market/index.vue'
+
+describe('market 博客主题终端页面', () => {
+	it('inherits the existing blog theme without a separate black-gold skin', () => {
+		expect(existsSync(pagePath)).toBe(true)
+		const page = readFileSync(pagePath, 'utf8')
+		const desk = readFileSync('app/components/market/MarketSignalDesk.vue', 'utf8')
+		expect(page).toContain('class=\"market-terminal\"')
+		expect(page).toContain('<style scoped lang=\"scss\">')
+		expect(page).toContain('--market-bg: var(--c-bg);')
+		expect(page).toContain('--market-panel: var(--ld-bg-card);')
+		expect(page).toContain('--market-accent: var(--c-primary);')
+		expect(page).toContain('--market-up: var(--c-error);')
+		expect(page).toContain('--market-down: var(--c-success);')
+		expect(page).toContain('font-family: var(--font-basic);')
+		expect(page).not.toContain('--market-gold')
+		expect(page).not.toContain('color-scheme: dark')
+		expect(page).not.toContain('market-grid-noise')
+		for (const legacyColor of ['#080806', '#0F0E0B', '#15130E', '#1B1811', '#D9BC72', '#F0D895', '#FFE6A7'])
+			expect(page).not.toContain(legacyColor)
+		expect(desk).not.toContain('--market-gold')
+		expect(desk).toContain('var(--market-accent)')
+		expect(page).not.toContain('body.market')
+		expect(page).not.toContain('html.market')
+		expect(page).not.toContain('bodyAttrs')
+		expect(page).not.toContain('document.body')
+	})
+
+	it('overrides market semantic colors for dark and dynamic themes', () => {
+		const page = readFileSync(pagePath, 'utf8')
+		const darkMarketTokens = page.match(/:global\(\.(?:dark|dynamic)\)\s+\.market-terminal[\s\S]*?\n\}/u)?.[0]
+
+		expect(darkMarketTokens).toBeDefined()
+		expect(darkMarketTokens).toContain('--market-up:')
+		expect(darkMarketTokens).toContain('--market-up-soft:')
+		expect(darkMarketTokens).toContain('--market-down:')
+		expect(darkMarketTokens).toContain('--market-down-soft:')
+		expect(darkMarketTokens).toContain('--market-danger:')
+		expect(darkMarketTokens).not.toContain('var(--c-error)')
+		expect(darkMarketTokens).not.toContain('var(--c-success)')
+	})
+
+	it('uses real finance and market APIs while keeping unavailable states explicit', () => {
+		const page = readFileSync(pagePath, 'utf8')
+		expect(page).toContain('\'/api/finance/flash\'')
+		expect(page).toContain('\'/api/market/overview\'')
+		expect(page).toContain('\'/api/market/sector-flows\'')
+		expect(page).toContain('FinanceFlashListDto')
+		expect(page).toContain('MarketEnvelope')
+		expect(page).toContain('MarketOverview')
+		expect(page).toContain('SectorFlowItem')
+		expect(page).toContain('sourceCount')
+		expect(page).toContain('财经驱动')
+		expect(page).toContain('mainlineTopics')
+		expect(page).toContain('今日主线')
+		expect(page).toContain('暂无可信行情')
+		expect(page).toContain('暂无可信资金数据')
+		expect(page).toContain('行业 / 概念资金按需加载真实数据')
+		expect(page).not.toContain('资金流 Provider 生产出口验收后开放')
+		expect(page).toContain('/api/admin/market/watchlist/quotes')
+		expect(page).toContain('/api/auth/session')
+		expect(page).toContain('WatchlistRadarResponse')
+		expect(page).toContain('不展示模拟行情')
+		expect(page).toContain('industry')
+		expect(page).toContain('concept')
+		for (const window of ['1D', '3D', '5D', '10D', '20D'])
+			expect(page).toContain(window)
+		expect(page).not.toContain('Math.random')
+		expect(page).not.toContain('3000.00')
+		expect(page).not.toContain('+1.23%')
+
+		const orderedCapabilities = ['指数与市场宽度', '今日主线', '自选雷达', '板块 / 概念资金', '财经事件聚合']
+		const positions = orderedCapabilities.map(label => page.indexOf(`<h3>${label}</h3>`))
+		expect(positions.every(position => position >= 0)).toBe(true)
+		expect(positions).toEqual(positions.slice().sort((left, right) => left - right))
+	})
+
+	it('exposes the approved market workspace tabs and full loading/error/empty states', () => {
+		const page = readFileSync(pagePath, 'utf8')
+		for (const label of ['市场雷达', '资金', '自选', '信号', '策略'])
+			expect(page).toContain(label)
+		expect(page).toContain('market-loading')
+		expect(page).toContain('market-error')
+		expect(page).toContain('market-empty')
+		expect(page).toContain('重新加载')
+		expect(page).toContain('@media (max-width:')
+		expect(page).toContain('@media (prefers-reduced-motion: reduce)')
+		expect(page).toContain('@media (prefers-reduced-transparency: reduce)')
+	})
+
+	it('keeps the market clock deterministic through static SSR hydration', () => {
+		const page = readFileSync(pagePath, 'utf8')
+		expect(page).toContain('const currentClock = ref<Date | null>(null)')
+		expect(page).toContain('currentClock.value = new Date()')
+		expect(page).toContain('return \'--.-- --:--:--\'')
+	})
+
+	it('implements private watchlist polling without background request amplification', () => {
+		const page = readFileSync(pagePath, 'utf8')
+		expect(page).toContain('45_000')
+		expect(page).toContain('AbortController')
+		expect(page).toContain('visibilitychange')
+		expect(page).toContain('document.visibilityState')
+		expect(page).toContain('isChinaMarketTradingWindow')
+		expect(page).toContain('stopWatchlistPolling')
+		expect(page).toContain('watchlistRequestController')
+		expect(page).toContain('watchlistRequestInFlight')
+		expect(page).toContain('activeWorkspace.value !== \'watchlist\'')
+		expect(page).toContain('watchlistSession.value?.authenticated')
+	})
+
+	it('renders the approved private watchlist desktop/mobile states and CRUD controls', () => {
+		const page = readFileSync(pagePath, 'utf8')
+		for (const label of ['自选雷达', '私有自选', '最多30只', '距关注价', '最近相关事件', '关注设置', '添加自选', 'UNAVAILABLE'])
+			expect(page).toContain(label)
+		expect(page).toContain('market-watchlist-desktop')
+		expect(page).toContain('market-watchlist-mobile')
+		expect(page).toContain('watchlistSortMode')
+		for (const label of ['自定义顺序', '涨跌幅排序', '距关注价排序', '成交额排序'])
+			expect(page).toContain(label)
+		expect(page).toContain('/api/admin/market/watchlist')
+		expect(page).toContain('mutateWatchlist(\'/api/admin/market/watchlist\', \'POST\'')
+		expect(page).toContain(', \'PATCH\',')
+		expect(page).toContain(', \'DELETE\')')
+		expect(page).toContain('x-csrf-token')
+		expect(page).toContain('已收盘')
+		expect(page).toContain('最近行情')
+		expect(page).toContain('无真实报价时显示 unavailable / last-good，不生成模拟行情')
+		expect(page).toMatch(/@media \(max-width: 760px\)[\s\S]*?\.market-watch-actions button \{[\s\S]*?min-height: 44px;/u)
+		expect(page).not.toContain('成本价')
+		expect(page).not.toContain('Math.random')
+	})
+	it('does not resurrect private polling after the market page or signal desk unmounts', () => {
+		const page = readFileSync(pagePath, 'utf8')
+		const desk = readFileSync('app/components/market/MarketSignalDesk.vue', 'utf8')
+
+		expect(page).toContain('let marketPageMounted = false')
+		expect(page).toMatch(/function startWatchlistPolling\(\) \{[\s\S]*?!marketPageMounted/u)
+		expect(page).toMatch(/onBeforeUnmount\(\(\) => \{[\s\S]*?marketPageMounted = false[\s\S]*?stopWatchlistPolling/u)
+		expect(desk).toContain('let signalDeskMounted = false')
+		expect(desk).toMatch(/function startPolling\(\) \{[\s\S]*?!signalDeskMounted/u)
+		expect(desk).toMatch(/onBeforeUnmount\(\(\) => \{[\s\S]*?signalDeskMounted = false[\s\S]*?stopPolling/u)
+	})
+
+	it('does not refresh private watchlist configuration after leaving the workspace', () => {
+		const page = readFileSync(pagePath, 'utf8')
+		expect(page).toMatch(/async function loadWatchlistConfig\(\) \{[\s\S]*?!marketPageMounted \|\| activeWorkspace\.value !== 'watchlist'/u)
+	})
+
+	it('does not continue watchlist activation after the user leaves the workspace', () => {
+		const page = readFileSync(pagePath, 'utf8')
+		expect(page).toMatch(/await loadWatchlistSession\(\)[\s\S]*?if \(!marketPageMounted \|\| activeWorkspace\.value !== 'watchlist' \|\| !watchlistSession\.value\?\.authenticated\)[\s\S]*?return/u)
+	})
+
+	it('keeps aborted private market requests from blocking or clobbering the next request', () => {
+		const page = readFileSync(pagePath, 'utf8')
+		const desk = readFileSync('app/components/market/MarketSignalDesk.vue', 'utf8')
+
+		expect(page).toMatch(/if \(watchlistRequestController === controller\) \{[\s\S]*?watchlistRequestInFlight\.value = false[\s\S]*?\}/u)
+		expect(page).toMatch(/if \(options\.abort\) \{[\s\S]*?watchlistRequestController = null[\s\S]*?watchlistRequestInFlight\.value = false/u)
+		expect(desk).toMatch(/if \(requestController === controller\) \{[\s\S]*?requestInFlight\.value = false[\s\S]*?\}/u)
+		expect(desk).toMatch(/if \(options\.abort\) \{[\s\S]*?requestController = null[\s\S]*?requestInFlight\.value = false/u)
+	})
+
+	it('re-arms private polling across lunch and the next trading window', () => {
+		const page = readFileSync(pagePath, 'utf8')
+		const desk = readFileSync('app/components/market/MarketSignalDesk.vue', 'utf8')
+
+		expect(page).toContain('millisecondsUntilNextShanghaiWindow(new Date(), WATCHLIST_MARKET_WINDOWS)')
+		expect(page).toContain('watchlistWakeTimer = setTimeout')
+		expect(page).toMatch(/watchlistTimer = setInterval\([\s\S]*?else\n\t\t\tstartWatchlistPolling\(\)/u)
+		expect(desk).toContain('millisecondsUntilNextShanghaiWindow(new Date(), SIGNAL_MARKET_WINDOWS)')
+		expect(desk).toContain('wakeTimer = setTimeout')
+		expect(desk).toMatch(/timer = setInterval\([\s\S]*?else\n\t\t\tstartPolling\(\)/u)
+	})
+
+	it('requests the approved maximum signal page and discloses when the list is truncated', () => {
+		const desk = readFileSync('app/components/market/MarketSignalDesk.vue', 'utf8')
+		expect(desk).toContain('query: { limit: 100 }')
+		expect(desk).toContain('最近 {{ data.items.length }} / {{ totalCount }} 条')
+	})
+
+	it('shows the market date as well as time for the latest signal snapshot', () => {
+		const desk = readFileSync('app/components/market/MarketSignalDesk.vue', 'utf8')
+		expect(desk).toContain('month: \'2-digit\'')
+		expect(desk).toContain('day: \'2-digit\'')
+	})
+
+	it('shows a visible stale-data warning when signal background refresh fails', () => {
+		const desk = readFileSync('app/components/market/MarketSignalDesk.vue', 'utf8')
+		expect(desk).toContain('v-if="error && data"')
+		expect(desk).toContain('刷新失败，保留上次真实信号')
+	})
+
+	it('renders the private balanced-v1 signal desk with controlled polling states', () => {
+		const signalDeskPath = 'app/components/market/MarketSignalDesk.vue'
+		expect(existsSync(signalDeskPath)).toBe(true)
+		const page = readFileSync(pagePath, 'utf8')
+		const desk = readFileSync(signalDeskPath, 'utf8')
+		expect(page).toContain('MarketSignalDesk')
+		expect(page).toContain('P2B')
+		expect(page).not.toContain('DESIGN READY')
+		expect(desk).toContain('/api/admin/market/signals')
+		expect(desk).toContain('60_000')
+		expect(desk).toContain('AbortController')
+		expect(desk).toContain('visibilitychange')
+		expect(desk).toContain('document.visibilityState')
+		expect(desk).toContain('balanced-v1')
+		for (const label of ['信号雷达 · 私有', '基线积累中', '当前没有达到均衡型门槛的观察信号', '重点观察', '关注价'])
+			expect(desk).toContain(label)
+		expect(desk).toContain('isSignalTradingWindow')
+		expect(desk).toContain('requestInFlight')
+		expect(desk).toContain('stopPolling')
+		expect(desk).not.toContain('Math.random')
+		expect(desk).not.toContain('买入')
+		expect(desk).not.toContain('卖出')
+	})
+})

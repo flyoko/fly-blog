@@ -9,6 +9,7 @@ import type {
 } from '../../../../../shared/market'
 import type { Env } from '../../env'
 import type { StockQuoteProvider, StockQuoteProviderResult } from './contracts'
+import { shanghaiDateKey } from '../../../../../shared/market-calendar'
 import { isChinaMarketSyncWindow } from './contracts'
 import { EastMoneyStockQuoteProvider, parseStockSymbol } from './eastmoney-stock'
 import { MarketSignalService } from './signal-service'
@@ -18,6 +19,8 @@ const NOTE_MAX_LENGTH = 240
 const TAG_LIMIT = 8
 const TAG_MAX_LENGTH = 24
 const FIVE_MINUTES_MS = 5 * 60 * 1000
+const LIVE_QUOTE_MAX_AGE_MS = 15 * 60 * 1000
+const LIVE_QUOTE_MAX_FUTURE_DRIFT_MS = 5 * 60 * 1000
 
 export type WatchlistServiceErrorCode
 	= | 'LIMIT_REACHED'
@@ -175,6 +178,27 @@ function validateSortOrder(value: number | undefined): number | undefined {
 function ageMs(now: Date, marketAt: string): number {
 	const parsed = Date.parse(marketAt)
 	return Number.isFinite(parsed) ? Math.max(0, now.getTime() - parsed) : 0
+}
+
+function isCurrentShanghaiMarketDate(now: Date, marketAt: string): boolean {
+	const marketDate = shanghaiDateKey(marketAt)
+	return marketDate !== null && marketDate === shanghaiDateKey(now)
+}
+
+function isFreshProviderQuote(now: Date, marketAt: string): boolean {
+	if (!isCurrentShanghaiMarketDate(now, marketAt))
+		return false
+	const marketMs = Date.parse(marketAt)
+	if (!Number.isFinite(marketMs) || marketMs > now.getTime() + LIVE_QUOTE_MAX_FUTURE_DRIFT_MS)
+		return false
+	if (!isChinaMarketSyncWindow(now))
+		return true
+	return now.getTime() - marketMs <= LIVE_QUOTE_MAX_AGE_MS
+}
+
+function isUsableStaleProviderQuote(now: Date, marketAt: string): boolean {
+	const marketMs = Date.parse(marketAt)
+	return Number.isFinite(marketMs) && marketMs <= now.getTime() + LIVE_QUOTE_MAX_FUTURE_DRIFT_MS
 }
 
 function bucketAt(marketAt: string): string {
@@ -409,12 +433,16 @@ export class WatchlistService {
 		catch {
 			live = null
 		}
-		const fallbackSymbols = live ? symbols.filter(symbol => !live!.quotes.has(symbol)) : symbols
-		const snapshots = await this.latestSnapshots(ownerId, fallbackSymbols)
 		const now = this.now()
+		const freshLiveSymbols = new Set(symbols.filter((symbol) => {
+			const current = live?.quotes.get(symbol)
+			return Boolean(current && isFreshProviderQuote(now, current.marketAt))
+		}))
+		const fallbackSymbols = live ? symbols.filter(symbol => !freshLiveSymbols.has(symbol)) : symbols
+		const snapshots = await this.latestSnapshots(ownerId, fallbackSymbols)
 		const items = watchlist.map<WatchlistRadarItem>((item) => {
 			const current = live?.quotes.get(item.symbol)
-			if (current) {
+			if (current && freshLiveSymbols.has(item.symbol)) {
 				return {
 					watchlist: item,
 					quote: current,
@@ -424,6 +452,16 @@ export class WatchlistService {
 				}
 			}
 			const snapshot = snapshots.get(item.symbol)
+			if (current && isUsableStaleProviderQuote(now, current.marketAt)
+				&& (!snapshot || Date.parse(current.marketAt) >= Date.parse(snapshot.market_at))) {
+				return {
+					watchlist: item,
+					quote: current,
+					quality: 'stale',
+					staleAgeMs: ageMs(now, current.marketAt),
+					source: live!.source,
+				}
+			}
 			if (snapshot) {
 				return {
 					watchlist: item,
@@ -477,7 +515,8 @@ export class WatchlistService {
 	}
 
 	async syncScheduled(): Promise<WatchlistSyncResult> {
-		if (!isChinaMarketSyncWindow(this.now()))
+		const runAt = this.now()
+		if (!isChinaMarketSyncWindow(runAt))
 			return { status: 'skipped', reason: 'outside-market-window', itemCount: 0, missingCount: 0 }
 
 		const total = await this.globalCount()
@@ -506,10 +545,10 @@ export class WatchlistService {
 			return { status: 'failed', reason: 'provider-failed', itemCount: 0, missingCount: uniqueSymbols.length }
 		}
 
-		const createdAt = this.now().toISOString()
+		const createdAt = runAt.toISOString()
 		const statements = rows.results.flatMap((row) => {
 			const current = result.quotes.get(row.symbol)
-			if (!current)
+			if (!current || !isFreshProviderQuote(runAt, current.marketAt))
 				return []
 			return [this.env.DB.prepare(`
 				INSERT INTO market_watchlist_quote_5m (
@@ -553,12 +592,18 @@ export class WatchlistService {
 		if (statements.length)
 			await this.env.DB.batch(statements)
 		const signalTargets = rows.results
-			.filter(row => result.quotes.has(row.symbol))
+			.filter((row) => {
+				const current = result.quotes.get(row.symbol)
+				return Boolean(current && isFreshProviderQuote(runAt, current.marketAt))
+			})
 			.map(row => ({ ownerId: row.owner_id, watchlist: rowToItem(row) }))
 		if (signalTargets.length)
 			await this.signals.evaluateAffected(signalTargets)
 		await this.writeHealth('success', statements.length, null, result.latencyMs)
-		const missingCount = rows.results.filter(row => !result.quotes.has(row.symbol)).length
+		const missingCount = rows.results.filter((row) => {
+			const current = result.quotes.get(row.symbol)
+			return !current || !isFreshProviderQuote(runAt, current.marketAt)
+		}).length
 		return {
 			status: missingCount ? 'partial' : 'success',
 			itemCount: statements.length,
