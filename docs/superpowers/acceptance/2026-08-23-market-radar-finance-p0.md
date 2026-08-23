@@ -78,7 +78,7 @@
 ### 数据与安全
 
 - 金十 Adapter：`finance-jin10.spec.ts` 覆盖结构化/text JSON、缺 Secret 禁用和错误 Token 脱敏；真实 Token 不进入仓库、D1 或前端。
-- 新浪 Adapter：`finance-sina-inews.spec.ts` 覆盖签名纯函数、无凭据零请求和正式 GET 边界；未加入 `syncAll()`。
+- 新浪财经 iNews：2026-08-24 已取消并退役；运行 Adapter、测试与来源健康入口均已移除，`0019_remove_sina_finance.sql` 仅用于清理旧 D1 数据。
 - 去重：`finance-dedupe.spec.ts` 覆盖同分类/120 分钟窗口、数字与方向冲突、`3.5%` vs `35%`、阻断 >120 分钟链式合并。
 - `finance.spec.ts` 覆盖私有来源不公开、私有行不阻止公开 seed、单源失败保留最后成功快照、`stale/quality`、缓存版本随来源状态变化。
 - B8 回归：live 冷启动失败返回 `quality=unavailable` + 空列表；历史 prototype 行只保留在 D1/admin，真实 public service 不再公开，也不再生成新的 prototype 新闻。
@@ -97,12 +97,12 @@
 
 ### 当前外部上线门禁
 
-- **新浪 iNews**：F3 `BLOCKED_EXTERNAL`。需要正式 `appKey/appSecret`、再展示授权，并在 Cloudflare Worker 连续观测 5 个交易日后才能加入生产 SLA / `syncAll()`。
+- **新浪 iNews**：已取消，不再作为候选财经来源；不再申请凭据，也不再加入生产 SLA / `syncAll()`。
 - **金十生产启用**：代码、官方 MCP schema/返回和 Worker 打包已验证，但真实生产 Cloudflare Secret 与生产出口连续观测尚未执行；公开展示继续默认关闭。
 - 本次没有部署生产、没有提交、没有 push。
 
 ### 2026-08-23 · Finance 回归门禁正式版本化
 
-- 原先只存在本地工作树、未被 Git 版本化的 `finance-dedupe.spec.ts`、`finance-jin10.spec.ts`、`finance-sina-inews.spec.ts` 已审计并正式提交为 `efe355a`（`test: version finance provider regression gates`），不再依赖某一台开发机。
-- 三组新增门禁分别为 dedupe **7 tests**、Jin10 **4 tests**、Sina iNews **4 tests**；随后与市场生产观测一起进入完整 API suite，CI 在生产 SHA `9e112af` 上达到 **31 files / 324 tests PASS**。
-- 这只收口“测试未版本化”的技术债，不改变生产数据授权边界：新浪 F3 仍为 `BLOCKED_EXTERNAL`，在没有正式 `appKey/appSecret`、再展示授权与 5 个真实交易日 Cloudflare 观测前不计入生产 SLA；金十公开展示也继续保持默认关闭，不能用测试通过代替生产 Secret/授权/连续观测。
+- 原先只存在本地工作树、未被 Git 版本化的 Finance 回归门禁曾在 `efe355a` 正式版本化；其中新浪 iNews 测试已随 2026-08-24 来源退役一并删除。
+- 当时的回归门禁曾覆盖 dedupe、Jin10 与 Sina iNews；当前生产套件已改为 dedupe + Jin10 + 财联社 + 华尔街见闻，新浪不再参与任何运行或测试路径。
+- 这只记录历史测试收口；新浪来源已于 2026-08-24 明确取消。当前财经来源演进以金十、财联社和华尔街见闻为准。

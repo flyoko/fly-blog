@@ -90,22 +90,21 @@ GitHub Actions
 
 ### 4.1 来源收敛：少而精
 
-财经 7×24 不追求来源数量，第一阶段只保留两个实时媒体候选，并把官方披露作为独立事件类型：
+财经 7×24 不追求来源数量，当前生产收敛到三个互补实时媒体源，并把官方披露作为独立事件类型：
 
 **P0 实时媒体源**
 
 - **华尔街见闻**：保留现有 Worker Adapter，继续作为已上线基线来源。它不是长期唯一依赖，来源状态必须可单独关闭和降级。
 - **金十数据 MCP**：官方 MCP 已用用户提供的 Token 实测 `list_flash` 成功返回当前 7×24 快讯，技术链路可用。正式代码只读取 `JIN10_MCP_TOKEN` Cloudflare Secret，不写入仓库、日志、D1 或前端。由于金十公开用户协议限制未经书面许可的复制、整理和源页面外展示，默认 `publicDisplay=false`：在取得可公开聚合的授权前，只允许作为 P0 可用性验证、后台/私有决策和跨源事件校验来源，不在公开 `/ai.news` 直接转载其快讯正文。
 
-**条件式第三来源**
-
-- **新浪财经 iNews**：官方文档 `https://finance.sina.com.cn/inews/doc/develop.html` 提供 `GET https://inews.finance.sina.com.cn/api/live7x24_list` JSON 接口。鉴权严格按官方示例实现：参数按 key 排序，过滤空字符串/NULL，使用 `http_build_query` 等价编码后拼接 `&appSecret`，再计算 MD5。P0 已实现 `SinaINewsFinanceFlashAdapter` 与签名单测，Cloudflare Worker `typecheck` 和 `wrangler deploy --dry-run` 均通过，因此技术接入可行且不需要常驻服务器。官方同时明确要求“项目启用后”通过官方邮件获得 `appKey/appSecret`；在本站拿到正式凭据与再展示授权之前，Provider 保持禁用、默认 `publicVisible=false`，且不加入生产 `syncAll()`，不会抓取新浪网页内部接口替代正式 API。
+- **财联社电报**：通过财联社 Web 电报使用的结构化滚动接口读取 `id/ctime/title/brief/level/subjects/shareurl`，只保存财经聚合所需的标题、短摘要、时间、分类、重要级别与原文链接；A/B 级映射为“重要”。生产 Adapter 为 `cls-telegraph-7x24`，每 5 分钟与其他财经来源独立同步。
+- **新浪财经 iNews**：2026-08-24 已明确取消并退役，不再作为候选来源，不再配置凭据，也不再进入 `syncAll()`。
 
 **官方事件源**
 
 - 巨潮资讯、上交所、深交所、证监会后续以 `official-disclosure` / `regulatory` 类型加入，优先用于自选股公告、监管和政策事件。它们不参与“媒体源越多越好”的竞争，也不要求和媒体快讯一一对齐。
 
-第一阶段不接东方财富、财联社等额外媒体快讯源。原因不是技术上无法抓取，而是重复度高、公开接口/授权边界不如上述来源清晰，增加来源只会放大去重成本和来源故障面。
+当前不接东方财富等额外媒体快讯源；新浪财经已退役。来源优先级固定为金十 > 财联社 > 华尔街见闻，同一事件只生成一个 canonical 事件并保留全部来源链接。
 
 ### 4.2 内容保存边界
 
@@ -468,12 +467,9 @@ P0 分为“立即可测”和“凭据就绪后可测”两组。
 立即可测：
 
 - 华尔街见闻现有接口。
-- 金十官方 MCP `list_flash`；开发阶段凭据只存在 Secret/本地受控环境，公开展示开关默认关闭。
+- 财联社电报结构化滚动接口。
+- 金十官方 MCP `list_flash`；开发阶段凭据只存在 Secret/本地受控环境。
 - 市场行情与板块资金候选接口。
-
-凭据就绪后可测：
-
-- 新浪财经 iNews `live7x24_list`。启用流程固定为：联系新浪财经完成 iNews 项目启用并取得正式 `appKey/appSecret` 与再展示授权 → 将凭据写入 Cloudflare Secrets（`SINA_INEWS_APP_KEY` / `SINA_INEWS_APP_SECRET`，可选 `SINA_INEWS_TYPE_IDS`）→ 先部署预览 Worker → 连续 5 个交易日记录成功率、空数据率、P95 与 4xx/5xx → 达标且授权边界确认后，才允许加入来源注册表/`syncAll()`。不以网页抓取替代正式接入。
 
 连续至少 5 个交易日记录：
 

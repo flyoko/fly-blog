@@ -97,23 +97,12 @@ await client.close()
 - [ ] **Step 5: service 增加 `syncAll()`**：华尔街见闻始终同步；JIN10 secret 存在时再同步 Jin10；一个来源失败不阻断另一个来源。
 - [ ] **Step 6: 目标测试通过**。
 
-### Task 4: 新浪 iNews 正式接入边界
+### Task 4: 新浪 iNews（已取消）
 
-**Files:**
-- Modify: `workers/api/src/env.ts`
-- Create: `workers/api/src/features/finance/sina-inews.ts`
-- Test: `workers/api/test/finance-sina-inews.spec.ts`
-- Modify: `docs/superpowers/specs/2026-08-23-market-radar-finance-aggregation-design.md`
-
-**Interfaces:**
-- Consumes: optional `SINA_INEWS_APP_KEY`, `SINA_INEWS_APP_SECRET`, `SINA_INEWS_TYPE_IDS`.
-- Produces: `signSinaINewsParams(params, secret): string`, `SinaINewsFinanceFlashAdapter` only enabled when both credentials exist.
-
-- [ ] **Step 1: 写签名单测**：过滤空值、按 key 排序、`URLSearchParams` 风格 query、末尾 `&secret`、MD5。
-- [ ] **Step 2: 写禁用测试**：缺任一凭据时 `enabled=false` 且不发 fetch。
-- [ ] **Step 3: 实现官方 `live7x24_list` GET/JSON Adapter，但默认不加入 `syncAll()` 生产来源**。
-- [ ] **Step 4: 文档写明启用流程：联系新浪启用项目 → 获得 appKey/appSecret → Wrangler secret → 预览 Worker → 5 个交易日观测 → 授权确认 → source registry enable**。
-- [ ] **Step 5: 目标测试通过**。
+- 2026-08-24 决定不再接入新浪财经 iNews。
+- 删除运行 Adapter 与对应测试，不再申请或配置任何新浪凭据。
+- 保留数据库清理 migration，确保旧环境升级后不会残留新浪来源数据。
+- 财经实时来源改为金十、财联社、华尔街见闻，并统一进入确定性去重。
 
 ### Task 5: 确定性财经去重
 
@@ -147,7 +136,7 @@ await client.close()
 
 - [ ] **Step 1: 写测试**：5 分钟 job 仍只有一个 `finance-sync`；syncAll 单源失败时结果包含 per-source status 且整体不抛出。
 - [ ] **Step 2: 后台手动 `/api/admin/finance/sync` 使用 syncAll，返回来源结果数组**。
-- [ ] **Step 3: 来源健康组件识别 `jin10-mcp-7x24` 与 `sina-inews-7x24`，无凭据来源明确显示未启用而非故障**。
+- [ ] **Step 3: 来源健康组件识别 `jin10-mcp-7x24`、`cls-telegraph-7x24` 与 `wallstreetcn-7x24`；金十无凭据时显示未启用，财联社/华尔街见闻独立显示同步状态**。
 - [ ] **Step 4: 目标测试通过**。
 
 ### Task 7: `/market` 黑金终端页面
