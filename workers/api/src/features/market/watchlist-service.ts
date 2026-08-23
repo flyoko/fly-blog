@@ -11,6 +11,7 @@ import type { Env } from '../../env'
 import type { StockQuoteProvider, StockQuoteProviderResult } from './contracts'
 import { isChinaMarketSyncWindow } from './contracts'
 import { EastMoneyStockQuoteProvider, parseStockSymbol } from './eastmoney-stock'
+import { MarketSignalService } from './signal-service'
 
 const WATCHLIST_LIMIT = 30
 const NOTE_MAX_LENGTH = 240
@@ -218,6 +219,7 @@ export class WatchlistService {
 		private readonly env: Env,
 		private readonly provider: StockQuoteProvider = new EastMoneyStockQuoteProvider(),
 		private readonly now: () => Date = () => new Date(),
+		private readonly signals: Pick<MarketSignalService, 'evaluateAffected'> = new MarketSignalService(env, now),
 	) {}
 
 	async list(ownerId: string): Promise<WatchlistItem[]> {
@@ -550,6 +552,11 @@ export class WatchlistService {
 		})
 		if (statements.length)
 			await this.env.DB.batch(statements)
+		const signalTargets = rows.results
+			.filter(row => result.quotes.has(row.symbol))
+			.map(row => ({ ownerId: row.owner_id, watchlist: rowToItem(row) }))
+		if (signalTargets.length)
+			await this.signals.evaluateAffected(signalTargets)
 		await this.writeHealth('success', statements.length, null, result.latencyMs)
 		const missingCount = rows.results.filter(row => !result.quotes.has(row.symbol)).length
 		return {

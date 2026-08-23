@@ -2,6 +2,7 @@ import type { Env } from './env'
 import { AnalyticsService } from './features/analytics/service'
 import { FinanceFlashService } from './features/finance/service'
 import { MarketService } from './features/market/service'
+import { MarketSignalService } from './features/market/signal-service'
 import { WatchlistService } from './features/market/watchlist-service'
 import { MomentBackupService } from './features/moment-backups/service'
 import { NewsService } from './features/news/service'
@@ -60,11 +61,12 @@ function defaultServices(env: Env): ScheduledTaskServices {
 		backupMoments: () => new MomentBackupService(env).backup(),
 		maintainAnalytics: () => new AnalyticsService(env).maintain(),
 		maintainContent: async () => {
-			const [news, finance] = await Promise.all([
+			const [news, finance, marketSignals] = await Promise.all([
 				new NewsService(env).cleanupRetention(),
 				new FinanceFlashService(env).cleanupRetention(),
+				new MarketSignalService(env).cleanupRetention(),
 			])
-			return { news, finance }
+			return { news, finance, marketSignals }
 		},
 	}
 }
