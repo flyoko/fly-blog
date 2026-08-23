@@ -238,6 +238,81 @@ export class ArticleService {
 		}
 	}
 
+	async deleteDirect(input: {
+		path: string
+		expectedSha: string
+		actor: ArticleActor
+	}): Promise<{ publishRunId: string, commitSha: string }> {
+		const head = await this.repository.getBranchHead(this.env.GITHUB_DEFAULT_BRANCH)
+		const current = await this.repository.getFile(input.path, head)
+		if (current.sha !== input.expectedSha)
+			throw new ApiError('CONFLICT', 409, 'Article changed since it was loaded')
+		const article = parseArticle(current)
+		const publishRunId = crypto.randomUUID()
+		const now = new Date().toISOString()
+		await this.publishRepository.createRun({
+			id: publishRunId,
+			kind: 'direct',
+			status: 'created',
+			repositoryRef: this.env.GITHUB_DEFAULT_BRANCH,
+			resourcePath: input.path,
+			createdAt: now,
+		})
+		let commitSha: string
+		try {
+			const result = await this.repository.createAtomicCommit({
+				branch: this.env.GITHUB_DEFAULT_BRANCH,
+				expectedHeadSha: head,
+				message: `删除文章: ${article.frontmatter.title ?? input.path}`,
+				files: [{ path: input.path, content: null }],
+			})
+			commitSha = result.commitSha
+		}
+		catch (error) {
+			const apiError = asApiError(error)
+			await this.publishRepository.updateRun(publishRunId, {
+				status: apiError.code === 'CONFLICT' ? 'conflict' : 'failed',
+				errorCode: apiError.code,
+				errorMessage: apiError.message,
+				updatedAt: new Date().toISOString(),
+			}).catch(() => undefined)
+			await this.auditRepository.writeAudit({
+				actorId: input.actor.id,
+				actorLogin: input.actor.login,
+				action: 'article.delete',
+				targetType: 'article',
+				targetId: input.path,
+				result: 'failure',
+				requestId: input.actor.requestId,
+				metadata: { publishRunId, errorCode: apiError.code },
+			}).catch(() => undefined)
+			throw apiError
+		}
+
+		await this.publishRepository.updateRun(publishRunId, {
+			status: 'commit_created',
+			commitSha,
+			updatedAt: new Date().toISOString(),
+		}).catch(() => undefined)
+		await this.mediaRepository.replaceReferences([], input.path, commitSha, new Date().toISOString()).catch(() => undefined)
+		await this.publishRepository.updateRun(publishRunId, {
+			status: 'checks_pending',
+			commitSha,
+			updatedAt: new Date().toISOString(),
+		}).catch(() => undefined)
+		await this.auditRepository.writeAudit({
+			actorId: input.actor.id,
+			actorLogin: input.actor.login,
+			action: 'article.delete',
+			targetType: 'article',
+			targetId: input.path,
+			result: 'success',
+			requestId: input.actor.requestId,
+			metadata: { publishRunId, commitSha },
+		}).catch(() => undefined)
+		return { publishRunId, commitSha }
+	}
+
 	private async loadCategoryNames(): Promise<Set<string>> {
 		const file = await this.repository.getFile(
 			'config/taxonomy/categories.json',

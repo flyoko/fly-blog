@@ -9,13 +9,17 @@ const categories = categoriesRaw.map(item => item.name)
 const notifications = useAdminNotifications()
 
 watch(editor.error, (message) => {
-	if (message && !editor.conflict.value)
+	if (!message || editor.conflict.value)
+		return
+	if (editor.deleted.value)
+		notifications.warning('页面跳转失败', message)
+	else
 		notifications.error(message, '文章没有保存成功。')
 })
 
 watch(editor.success, (message) => {
 	if (message)
-		notifications.success('文章已保存', message)
+		notifications.success(editor.deleted.value ? '文章已删除' : '文章已保存', message)
 })
 const line = Number(route.query.line)
 const column = Number(route.query.column)
@@ -44,6 +48,8 @@ useSeoMeta({ title: '编辑文章', robots: 'noindex, nofollow' })
 		:articles="editor.articles.value"
 		:categories="categories"
 		:saving="editor.saving.value"
+		:deleting="editor.deleting.value"
+		:deleted="editor.deleted.value"
 		:conflict="editor.conflict.value"
 		:remote-document="editor.remoteDocument.value"
 		:raw-comparison-open="editor.rawComparisonOpen.value"
@@ -51,6 +57,7 @@ useSeoMeta({ title: '编辑文章', robots: 'noindex, nofollow' })
 		:initial-diagnostic="initialDiagnostic"
 		:draft-status="editor.draftStatus.value"
 		@save="editor.save"
+		@delete="editor.deleteArticle"
 		@navigate="editor.navigate"
 		@reload-remote="editor.reloadRemote"
 		@compare-raw="editor.compareRaw"

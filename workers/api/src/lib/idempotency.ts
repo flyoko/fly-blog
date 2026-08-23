@@ -50,7 +50,7 @@ export async function withIdempotency<T>(options: {
 			throw new ApiError('CONFLICT', 409, 'Idempotency key was reused with a different request')
 	}
 	const replay = (row: IdempotencyRow) => {
-		if (row.state !== 'complete' || row.response_status === null || row.response_body === null)
+		if (row.response_status === null || row.response_body === null)
 			return null
 		return {
 			status: row.response_status,
@@ -96,14 +96,9 @@ export async function withIdempotency<T>(options: {
 		}
 	}
 
+	let result: { status: number, body: T }
 	try {
-		const result = await options.execute()
-		await options.db.prepare(`
-			UPDATE idempotency_keys
-			SET state = 'complete', response_status = ?, response_body = ?, expires_at = ?
-			WHERE key = ? AND state = 'running' AND request_hash = ?
-		`).bind(result.status, JSON.stringify(result.body), completeExpiresAt, options.key, hash).run()
-		return { ...result, replayed: false }
+		result = await options.execute()
 	}
 	catch (error) {
 		await options.db.prepare(`
@@ -112,4 +107,23 @@ export async function withIdempotency<T>(options: {
 		`).bind(nowIso, options.key, hash).run()
 		throw error
 	}
+
+	const responseBody = JSON.stringify(result.body)
+	try {
+		const completed = await options.db.prepare(`
+			UPDATE idempotency_keys
+			SET state = 'complete', response_status = ?, response_body = ?, expires_at = ?
+			WHERE key = ? AND state = 'running' AND request_hash = ?
+		`).bind(result.status, responseBody, completeExpiresAt, options.key, hash).run()
+		if (completed.meta.changes !== 1)
+			throw new Error('Idempotency completion claim was not updated')
+	}
+	catch {
+		await options.db.prepare(`
+			UPDATE idempotency_keys
+			SET response_status = ?, response_body = ?, expires_at = ?
+			WHERE key = ? AND state = 'running' AND request_hash = ?
+		`).bind(result.status, responseBody, completeExpiresAt, options.key, hash).run().catch(() => undefined)
+	}
+	return { ...result, replayed: false }
 }

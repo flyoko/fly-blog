@@ -233,10 +233,33 @@ export class GitHubRepository {
 		})
 		if (!createdCommit.sha)
 			throw new ApiError('UPSTREAM_FAILED', 502, 'GitHub did not return a commit SHA')
-		await this.request(updateRefPath, {
-			method: 'PATCH',
-			body: JSON.stringify({ sha: createdCommit.sha, force: false }),
-		}, new Set([409, 422]))
+		try {
+			await this.request(updateRefPath, {
+				method: 'PATCH',
+				body: JSON.stringify({ sha: createdCommit.sha, force: false }),
+			}, new Set([409, 422]))
+		}
+		catch (error) {
+			let refUpdateConfirmed = false
+			try {
+				const confirmedRef = await this.request<{ object?: { sha?: string } }>(readRefPath)
+				const confirmedHead = confirmedRef.object?.sha
+				if (confirmedHead === createdCommit.sha) {
+					refUpdateConfirmed = true
+				}
+				else if (confirmedHead && confirmedHead !== currentHead) {
+					const comparison = await this.request<{ status?: string }>(
+						`/compare/${encodeURIComponent(createdCommit.sha)}...${encodeURIComponent(confirmedHead)}`,
+					)
+					refUpdateConfirmed = comparison.status === 'ahead' || comparison.status === 'identical'
+				}
+			}
+			catch {
+				// Preserve the original ref-update error if confirmation is unavailable.
+			}
+			if (!refUpdateConfirmed)
+				throw error
+		}
 		return { commitSha: createdCommit.sha }
 	}
 

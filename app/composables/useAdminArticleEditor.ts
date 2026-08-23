@@ -74,6 +74,8 @@ export function useAdminArticleEditor(options: AdminArticleEditorOptions) {
 	const articles = ref<ArticleSummary[]>([])
 	const loading = ref(true)
 	const saving = ref(false)
+	const deleting = ref(false)
+	const deleted = ref(false)
 	const conflict = ref(false)
 	const error = ref<string | null>(null)
 	const diagnostics = ref<ArticleDiagnostic[]>([])
@@ -87,6 +89,8 @@ export function useAdminArticleEditor(options: AdminArticleEditorOptions) {
 	const drafts = useAdminDraft()
 	let draftTimer: ReturnType<typeof setTimeout> | undefined
 	let draftSavePromise: Promise<void> | undefined
+	let draftFlushDisabled = false
+	let deleteIntent: { sha: string, idempotencyKey: string } | undefined
 
 	const hasUnsavedChanges = computed(() => documentFingerprint(document.value) !== localDraftFingerprint.value)
 	watch(
@@ -96,6 +100,8 @@ export function useAdminArticleEditor(options: AdminArticleEditorOptions) {
 	)
 	const matchesRemote = computed(() => documentFingerprint(document.value) === remoteFingerprint.value)
 	const draftStatus = computed(() => {
+		if (deleted.value)
+			return '文章已删除'
 		if (drafts.saving.value)
 			return '正在把改动保存到这台设备…'
 		if (drafts.error.value)
@@ -169,11 +175,11 @@ export function useAdminArticleEditor(options: AdminArticleEditorOptions) {
 	}
 
 	async function persistLocalDraft() {
-		if (!initialized.value)
+		if (!initialized.value || draftFlushDisabled)
 			return
 		if (draftSavePromise)
 			await draftSavePromise
-		if (!hasUnsavedChanges.value)
+		if (draftFlushDisabled || !hasUnsavedChanges.value)
 			return
 		const snapshot = cloneArticleDocument(document.value)
 		const snapshotFingerprint = documentFingerprint(snapshot)
@@ -190,7 +196,7 @@ export function useAdminArticleEditor(options: AdminArticleEditorOptions) {
 	}
 
 	async function flushPendingDraft() {
-		if (!initialized.value)
+		if (!initialized.value || draftFlushDisabled)
 			return
 		if (draftTimer) {
 			clearTimeout(draftTimer)
@@ -198,10 +204,37 @@ export function useAdminArticleEditor(options: AdminArticleEditorOptions) {
 		}
 		if (draftSavePromise)
 			await draftSavePromise
+		if (draftFlushDisabled)
+			return
 		await persistLocalDraft()
 	}
 
+	async function discardLocalDraftAfterDelete(path: string, sha: string) {
+		draftFlushDisabled = true
+		if (draftTimer) {
+			clearTimeout(draftTimer)
+			draftTimer = undefined
+		}
+		if (!drafts.suppress(path, sha))
+			return 'tombstone-failed' as const
+		if (draftSavePromise)
+			await draftSavePromise.catch(() => undefined)
+		if (!await drafts.removeSuppressed(path, sha))
+			return 'draft-remove-failed' as const
+		return 'removed' as const
+	}
+
 	async function save(mode: 'direct' | 'pull_request') {
+		if (deleting.value) {
+			error.value = '文章正在删除，不能继续保存或发布。'
+			return
+		}
+		if (deleted.value) {
+			error.value = '文章已经删除，不能继续保存或发布。'
+			return
+		}
+		if (saving.value)
+			return
 		if (options.isNew && conflict.value) {
 			error.value = '这个路径已有文章，请先换用新的安全路径。'
 			return
@@ -279,6 +312,72 @@ export function useAdminArticleEditor(options: AdminArticleEditorOptions) {
 		}
 	}
 
+	async function deleteArticle() {
+		if (options.isNew || !options.articleId || deleting.value || saving.value || deleted.value)
+			return
+		const sha = document.value.sha
+		if (!sha) {
+			error.value = '当前文章版本信息缺失，请重新加载后再删除。'
+			return
+		}
+		deleting.value = true
+		error.value = null
+		success.value = null
+		if (!deleteIntent || deleteIntent.sha !== sha) {
+			deleteIntent = {
+				sha,
+				idempotencyKey: newIdempotencyKey('article-delete'),
+			}
+		}
+		try {
+			try {
+				await useAdminApi(`/api/admin/articles/${options.articleId}`, {
+					method: 'DELETE',
+					body: {
+						expectedSha: sha,
+						idempotencyKey: deleteIntent.idempotencyKey,
+					},
+				})
+			}
+			catch (cause) {
+				if (cause instanceof AdminApiError && cause.code === 'CONFLICT') {
+					conflict.value = true
+					await fetchRemote().catch(() => null)
+					error.value = '远端文章已经变化。请重新加载远端版本后，再确认是否删除。'
+				}
+				else {
+					error.value = toAdminUserMessage(cause, '文章删除失败')
+				}
+				return
+			}
+
+			deleted.value = true
+			deleteIntent = undefined
+			conflict.value = false
+			const draftCleanup = await discardLocalDraftAfterDelete(document.value.path, sha)
+			if (draftCleanup === 'tombstone-failed') {
+				error.value = '文章已删除，但浏览器无法建立本地草稿保护，请不要继续编辑并手动返回列表或清理站点数据。'
+				return
+			}
+			if (draftCleanup === 'draft-remove-failed') {
+				error.value = '文章已删除，但本地草稿清理失败；旧草稿已被阻止自动恢复。'
+				return
+			}
+			success.value = '文章已从内容仓库删除。'
+			try {
+				await router.replace('/admin/articles')
+				if (import.meta.client && window.location.pathname !== '/admin/articles')
+					throw new Error('Article delete navigation did not reach the article list')
+			}
+			catch {
+				error.value = '页面跳转失败，但文章已经删除。请手动返回文章列表或刷新页面。'
+			}
+		}
+		finally {
+			deleting.value = false
+		}
+	}
+
 	async function regenerateNewPath() {
 		if (!options.isNew)
 			return
@@ -294,6 +393,14 @@ export function useAdminArticleEditor(options: AdminArticleEditorOptions) {
 	}
 
 	async function reloadRemote() {
+		if (deleting.value) {
+			error.value = '文章正在删除，不能重新加载远端版本。'
+			return
+		}
+		if (deleted.value) {
+			error.value = '文章已经删除，不能重新加载远端版本。'
+			return
+		}
 		if (options.isNew) {
 			const target = router.resolve(`/admin/articles/${encodeArticleId(document.value.path)}`)
 			window.open(target.href, '_blank', 'noopener,noreferrer')
@@ -335,7 +442,7 @@ export function useAdminArticleEditor(options: AdminArticleEditorOptions) {
 	}
 
 	watch(document, () => {
-		if (!initialized.value)
+		if (!initialized.value || draftFlushDisabled)
 			return
 		draftRestored.value = false
 		if (draftTimer)
@@ -347,7 +454,8 @@ export function useAdminArticleEditor(options: AdminArticleEditorOptions) {
 	}, { deep: true })
 
 	onBeforeRouteLeave(async () => {
-		await flushPendingDraft()
+		if (!draftFlushDisabled)
+			await flushPendingDraft()
 		return true
 	})
 
@@ -355,7 +463,8 @@ export function useAdminArticleEditor(options: AdminArticleEditorOptions) {
 	onBeforeUnmount(() => {
 		if (draftTimer)
 			clearTimeout(draftTimer)
-		void flushPendingDraft()
+		if (!draftFlushDisabled)
+			void flushPendingDraft()
 	})
 
 	return {
@@ -364,6 +473,8 @@ export function useAdminArticleEditor(options: AdminArticleEditorOptions) {
 		articles,
 		loading,
 		saving,
+		deleting,
+		deleted,
 		conflict,
 		error,
 		diagnostics,
@@ -374,6 +485,7 @@ export function useAdminArticleEditor(options: AdminArticleEditorOptions) {
 		initialize,
 		flushPendingDraft,
 		save,
+		deleteArticle,
 		regenerateNewPath,
 		reloadRemote,
 		compareRaw,

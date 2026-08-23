@@ -1,10 +1,12 @@
 import type { ArticleDocument } from '#shared/admin/articles'
+import { isProxy, toRaw } from 'vue'
 import { articleDocumentSchema, articleSaveRequestSchema } from '#shared/admin/articles'
 import { toAdminUserMessage } from '#shared/admin/feedback'
 
 const draftDatabaseName = 'fly-living-admin'
 const draftStoreName = 'article-drafts'
 const draftDatabaseVersion = 1
+const draftTombstonePrefix = 'fly_admin_draft_tombstone:'
 
 export interface AdminArticleDraft {
 	key: string
@@ -236,6 +238,10 @@ export function adminDraftKey(path: string, sha: string | null | undefined) {
 	return `${path}::${sha || 'new'}`
 }
 
+export function adminDraftTombstoneKey(path: string, sha: string | null | undefined) {
+	return `${draftTombstonePrefix}${adminDraftKey(path, sha)}`
+}
+
 export function insertMarkdownImage(
 	body: string,
 	selectionStart: number,
@@ -281,8 +287,67 @@ export function buildArticleSaveRequest(
 	})
 }
 
+function unwrapVueProxies(value: unknown, seen = new WeakMap<object, unknown>()): unknown {
+	const rawValue = isProxy(value) ? toRaw(value) : value
+	if (rawValue === null || typeof rawValue !== 'object')
+		return rawValue
+	if (seen.has(rawValue))
+		return seen.get(rawValue)
+
+	if (Array.isArray(rawValue)) {
+		const clone: unknown[] = []
+		seen.set(rawValue, clone)
+		for (const item of rawValue)
+			clone.push(unwrapVueProxies(item, seen))
+		return clone
+	}
+	if (rawValue instanceof Map) {
+		const clone = new Map<unknown, unknown>()
+		seen.set(rawValue, clone)
+		for (const [key, item] of rawValue)
+			clone.set(unwrapVueProxies(key, seen), unwrapVueProxies(item, seen))
+		return clone
+	}
+	if (rawValue instanceof Set) {
+		const clone = new Set<unknown>()
+		seen.set(rawValue, clone)
+		for (const item of rawValue)
+			clone.add(unwrapVueProxies(item, seen))
+		return clone
+	}
+
+	const prototype = Object.getPrototypeOf(rawValue)
+	if (prototype !== Object.prototype && prototype !== null)
+		return rawValue
+	const clone: Record<string, unknown> = Object.create(prototype)
+	seen.set(rawValue, clone)
+	for (const key of Object.keys(rawValue))
+		clone[key] = unwrapVueProxies((rawValue as Record<string, unknown>)[key], seen)
+	return clone
+}
+
 export function cloneArticleDocument(document: ArticleDocument): ArticleDocument {
-	return articleDocumentSchema.parse(document)
+	return articleDocumentSchema.parse(structuredClone(unwrapVueProxies(document)))
+}
+
+function snapshotDraftTombstones() {
+	const generations = new Map<string, string>()
+	if (!import.meta.client)
+		return { generations, readable: true }
+	try {
+		for (let index = 0; index < localStorage.length; index++) {
+			const key = localStorage.key(index)
+			if (!key?.startsWith(draftTombstonePrefix))
+				continue
+			const generation = localStorage.getItem(key)
+			if (generation !== null)
+				generations.set(key, generation)
+		}
+		return { generations, readable: true }
+	}
+	catch {
+		return { generations, readable: false }
+	}
 }
 
 function openDraftDatabase(): Promise<IDBDatabase> {
@@ -319,12 +384,55 @@ async function withDraftStore<T>(
 	}
 }
 
+async function deleteDraftRecord(key: string): Promise<void> {
+	const database = await openDraftDatabase()
+	try {
+		await new Promise<void>((resolve, reject) => {
+			const transaction = database.transaction(draftStoreName, 'readwrite')
+			const request = transaction.objectStore(draftStoreName).delete(key)
+			request.onerror = () => reject(request.error ?? new Error('本地草稿清理失败'))
+			transaction.oncomplete = () => resolve()
+			transaction.onerror = () => reject(transaction.error ?? new Error('本地草稿事务失败'))
+			transaction.onabort = () => reject(transaction.error ?? new Error('本地草稿事务失败'))
+		})
+	}
+	finally {
+		database.close()
+	}
+}
+
 export function useAdminDraft() {
 	const saving = ref(false)
 	const error = ref<string | null>(null)
 	const lastSavedAt = ref<string | null>(null)
+	const instanceStartTombstones = snapshotDraftTombstones()
+	const acknowledgedTombstones = new Map<string, string>()
 
 	async function load(path: string, sha: string | null | undefined): Promise<AdminArticleDraft | null> {
+		const tombstoneKey = adminDraftTombstoneKey(path, sha)
+		if (!instanceStartTombstones.readable) {
+			error.value = '本地草稿保护状态读取失败。'
+			return null
+		}
+		try {
+			const currentGeneration = localStorage.getItem(tombstoneKey)
+			if (currentGeneration !== null) {
+				if (instanceStartTombstones.generations.get(tombstoneKey) === currentGeneration)
+					acknowledgedTombstones.set(tombstoneKey, currentGeneration)
+				try {
+					await deleteDraftRecord(adminDraftKey(path, sha))
+					lastSavedAt.value = null
+				}
+				catch (cause) {
+					error.value = toAdminUserMessage(cause, '被阻止恢复的本地草稿清理失败')
+				}
+				return null
+			}
+		}
+		catch (cause) {
+			error.value = toAdminUserMessage(cause, '本地草稿保护状态读取失败')
+			return null
+		}
 		try {
 			return await withDraftStore('readonly', store => store.get(adminDraftKey(path, sha))) as AdminArticleDraft | null
 		}
@@ -338,6 +446,23 @@ export function useAdminDraft() {
 		saving.value = true
 		error.value = null
 		try {
+			const tombstoneKey = adminDraftTombstoneKey(document.path, document.sha)
+			if (!instanceStartTombstones.readable) {
+				error.value = '本地草稿保护状态读取失败，未保存本地草稿。'
+				throw new Error(error.value)
+			}
+			let tombstone: string | null
+			try {
+				tombstone = localStorage.getItem(tombstoneKey)
+			}
+			catch (cause) {
+				error.value = '本地草稿保护状态读取失败，未保存本地草稿。'
+				throw cause
+			}
+			if (tombstone !== null && acknowledgedTombstones.get(tombstoneKey) !== tombstone) {
+				error.value = '远端版本已删除或替换，此标签页不能再保存旧版本的本地草稿。'
+				throw new Error(error.value)
+			}
 			const draft: AdminArticleDraft = {
 				key: adminDraftKey(document.path, document.sha),
 				document: cloneArticleDocument(document),
@@ -347,7 +472,8 @@ export function useAdminDraft() {
 			lastSavedAt.value = draft.updatedAt
 		}
 		catch (cause) {
-			error.value = toAdminUserMessage(cause, '本地草稿保存失败')
+			if (error.value === null)
+				error.value = toAdminUserMessage(cause, '本地草稿保存失败')
 			throw cause
 		}
 		finally {
@@ -365,5 +491,28 @@ export function useAdminDraft() {
 		}
 	}
 
-	return { saving, error, lastSavedAt, load, save, remove }
+	function suppress(path: string, sha: string | null | undefined) {
+		try {
+			localStorage.setItem(adminDraftTombstoneKey(path, sha), crypto.randomUUID())
+			return true
+		}
+		catch (cause) {
+			error.value = toAdminUserMessage(cause, '本地草稿保护建立失败')
+			return false
+		}
+	}
+
+	async function removeSuppressed(path: string, sha: string | null | undefined) {
+		try {
+			await deleteDraftRecord(adminDraftKey(path, sha))
+			lastSavedAt.value = null
+			return true
+		}
+		catch (cause) {
+			error.value = toAdminUserMessage(cause, '本地草稿清理失败')
+			return false
+		}
+	}
+
+	return { saving, error, lastSavedAt, load, save, remove, suppress, removeSuppressed }
 }

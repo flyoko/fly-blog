@@ -43,6 +43,11 @@ export const articleSaveRequestSchema = z.object({
 	idempotencyKey: z.string().min(8).max(128),
 })
 
+export const articleDeleteRequestSchema = z.object({
+	expectedSha: z.string().min(1),
+	idempotencyKey: z.string().min(8).max(128),
+})
+
 export interface ArticleSummary {
 	id: string
 	path: string

@@ -21,6 +21,8 @@ const props = withDefaults(defineProps<{
 	articles?: ArticleSummary[]
 	categories: string[]
 	saving?: boolean
+	deleting?: boolean
+	deleted?: boolean
 	conflict?: boolean
 	isNew?: boolean
 	draftStatus?: string
@@ -31,6 +33,8 @@ const props = withDefaults(defineProps<{
 	remoteDocument: null,
 	articles: () => [],
 	saving: false,
+	deleting: false,
+	deleted: false,
 	conflict: false,
 	isNew: false,
 	draftStatus: '',
@@ -42,6 +46,7 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{
 	'update:modelValue': [document: ArticleDocument]
 	'save': [mode: 'direct' | 'pull_request']
+	'delete': []
 	'navigate': [id: string]
 	'reloadRemote': []
 	'regeneratePath': []
@@ -52,6 +57,7 @@ const emit = defineEmits<{
 const textarea = ref<HTMLTextAreaElement | null>(null)
 const notifications = useAdminNotifications()
 const mediaPickerOpen = ref(false)
+const deleteDialogOpen = ref(false)
 const focusMode = useLocalStorage('fly_admin_editor_focus_mode', false)
 const mobilePane = ref<'write' | 'preview'>('write')
 const previewLoading = ref(false)
@@ -79,6 +85,7 @@ const contentLength = computed(() => documentModel.value.body
 	.length)
 const readingMinutes = computed(() => Math.max(1, Math.ceil(contentLength.value / 400)))
 const canSave = computed(() => Boolean(documentModel.value.frontmatter.title?.trim() && documentModel.value.body.trim()))
+const writeLocked = computed(() => props.deleting || props.deleted)
 
 function rawMarkdown(value: ArticleDocument | null | undefined) {
 	if (!value)
@@ -102,6 +109,7 @@ function focusDiagnostic(diagnostic: Pick<ArticleDiagnostic, 'bodyLine' | 'bodyC
 	})
 }
 const directSaveLabel = computed(() => documentModel.value.frontmatter.draft ? '保存草稿' : '发布文章')
+const deleteDescription = computed(() => `“${documentModel.value.frontmatter.title || '未命名文章'}”将从当前博客中删除。删除后不可恢复到当前博客；如需找回，只能从 Git 历史恢复。`)
 
 const formattingActions: Array<{
 	label: string
@@ -150,6 +158,8 @@ function recordEditorSnapshot(
 }
 
 function onEditorInput(event: Event) {
+	if (writeLocked.value)
+		return
 	const target = event.target as HTMLTextAreaElement
 	const inputEvent = event as InputEvent
 	editorHistory.value = recordMarkdownHistory(editorHistory.value, {
@@ -161,6 +171,8 @@ function onEditorInput(event: Event) {
 }
 
 function onEditorKeydown(event: KeyboardEvent) {
+	if (writeLocked.value)
+		return
 	if (!(event.metaKey || event.ctrlKey) || event.altKey)
 		return
 	const key = event.key.toLowerCase()
@@ -180,6 +192,8 @@ function onEditorKeydown(event: KeyboardEvent) {
 }
 
 function updatePath(path: string) {
+	if (writeLocked.value)
+		return
 	documentModel.value = { ...documentModel.value, path }
 }
 
@@ -193,6 +207,8 @@ function updateMetadata(patch: Partial<{
 	date: string
 	updated: string
 }>) {
+	if (writeLocked.value)
+		return
 	const current = documentModel.value.frontmatter
 	documentModel.value = updateArticleFrontmatter(documentModel.value, {
 		title: patch.title ?? current.title ?? '',
@@ -207,6 +223,8 @@ function updateMetadata(patch: Partial<{
 }
 
 function toggleCategory(category: string) {
+	if (writeLocked.value)
+		return
 	const categories = new Set(documentModel.value.frontmatter.categories ?? [])
 	if (categories.has(category))
 		categories.delete(category)
@@ -216,6 +234,8 @@ function toggleCategory(category: string) {
 }
 
 function insertMedia(media: MediaObjectDto) {
+	if (writeLocked.value)
+		return
 	const { start, end } = editorSelection()
 	editorHistory.value = updateMarkdownHistorySelection(editorHistory.value, start, end)
 	const result = insertMarkdownImage(documentModel.value.body, start, end, media.originalName, media.url)
@@ -227,6 +247,8 @@ function insertMedia(media: MediaObjectDto) {
 }
 
 function applyEditorEdit(edit: MarkdownEdit | 'mac-window') {
+	if (writeLocked.value)
+		return
 	const { start, end } = editorSelection()
 	editorHistory.value = updateMarkdownHistorySelection(editorHistory.value, start, end)
 	const result = edit === 'mac-window'
@@ -239,8 +261,33 @@ function onSaveShortcut(event: KeyboardEvent) {
 	if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 's')
 		return
 	event.preventDefault()
-	if (!props.saving && canSave.value)
+	if (!props.saving && !props.deleting && !props.deleted && canSave.value)
 		emit('save', 'direct')
+}
+
+function confirmDelete() {
+	if (!writeLocked.value)
+		emit('delete')
+}
+
+function openMediaPicker() {
+	if (!writeLocked.value)
+		mediaPickerOpen.value = true
+}
+
+function requestReloadRemote() {
+	if (!writeLocked.value)
+		emit('reloadRemote')
+}
+
+function requestRegeneratePath() {
+	if (!writeLocked.value)
+		emit('regeneratePath')
+}
+
+function requestSave(mode: 'direct' | 'pull_request') {
+	if (!writeLocked.value && !props.saving && canSave.value)
+		emit('save', mode)
 }
 
 function onPreviewError(error: unknown) {
@@ -259,6 +306,11 @@ function retryPreview(clearError: () => void) {
 }
 
 onMounted(() => window.addEventListener('keydown', onSaveShortcut))
+
+watch(writeLocked, (locked) => {
+	if (locked)
+		mediaPickerOpen.value = false
+})
 
 watch(
 	() => `${documentModel.value.path}::${documentModel.value.sha || 'new'}`,
@@ -344,18 +396,18 @@ onBeforeUnmount(() => {
 				<span>{{ isNew ? '这个路径已被另一篇文章使用。旧文章已受到保护，当前标题、正文和图片都还在。换一个新路径即可继续发布。' : '当前草稿仍保留在浏览器中，请选择如何继续。' }}</span>
 			</div>
 			<div class="admin-conflict-actions">
-				<button v-if="isNew" class="admin-button admin-button-primary" type="button" @click="emit('regeneratePath')">
+				<button v-if="isNew" class="admin-button admin-button-primary" type="button" :disabled="writeLocked" @click="requestRegeneratePath">
 					<Icon name="tabler:wand" />
 					换用安全新路径
 				</button>
-				<button class="admin-button" type="button" @click="emit('reloadRemote')">
+				<button class="admin-button" type="button" :disabled="writeLocked" @click="requestReloadRemote">
 					{{ isNew ? '在新标签打开已有文章' : '重新加载远端' }}
 				</button>
 				<template v-if="!isNew">
 					<button class="admin-button" type="button" @click="emit('compareRaw')">
 						比较原始 Markdown
 					</button>
-					<button class="admin-button admin-button-primary" type="button" :disabled="saving" @click="emit('save', 'pull_request')">
+					<button class="admin-button admin-button-primary" type="button" :disabled="saving || writeLocked" @click="requestSave('pull_request')">
 						{{ saving ? '正在提交…' : '改用 PR 发布' }}
 					</button>
 				</template>
@@ -382,15 +434,19 @@ onBeforeUnmount(() => {
 					<Icon :name="focusMode ? 'tabler:layout-sidebar-right-expand' : 'tabler:focus-2'" />
 					{{ focusMode ? '退出专注' : '专注写作' }}
 				</button>
-				<button class="admin-button" type="button" @click="mediaPickerOpen = true">
+				<button class="admin-button" type="button" :disabled="writeLocked" @click="openMediaPicker">
 					<Icon name="tabler:photo-plus" />
 					插入媒体
 				</button>
-				<button class="admin-button" type="button" :disabled="saving || !canSave" @click="emit('save', 'pull_request')">
+				<button v-if="!isNew" class="admin-button admin-button-danger" type="button" :disabled="saving || deleting || deleted" @click="deleteDialogOpen = true">
+					<Icon :name="deleted ? 'tabler:check' : 'tabler:trash'" />
+					{{ deleted ? '已删除' : '删除文章' }}
+				</button>
+				<button class="admin-button" type="button" :disabled="saving || writeLocked || !canSave" @click="requestSave('pull_request')">
 					<Icon name="tabler:git-pull-request" />
 					提交审核
 				</button>
-				<button class="admin-button admin-button-primary" type="button" :disabled="saving || !canSave" title="快捷键：⌘/Ctrl + S" @click="emit('save', 'direct')">
+				<button class="admin-button admin-button-primary" type="button" :disabled="saving || writeLocked || !canSave" title="快捷键：⌘/Ctrl + S" @click="requestSave('direct')">
 					<Icon :name="documentModel.frontmatter.draft ? 'tabler:device-floppy' : 'tabler:send'" />
 					{{ saving ? '正在保存…' : directSaveLabel }}
 				</button>
@@ -403,6 +459,7 @@ onBeforeUnmount(() => {
 				:key="action.label"
 				class="admin-format-button"
 				type="button"
+				:disabled="writeLocked"
 				:aria-label="action.ariaLabel || action.label"
 				:title="action.label"
 				@click="applyEditorEdit(action.edit)"
@@ -430,6 +487,7 @@ onBeforeUnmount(() => {
 					<textarea
 						ref="textarea"
 						:value="documentModel.body"
+						:disabled="writeLocked"
 						spellcheck="false"
 						placeholder="开始写作…"
 						@input="onEditorInput"
@@ -478,6 +536,7 @@ onBeforeUnmount(() => {
 			<input
 				:value="documentModel.frontmatter.title || ''"
 				type="text"
+				:disabled="writeLocked"
 				placeholder="文章标题"
 				@input="updateMetadata({ title: ($event.target as HTMLInputElement).value })"
 			>
@@ -487,7 +546,7 @@ onBeforeUnmount(() => {
 			<input
 				:value="documentModel.path"
 				type="text"
-				:disabled="!isNew"
+				:disabled="!isNew || writeLocked"
 				placeholder="content/posts/2026/example.md"
 				@input="updatePath(($event.target as HTMLInputElement).value)"
 			>
@@ -496,6 +555,7 @@ onBeforeUnmount(() => {
 			<span>摘要</span>
 			<textarea
 				:value="documentModel.frontmatter.description || ''"
+				:disabled="writeLocked"
 				rows="3"
 				placeholder="简短介绍这篇文章"
 				@input="updateMetadata({ description: ($event.target as HTMLTextAreaElement).value })"
@@ -510,6 +570,7 @@ onBeforeUnmount(() => {
 					class="admin-chip"
 					:class="{ 'is-selected': documentModel.frontmatter.categories?.includes(category) }"
 					type="button"
+					:disabled="writeLocked"
 					@click="toggleCategory(category)"
 				>
 					{{ category }}
@@ -518,13 +579,14 @@ onBeforeUnmount(() => {
 		</div>
 		<label class="admin-field">
 			<span>标签</span>
-			<input v-model="tagsText" type="text" placeholder="Nuxt, Cloudflare">
+			<input v-model="tagsText" type="text" :disabled="writeLocked" placeholder="Nuxt, Cloudflare">
 		</label>
 		<label class="admin-field">
 			<span>封面地址</span>
 			<input
 				:value="documentModel.frontmatter.image || ''"
 				type="url"
+				:disabled="writeLocked"
 				placeholder="https://media…"
 				@input="updateMetadata({ image: ($event.target as HTMLInputElement).value })"
 			>
@@ -533,6 +595,7 @@ onBeforeUnmount(() => {
 			<input
 				:checked="Boolean(documentModel.frontmatter.draft)"
 				type="checkbox"
+				:disabled="writeLocked"
 				@change="updateMetadata({ draft: ($event.target as HTMLInputElement).checked })"
 			>
 			<span><strong>保存为草稿</strong><small>前台不会公开展示</small></span>
@@ -540,6 +603,17 @@ onBeforeUnmount(() => {
 	</aside>
 
 	<AdminMediaPicker :open="mediaPickerOpen" kind="image" @close="mediaPickerOpen = false" @select="insertMedia" />
+
+	<AdminConfirmDialog
+		:open="deleteDialogOpen && !deleted"
+		title="删除文章"
+		:description="deleteDescription"
+		confirm-label="删除文章"
+		:busy="deleting"
+		danger
+		@close="deleteDialogOpen = false"
+		@confirm="confirmDelete"
+	/>
 
 	<Teleport to="body">
 		<div v-if="rawComparisonOpen" class="admin-modal" role="dialog" aria-modal="true" aria-labelledby="article-raw-comparison-title">

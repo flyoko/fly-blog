@@ -3,6 +3,7 @@ import type { AppEnvironment, Env } from '../../env'
 import type { ArticleActor, ArticleRepositoryPort } from './article-service'
 import { Hono } from 'hono'
 import {
+	articleDeleteRequestSchema,
 	articleDocumentSchema,
 	articleSaveRequestSchema,
 	decodeArticleId,
@@ -179,6 +180,39 @@ export function createArticleRoutes(options: ArticleRoutesOptions = {}) {
 					status: 200,
 					body: await new ArticleService(c.env, repositoryFactory(c.env)).publishDirect({
 						document: parsed.data.document,
+						expectedSha: parsed.data.expectedSha,
+						actor,
+					}),
+				}),
+			})
+			return success(c, execution.body)
+		})
+	})
+
+	routes.delete('/:id', requireCsrf, async (c) => {
+		const session = c.get('session')!
+		const path = parseArticleId(c.req.param('id'))
+		return enforceRateLimit(c.env.WRITE_RATE_LIMITER, `${session.id}:article:delete`, async () => {
+			const raw = await c.req.json().catch(() => {
+				throw new ApiError('VALIDATION_FAILED', 400, 'Request body must be valid JSON')
+			})
+			const parsed = articleDeleteRequestSchema.safeParse(raw)
+			if (!parsed.success)
+				throw new ApiError('VALIDATION_FAILED', 400, 'Article delete request is invalid', parsed.error.flatten())
+			const actor: ArticleActor = {
+				id: session.id,
+				login: session.login,
+				requestId: c.get('requestId'),
+			}
+			const execution = await withIdempotency({
+				db: c.env.DB,
+				key: parsed.data.idempotencyKey,
+				scope: `article.delete:${session.id}:${path}`,
+				requestBody: parsed.data,
+				execute: async () => ({
+					status: 200,
+					body: await new ArticleService(c.env, repositoryFactory(c.env)).deleteDirect({
+						path,
 						expectedSha: parsed.data.expectedSha,
 						actor,
 					}),
