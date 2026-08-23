@@ -5,7 +5,7 @@ import type {
 	MarketSignalSeverity,
 	MarketSignalType,
 	WatchlistItem,
-} from '../../../../shared/market'
+} from '../../../../../shared/market'
 
 export const BALANCED_SIGNAL_ENGINE_VERSION = 'balanced-v1' as const
 
