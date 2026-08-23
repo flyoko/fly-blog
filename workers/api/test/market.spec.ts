@@ -27,7 +27,7 @@ function result<T>(data: T, at = marketAt): MarketProviderResult<T> {
 function indices(value = 3666.12, at = marketAt): MarketIndexQuote[] {
 	return [
 		{ code: '000001', name: '上证指数', value, change: 12.51, changePct: 0.34, turnover: 520000000000, marketAt: at },
-		{ code: '399001', name: '深证成指', value: 11288.45, change: 0, changePct: 0, turnover: 630000000000, marketAt: at },
+		{ code: '000688', name: '科创50', value: 1653.56, change: 0.66, changePct: 0.04, turnover: 112000000000, marketAt: at },
 		{ code: '399006', name: '创业板指', value: 2788.21, change: -14.62, changePct: -0.52, turnover: 210000000000, marketAt: at },
 	]
 }
@@ -193,6 +193,30 @@ describe('market overview quality', () => {
 		expect(data.data?.indices[0]?.value).toBe(3666.12)
 		expect(data.data?.breadth?.total).toBe(5120)
 		expect(data.staleAgeMs).toBeGreaterThan(0)
+	})
+
+	it('does not resurrect a retired index from a legacy D1 snapshot when live indices fail', async () => {
+		const legacyIndices = [
+			...indices().filter(item => item.code !== '000688'),
+			{ code: '399001', name: '深证成指', value: 14094.17, change: 120.4, changePct: 0.87, turnover: 630000000000, marketAt },
+		]
+		await testEnv.DB.prepare(`
+			INSERT INTO market_daily_snapshot (trade_date, market_at, fetched_at, indices_json, breadth_json, sources_json, updated_at)
+			VALUES ('2026-08-24', ?, ?, ?, ?, ?, ?)
+		`).bind(
+			marketAt,
+			fetchedAt,
+			JSON.stringify(legacyIndices),
+			JSON.stringify(breadth()),
+			JSON.stringify([source]),
+			fetchedAt,
+		).run()
+
+		const data = await new MarketService(runtimeEnv(), failingProvider(), () => new Date('2026-08-24T02:40:00.000Z')).overview()
+
+		expect(data.quality).toBe('stale')
+		expect(data.data?.indices.map(item => item.code)).toEqual(['000001', '399006'])
+		expect(data.data?.indices.some(item => String(item.code) === '399001')).toBe(false)
 	})
 
 	it('returns unavailable instead of synthetic values when live and D1 are both empty', async () => {

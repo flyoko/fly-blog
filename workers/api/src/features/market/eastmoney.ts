@@ -20,7 +20,7 @@ const MAX_SECTOR_PAGES = 10
 
 const indexSecids: Record<MarketIndexCode, string> = {
 	'000001': '1.000001',
-	'399001': '0.399001',
+	'000688': '1.000688',
 	'399006': '0.399006',
 }
 

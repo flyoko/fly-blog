@@ -1,4 +1,4 @@
-export const marketIndexCodes = ['000001', '399001', '399006'] as const
+export const marketIndexCodes = ['000001', '000688', '399006'] as const
 export type MarketIndexCode = typeof marketIndexCodes[number]
 
 export const sectorKinds = ['industry', 'concept'] as const

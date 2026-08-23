@@ -58,7 +58,7 @@ describe('market 博客主题终端页面', () => {
 		expect(page).toContain('今日主线')
 		expect(page).toContain('暂无可信行情')
 		expect(page).toContain('暂无可信资金数据')
-		expect(page).toContain('行业 / 概念资金按需加载真实数据')
+		expect(page).toContain('行业 / 概念资金覆盖与周期累计')
 		expect(page).not.toContain('资金流 Provider 生产出口验收后开放')
 		expect(page).toContain('/api/admin/market/watchlist/quotes')
 		expect(page).toContain('/api/auth/session')
@@ -76,6 +76,17 @@ describe('market 博客主题终端页面', () => {
 		const positions = orderedCapabilities.map(label => page.indexOf(`<h3>${label}</h3>`))
 		expect(positions.every(position => position >= 0)).toBe(true)
 		expect(positions).toEqual(positions.slice().sort((left, right) => left - right))
+	})
+
+	it('keeps important finance events visibly red and uses compact mobile navigation', () => {
+		const page = readFileSync(pagePath, 'utf8')
+		expect(page).toContain('.market-finance-highlights article.important')
+		expect(page).toContain('box-shadow: inset 3px 0 0 var(--market-up);')
+		expect(page).toContain('.market-finance-highlights article.important h3')
+		expect(page).toContain('color: var(--market-up);')
+		expect(page).toContain('scroll-snap-type: x mandatory;')
+		expect(page).toContain('scroll-snap-align: start;')
+		expect(page).toContain('grid-template-columns: repeat(3, minmax(0, 1fr));')
 	})
 
 	it('exposes the approved market workspace tabs and full loading/error/empty states', () => {

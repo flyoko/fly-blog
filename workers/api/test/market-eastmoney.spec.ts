@@ -15,7 +15,7 @@ function indexPayload() {
 			diff: [
 				{ f12: '399006', f14: '创业板指', f2: 2788.21, f3: -0.52, f4: -14.62, f6: 210000000000, f124: marketTimestamp },
 				{ f12: '000001', f14: '上证指数', f2: 3666.12, f3: 0.34, f4: 12.51, f6: 520000000000, f124: marketTimestamp },
-				{ f12: '399001', f14: '深证成指', f2: 11288.45, f3: 0, f4: 0, f6: 630000000000, f124: marketTimestamp },
+				{ f12: '000688', f14: '科创50', f2: 1653.56, f3: 0.04, f4: 0.66, f6: 112000000000, f124: marketTimestamp },
 			],
 		},
 	}
@@ -80,7 +80,7 @@ describe('eastMoney market provider parsers', () => {
 	it('parses and orders the three approved index quotes without inventing zero values', () => {
 		const parsed = parseEastMoneyIndices(indexPayload(), fetchedAt)
 
-		expect(parsed.data.map(item => item.code)).toEqual(['000001', '399001', '399006'])
+		expect(parsed.data.map(item => item.code)).toEqual(['000001', '000688', '399006'])
 		expect(parsed.data[0]).toMatchObject({
 			name: '上证指数',
 			value: 3666.12,
@@ -88,7 +88,7 @@ describe('eastMoney market provider parsers', () => {
 			changePct: 0.34,
 			turnover: 520000000000,
 		})
-		expect(parsed.data[1]?.changePct).toBe(0)
+		expect(parsed.data[1]).toMatchObject({ name: '科创50', value: 1653.56, changePct: 0.04 })
 		expect(parsed.marketAt).toBe(new Date(marketTimestamp * 1000).toISOString())
 	})
 

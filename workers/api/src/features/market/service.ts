@@ -11,7 +11,7 @@ import type {
 } from '../../../../../shared/market'
 import type { Env } from '../../env'
 import type { MarketCapability, MarketDataProvider, MarketProviderResult } from './contracts'
-import { sectorWindowDays } from '../../../../../shared/market'
+import { marketIndexCodes, sectorWindowDays } from '../../../../../shared/market'
 import { isChinaMarketSyncWindow, shanghaiParts } from './contracts'
 import { EastMoneyMarketProvider } from './eastmoney'
 import { recordMarketSourceObservation } from './observability'
@@ -166,7 +166,8 @@ export class MarketService {
 		`).first<MarketDailySnapshotRow>()
 		if (!row)
 			return null
-		const indices = jsonOrNull<MarketIndexQuote[]>(row.indices_json)
+		const storedIndices = jsonOrNull<MarketIndexQuote[]>(row.indices_json)
+		const indices = storedIndices?.filter(item => marketIndexCodes.includes(item.code)) || null
 		const breadth = jsonOrNull<MarketBreadth>(row.breadth_json)
 		const sources = jsonOrNull<MarketSourceRef[]>(row.sources_json) || []
 		if (!indices?.length && !breadth)
