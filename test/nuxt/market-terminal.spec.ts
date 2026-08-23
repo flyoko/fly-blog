@@ -78,6 +78,16 @@ describe('market 博客主题终端页面', () => {
 		expect(positions).toEqual(positions.slice().sort((left, right) => left - right))
 	})
 
+	it('keeps the public market surface focused on live information instead of explanatory copy', () => {
+		const page = readFileSync(pagePath, 'utf8')
+		expect(page).not.toContain('把财经快讯、市场资金、自选和盘后席位放进同一个交易观察入口。')
+		expect(page).not.toContain('同一事件会合并重复来源。')
+		expect(page).not.toContain('同一事件自动合并重复快讯，并保留可核对的多个来源。')
+		expect(page).not.toContain('数据说明')
+		expect(page).not.toContain('DATA INTEGRITY')
+		expect(page).not.toContain('market-integrity-panel')
+	})
+
 	it('keeps important finance events visibly red and uses compact mobile navigation', () => {
 		const page = readFileSync(pagePath, 'utf8')
 		expect(page).toContain('.market-finance-highlights article.important')

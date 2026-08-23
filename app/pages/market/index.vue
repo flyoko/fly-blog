@@ -865,7 +865,6 @@ onBeforeUnmount(() => {
 				<h1>市场雷达</h1>
 				<span class="market-build">DECISION DESK</span>
 			</div>
-			<p>把财经快讯、市场资金、自选和盘后席位放进同一个交易观察入口。</p>
 		</div>
 
 		<div class="market-status-cluster">
@@ -965,7 +964,6 @@ onBeforeUnmount(() => {
 			<article class="market-capability market-capability-live">
 				<header><span>NEWS SIGNAL</span><b>7×24</b></header>
 				<h3>财经事件聚合</h3>
-				<p>同一事件自动合并重复快讯，并保留可核对的多个来源。</p>
 				<footer><Icon name="tabler:activity" aria-hidden="true" />{{ financeData?.total || 0 }} 条当前事件</footer>
 			</article>
 		</section>
@@ -978,7 +976,6 @@ onBeforeUnmount(() => {
 						<h2 id="market-finance-title">
 							财经 7×24
 						</h2>
-						<p>市场、公司、宏观、海外与科技快讯统一在这里阅读；同一事件会合并重复来源。</p>
 					</div>
 					<label class="market-important-switch">
 						<input v-model="financeImportantOnly" type="checkbox">
@@ -1054,18 +1051,6 @@ onBeforeUnmount(() => {
 						<div><span>03</span><p><strong>观察频率</strong>每 5 分钟更新已启用自选的观察状态。</p></div>
 					</div>
 					<footer>仅做观察信号，不自动下单。</footer>
-				</section>
-
-				<section class="market-panel market-integrity-panel">
-					<header class="market-panel-header compact">
-						<div><span>DATA INTEGRITY</span><h2>数据说明</h2></div>
-					</header>
-					<ul>
-						<li><Icon name="tabler:news" />财经 7×24：统一在市场页阅读</li>
-						<li><Icon name="tabler:chart-histogram" />重复快讯：自动合并并保留多个来源</li>
-						<li><Icon name="tabler:database-search" />板块资金：行业 / 概念全量搜索与 20 日窗口</li>
-						<li><Icon name="tabler:calendar-stats" />股指席位：盘后读取中金所公开排名</li>
-					</ul>
 				</section>
 			</aside>
 		</div>
@@ -1799,6 +1784,7 @@ onBeforeUnmount(() => {
 
 .market-capability footer {
 	display: flex;
+	grid-row: 4;
 	align-items: center;
 	gap: 0.35rem;
 	padding-top: 0.5rem;
@@ -2222,30 +2208,6 @@ onBeforeUnmount(() => {
 	padding: 0.7rem 0.75rem;
 	font-size: 0.62rem;
 	color: var(--market-text-3);
-}
-
-.market-integrity-panel ul {
-	display: grid;
-	gap: 0;
-	margin: 0;
-	padding: 0;
-	list-style: none;
-}
-
-.market-integrity-panel li {
-	display: flex;
-	align-items: center;
-	gap: 0.45rem;
-	padding: 0.62rem 0.75rem;
-	border-bottom: 1px solid var(--market-border);
-	font-size: 0.64rem;
-	color: var(--market-text-2);
-}
-.market-integrity-panel li:last-child { border-bottom: 0; }
-
-.market-integrity-panel li .iconify {
-	flex: 0 0 auto;
-	color: var(--market-accent);
 }
 
 .market-stage-view { min-height: 28rem; }
@@ -3151,7 +3113,7 @@ onBeforeUnmount(() => {
 	.market-capability-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 	.market-capability-grid > .market-capability:first-child { grid-column: 1 / -1; }
 	.market-main-grid { grid-template-columns: minmax(0, 1fr); }
-	.market-side-stack { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+	.market-side-stack { grid-template-columns: minmax(0, 1fr); }
 }
 
 .market-finance-link {
