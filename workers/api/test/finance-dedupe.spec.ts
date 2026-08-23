@@ -33,9 +33,9 @@ describe('finance event dedupe', () => {
 				categoryLabel: '宏观',
 			}),
 			item({
-				id: 'sina-inews-7x24:2',
-				sourceId: 'sina-inews-7x24',
-				sourceName: '新浪财经',
+				id: 'cls-telegraph-7x24:2',
+				sourceId: 'cls-telegraph-7x24',
+				sourceName: '财联社',
 				title: '对美国商品加征等额反制关税，加拿大9月8日起实施',
 				publishedAt: '2026-08-22T16:17:00.000Z',
 				category: 'macro',
@@ -45,13 +45,13 @@ describe('finance event dedupe', () => {
 
 		expect(grouped).toHaveLength(1)
 		expect(grouped[0]).toMatchObject({
-			sourceId: 'wallstreetcn-7x24',
+			sourceId: 'cls-telegraph-7x24',
 			sourceCount: 2,
 			publishedAt: '2026-08-22T16:14:22.000Z',
 		})
 		expect(grouped[0]?.sources?.map(source => source.sourceId)).toEqual([
+			'cls-telegraph-7x24',
 			'wallstreetcn-7x24',
-			'sina-inews-7x24',
 		])
 	})
 

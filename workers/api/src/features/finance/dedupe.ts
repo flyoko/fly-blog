@@ -3,7 +3,7 @@ import type { FinanceFlashDto, FinanceFlashSourceDto, FinanceImportanceOrigin } 
 const EVENT_WINDOW_MS = 120 * 60 * 1_000
 const BIGRAM_THRESHOLD = 0.72
 const TRIGRAM_THRESHOLD = 0.62
-const SOURCE_PREFIX_PATTERN = /^(?:【?(?:金十数据|华尔街见闻|新浪财经)】?[：:\s-]*)+/u
+const SOURCE_PREFIX_PATTERN = /^(?:【?(?:金十数据|财联社|华尔街见闻)】?[：:\s-]*)+/u
 const NEWS_PREFIX_PATTERN = /^(?:金十数据)?\d{1,2}月\d{1,2}日讯[，,:：\s]*/u
 const NUMBER_PATTERN = /\d+(?:\.\d+)?%?/gu
 
@@ -15,8 +15,8 @@ const DIRECTION_GROUPS = [
 
 const SOURCE_PRIORITY: Record<string, number> = {
 	'jin10-mcp-7x24': 0,
-	'wallstreetcn-7x24': 1,
-	'sina-inews-7x24': 2,
+	'cls-telegraph-7x24': 1,
+	'wallstreetcn-7x24': 2,
 }
 
 interface EventGroup {

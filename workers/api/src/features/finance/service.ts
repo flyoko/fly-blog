@@ -1,5 +1,6 @@
 import type { AdminFinanceFlashDto, AdminFinanceFlashListDto, FinanceAdminVisibility, FinanceCategory, FinanceFlashDto, FinanceFlashListDto, FinanceFlashQuality, FinanceImportanceOrigin } from '../../../../../shared/admin/finance'
 import type { Env } from '../../env'
+import { ClsFinanceFlashAdapter } from './cls'
 import { groupFinanceEvents } from './dedupe'
 import { Jin10FinanceFlashAdapter } from './jin10'
 import { prototypeFinanceItems } from './prototype-data'
@@ -251,6 +252,7 @@ export class FinanceFlashService {
 				reason: 'missing-secret',
 			})
 		}
+		results.push(await this.syncAdapter(new ClsFinanceFlashAdapter()))
 		results.push(await this.sync())
 		return results
 	}
@@ -516,7 +518,8 @@ export class FinanceFlashService {
 		else {
 			sourceMap.set('jin10-mcp-7x24', disabled('jin10-mcp-7x24'))
 		}
-		sourceMap.set('sina-inews-7x24', sourceMap.get('sina-inews-7x24') || disabled('sina-inews-7x24'))
+		if (!sourceMap.has('cls-telegraph-7x24'))
+			sourceMap.set('cls-telegraph-7x24', pending('cls-telegraph-7x24'))
 
 		return {
 			sources: [...sourceMap.values()],

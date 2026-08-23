@@ -78,7 +78,7 @@ describe('finance flash service', () => {
 				item_count: 8,
 			}),
 			expect.objectContaining({ source_id: 'jin10-mcp-7x24', status: 'disabled', item_count: 0 }),
-			expect.objectContaining({ source_id: 'sina-inews-7x24', status: 'disabled', item_count: 0 }),
+			expect.objectContaining({ source_id: 'cls-telegraph-7x24', status: 'pending', item_count: 0 }),
 		]))
 	})
 

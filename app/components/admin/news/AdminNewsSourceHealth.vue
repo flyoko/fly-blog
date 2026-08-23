@@ -28,8 +28,8 @@ function sourceLabel(sourceId: string) {
 		return '财经 7×24 · 华尔街见闻'
 	if (sourceId === 'jin10-mcp-7x24')
 		return '财经 7×24 · 金十数据'
-	if (sourceId === 'sina-inews-7x24')
-		return '财经 7×24 · 新浪财经'
+	if (sourceId === 'cls-telegraph-7x24')
+		return '财经 7×24 · 财联社'
 	if (sourceId === 'prototype-finance-7x24')
 		return '财经 7×24 · 原型回退'
 	return sourceId
