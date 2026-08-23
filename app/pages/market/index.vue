@@ -2,6 +2,7 @@
 import type { AdminSessionDto } from '#shared/admin/auth'
 import type { FinanceFilter, FinanceFlashDto, FinanceFlashListDto, FinanceFlashSourceDto } from '#shared/admin/finance'
 import type { MarketDataQuality, MarketEnvelope, MarketOverview, SectorFlowItem, SectorKind, SectorWindowDays, WatchlistItem, WatchlistRadarItem, WatchlistRadarResponse } from '#shared/market'
+import MarketSignalDesk from '~/components/market/MarketSignalDesk.vue'
 
 type MarketWorkspace = 'radar' | 'funds' | 'watchlist' | 'signals' | 'strategy'
 type WatchlistSortMode = 'custom' | 'change' | 'attention' | 'turnover'
@@ -10,7 +11,7 @@ const workspaceTabs: Array<{ id: MarketWorkspace, label: string, icon: string, n
 	{ id: 'radar', label: '市场雷达', icon: 'tabler:radar', note: '事件与数据门禁' },
 	{ id: 'funds', label: '资金', icon: 'tabler:arrows-exchange', note: '板块与周期累计' },
 	{ id: 'watchlist', label: '自选', icon: 'tabler:star', note: '自选雷达' },
-	{ id: 'signals', label: '信号', icon: 'tabler:activity-heartbeat', note: 'T 监控与告警' },
+	{ id: 'signals', label: '信号', icon: 'tabler:activity-heartbeat', note: '5分钟观察信号' },
 	{ id: 'strategy', label: '策略', icon: 'tabler:filter-cog', note: '收盘筛选' },
 ]
 
@@ -685,10 +686,14 @@ watch([financeFilter, importantOnly], () => {
 watch([activeWorkspace, sectorKind], ([workspace]) => {
 	if (workspace === 'funds')
 		void loadSectorFlows()
-	if (workspace === 'watchlist')
+	if (workspace === 'watchlist') {
 		void activateWatchlist()
-	else
+	}
+	else {
 		stopWatchlistPolling({ abort: true })
+		if (workspace === 'signals')
+			void loadWatchlistSession()
+	}
 })
 
 onMounted(() => {
@@ -728,7 +733,7 @@ onBeforeUnmount(() => {
 			</p>
 			<div class="market-title-row">
 				<h1>市场雷达</h1>
-				<span class="market-build">P2A</span>
+				<span class="market-build">P2B</span>
 			</div>
 			<p>把财经事件、资金、自选和信号放进一个决策入口；未通过生产验收的数据一律不展示。</p>
 		</div>
@@ -1197,18 +1202,11 @@ onBeforeUnmount(() => {
 		</template>
 	</section>
 
-	<section v-else-if="activeWorkspace === 'signals'" class="market-panel market-stage-view">
-		<header class="market-stage-header">
-			<div><span>SIGNAL DESK</span><h2>信号</h2><p>把盯盘动作变成条件触发；P0 不做自动交易、不伪造 Level2。</p></div>
-			<b>DESIGN READY</b>
-		</header>
-		<div class="market-signal-matrix">
-			<div><span>量能</span><strong>分钟放量</strong><p>超过自选股近期基线时触发观察。</p></div>
-			<div><span>方向</span><strong>价量组合</strong><p>涨跌方向与放量信号组合，减少单指标误判。</p></div>
-			<div><span>风险</span><strong>冷却 / 去重</strong><p>同一标的同一事件设置冷却，避免连续刷屏。</p></div>
-			<div><span>执行</span><strong>仅提醒</strong><p>不自动下单，所有信号保留人工判断。</p></div>
-		</div>
-	</section>
+	<MarketSignalDesk
+		v-else-if="activeWorkspace === 'signals'"
+		:authenticated="watchlistAuthenticated"
+		:session-loading="watchlistSessionLoading"
+	/>
 
 	<section v-else class="market-panel market-stage-view">
 		<header class="market-stage-header">
