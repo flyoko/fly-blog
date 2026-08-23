@@ -46,7 +46,7 @@ P2B 的目标不是做一个新的行情系统，而是把这些已经存在的�
 
 先从真实快照计算若干**原子事实**，再组合评分：
 
-- 5 分钟成交额/成交量增量异常；
+- 5 分钟成交额增量异常；
 - 5/10 分钟价格加速；
 - 最近 30 分钟区间突破/跌破；
 - 用户关注价上穿/下穿；
@@ -97,7 +97,7 @@ D1 信号 + 基线状态
 
 ## 4. 为什么必须使用 5 分钟增量
 
-P2A 的 `volume` 和 `turnover` 来自行情 Provider 的**当日累计值**。
+P2A 的 `turnover`（以及未参与本版评分的 `volume`）来自行情 Provider 的**当日累计值**。balanced-v1 的量能因子只使用 turnover。
 
 因此禁止：
 
@@ -111,7 +111,6 @@ current.turnover / previous.turnover
 
 ```text
 deltaTurnover = current.turnover - previous.turnover
-deltaVolume   = current.volume   - previous.volume
 ```
 
 只有满足以下条件才认为区间增量有效：
@@ -124,7 +123,7 @@ deltaVolume   = current.volume   - previous.volume
 6. delta >= 0；
 7. 当前 bucket 未被重复 marketAt 覆盖为旧行情。
 
-如果中间缺了一个 5 分钟桶，即使两个端点相差 10 分钟，也**不能**把累计差值冒充成 5 分钟成交额。该 5 分钟量能因子直接记为 unavailable，不用 0 替代，不跨缺口借数据。10 分钟价格窗口同样要求三个连续 5 分钟桶，保证窗口语义稳定。
+如果中间缺了一个 5 分钟桶，即使两个端点相差 10 分钟，也**不能**把累计差值冒充成 5 分钟成交额。该 5 分钟成交额因子直接记为 unavailable，不用 0 替代，不跨缺口借数据。10 分钟价格窗口同样要求三个连续 5 分钟桶，保证窗口语义稳定。
 
 ## 5. 交易时间语义
 
@@ -197,7 +196,7 @@ P2A 抓取窗口为了容错覆盖约 09:20–11:35 / 12:55–15:15，但 P2B �
 - ratio `>= 3.0`；
 - 同样要求绝对成交额底线。
 
-若 turnover 缺失但 volume 有完整基线，可以退化为 `deltaVolume` ratio；证据里必须标记 `basis=volume`，不混淆两个口径。
+`balanced-v1` 不使用 volume 作为 turnover 缺失时的 fallback：不同 Provider 的 volume 单位可能是股/手等不同口径。turnover 缺失时量能因子直接 unavailable；`volume` 仍保留在 P2A 原始快照，但不进入本版 signal score。
 
 ### 7.2 价格加速 `PRICE_ACCELERATION`
 
@@ -218,8 +217,10 @@ P2A 抓取窗口为了容错覆盖约 09:20–11:35 / 12:55–15:15，但 P2B �
 
 - `previousRangeHigh = max(previousSixSnapshots.price)`
 - `previousRangeLow = min(previousSixSnapshots.price)`
-- 上破：`currentPrice >= previousRangeHigh * 1.002`
-- 下破：`currentPrice <= previousRangeLow * 0.998`
+- 普通上破：`currentPrice >= previousRangeHigh * 1.002`
+- 强上破：`currentPrice >= previousRangeHigh * 1.005`
+- 普通下破：`currentPrice <= previousRangeLow * 0.998`
+- 强下破：`currentPrice <= previousRangeLow * 0.995`
 
 previousRange 不包含当前桶，且 6 个 previous price snapshots 必须是连续 5 分钟桶，避免自己证明自己突破或跨缺口拼区间。
 
@@ -296,6 +297,15 @@ P2B 不把每个原子因子都变成一条提醒，而是每个 symbol/bucket �
 - `attention_cross_down`：下穿关注价
 - `price_spike_up` / `price_spike_down`：快速价格异动
 
+同一个 symbol/bucket 最多形成一条组合用户信号。若多个原子因子同时成立，`signalType` 选择优先级固定为：
+
+1. `ATTENTION_CROSS` → `attention_cross_up/down`（用户显式关注价优先）；
+2. `RANGE_BREAK` → `breakout_up/breakdown_down`；
+3. `TURNOVER_SURGE` + 明确方向 → `momentum_up/down`；
+4. 独立极端 `PRICE_ACCELERATION` → `price_spike_up/down`。
+
+未被选为 signalType 的其他成立因子仍保留在 evidence 和 score 中，不丢失解释证据。
+
 每条信号包含：
 
 - 股票名称/代码；
@@ -344,7 +354,7 @@ Cooldown 只抑制用户信号持久化，不修改底层真实快照。
 - 跨交易日差分；
 - 跨午休差分；
 - 量能计算所需的 5 分钟桶不连续（bucketAt 差值不是 5 分钟）；
-- cumulative volume/turnover 负增量；
+- cumulative turnover 负增量；
 - baseline 样本不足；
 - range window 中有效桶不足；
 - attentionPrice 非法或 null；
@@ -373,7 +383,8 @@ CREATE TABLE market_watchlist_signal (
   engine_version TEXT NOT NULL,
   source_id TEXT NOT NULL,
   created_at TEXT NOT NULL,
-  UNIQUE(owner_id, symbol, bucket_at, signal_type, engine_version)
+  UNIQUE(owner_id, symbol, bucket_at, signal_type, engine_version),
+  FOREIGN KEY(owner_id, symbol) REFERENCES market_watchlist(owner_id, symbol) ON DELETE CASCADE
 );
 ```
 
@@ -406,7 +417,7 @@ CREATE TABLE market_watchlist_signal (
 
 ### 12.2 删除自选后的信号
 
-用户从 watchlist 删除股票时，同一 owner + symbol 的 P2B 信号同时删除，避免已经不关注的股票继续出现在私有 Signal Desk。P2A 的原始 5 分钟快照是否保留仍沿用 P2A 策略，不由 P2B 静默改变。
+用户从 watchlist 删除股票时，同一 owner + symbol 的 P2B 信号通过 `market_watchlist_signal(owner_id, symbol) -> market_watchlist(owner_id, symbol) ON DELETE CASCADE` 同时删除，避免已经不关注的股票继续出现在私有 Signal Desk，也避免两步删除失败留下孤儿。P2A 的原始 5 分钟快照不挂这个级联外键，其保留策略仍沿用 P2A，不由 P2B 静默改变。
 
 ## 13. Signal Engine 接口
 
@@ -448,7 +459,7 @@ function evaluateMarketSignal(input: SignalEngineInput): SignalCandidate | null
 
 - 仅最多 30 个 symbol；
 - 只读最近约 8 个自然日范围；
-- 只选 `owner_id/symbol/bucket_at/market_at/price/previous_close/volume/turnover/source_id` 等必要列；P2A 的日内累计 `high/low` 不进入 P2B 局部 range 计算；
+- 只选 `owner_id/symbol/bucket_at/market_at/price/previous_close/turnover/source_id` 等必要列；P2A 的 `volume` 与日内累计 `high/low` 均不进入 balanced-v1 评分；
 - 内存按 symbol 分组；
 - 不做 30 次独立历史 SQL 查询；
 - 不访问第三方 Provider。
@@ -655,7 +666,7 @@ UNIQUE + deterministic id 确保幂等。
 
 必须覆盖：
 
-- 正常 5m turnover/volume delta；
+- 正常 5m turnover delta，并证明 volume 不进入 balanced-v1 评分；
 - 跨日不做差；
 - 午休不做差；
 - 5 分钟量能 delta 只接受严格相邻 bucket，缺一个桶即拒绝该量能因子；
@@ -667,7 +678,7 @@ UNIQUE + deterministic id 确保幂等。
 - baseline 样本不足；
 - TURNOVER_SURGE 普通/强阈值边界；
 - PRICE_ACCELERATION 5m/10m/极端边界；
-- RANGE_BREAK 只用前 6 个连续 snapshot `price` 的 max/min，不读取日内累计 high/low，且不包含 current；
+- RANGE_BREAK 只用前 6 个连续 snapshot `price` 的 max/min，不读取日内累计 high/low，且不包含 current；普通突破边界 ±0.2%，强突破边界 ±0.5%；
 - attention cross up/down/首桶 previousClose；
 - 单普通量能 <50 不触发；
 - 价量组合达到 watch；
@@ -811,7 +822,7 @@ P2B 完成必须同时满足：
 
 1. 用户选择的 B“均衡型”规则作为 `balanced-v1` 固化并有边界测试。
 2. 只用 P2A 5 分钟真实快照；无新增行情 Provider / Cron / 全市场扫描。
-3. 累计 volume/turnover 正确转为连续 5m delta；跨日、午休、缺桶、负 delta fail-closed。
+3. 累计 turnover 正确转为连续 5m delta；volume 不进入 balanced-v1 评分；跨日、午休、缺桶、负 delta fail-closed。
 4. 量能、价格、range、attention 原子因子和组合评分可解释、可 replay。
 5. 冷却/去重/Queue retry 幂等通过测试。
 6. 信号 API 私有、owner 隔离、no-store，公开 `/api/market/*` 零泄漏。

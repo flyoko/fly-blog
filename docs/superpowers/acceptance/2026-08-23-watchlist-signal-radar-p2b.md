@@ -20,14 +20,14 @@
 
 ## B. 严格 5 分钟时间序列
 
-- [ ] B1. `turnover/volume` 被视为日内累计量，5m 因子使用 `current - previous`。
+- [ ] B1. `turnover` 被视为日内累计量，5m 成交额因子使用 `current - previous`；volume 不进入 balanced-v1 score。
 - [ ] B2. 5m delta 只在同一 Asia/Shanghai 交易日有效。
 - [ ] B3. 5m delta 不跨 11:30–13:00 午休。
 - [ ] B4. `bucketAt` 必须严格相邻且差值正好 5 分钟。
-- [ ] B5. 缺一个桶时，10 分钟累计差不得冒充 5m turnover/volume。
+- [ ] B5. 缺一个桶时，10 分钟累计差不得冒充 5m turnover。
 - [ ] B6. `marketAt` 重复或倒退时该区间 unavailable。
-- [ ] B7. cumulative 字段为 null 时对应 delta unavailable，不补 0。
-- [ ] B8. cumulative delta < 0 时 fail-closed，不取绝对值/不归零。
+- [ ] B7. turnover 为 null 时 flow delta unavailable，不补 0。
+- [ ] B8. turnover cumulative delta < 0 时 fail-closed，不取绝对值/不归零。
 - [ ] B9. 10m price window 必须由三个连续 5m bucket 构成。
 - [ ] B10. 跨日、午休、缺桶、异常 delta 不借更老快照补当前窗口。
 - [ ] B11. 09:20–09:29 不产生普通量价信号。
@@ -51,12 +51,12 @@
 
 - [ ] D1. TURNOVER_SURGE 普通：ratio >= 2.0 且 `deltaTurnover >= 3,000,000` CNY。
 - [ ] D2. TURNOVER_SURGE 强：ratio >= 3.0，仍要求绝对成交额底线。
-- [ ] D3. turnover 不可用但 volume 基线合法时才允许 fallback，并标 `basis=volume`。
+- [ ] D3. `balanced-v1` 不用 volume 替代 turnover；turnover 缺失时量能因子 fail-closed，volume 不进入 score。
 - [ ] D4. PRICE_ACCELERATION 普通：abs(5m)>=1.0% 或合法 abs(10m)>=1.5%。
 - [ ] D5. PRICE_ACCELERATION 极端：abs(5m)>=1.8%。
 - [ ] D6. RANGE_BREAK 使用 current 之前 6 个连续 5m snapshot `price` 的 max/min，不含 current，且绝不使用 P2A 当日累计 `high/low`。
-- [ ] D7. 上破阈值 `current >= previousRangeHigh * 1.002`。
-- [ ] D8. 下破阈值 `current <= previousRangeLow * 0.998`。
+- [ ] D7. 普通/强上破阈值分别为 `previousRangeHigh * 1.002` / `* 1.005`。
+- [ ] D8. 普通/强下破阈值分别为 `previousRangeLow * 0.998` / `* 0.995`。
 - [ ] D9. 普通 RANGE_BREAK 单独不能形成用户 signal。
 - [ ] D10. ATTENTION_CROSS up：previous < attention <= current。
 - [ ] D11. ATTENTION_CROSS down：previous > attention >= current。
@@ -69,7 +69,7 @@
 - [ ] E1. `balanced-v1` 阈值/分数集中定义并版本化，不散落在 Vue/route/SQL。
 - [ ] E2. TURNOVER_SURGE 分数：普通 30 / 强 40。
 - [ ] E3. PRICE_ACCELERATION：普通 25 / 极端 50。
-- [ ] E4. RANGE_BREAK：普通 25 / 强组合证据 35。
+- [ ] E4. RANGE_BREAK：普通 25 / 强突破 35，强突破由 ±0.5% 边界判定。
 - [ ] E5. ATTENTION_CROSS 固定 55，可独立达到 watch。
 - [ ] E6. DIRECTION_ALIGNMENT +10；最终 score cap 100。
 - [ ] E7. score <50 不持久化用户 signal。
@@ -77,7 +77,8 @@
 - [ ] E9. 普通单一 TURNOVER_SURGE 不会独立刷出 signal。
 - [ ] E10. 极端 5m price 可独立 watch，但 evidence 不写成“价量共振”。
 - [ ] E11. 价量组合 fixture 得到预期 watch；强放量+突破 fixture 得到 strong。
-- [ ] E12. 用户 signalType 仅 momentum/breakout/breakdown/attention-cross/price-spike 观察语义。
+- [ ] E12. 同一 symbol/bucket 最多 1 条组合 signal；signalType 优先级固定 attention-cross > range break > turnover momentum > extreme price-spike。
+- [ ] E12b. 用户 signalType 仅 momentum/breakout/breakdown/attention-cross/price-spike 观察语义，未获主类型的成立因子仍保留在 evidence/score。
 - [ ] E13. 用户可见文案不出现 buy/sell/买点/卖点/建议交易。
 - [ ] E14. 每条 signal 有 marketAt、direction、severity、score、engineVersion、结构化 evidence。
 
@@ -100,10 +101,10 @@
 - [ ] G2. signal evidence 仅保存有限白名单数值/因子，不复制第三方 raw payload。
 - [ ] G3. 每条 row 固化 `engine_version=balanced-v1`。
 - [ ] G4. SignalService 对最多 30 股历史采用批量读取，禁止一股一 SQL 查询放大。
-- [ ] G5. 历史查询仅取约 8 日范围及必要列；P2B 局部 range 不读取/使用 P2A 当日累计 `high/low`。
+- [ ] G5. 历史查询仅取约 8 日范围及必要列；balanced-v1 不读取 volume/high/low 参与评分。
 - [ ] G6. disabled 股票不参与 signal evaluation。
-- [ ] G7. 删除 watchlist 股票时删除同 owner+symbol 的 P2B signal。
-- [ ] G8. 删除自选不改变 P2A quote_5m 既有 retention 策略。
+- [ ] G7. signal 表对 `(owner_id,symbol)` 使用 `ON DELETE CASCADE` 外键；删除 watchlist 后同 owner+symbol signals 原子消失，不留孤儿。
+- [ ] G8. `market_watchlist_quote_5m` 不因 P2B 新增级联外键；删除自选不改变 P2A quote_5m 既有 retention 策略。
 - [ ] G9. signal retention 为 30 自然日。
 - [ ] G10. cleanup 复用现有 `31 19 * * *` content-maintenance，不新增 Cron。
 - [ ] G11. cleanup 不影响 watchlist、quote_5m、news/finance 等其他数据。
@@ -175,7 +176,7 @@
 - [ ] L2. 财经事件存在与否不进入 balanced-v1 score。
 - [ ] L3. 无可信事件就空/省略，不生成新闻。
 - [ ] L4. UI 不声称“某新闻导致本次涨跌”。
-- [ ] L5. evidence 精确区分 turnover/volume basis、price window、range、attention cross。
+- [ ] L5. evidence 精确区分 turnover baseline/ratio、price window、range、attention cross；不声称 volume 参与评分。
 - [ ] L6. `balanced-v1` 在 API/UI/持久化可追踪，支持未来 replay。
 
 ## M. Replay、性能与噪声门禁
