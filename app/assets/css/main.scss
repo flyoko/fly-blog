@@ -456,6 +456,11 @@ img {
 
 @media (max-width: $breakpoint-mobile), (hover: none) and (pointer: coarse) {
 	.blog-atmosphere {
+		// Mobile keeps motion on small child layers instead of promoting the
+		// entire fixed viewport into one long-lived compositor texture.
+		contain: layout style;
+		backface-visibility: visible;
+		transform: none;
 		will-change: auto;
 	}
 
@@ -469,8 +474,15 @@ img {
 		inset: -8%;
 		width: 116%;
 		height: 116%;
-		transform: scale(1.02);
+		backface-visibility: visible;
+		transform: none;
+		transform-origin: center;
 		transition: none;
+		will-change: auto;
+	}
+
+	.flow-ribbon {
+		backface-visibility: visible;
 		will-change: auto;
 	}
 
@@ -508,6 +520,10 @@ img {
 
 	@media (prefers-reduced-motion: no-preference) {
 		// Dynamic 在手机上只恢复低功耗动画层，次级轨道、颗粒和指针合成层继续关闭。
+		:where(.dynamic) :is(.atmosphere-lens-a, .atmosphere-lens-b, .atmosphere-stars-far) {
+			will-change: transform;
+		}
+
 		:where(.dynamic) .atmosphere-lens-a {
 			animation: atmosphere-lens-a 28s cubic-bezier(0.45, 0, 0.2, 1) infinite;
 		}

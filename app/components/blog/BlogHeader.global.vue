@@ -420,6 +420,32 @@ const isRouteSettling = useState<boolean>('route-compositor-settling', () => fal
 	}
 }
 
+@media (max-width: $breakpoint-mobile), (hover: none) and (pointer: coarse) {
+	.blog-header.mobile-page-header::before,
+	.blog-header.mobile-page-header::after {
+		animation: none;
+	}
+
+	.blog-header.mobile-page-header .blog-logo-shell,
+	.blog-header.mobile-page-header .blog-logo-motion {
+		backface-visibility: visible;
+		transform: none;
+		will-change: auto;
+	}
+
+	.blog-header.mobile-page-header :deep(.is-header .scene-orbit),
+	.blog-header.mobile-page-header :deep(.is-header .scene-track),
+	.blog-header.mobile-page-header :deep(.is-header .scene-spark),
+	.blog-header.mobile-page-header :deep(.is-header .scene-rocket) {
+		animation: none;
+		will-change: auto;
+	}
+
+	.blog-header.mobile-page-header.is-route-settling :deep(.shinchan-scene *) {
+		animation-play-state: paused;
+	}
+}
+
 @media (prefers-reduced-motion: reduce) {
 	:global(.dynamic .blog-header::before),
 	.blog-header::after {

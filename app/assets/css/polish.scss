@@ -8,6 +8,9 @@
 	--interactive-radius: 0.7rem;
 	--touch-target: 2.75rem;
 	--mobile-page-gutter: clamp(0.75rem, 4vw, 1rem);
+	--mobile-page-gap: 0.625rem;
+	--mobile-surface-radius: 1rem;
+	--mobile-surface-radius-inner: 0.75rem;
 	--mobile-safe-bottom: max(0.75rem, env(safe-area-inset-bottom));
 	--mobile-float-size: var(--touch-target);
 	--mobile-content-clearance: calc(var(--mobile-float-size) + var(--mobile-safe-bottom) + 1rem);
