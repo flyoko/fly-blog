@@ -2251,26 +2251,84 @@ onBeforeUnmount(() => {
 .market-funds-subnav {
 	display: flex;
 	flex: 0 0 auto;
-	gap: 0.4rem;
-	padding: 0;
+	gap: 0.55rem;
+	padding: 0.22rem;
+	border: 1px solid color-mix(in srgb, var(--market-accent) 18%, var(--market-border));
+	border-radius: 0.58rem;
+	box-shadow: 0 0.35rem 1rem color-mix(in srgb, var(--market-text) 9%, transparent), inset 0 1px 0 color-mix(in srgb, white 62%, transparent);
+	background: linear-gradient(180deg, color-mix(in srgb, var(--market-panel-raised) 92%, var(--market-accent-soft)), var(--market-panel));
 }
 
 .market-funds-subnav button {
 	display: inline-flex;
 	align-items: center;
-	gap: 0.4rem;
-	min-height: 40px;
-	padding-inline: 0.75rem;
-	border: 1px solid var(--market-border);
-	border-radius: 0.35rem;
-	font-size: 0.68rem;
+	gap: 0.45rem;
+	position: relative;
+	overflow: hidden;
+	min-height: 44px;
+	padding-inline: 0.9rem;
+	border: 1px solid color-mix(in srgb, var(--market-accent) 18%, var(--market-border));
+	border-radius: 0.42rem;
+	box-shadow: 0 0.2rem 0.55rem color-mix(in srgb, var(--market-text) 8%, transparent);
+	background: linear-gradient(180deg, var(--market-panel-raised), var(--market-panel));
+	font-size: 0.7rem;
+	font-weight: 600;
+	letter-spacing: 0.01em;
 	color: var(--market-text-2);
+	transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease, color 0.18s ease;
+}
+
+.market-funds-subnav button::before {
+	content: "";
+	position: absolute;
+	opacity: 0.32;
+	inset: 1px;
+	border-radius: inherit;
+	background: linear-gradient(115deg, transparent 0 28%, color-mix(in srgb, white 28%, transparent) 48%, transparent 68%);
+	pointer-events: none;
+}
+
+.market-funds-subnav button:hover {
+	border-color: color-mix(in srgb, var(--market-accent) 38%, var(--market-border));
+	box-shadow: 0 0.38rem 0.9rem color-mix(in srgb, var(--market-accent) 14%, transparent);
+	color: var(--market-text);
+	transform: translateY(-1px);
+}
+
+.market-funds-subnav button:active {
+	transform: translateY(0) scale(0.98);
+}
+
+.market-funds-subnav button > .iconify {
+	flex: 0 0 auto;
+	position: relative;
+	padding: 0.18rem;
+	border-radius: 0.3rem;
+	box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--market-accent) 14%, transparent);
+	background: color-mix(in srgb, var(--market-accent) 8%, var(--market-panel-raised));
+	font-size: 1rem;
+	z-index: 1;
 }
 
 .market-funds-subnav button.active {
-	border-color: var(--market-border-strong);
-	background: var(--market-accent-soft);
-	color: var(--market-accent-strong);
+	border-color: color-mix(in srgb, var(--market-accent) 78%, white);
+	box-shadow: 0 0.55rem 1.35rem color-mix(in srgb, var(--market-accent) 32%, transparent), 0 0 0 0.12rem color-mix(in srgb, var(--market-accent) 22%, transparent), inset 0 1px 0 hsl(0deg 0% 100% / 42%);
+	background: linear-gradient(135deg, color-mix(in srgb, var(--market-accent) 76%, white), var(--market-accent));
+	text-shadow: 0 1px 1px hsl(220deg 75% 22% / 30%);
+	color: white;
+	transform: translateY(-1px);
+}
+
+.market-funds-subnav button.active:hover {
+	box-shadow: 0 0.7rem 1.55rem color-mix(in srgb, var(--market-accent) 38%, transparent), 0 0 0 0.14rem color-mix(in srgb, var(--market-accent) 26%, transparent), inset 0 1px 0 hsl(0deg 0% 100% / 48%);
+	color: white;
+	transform: translateY(-2px);
+}
+
+.market-funds-subnav button.active > .iconify {
+	box-shadow: inset 0 0 0 1px hsl(0deg 0% 100% / 24%), 0 0 0 0.12rem hsl(0deg 0% 100% / 10%);
+	background: hsl(0deg 0% 100% / 14%);
+	color: white;
 }
 
 .market-kind-switch {
@@ -3572,13 +3630,15 @@ onBeforeUnmount(() => {
 	.market-funds-subnav {
 		display: grid;
 		grid-template-columns: repeat(2, minmax(0, 1fr));
-		gap: 0.35rem;
+		gap: 0.45rem;
 		width: 100%;
+		padding: 0.28rem;
 	}
 
 	.market-funds-subnav button {
 		justify-content: center;
-		min-height: 44px;
+		min-height: 48px;
+		padding-inline: 0.65rem;
 	}
 
 	.market-funds-toolbar {
