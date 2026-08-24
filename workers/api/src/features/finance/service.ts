@@ -655,9 +655,14 @@ export class FinanceFlashService {
 				(SELECT COUNT(*) FROM finance_source_settings WHERE enabled = 0) AS disabled_source_count,
 				(SELECT GROUP_CONCAT(source_id || '=' || enabled, ',')
 				 FROM (
-					 SELECT source_id, enabled
-					 FROM finance_source_settings
-					 ORDER BY source_id
+					 SELECT fixed_source.source_id, COALESCE(source_setting.enabled, 1) AS enabled
+					 FROM (
+						 SELECT 'cls-telegraph-7x24' AS source_id
+						 UNION ALL SELECT 'jin10-mcp-7x24'
+						 UNION ALL SELECT 'wallstreetcn-7x24'
+					 ) fixed_source
+					 LEFT JOIN finance_source_settings source_setting ON source_setting.source_id = fixed_source.source_id
+					 ORDER BY fixed_source.source_id
 				 )) AS source_policy_signature
 		`).first<{
 			version: string | null
