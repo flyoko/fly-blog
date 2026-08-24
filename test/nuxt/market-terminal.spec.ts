@@ -104,11 +104,11 @@ describe('market 博客主题终端页面', () => {
 		expect(page).toContain('grid-template-columns: repeat(3, minmax(0, 1fr));')
 	})
 
-	it('exposes only implemented market workspace tabs and full loading/error/empty states', () => {
+	it('exposes implemented market workspace tabs and full loading/error/empty states', () => {
 		const page = readFileSync(pagePath, 'utf8')
-		for (const label of ['市场雷达', '资金', '自选', '信号'])
+		for (const label of ['市场雷达', '资金', '自选', '信号', '策略'])
 			expect(page).toContain(label)
-		expect(page).not.toContain('id: \'strategy\'')
+		expect(page).toContain('id: \'strategy\'')
 		expect(page).not.toContain('待批处理')
 		expect(page).not.toContain('BATCH STRATEGY')
 		expect(page).toContain('market-loading')
