@@ -531,6 +531,7 @@ onMounted(load)
 
 .news-sync strong {
 	font-size: 0.82rem;
+	font-variant-numeric: tabular-nums;
 	color: var(--c-text-1);
 }
 
@@ -993,6 +994,7 @@ onMounted(load)
 
 .news-feed-header > strong {
 	font: 0.68rem var(--font-monospace);
+	font-variant-numeric: tabular-nums;
 	white-space: nowrap;
 	color: var(--c-primary);
 }
@@ -1550,8 +1552,8 @@ onMounted(load)
 
 @media (max-width: 680px) {
 	.news-workbench {
-		gap: 0.65rem;
-		margin: 0.5rem 0.5rem 1rem;
+		gap: var(--mobile-page-gap);
+		margin: var(--mobile-page-gap) var(--mobile-page-gutter) 1rem;
 	}
 
 	.news-header {
@@ -1561,19 +1563,21 @@ onMounted(load)
 
 	.news-header h1 {
 		font-size: 2rem;
+		text-wrap: balance;
 	}
 
 	.news-intro {
 		margin-top: 0.35rem;
 		font-size: 0.82rem;
 		line-height: 1.55;
+		text-wrap: pretty;
 	}
 
 	.news-sync {
 		min-width: 0;
 		padding: 0.65rem 0.75rem;
 		border: 1px solid var(--c-surface-line);
-		border-radius: 0.85rem;
+		border-radius: var(--mobile-surface-radius);
 		background: color-mix(in srgb, var(--c-surface-fill) 88%, transparent);
 	}
 
@@ -1649,7 +1653,7 @@ onMounted(load)
 		grid-template-columns: minmax(0, 1fr);
 		gap: 0.5rem;
 		padding: 0.55rem;
-		border-radius: 0.9rem;
+		border-radius: var(--mobile-surface-radius);
 	}
 
 	.news-search {
@@ -1675,18 +1679,22 @@ onMounted(load)
 	}
 
 	.news-layout {
-		gap: 0.65rem;
+		gap: var(--mobile-page-gap);
+	}
+
+	.finance-stream,
+	.news-feed,
+	.news-digest {
+		border-radius: var(--mobile-surface-radius);
 	}
 
 	.news-feed {
 		grid-row: 1;
 		overflow: hidden;
-		border-radius: 0.9rem;
 	}
 
 	.news-digest {
 		grid-row: 2;
-		border-radius: 0.9rem;
 	}
 
 	.news-row {
@@ -1714,6 +1722,17 @@ onMounted(load)
 	.news-row-body.has-owned-cover {
 		grid-template-columns: minmax(0, 1fr) 5.25rem;
 		gap: 0.6rem;
+	}
+
+	.news-row-image,
+	.news-owned-cover {
+		width: 5.25rem;
+		aspect-ratio: 4 / 3;
+	}
+
+	.news-skeleton,
+	.finance-loading span {
+		animation: none;
 	}
 
 	.news-row-actions {
