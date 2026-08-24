@@ -20,6 +20,12 @@ function item(name: string, changePct: number | null, today: number | null, d3: 
 			{ days: 10, netInflow: null, availableDays: 1, complete: false },
 			{ days: 20, netInflow: null, availableDays: 1, complete: false },
 		],
+		weeks: [
+			{ weekOffset: 0, netInflow: today, availableDays: 1, expectedDays: 5, complete: false, startDate: '2026-08-21', endDate: '2026-08-21' },
+			{ weekOffset: 1, netInflow: d3, availableDays: d3 === null ? 0 : 5, expectedDays: 5, complete: d3 !== null, startDate: d3 === null ? null : '2026-08-10', endDate: d3 === null ? null : '2026-08-14' },
+			{ weekOffset: 2, netInflow: null, availableDays: 0, expectedDays: 5, complete: false, startDate: null, endDate: null },
+			{ weekOffset: 3, netInflow: null, availableDays: 0, expectedDays: 5, complete: false, startDate: null, endDate: null },
+		],
 	}
 }
 
@@ -45,5 +51,6 @@ describe('market sector table', () => {
 		expect(sortSectorFlowItems(items, 'changePct', 'desc').map(value => value.name)).toEqual(['C', 'A', 'B'])
 		expect(sortSectorFlowItems(items, 'mainNetInflow', 'asc').map(value => value.name)).toEqual(['C', 'A', 'B'])
 		expect(sortSectorFlowItems(items, 3, 'desc').map(value => value.name)).toEqual(['B', 'C', 'A'])
+		expect(sortSectorFlowItems(items, 'week:1', 'desc').map(value => value.name)).toEqual(['B', 'C', 'A'])
 	})
 })

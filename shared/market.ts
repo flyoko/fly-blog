@@ -7,6 +7,9 @@ export type SectorKind = typeof sectorKinds[number]
 export const sectorWindowDays = [1, 3, 5, 10, 20] as const
 export type SectorWindowDays = typeof sectorWindowDays[number]
 
+export const sectorWeekOffsets = [0, 1, 2, 3] as const
+export type SectorWeekOffset = typeof sectorWeekOffsets[number]
+
 export type MarketDataQuality = 'live' | 'degraded' | 'stale' | 'unavailable'
 
 export interface MarketSourceRef {
@@ -59,8 +62,19 @@ export interface SectorFlowWindow {
 	complete: boolean
 }
 
+export interface SectorFlowWeek {
+	weekOffset: SectorWeekOffset
+	netInflow: number | null
+	availableDays: number
+	expectedDays: number
+	complete: boolean
+	startDate: string | null
+	endDate: string | null
+}
+
 export interface SectorFlowItem extends SectorFlowQuote {
 	windows: SectorFlowWindow[]
+	weeks: SectorFlowWeek[]
 }
 
 export interface MarketEnvelope<T> {

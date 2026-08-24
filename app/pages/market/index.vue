@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import type { AdminSessionDto } from '#shared/admin/auth'
 import type { FinanceFilter, FinanceFlashDto, FinanceFlashListDto, FinanceFlashSourceDto } from '#shared/admin/finance'
-import type { CiticFuturesPositionHistory, CiticFuturesSeries, FinancialReportPeriod, FinancialTrendFilter, MarketDataQuality, MarketEnvelope, MarketFinancialScreenerData, MarketFinancialScreenerItem, MarketOverview, SectorFlowItem, SectorKind, SectorWindowDays, WatchlistItem, WatchlistRadarItem, WatchlistRadarResponse } from '#shared/market'
-import type { SectorSortDirection, SectorSortKey } from '~/utils/market-sector-table'
+import type { CiticFuturesPositionHistory, CiticFuturesSeries, FinancialReportPeriod, FinancialTrendFilter, MarketDataQuality, MarketEnvelope, MarketFinancialScreenerData, MarketFinancialScreenerItem, MarketOverview, SectorFlowItem, SectorFlowWeek, SectorKind, SectorWeekOffset, WatchlistItem, WatchlistRadarItem, WatchlistRadarResponse } from '#shared/market'
+import type { SectorSortDirection, SectorSortKey, SectorWeekSortKey } from '~/utils/market-sector-table'
 import MarketFuturesPositionChart from '~/components/market/MarketFuturesPositionChart.vue'
 import MarketSignalDesk from '~/components/market/MarketSignalDesk.vue'
 import { isShanghaiMarketWindow, millisecondsUntilNextShanghaiWindow, WATCHLIST_MARKET_WINDOWS } from '~/utils/market-polling'
@@ -70,12 +70,11 @@ const watchlistSortOptions: Array<{ id: WatchlistSortMode, label: string }> = [
 
 const sectorPageSizeOptions = [10, 20, 50, 100]
 
-const sectorWindowOptions: Array<{ days: SectorWindowDays, label: string }> = [
-	{ days: 1, label: '1D' },
-	{ days: 3, label: '3D' },
-	{ days: 5, label: '5D' },
-	{ days: 10, label: '10D' },
-	{ days: 20, label: '20D' },
+const sectorWeekOptions: Array<{ weekOffset: SectorWeekOffset, key: SectorWeekSortKey, label: string }> = [
+	{ weekOffset: 0, key: 'week:0', label: '本周' },
+	{ weekOffset: 1, key: 'week:1', label: '上周' },
+	{ weekOffset: 2, key: 'week:2', label: '前2周' },
+	{ weekOffset: 3, key: 'week:3', label: '前3周' },
 ]
 
 const shanghaiTime = new Intl.DateTimeFormat('zh-CN', {
@@ -325,6 +324,42 @@ function formatDataDate(value: string | null) {
 	if (Number.isNaN(date.getTime()))
 		return '--.--'
 	return shanghaiDate.format(date).replaceAll('/', '.')
+}
+
+function formatSectorDateKey(value: string | null) {
+	if (!value || !/^\d{4}-\d{2}-\d{2}$/u.test(value))
+		return '--.--'
+	return `${value.slice(5, 7)}.${value.slice(8, 10)}`
+}
+
+function formatSectorWeekRange(week: SectorFlowWeek) {
+	if (!week.startDate || !week.endDate)
+		return '暂无日数据'
+	const start = formatSectorDateKey(week.startDate)
+	const end = formatSectorDateKey(week.endDate)
+	return start === end ? start : `${start}→${end}`
+}
+
+function formatSectorWeekProgress(week: SectorFlowWeek) {
+	const expected = week.expectedDays || '?'
+	const coverage = `${week.availableDays}/${expected}交易日`
+	if (week.complete)
+		return coverage
+	if (week.weekOffset === 0)
+		return `进行中 · ${coverage}`
+	return week.availableDays ? `不完整 · ${coverage}` : `未收集 · ${coverage}`
+}
+
+function sectorWeekEntries(item: SectorFlowItem): SectorFlowWeek[] {
+	return sectorWeekOptions.map(({ weekOffset }) => item.weeks?.find(week => week.weekOffset === weekOffset) || {
+		weekOffset,
+		netInflow: null,
+		availableDays: 0,
+		expectedDays: 0,
+		complete: false,
+		startDate: null,
+		endDate: null,
+	})
 }
 
 function formatFinanceTime(value: string) {
@@ -1114,7 +1149,7 @@ onBeforeUnmount(() => {
 			<article class="market-capability market-capability-live">
 				<header><span>SECTOR FLOW</span><b>资金</b></header>
 				<h3>板块 / 概念资金</h3>
-				<p>查看当日排名与 1 / 3 / 5 / 10 / 20 日资金累计。</p>
+				<p>查看当日排名与本周、上周及近一个月的周资金累计。</p>
 				<footer><Icon name="tabler:database-search" aria-hidden="true" />行业 / 概念资金覆盖与周期累计</footer>
 			</article>
 			<article class="market-capability market-capability-live">
@@ -1295,9 +1330,9 @@ onBeforeUnmount(() => {
 									今日主力 <Icon :name="sectorSortIcon('mainNetInflow')" />
 								</button>
 							</th>
-							<th v-for="option in sectorWindowOptions" :key="option.days" :aria-sort="sectorSortAria(option.days)">
-								<button class="market-flow-sort" type="button" @click="toggleSectorSort(option.days)">
-									{{ option.label }} <Icon :name="sectorSortIcon(option.days)" />
+							<th v-for="option in sectorWeekOptions" :key="option.key" :aria-sort="sectorSortAria(option.key)">
+								<button class="market-flow-sort" type="button" @click="toggleSectorSort(option.key)">
+									{{ option.label }} <Icon :name="sectorSortIcon(option.key)" />
 								</button>
 							</th>
 						</tr>
@@ -1307,13 +1342,14 @@ onBeforeUnmount(() => {
 							<td><strong>{{ item.name }}</strong><small>{{ item.code }}<template v-if="item.leaderStockName"> · {{ item.leaderStockName }}</template></small></td>
 							<td><b :class="moveClass(item.changePct)">{{ formatPercent(item.changePct) }}</b></td>
 							<td><b :class="moveClass(item.mainNetInflow)">{{ formatFlow(item.mainNetInflow) }}</b></td>
-							<td v-for="window in item.windows" :key="window.days">
-								<b :class="moveClass(window.netInflow)">{{ formatFlow(window.netInflow) }}</b>
-								<small v-if="!window.complete" class="market-flow-window-progress"><span class="market-flow-progress-prefix">积累中 </span>{{ window.availableDays }}/{{ window.days }}<span class="market-flow-progress-suffix">日</span></small>
+							<td v-for="week in sectorWeekEntries(item)" :key="week.weekOffset" class="market-flow-week-cell">
+								<b :class="moveClass(week.netInflow)">{{ formatFlow(week.netInflow) }}</b>
+								<small class="market-flow-week-range">{{ formatSectorWeekRange(week) }}</small>
+								<small class="market-flow-week-progress" :data-complete="week.complete">{{ formatSectorWeekProgress(week) }}</small>
 							</td>
 						</tr>
 						<tr v-if="!filteredSectorFlowItems.length" class="market-flow-search-empty">
-							<td colspan="8">
+							<td colspan="7">
 								当前 {{ sectorFlowItems.length }} 个板块中没有匹配“{{ sectorSearch }}”的板块。
 							</td>
 						</tr>
@@ -2733,6 +2769,20 @@ onBeforeUnmount(() => {
 	font-size: 0.54rem;
 	color: var(--market-text-3);
 }
+
+.market-flow-week-cell { min-width: 7.2rem; }
+
+.market-flow-week-range {
+	font-family: var(--font-monospace);
+	letter-spacing: 0.01em;
+}
+
+.market-flow-week-progress {
+	font-family: var(--font-monospace);
+	color: var(--market-warning);
+}
+
+.market-flow-week-progress[data-complete="true"] { color: var(--market-text-3); }
 
 .market-flow-footer {
 	display: flex;
@@ -4302,19 +4352,15 @@ onBeforeUnmount(() => {
 		margin: 0.4rem 0.55rem 0.55rem;
 	}
 
-	.market-flow-table { min-width: 56rem; }
+	.market-flow-table { min-width: 54rem; }
 
 	.market-flow-table th,
 	.market-flow-table td { padding: 0.46rem 0.5rem; }
 
-	.market-flow-window-progress {
-		display: inline-block;
-		margin: 0 0 0 0.22rem;
-		font-size: 0.48rem;
-	}
+	.market-flow-week-cell { min-width: 6.6rem; }
 
-	.market-flow-progress-prefix,
-	.market-flow-progress-suffix { display: none; }
+	.market-flow-week-range,
+	.market-flow-week-progress { font-size: 0.48rem; }
 
 	.market-flow-pagination {
 		flex-direction: column;

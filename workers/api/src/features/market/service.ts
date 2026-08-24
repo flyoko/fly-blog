@@ -7,14 +7,20 @@ import type {
 	MarketSourceRef,
 	SectorFlowItem,
 	SectorFlowQuote,
+	SectorFlowWeek,
 	SectorKind,
+	SectorWeekOffset,
 } from '../../../../../shared/market'
 import type { Env } from '../../env'
 import type { MarketCapability, MarketDataProvider, MarketProviderResult } from './contracts'
-import { marketIndexCodes, sectorWindowDays } from '../../../../../shared/market'
+import { marketIndexCodes, sectorWeekOffsets, sectorWindowDays } from '../../../../../shared/market'
+import { isChinaAShareTradingDate } from '../../../../../shared/market-calendar'
 import { isChinaMarketSyncWindow, shanghaiParts } from './contracts'
 import { EastMoneyMarketProvider } from './eastmoney'
 import { recordMarketSourceObservation } from './observability'
+
+const SECTOR_FLOW_RETENTION_DAYS = 30
+const DAY_MS = 86_400_000
 
 interface MarketDailySnapshotRow {
 	trade_date: string
@@ -150,6 +156,55 @@ function capabilityItemCount(capability: MarketCapability, value: MarketProvider
 	return Array.isArray(value.data) ? value.data.length : 1
 }
 
+function dateKeyAtOffset(dateKey: string, dayOffset: number): string | null {
+	if (!/^\d{4}-\d{2}-\d{2}$/u.test(dateKey))
+		return null
+	const parsed = Date.parse(`${dateKey}T00:00:00.000Z`)
+	if (!Number.isFinite(parsed))
+		return null
+	return new Date(parsed + dayOffset * DAY_MS).toISOString().slice(0, 10)
+}
+
+function sectorWeekTradingDates(anchorDate: string, weekOffset: SectorWeekOffset): string[] {
+	const parsed = Date.parse(`${anchorDate}T00:00:00.000Z`)
+	if (!Number.isFinite(parsed))
+		return []
+	const weekday = new Date(parsed).getUTCDay()
+	const daysSinceMonday = (weekday + 6) % 7
+	const mondayMs = parsed - (daysSinceMonday + weekOffset * 7) * DAY_MS
+	const dates: string[] = []
+	for (let day = 0; day < 5; day += 1) {
+		const dateKey = new Date(mondayMs + day * DAY_MS).toISOString().slice(0, 10)
+		const shanghaiNoon = new Date(`${dateKey}T04:00:00.000Z`)
+		if (isChinaAShareTradingDate(shanghaiNoon))
+			dates.push(dateKey)
+	}
+	return dates
+}
+
+function aggregateSectorWeek(
+	values: Map<string, number | null>,
+	anchorDate: string,
+	weekOffset: SectorWeekOffset,
+): SectorFlowWeek {
+	const expectedDates = sectorWeekTradingDates(anchorDate, weekOffset)
+	const availableDates = expectedDates.filter(date => values.has(date))
+	const selected = availableDates.map(date => values.get(date) ?? null)
+	const hasMissingValue = selected.includes(null)
+	const numericValues = selected.filter((value): value is number => value !== null)
+	return {
+		weekOffset,
+		netInflow: availableDates.length && !hasMissingValue
+			? numericValues.reduce((sum, value) => sum + value, 0)
+			: null,
+		availableDays: availableDates.length,
+		expectedDays: expectedDates.length,
+		complete: expectedDates.length > 0 && availableDates.length === expectedDates.length && !hasMissingValue,
+		startDate: availableDates[0] ?? null,
+		endDate: availableDates.at(-1) ?? null,
+	}
+}
+
 export class MarketService {
 	constructor(
 		private readonly env: Env,
@@ -247,7 +302,7 @@ export class MarketService {
 			leaderStockName: item.leaderStockName,
 			marketAt: item.marketAt,
 		}))
-		await this.env.DB.prepare(`
+		const upsert = this.env.DB.prepare(`
 			INSERT INTO market_sector_flow_daily (
 				trade_date, sector_kind, sector_code, sector_name, change_pct,
 				main_net_inflow, main_net_inflow_ratio, leader_stock_code, leader_stock_name,
@@ -283,7 +338,15 @@ export class MarketService {
 			result.source.sourceId,
 			updatedAt,
 			JSON.stringify(rows),
-		).run()
+		)
+		const latestTradeDate = rows.map(row => row.tradeDate).sort().at(-1)
+		const cutoff = latestTradeDate
+			? dateKeyAtOffset(latestTradeDate, -(SECTOR_FLOW_RETENTION_DAYS - 1))
+			: null
+		const statements = [upsert]
+		if (cutoff)
+			statements.push(this.env.DB.prepare('DELETE FROM market_sector_flow_daily WHERE trade_date < ?').bind(cutoff))
+		await this.env.DB.batch(statements)
 	}
 
 	private async writeHealth(
@@ -452,7 +515,8 @@ export class MarketService {
 
 		return items.map((item) => {
 			const values = new Map(byCode.get(item.code) || [])
-			values.set(shanghaiParts(new Date(item.marketAt)).date, item.mainNetInflow)
+			const anchorDate = shanghaiParts(new Date(item.marketAt)).date
+			values.set(anchorDate, item.mainNetInflow)
 			const dates = [...values.keys()].sort().reverse()
 			return {
 				...item,
@@ -470,6 +534,7 @@ export class MarketService {
 						complete: selectedDates.length >= days && !hasMissingValue,
 					}
 				}),
+				weeks: sectorWeekOffsets.map(weekOffset => aggregateSectorWeek(values, anchorDate, weekOffset)),
 			}
 		})
 	}
