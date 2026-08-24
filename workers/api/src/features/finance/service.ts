@@ -1,5 +1,8 @@
-import type { AdminFinanceFlashDto, AdminFinanceFlashListDto, FinanceAdminVisibility, FinanceCategory, FinanceFlashDto, FinanceFlashListDto, FinanceFlashQuality, FinanceImportanceOrigin } from '../../../../../shared/admin/finance'
+import type { AdminFinanceFlashDto, AdminFinanceFlashListDto, FinanceAdminVisibility, FinanceCategory, FinanceFlashDto, FinanceFlashListDto, FinanceFlashQuality, FinanceImportanceOrigin, FinanceSourceId, FinanceSourceSettingDto } from '../../../../../shared/admin/finance'
 import type { Env } from '../../env'
+import { financeSourceIds } from '../../../../../shared/admin/finance'
+import { ApiError } from '../../lib/api-error'
+import { AuditRepository } from '../../repositories/audit-repository'
 import { ClsFinanceFlashAdapter } from './cls'
 import { groupFinanceEvents } from './dedupe'
 import { Jin10FinanceFlashAdapter } from './jin10'
@@ -7,6 +10,18 @@ import { prototypeFinanceItems } from './prototype-data'
 import { WallstreetCnFinanceFlashAdapter } from './wallstreetcn'
 
 const FINANCE_EXCLUSION_RETENTION_DAYS = 180
+
+const FINANCE_SOURCES: ReadonlyArray<{ sourceId: FinanceSourceId, sourceName: string }> = [
+	{ sourceId: 'cls-telegraph-7x24', sourceName: '财联社' },
+	{ sourceId: 'jin10-mcp-7x24', sourceName: '金十数据' },
+	{ sourceId: 'wallstreetcn-7x24', sourceName: '华尔街见闻' },
+]
+
+interface FinanceSourceSettingRow {
+	source_id: FinanceSourceId
+	enabled: number
+	updated_at: string
+}
 
 interface FinanceFlashRow {
 	id: string
@@ -69,7 +84,7 @@ export interface FinanceSyncResult {
 	changedCount?: number
 	deletedCount?: number
 	unchangedCount?: number
-	reason?: 'missing-secret'
+	reason?: 'missing-secret' | 'disabled'
 	error?: string
 }
 
@@ -86,8 +101,73 @@ export class FinanceFlashService {
 
 	private publicRowCondition(alias = 'f'): string {
 		const prefix = alias ? `${alias}.` : ''
-		const visible = `${prefix}public_visible = 1`
-		return this.adapter.prototype ? visible : `${visible} AND ${prefix}importance_origin <> 'prototype'`
+		const conditions = [`${prefix}public_visible = 1`]
+		if (!this.adapter.prototype)
+			conditions.push(`${prefix}importance_origin <> 'prototype'`)
+		conditions.push(`NOT EXISTS (
+			SELECT 1 FROM finance_source_settings source_setting
+			WHERE source_setting.source_id = ${prefix}source_id AND source_setting.enabled = 0
+		)`)
+		return conditions.join(' AND ')
+	}
+
+	async sourceSettings(): Promise<FinanceSourceSettingDto[]> {
+		const rows = await this.env.DB.prepare(`
+			SELECT source_id, enabled, updated_at
+			FROM finance_source_settings
+			WHERE source_id IN (?, ?, ?)
+		`).bind(...financeSourceIds).all<FinanceSourceSettingRow>()
+		const rowMap = new Map(rows.results.map(row => [row.source_id, row]))
+		return FINANCE_SOURCES.map((source) => {
+			const row = rowMap.get(source.sourceId)
+			return {
+				...source,
+				enabled: row ? Boolean(row.enabled) : true,
+				available: source.sourceId !== 'jin10-mcp-7x24' || Boolean(this.env.JIN10_MCP_TOKEN?.trim()),
+				updatedAt: row?.updated_at || null,
+			}
+		})
+	}
+
+	private sourceSettingStatement(sourceId: string, enabled: boolean, actorId: string): D1PreparedStatement {
+		if (!financeSourceIds.includes(sourceId as FinanceSourceId))
+			throw new ApiError('VALIDATION_FAILED', 400, 'Finance source is invalid')
+		const now = new Date().toISOString()
+		return this.env.DB.prepare(`
+			INSERT INTO finance_source_settings (source_id, enabled, updated_at, updated_by)
+			VALUES (?, ?, ?, ?)
+			ON CONFLICT(source_id) DO UPDATE SET
+				enabled = excluded.enabled,
+				updated_at = excluded.updated_at,
+				updated_by = excluded.updated_by
+		`).bind(sourceId, enabled ? 1 : 0, now, actorId)
+	}
+
+	async setSourceEnabled(sourceId: string, enabled: boolean, actorId: string): Promise<FinanceSourceSettingDto> {
+		await this.sourceSettingStatement(sourceId, enabled, actorId).run()
+		return (await this.sourceSettings()).find(source => source.sourceId === sourceId)!
+	}
+
+	async setSourceEnabledWithAudit(
+		sourceId: string,
+		enabled: boolean,
+		actorId: string,
+		actorLogin: string,
+		requestId: string,
+	): Promise<FinanceSourceSettingDto> {
+		const settingStatement = this.sourceSettingStatement(sourceId, enabled, actorId)
+		const auditStatement = new AuditRepository(this.env.DB).prepareAudit({
+			actorId,
+			actorLogin,
+			action: 'finance.source.toggle',
+			targetType: 'finance_source',
+			targetId: sourceId,
+			result: 'success',
+			requestId,
+			metadata: { sourceId, enabled },
+		})
+		await this.env.DB.batch([settingStatement, auditStatement])
+		return (await this.sourceSettings()).find(source => source.sourceId === sourceId)!
 	}
 
 	private dto(row: FinanceFlashRow): FinanceFlashDto {
@@ -231,29 +311,35 @@ export class FinanceFlashService {
 	}
 
 	async sync(): Promise<FinanceSyncResult> {
+		if (FINANCE_SOURCES.some(source => source.sourceId === this.adapter.id)) {
+			const setting = (await this.sourceSettings()).find(source => source.sourceId === this.adapter.id)
+			if (setting && !setting.enabled)
+				return { sourceId: this.adapter.id, status: 'skipped', itemCount: 0, reason: 'disabled' }
+		}
 		return this.syncAdapter(this.adapter, { replaceFallback: true })
 	}
 
 	async syncAll(): Promise<FinanceSyncResult[]> {
 		const results: FinanceSyncResult[] = []
+		const settings = new Map((await this.sourceSettings()).map(setting => [setting.sourceId, setting]))
 		const jin10 = new Jin10FinanceFlashAdapter(
 			this.env.JIN10_MCP_TOKEN,
 			undefined,
 			this.env.JIN10_PUBLIC_VISIBLE?.trim().toLowerCase() === 'true',
 		)
-		if (jin10.enabled) {
-			results.push(await this.syncAdapter(jin10))
+		const adapters = [jin10, new ClsFinanceFlashAdapter(), this.adapter]
+		for (const adapter of adapters) {
+			const setting = settings.get(adapter.id as FinanceSourceId)
+			if (setting && !setting.enabled) {
+				results.push({ sourceId: adapter.id, status: 'skipped', itemCount: 0, reason: 'disabled' })
+				continue
+			}
+			if (adapter.id === jin10.id && !jin10.enabled) {
+				results.push({ sourceId: adapter.id, status: 'skipped', itemCount: 0, reason: 'missing-secret' })
+				continue
+			}
+			results.push(await this.syncAdapter(adapter, { replaceFallback: adapter === this.adapter }))
 		}
-		else {
-			results.push({
-				sourceId: jin10.id,
-				status: 'skipped',
-				itemCount: 0,
-				reason: 'missing-secret',
-			})
-		}
-		results.push(await this.syncAdapter(new ClsFinanceFlashAdapter()))
-		results.push(await this.sync())
 		return results
 	}
 
@@ -482,44 +568,41 @@ export class FinanceFlashService {
 			last_error: string | null
 			updated_at: string | null
 		}
-		const [sources, list] = await Promise.all([
+		const [sources, settings, list] = await Promise.all([
 			this.env.DB.prepare(`
 				SELECT source_id, status, item_count, last_success_at, last_error, updated_at
 				FROM finance_flash_sync_state
 				ORDER BY updated_at DESC, source_id ASC
 			`).all<SourceHealth>(),
+			this.sourceSettings(),
 			this.list({ limit: 1 }),
 		])
-		const sourceMap = new Map(sources.results.map(source => [source.source_id, source]))
-		const pending = (sourceId: string): SourceHealth => ({
+		type SourceStatus = SourceHealth & { enabled: boolean, available: boolean }
+		const sourceMap = new Map<string, SourceStatus>(sources.results.map(source => [source.source_id, {
+			...source,
+			enabled: true,
+			available: true,
+		}]))
+		const pending = (sourceId: string): SourceStatus => ({
 			source_id: sourceId,
 			status: 'pending',
 			item_count: 0,
 			last_success_at: null,
 			last_error: null,
 			updated_at: null,
+			enabled: true,
+			available: true,
 		})
-		const disabled = (sourceId: string): SourceHealth => ({
-			...sourceMap.get(sourceId),
-			source_id: sourceId,
-			status: 'disabled',
-			item_count: sourceMap.get(sourceId)?.item_count || 0,
-			last_success_at: sourceMap.get(sourceId)?.last_success_at || null,
-			last_error: null,
-			updated_at: sourceMap.get(sourceId)?.updated_at || null,
-		})
-
-		if (!sourceMap.has(this.adapter.id))
-			sourceMap.set(this.adapter.id, pending(this.adapter.id))
-		if (this.env.JIN10_MCP_TOKEN?.trim()) {
-			if (!sourceMap.has('jin10-mcp-7x24'))
-				sourceMap.set('jin10-mcp-7x24', pending('jin10-mcp-7x24'))
+		for (const setting of settings) {
+			const source = sourceMap.get(setting.sourceId) || pending(setting.sourceId)
+			sourceMap.set(setting.sourceId, {
+				...source,
+				status: setting.enabled && setting.available ? source.status : 'disabled',
+				last_error: setting.enabled && setting.available ? source.last_error : null,
+				enabled: setting.enabled,
+				available: setting.available,
+			})
 		}
-		else {
-			sourceMap.set('jin10-mcp-7x24', disabled('jin10-mcp-7x24'))
-		}
-		if (!sourceMap.has('cls-telegraph-7x24'))
-			sourceMap.set('cls-telegraph-7x24', pending('cls-telegraph-7x24'))
 
 		return {
 			sources: [...sourceMap.values()],
@@ -567,7 +650,15 @@ export class FinanceFlashService {
 					 AND EXISTS (
 						 SELECT 1 FROM finance_flash_items f
 						 WHERE f.source_id = s.source_id AND ${publicRowCondition}
-					 )) AS failed_count
+					 )) AS failed_count,
+				(SELECT MAX(updated_at) FROM finance_source_settings) AS source_settings_version,
+				(SELECT COUNT(*) FROM finance_source_settings WHERE enabled = 0) AS disabled_source_count,
+				(SELECT GROUP_CONCAT(source_id || '=' || enabled, ',')
+				 FROM (
+					 SELECT source_id, enabled
+					 FROM finance_source_settings
+					 ORDER BY source_id
+				 )) AS source_policy_signature
 		`).first<{
 			version: string | null
 			item_count: number
@@ -575,7 +666,10 @@ export class FinanceFlashService {
 			source_state_version: string | null
 			success_count: number
 			failed_count: number
+			source_settings_version: string | null
+			disabled_source_count: number
+			source_policy_signature: string | null
 		}>()
-		return `${row?.version || 'empty'}:${row?.item_count || 0}:${row?.exclusion_count || 0}:${row?.source_state_version || 'no-state'}:${row?.success_count || 0}:${row?.failed_count || 0}`
+		return `${row?.version || 'empty'}:${row?.item_count || 0}:${row?.exclusion_count || 0}:${row?.source_state_version || 'no-state'}:${row?.success_count || 0}:${row?.failed_count || 0}:${row?.source_settings_version || 'no-settings'}:${row?.disabled_source_count || 0}:${row?.source_policy_signature || 'default-enabled'}`
 	}
 }

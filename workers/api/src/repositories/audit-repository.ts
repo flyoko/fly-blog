@@ -33,10 +33,10 @@ function assertSafeMetadata(value: unknown): void {
 export class AuditRepository {
 	constructor(private readonly db: D1Database) {}
 
-	async writeAudit(input: AuditInput): Promise<void> {
+	prepareAudit(input: AuditInput): D1PreparedStatement {
 		const metadata = input.metadata ?? {}
 		assertSafeMetadata(metadata)
-		await this.db.prepare(`
+		return this.db.prepare(`
 			INSERT INTO audit_logs (
 				id, actor_id, actor_login, action, target_type, target_id,
 				result, request_id, metadata_json, created_at
@@ -52,6 +52,10 @@ export class AuditRepository {
 			input.requestId,
 			JSON.stringify(metadata),
 			input.createdAt ?? new Date().toISOString(),
-		).run()
+		)
+	}
+
+	async writeAudit(input: AuditInput): Promise<void> {
+		await this.prepareAudit(input).run()
 	}
 }

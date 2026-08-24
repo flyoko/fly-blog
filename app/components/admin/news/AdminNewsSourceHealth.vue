@@ -5,6 +5,8 @@ import AdminStatusPill from '~/components/admin/AdminStatusPill.vue'
 interface NewsSourceState {
 	source_id: string
 	status: string
+	enabled?: boolean
+	available?: boolean
 	item_count: number
 	last_success_at: string | null
 	last_error: string | null
@@ -35,14 +37,18 @@ function sourceLabel(sourceId: string) {
 	return sourceId
 }
 
-function statusMeta(status: string) {
-	if (status === 'success')
-		return { label: '同步正常', tone: 'positive' as const }
-	if (status === 'disabled')
+function statusMeta(source: NewsSourceState) {
+	if (source.available === false && source.enabled !== false)
+		return { label: '凭据未配置', tone: 'warning' as const }
+	if (source.enabled === false)
 		return { label: '未启用', tone: 'neutral' as const }
-	if (status === 'pending')
+	if (source.status === 'success')
+		return { label: '同步正常', tone: 'positive' as const }
+	if (source.status === 'disabled')
+		return { label: '未启用', tone: 'neutral' as const }
+	if (source.status === 'pending')
 		return { label: '待首次同步', tone: 'warning' as const }
-	if (status === 'running')
+	if (source.status === 'running')
 		return { label: '同步中', tone: 'warning' as const }
 	return { label: '需要处理', tone: 'danger' as const }
 }
@@ -67,8 +73,8 @@ function statusMeta(status: string) {
 		<article v-for="source in sources" :key="source.source_id" class="admin-news-source-card">
 			<header>
 				<div><strong>{{ sourceLabel(source.source_id) }}</strong><span>{{ source.item_count }} 条内容</span></div>
-				<AdminStatusPill :tone="statusMeta(source.status).tone">
-					{{ statusMeta(source.status).label }}
+				<AdminStatusPill :tone="statusMeta(source).tone">
+					{{ statusMeta(source).label }}
 				</AdminStatusPill>
 			</header>
 			<div class="admin-news-source-meta">

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { AdminFinanceFlashDto, AdminFinanceFlashListDto, FinanceAdminVisibility, FinanceFilter } from '#shared/admin/finance'
+import type { AdminFinanceFlashDto, AdminFinanceFlashListDto, FinanceAdminVisibility, FinanceFilter, FinanceSourceSettingDto } from '#shared/admin/finance'
 import type { NewsItemDto } from '#shared/admin/news'
 import { toAdminUserMessage } from '#shared/admin/feedback'
 import AdminFinanceInbox from '~/components/admin/news/AdminFinanceInbox.vue'
@@ -10,6 +10,8 @@ import AdminNewsSourceHealth from '~/components/admin/news/AdminNewsSourceHealth
 interface NewsSourceState {
 	source_id: string
 	status: string
+	enabled?: boolean
+	available?: boolean
 	item_count: number
 	last_success_at: string | null
 	last_error: string | null
@@ -38,13 +40,16 @@ const tabs = [
 const activeTab = ref('content')
 const data = ref<NewsAdminData | null>(null)
 const financeItems = ref<AdminFinanceFlashListDto | null>(null)
+const financeSources = ref<FinanceSourceSettingDto[]>([])
 const loading = ref(true)
 const financeLoading = ref(true)
+const financeSourcesLoading = ref(true)
 const syncing = ref(false)
 const adding = ref(false)
 const deleting = ref(false)
 const loadError = ref<string | null>(null)
 const financeError = ref<string | null>(null)
+const financeSourceError = ref<string | null>(null)
 const syncError = ref<string | null>(null)
 const manualError = ref<string | null>(null)
 const deleteError = ref<string | null>(null)
@@ -57,6 +62,7 @@ const financeCategory = ref<FinanceFilter>('all')
 const financeVisibility = ref<FinanceAdminVisibility>('all')
 const financeImportantOnly = ref(false)
 const financeWorkingId = ref<string | null>(null)
+const financeSourceWorkingId = ref<string | null>(null)
 const form = reactive({
 	title: '',
 	summary: '',
@@ -73,7 +79,7 @@ const tabItems = computed(() => tabs.map(tab => ({
 				? data.value?.sources.length ?? 0
 				: undefined,
 })))
-const unhealthySources = computed(() => data.value?.sources.filter(source => !['success', 'disabled'].includes(source.status)).length ?? 0)
+const unhealthySources = computed(() => data.value?.sources.filter(source => (source.available === false && source.enabled !== false) || !['success', 'disabled'].includes(source.status)).length ?? 0)
 const taskStatus = computed(() => {
 	if (loading.value)
 		return '正在加载 AI 阅闻…'
@@ -83,7 +89,7 @@ const taskStatus = computed(() => {
 		return `${unhealthySources.value} 个来源需要处理`
 	return `${data.value?.items.length ?? 0} 条 AI · ${financeItems.value?.visibleTotal ?? 0} 条财经 · 来源运行正常`
 })
-const taskTone = computed(() => loadError.value || financeError.value || syncError.value ? 'danger' : unhealthySources.value ? 'warning' : 'positive')
+const taskTone = computed(() => loadError.value || financeError.value || financeSourceError.value || syncError.value ? 'danger' : unhealthySources.value ? 'warning' : 'positive')
 
 useSeoMeta({ title: 'AI 阅闻管理', robots: 'noindex, nofollow' })
 
@@ -135,6 +141,51 @@ async function loadFinanceItems(background = false) {
 	finally {
 		if (!background && requestSerial === financeRequestSerial)
 			financeLoading.value = false
+	}
+}
+
+async function loadFinanceSources(background = false) {
+	if (!background) {
+		financeSourcesLoading.value = true
+		financeSourceError.value = null
+	}
+	try {
+		financeSources.value = await useAdminApi<FinanceSourceSettingDto[]>('/api/admin/finance/sources')
+	}
+	catch (cause) {
+		if (!background)
+			financeSourceError.value = toAdminUserMessage(cause, '财经来源设置加载失败')
+	}
+	finally {
+		if (!background)
+			financeSourcesLoading.value = false
+	}
+}
+
+async function toggleFinanceSource(source: FinanceSourceSettingDto) {
+	if (financeSourceWorkingId.value)
+		return
+	financeSourceWorkingId.value = source.sourceId
+	financeSourceError.value = null
+	success.value = null
+	try {
+		const updated = await useAdminApi<FinanceSourceSettingDto>(`/api/admin/finance/sources/${encodeURIComponent(source.sourceId)}`, {
+			method: 'PUT',
+			body: { enabled: !source.enabled },
+		})
+		financeSources.value = financeSources.value.map(item => item.sourceId === updated.sourceId ? updated : item)
+		success.value = updated.enabled
+			? `已开启财经来源“${updated.sourceName}”，后续将恢复真实同步。`
+			: `已关闭财经来源“${updated.sourceName}”，后续将停止真实同步，公开聚合已立即隐藏。`
+		await Promise.all([loadFinanceItems(true), load(true)])
+	}
+	catch (cause) {
+		const mutationError = toAdminUserMessage(cause, '财经来源设置更新失败')
+		await Promise.all([loadFinanceSources(true), loadFinanceItems(true), load(true)])
+		financeSourceError.value = mutationError
+	}
+	finally {
+		financeSourceWorkingId.value = null
 	}
 }
 
@@ -248,7 +299,7 @@ watch(financeQuery, () => {
 	financeSearchTimer = setTimeout(loadFinanceItems, 250)
 })
 
-onMounted(() => Promise.all([load(), loadFinanceItems()]))
+onMounted(() => Promise.all([load(), loadFinanceItems(), loadFinanceSources()]))
 onBeforeUnmount(() => {
 	if (financeSearchTimer)
 		clearTimeout(financeSearchTimer)
@@ -283,6 +334,12 @@ onBeforeUnmount(() => {
 	<p v-if="financeError" class="admin-error" role="alert">
 		财经内容：{{ financeError }}
 		<button class="admin-button" type="button" @click="loadFinanceItems()">
+			重新加载
+		</button>
+	</p>
+	<p v-if="financeSourceError" class="admin-error" role="alert">
+		财经来源：{{ financeSourceError }}
+		<button class="admin-button" type="button" @click="loadFinanceSources()">
 			重新加载
 		</button>
 	</p>
@@ -321,12 +378,16 @@ onBeforeUnmount(() => {
 		:visibility="financeVisibility"
 		:important-only="financeImportantOnly"
 		:working-id="financeWorkingId"
+		:sources="financeSources"
+		:source-loading="financeSourcesLoading"
+		:source-working-id="financeSourceWorkingId"
 		@update:query="financeQuery = $event"
 		@update:category="financeCategory = $event"
 		@update:visibility="financeVisibility = $event"
 		@update:important-only="financeImportantOnly = $event"
 		@hide="setFinanceHidden($event, true)"
 		@restore="setFinanceHidden($event, false)"
+		@toggle-source="toggleFinanceSource"
 	/>
 	<AdminNewsManualForm
 		v-else-if="activeTab === 'manual'"

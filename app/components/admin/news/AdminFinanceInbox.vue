@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { AdminFinanceFlashDto, FinanceAdminVisibility, FinanceFilter } from '#shared/admin/finance'
+import type { AdminFinanceFlashDto, FinanceAdminVisibility, FinanceFilter, FinanceSourceSettingDto } from '#shared/admin/finance'
 import AdminEmptyState from '~/components/admin/AdminEmptyState.vue'
 import AdminStatusPill from '~/components/admin/AdminStatusPill.vue'
 
@@ -14,6 +14,9 @@ defineProps<{
 	visibility: FinanceAdminVisibility
 	importantOnly: boolean
 	workingId: string | null
+	sources: FinanceSourceSettingDto[]
+	sourceLoading: boolean
+	sourceWorkingId: string | null
 }>()
 
 const emit = defineEmits<{
@@ -23,6 +26,7 @@ const emit = defineEmits<{
 	'update:importantOnly': [value: boolean]
 	'hide': [item: AdminFinanceFlashDto]
 	'restore': [item: AdminFinanceFlashDto]
+	'toggleSource': [source: FinanceSourceSettingDto]
 }>()
 
 const categoryOptions: Array<{ value: FinanceFilter, label: string }> = [
@@ -64,6 +68,49 @@ function formatTime(value: string) {
 			</AdminStatusPill>
 		</div>
 	</header>
+
+	<section class="admin-finance-sources" aria-labelledby="admin-finance-sources-title">
+		<div class="admin-finance-source-heading">
+			<div>
+				<h3 id="admin-finance-sources-title">
+					来源开关
+				</h3>
+				<p>关闭后停止后续同步，公开聚合立即隐藏，历史内容保留。</p>
+			</div>
+		</div>
+		<div v-if="sourceLoading" class="admin-finance-source-grid" aria-label="财经来源加载中">
+			<div v-for="index in 3" :key="index" class="admin-skeleton admin-finance-source-skeleton" />
+		</div>
+		<div v-else class="admin-finance-source-grid">
+			<article v-for="source in sources" :key="source.sourceId" class="admin-finance-source-card">
+				<div class="admin-finance-source-copy">
+					<strong>{{ source.sourceName }}</strong>
+					<div class="admin-finance-source-status">
+						<AdminStatusPill :tone="source.enabled ? 'positive' : 'neutral'">
+							{{ source.enabled ? '已启用' : '已关闭' }}
+						</AdminStatusPill>
+						<AdminStatusPill v-if="!source.available" tone="warning">
+							凭据未配置
+						</AdminStatusPill>
+					</div>
+				</div>
+				<button
+					class="admin-finance-source-toggle"
+					type="button"
+					role="switch"
+					:aria-label="`${source.sourceName}来源同步`"
+					:aria-checked="source.enabled"
+					:disabled="sourceWorkingId !== null"
+					@click="emit('toggleSource', source)"
+				>
+					<span class="admin-finance-source-toggle-track" aria-hidden="true">
+						<span />
+					</span>
+					{{ sourceWorkingId === source.sourceId ? '处理中…' : source.enabled ? '关闭' : '开启' }}
+				</button>
+			</article>
+		</div>
+	</section>
 
 	<div class="admin-toolbar admin-toolbar-wrap admin-finance-toolbar">
 		<label class="admin-search-field admin-search-field-wide">
@@ -151,6 +198,120 @@ function formatTime(value: string) {
 	display: flex;
 	flex-wrap: wrap;
 	gap: 0.4rem;
+}
+
+.admin-finance-sources {
+	display: grid;
+	gap: 0.75rem;
+	padding: 0.85rem;
+	border: 1px solid var(--admin-border);
+	border-radius: 0.9rem;
+	background: var(--admin-surface-soft);
+}
+
+.admin-finance-source-heading h3 {
+	margin: 0;
+	font-size: 0.82rem;
+}
+
+.admin-finance-source-heading p {
+	margin: 0.25rem 0 0;
+	font-size: 0.66rem;
+	line-height: 1.55;
+	color: var(--admin-muted);
+}
+
+.admin-finance-source-grid {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 0.65rem;
+}
+
+.admin-finance-source-card {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.75rem;
+	min-width: 0;
+	padding: 0.75rem;
+	border: 1px solid var(--admin-border);
+	border-radius: 0.75rem;
+	background: var(--admin-surface);
+}
+
+.admin-finance-source-copy {
+	display: grid;
+	gap: 0.45rem;
+	min-width: 0;
+}
+
+.admin-finance-source-copy > strong {
+	overflow: hidden;
+	font-size: 0.72rem;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.admin-finance-source-status {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.35rem;
+}
+
+.admin-finance-source-toggle {
+	display: inline-flex;
+	flex: 0 0 auto;
+	align-items: center;
+	gap: 0.4rem;
+	padding: 0.35rem 0.45rem;
+	border: 0;
+	border-radius: 0.55rem;
+	background: transparent;
+	font: inherit;
+	font-size: 0.65rem;
+	color: var(--admin-text);
+	cursor: pointer;
+}
+
+.admin-finance-source-toggle:focus-visible {
+	outline: 2px solid var(--admin-accent-strong);
+	outline-offset: 2px;
+}
+
+.admin-finance-source-toggle:disabled {
+	opacity: 0.65;
+	cursor: wait;
+}
+
+.admin-finance-source-toggle-track {
+	display: flex;
+	align-items: center;
+	width: 1.75rem;
+	height: 1rem;
+	padding: 0.12rem;
+	border-radius: 999px;
+	background: var(--admin-border);
+	transition: background 160ms ease;
+}
+
+.admin-finance-source-toggle-track > span {
+	width: 0.76rem;
+	height: 0.76rem;
+	border-radius: 50%;
+	background: var(--admin-surface);
+	transition: transform 160ms ease;
+}
+
+.admin-finance-source-toggle[aria-checked="true"] .admin-finance-source-toggle-track {
+	background: var(--admin-accent-strong);
+}
+
+.admin-finance-source-toggle[aria-checked="true"] .admin-finance-source-toggle-track > span {
+	transform: translateX(0.75rem);
+}
+
+.admin-finance-source-skeleton {
+	min-height: 4.2rem;
 }
 
 .admin-finance-toolbar {
@@ -247,6 +408,10 @@ function formatTime(value: string) {
 
 	.admin-finance-toolbar,
 	.admin-finance-item {
+		grid-template-columns: 1fr;
+	}
+
+	.admin-finance-source-grid {
 		grid-template-columns: 1fr;
 	}
 

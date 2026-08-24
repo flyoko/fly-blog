@@ -1,6 +1,8 @@
 export const financeCategories = ['market', 'company', 'macro', 'overseas', 'tech'] as const
+export const financeSourceIds = ['cls-telegraph-7x24', 'jin10-mcp-7x24', 'wallstreetcn-7x24'] as const
 
 export type FinanceCategory = typeof financeCategories[number]
+export type FinanceSourceId = typeof financeSourceIds[number]
 export type FinanceFilter = 'all' | FinanceCategory
 export type FinanceImportanceOrigin = 'upstream' | 'rule' | 'model' | 'prototype'
 export type FinanceAdminVisibility = 'all' | 'visible' | 'hidden'
@@ -54,4 +56,16 @@ export interface AdminFinanceFlashListDto {
 	hiddenTotal: number
 	updatedAt: string | null
 	prototype: boolean
+}
+
+export interface FinanceSourceSettingDto {
+	sourceId: FinanceSourceId
+	sourceName: string
+	enabled: boolean
+	available: boolean
+	updatedAt: string | null
+}
+
+export interface FinanceSourceSettingUpdate {
+	enabled: boolean
 }

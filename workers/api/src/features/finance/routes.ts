@@ -1,3 +1,4 @@
+import type { Context } from 'hono'
 import type { FinanceAdminVisibility, FinanceCategory } from '../../../../../shared/admin/finance'
 import type { AppEnvironment } from '../../env'
 import { Hono } from 'hono'
@@ -48,6 +49,18 @@ function itemId(value: string): string {
 	return id
 }
 
+async function sourceSettingUpdate(c: Context<AppEnvironment>): Promise<{ enabled: boolean }> {
+	const raw = await c.req.json().catch(() => {
+		throw new ApiError('VALIDATION_FAILED', 400, 'Request body must be valid JSON')
+	})
+	if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+		throw new ApiError('VALIDATION_FAILED', 400, 'Finance source setting is invalid')
+	const keys = Object.keys(raw)
+	if (keys.length !== 1 || keys[0] !== 'enabled' || typeof (raw as Record<string, unknown>).enabled !== 'boolean')
+		throw new ApiError('VALIDATION_FAILED', 400, 'Finance source setting is invalid')
+	return { enabled: (raw as { enabled: boolean }).enabled }
+}
+
 export const publicFinanceRoutes = new Hono<AppEnvironment>()
 publicFinanceRoutes.get('/flash', async (c) => {
 	const service = new FinanceFlashService(c.env)
@@ -58,7 +71,7 @@ publicFinanceRoutes.get('/flash', async (c) => {
 		limit: limit(c.req.query('limit')),
 	}
 	const cached = await publicCacheData(c, await service.listVersion(), () => service.list(options), 20)
-	c.header('Cache-Control', 'public, max-age=20, stale-while-revalidate=60')
+	c.header('Cache-Control', 'no-cache, must-revalidate')
 	c.header('X-Fly-Cache', cached.status)
 	return success(c, cached.data)
 })
@@ -66,6 +79,22 @@ publicFinanceRoutes.get('/flash', async (c) => {
 export const adminFinanceRoutes = new Hono<AppEnvironment>()
 adminFinanceRoutes.use('*', requireSession)
 adminFinanceRoutes.get('/', async c => success(c, await new FinanceFlashService(c.env).status()))
+adminFinanceRoutes.get('/sources', async c => success(c, await new FinanceFlashService(c.env).sourceSettings()))
+adminFinanceRoutes.put('/sources/:sourceId', requireCsrf, async (c) => {
+	const session = c.get('session')!
+	const sourceId = c.req.param('sourceId')
+	const input = await sourceSettingUpdate(c)
+	return enforceRateLimit(c.env.WRITE_RATE_LIMITER, `${session.sessionId}:finance-source-toggle`, async () => {
+		const setting = await new FinanceFlashService(c.env).setSourceEnabledWithAudit(
+			sourceId,
+			input.enabled,
+			session.id,
+			session.login,
+			c.get('requestId'),
+		)
+		return success(c, setting)
+	})
+})
 adminFinanceRoutes.get('/items', async c => success(c, await new FinanceFlashService(c.env).adminList({
 	category: category(c.req.query('category')),
 	importantOnly: importantOnly(c.req.query('important')),
