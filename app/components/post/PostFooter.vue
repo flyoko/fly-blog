@@ -76,4 +76,20 @@ section {
 		margin: 0.5em 0;
 	}
 }
+
+@media (max-width: $breakpoint-mobile) {
+	.post-footer {
+		margin: 1.35rem var(--mobile-page-gutter);
+		border-radius: var(--mobile-surface-radius);
+	}
+
+	section {
+		padding: 0.9rem;
+	}
+
+	.content {
+		line-height: 1.65;
+		text-wrap: pretty;
+	}
+}
 </style>

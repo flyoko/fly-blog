@@ -76,8 +76,9 @@ const { copy, copied } = useCopy(shareText)
 	color: var(--c-text);
 
 	@media (max-width: $breakpoint-mobile) {
-		margin: 0;
-		border-radius: 0;
+		gap: 0.6rem;
+		margin: var(--mobile-page-gap) var(--mobile-page-gutter) 0;
+		border-radius: var(--mobile-surface-radius);
 	}
 
 	&:hover .operations,
@@ -130,6 +131,7 @@ const { copy, copied } = useCopy(shareText)
 	padding: 0.8em 1rem;
 	font-size: 1.6em;
 	line-height: 1.2;
+	text-wrap: balance;
 	z-index: 1;
 }
 
@@ -142,6 +144,41 @@ const { copy, copied } = useCopy(shareText)
 		flex-wrap: wrap;
 		gap: 0.5em 1.2em;
 		column-gap: clamp(1em, 3%, 1.5em);
+		font-variant-numeric: tabular-nums;
+	}
+}
+
+@media (max-width: $breakpoint-mobile) {
+	.post-header.has-cover {
+		min-height: clamp(13rem, 58vw, 16rem);
+	}
+
+	.post-nav {
+		padding: 0.72rem 0.9rem 0;
+		font-size: 0.78rem;
+	}
+
+	.post-title {
+		padding: 0.65rem 0.9rem 0.9rem;
+		font-size: clamp(1.6rem, 8.4vw, 2.15rem);
+		line-height: 1.14;
+	}
+
+	.post-nav .post-info {
+		align-items: center;
+		gap: 0.45rem 0.9rem;
+	}
+}
+
+@media (hover: none), (pointer: coarse) {
+	.operations {
+		opacity: 1;
+	}
+
+	.operations :deep(.button) {
+		min-width: var(--touch-target);
+		min-height: var(--touch-target);
+		padding: 0.55rem 0.7rem;
 	}
 }
 </style>

@@ -63,4 +63,14 @@ if (import.meta.dev) {
 		opacity: 1;
 	}
 }
+
+@media (max-width: $breakpoint-mobile) {
+	.md-excerpt {
+		opacity: 0.78;
+		margin: var(--mobile-page-gap) var(--mobile-page-gutter);
+		padding: 0.65rem 0.75rem;
+		border-radius: var(--mobile-surface-radius-inner);
+		line-height: 1.6;
+	}
+}
 </style>

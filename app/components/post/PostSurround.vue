@@ -109,4 +109,34 @@ const [DefineTemplate, ReuseTemplate] = createReusableTemplate<{
 		}
 	}
 }
+
+@media (max-width: $breakpoint-mobile) {
+	.surround-post {
+		flex-direction: column;
+		gap: var(--mobile-page-gap);
+		margin: 1.75rem var(--mobile-page-gutter);
+	}
+
+	.surround-link {
+		width: 100%;
+		min-height: var(--touch-target);
+		padding: 0.72rem 0.8rem;
+		border: 1px solid var(--c-border);
+		border-radius: var(--mobile-surface-radius-inner);
+		box-sizing: border-box;
+		background: var(--c-bg-2);
+
+		&[align-end] {
+			margin-inline-start: 0;
+		}
+	}
+}
+
+@media (hover: none), (pointer: coarse) {
+	.surround-link[href]:hover > .surround-text,
+	.surround-link[href][align-end]:hover > .surround-text,
+	.surround-link[href]:hover > .iconify {
+		transform: none;
+	}
+}
 </style>

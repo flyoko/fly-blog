@@ -1026,9 +1026,10 @@ onBeforeUnmount(() => {
 	}
 
 	.z-comment {
-		margin: 2rem 0.35rem;
+		margin: 2rem var(--mobile-page-gutter);
 		padding: 1rem;
-		border-radius: 0.9rem;
+		border-radius: var(--mobile-surface-radius);
+		animation: none;
 	}
 
 	.comment-header > h3 {
@@ -1046,6 +1047,11 @@ onBeforeUnmount(() => {
 	}
 
 	:deep(#twikoo) {
+		.tk-submit,
+		.tk-comment {
+			animation: none;
+		}
+
 		.tk-input .el-textarea__inner {
 			min-height: 8.4rem !important;
 			padding: 3rem 6.6rem 3.2rem 1rem;

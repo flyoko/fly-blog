@@ -80,6 +80,7 @@
 	min-width: 0;
 	margin: 1rem;
 	line-height: 1.8;
+	text-wrap: pretty;
 
 	:where(pre, table, .katex-display, iframe) {
 		max-width: 100%;
@@ -111,6 +112,7 @@
 		margin: 1.6em 0 0.8em;
 		font-family: var(--font-creative);
 		font-weight: 550;
+		text-wrap: balance;
 		color: var(--c-text);
 	}
 
@@ -247,8 +249,8 @@
 	}
 
 	.article-window {
-		margin: 1rem 0;
-		border-radius: 0.8rem;
+		margin: var(--mobile-page-gap) 0;
+		border-radius: var(--mobile-surface-radius-inner);
 	}
 
 	.article-window-body {
