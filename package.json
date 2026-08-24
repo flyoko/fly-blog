@@ -40,6 +40,7 @@
     "check:links": "unrun scripts/check-generated-links.ts",
     "check:production": "unrun scripts/check-production.ts && unrun scripts/check-production-browser.ts",
     "check:secrets": "unrun scripts/verify-no-secrets.ts",
+    "sync:market-financial": "unrun scripts/sync-market-financial-reports.ts",
     "verify": "pnpm lint && pnpm typecheck && pnpm test:unit && pnpm test:workers && pnpm generate && pnpm check:smoke && pnpm check:links && pnpm check:secrets",
     "verify:pages": "pnpm generate && pnpm check:smoke && pnpm check:links && pnpm check:secrets",
     "verify:qmc-samples": "unrun scripts/verify-qmc-samples.ts",

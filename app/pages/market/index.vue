@@ -1,22 +1,24 @@
 <script setup lang="ts">
 import type { AdminSessionDto } from '#shared/admin/auth'
 import type { FinanceFilter, FinanceFlashDto, FinanceFlashListDto, FinanceFlashSourceDto } from '#shared/admin/finance'
-import type { CiticFuturesPositionHistory, CiticFuturesSeries, MarketDataQuality, MarketEnvelope, MarketOverview, SectorFlowItem, SectorKind, SectorWindowDays, WatchlistItem, WatchlistRadarItem, WatchlistRadarResponse } from '#shared/market'
+import type { CiticFuturesPositionHistory, CiticFuturesSeries, FinancialReportPeriod, FinancialTrendFilter, MarketDataQuality, MarketEnvelope, MarketFinancialScreenerData, MarketFinancialScreenerItem, MarketOverview, SectorFlowItem, SectorKind, SectorWindowDays, WatchlistItem, WatchlistRadarItem, WatchlistRadarResponse } from '#shared/market'
 import type { SectorSortDirection, SectorSortKey } from '~/utils/market-sector-table'
 import MarketFuturesPositionChart from '~/components/market/MarketFuturesPositionChart.vue'
 import MarketSignalDesk from '~/components/market/MarketSignalDesk.vue'
 import { isShanghaiMarketWindow, millisecondsUntilNextShanghaiWindow, WATCHLIST_MARKET_WINDOWS } from '~/utils/market-polling'
 import { sectorPageCount as countSectorPages, paginateSectorFlowItems, SECTOR_PAGE_SIZE, sortSectorFlowItems } from '~/utils/market-sector-table'
 
-type MarketWorkspace = 'radar' | 'funds' | 'watchlist' | 'signals'
+type MarketWorkspace = 'radar' | 'funds' | 'watchlist' | 'signals' | 'strategy'
 type WatchlistSortMode = 'custom' | 'change' | 'attention' | 'turnover'
 type FundsPanel = 'sectors' | 'citic'
+type FinancialSortKey = 'netProfitYoY' | 'grossMarginYoYChange' | 'inventoryYoYPct'
 
 const workspaceTabs: Array<{ id: MarketWorkspace, label: string, icon: string, note: string }> = [
 	{ id: 'radar', label: '市场雷达', icon: 'tabler:radar', note: '行情与财经事件' },
 	{ id: 'funds', label: '资金', icon: 'tabler:arrows-exchange', note: '板块与周期累计' },
 	{ id: 'watchlist', label: '自选', icon: 'tabler:star', note: '自选雷达' },
 	{ id: 'signals', label: '信号', icon: 'tabler:activity-heartbeat', note: '5分钟观察信号' },
+	{ id: 'strategy', label: '策略', icon: 'tabler:filter-cog', note: '收盘筛选' },
 ]
 
 const sectorKindOptions: Array<{ id: SectorKind, label: string }> = [
@@ -30,6 +32,24 @@ const futuresProductOptions: Array<{ id: CiticFuturesSeries, label: string }> = 
 	{ id: 'IH', label: 'IH 上证50' },
 	{ id: 'IC', label: 'IC 中证500' },
 	{ id: 'IM', label: 'IM 中证1000' },
+]
+
+const financialPeriodOptions: Array<{ id: FinancialReportPeriod, label: string }> = [
+	{ id: 'q1', label: '一季报' },
+	{ id: 'semiannual', label: '半年报' },
+	{ id: 'q3', label: '三季报' },
+	{ id: 'annual', label: '年报' },
+]
+
+const financialTrendOptions: Array<{ id: FinancialTrendFilter, label: string }> = [
+	{ id: 'up', label: '同比提升' },
+	{ id: 'any', label: '任意' },
+]
+
+const financialSortOptions: Array<{ id: FinancialSortKey, label: string }> = [
+	{ id: 'netProfitYoY', label: '净利润同比' },
+	{ id: 'grossMarginYoYChange', label: '毛利率改善' },
+	{ id: 'inventoryYoYPct', label: '存货同比' },
 ]
 
 const financeFilterOptions: Array<{ id: FinanceFilter, label: string }> = [
@@ -104,6 +124,15 @@ const futuresProduct = ref<CiticFuturesSeries>('ALL')
 const futuresPositionData = ref<CiticFuturesPositionHistory | null>(null)
 const futuresPositionLoading = ref(false)
 const futuresPositionError = ref('')
+const financialPeriod = ref<FinancialReportPeriod>('semiannual')
+const financialMinNetProfitYoY = ref(50)
+const financialGrossMarginTrend = ref<FinancialTrendFilter>('up')
+const financialInventoryTrend = ref<FinancialTrendFilter>('up')
+const financialKeyword = ref('')
+const financialSortKey = ref<FinancialSortKey>('netProfitYoY')
+const financialData = ref<MarketEnvelope<MarketFinancialScreenerData> | null>(null)
+const financialLoading = ref(false)
+const financialError = ref('')
 const watchlistSession = ref<AdminSessionDto | null>(null)
 const watchlistSessionLoading = ref(false)
 const watchlistConfig = ref<WatchlistItem[]>([])
@@ -126,6 +155,7 @@ let financeRevision = 0
 let marketOverviewRevision = 0
 let sectorFlowRevision = 0
 let futuresPositionRevision = 0
+let financialRevision = 0
 let refreshTimer: ReturnType<typeof setInterval> | null = null
 let clockTimer: ReturnType<typeof setInterval> | null = null
 let watchlistTimer: ReturnType<typeof setInterval> | null = null
@@ -203,6 +233,26 @@ const marketQualityState = computed(() => qualityState(marketOverview.value?.qua
 const sectorQualityState = computed(() => sectorFlowData.value?.quality === 'unavailable'
 	? { label: '暂无可信资金数据', tone: 'muted' as const }
 	: qualityState(sectorFlowData.value?.quality))
+const financialItems = computed(() => {
+	const items = financialData.value?.data?.items || []
+	const key = financialSortKey.value
+	return [...items].sort((left, right) => {
+		const leftValue = financialSortValue(left, key)
+		const rightValue = financialSortValue(right, key)
+		return rightValue - leftValue || left.securityCode.localeCompare(right.securityCode)
+	})
+})
+const financialQualityState = computed(() => {
+	if (financialError.value && financialData.value?.data)
+		return { label: '刷新失败 · 保留快照', tone: 'warning' as const }
+	switch (financialData.value?.quality) {
+		case 'live': return { label: '财报快照可用', tone: 'live' as const }
+		case 'stale': return { label: '财报快照已陈旧', tone: 'warning' as const }
+		case 'degraded': return { label: '财报数据不完整', tone: 'warning' as const }
+		default: return { label: '等待财报快照', tone: 'muted' as const }
+	}
+})
+const financialSource = computed(() => financialData.value?.source[0] || null)
 
 const watchlistAuthenticated = computed(() => watchlistSession.value?.authenticated === true)
 const watchlistQuoteBySymbol = computed(() => new Map((watchlistData.value?.items || []).map(item => [item.watchlist.symbol, item])))
@@ -455,6 +505,75 @@ async function loadFuturesPositions(options: { background?: boolean } = {}) {
 		if (revision === futuresPositionRevision)
 			futuresPositionLoading.value = false
 	}
+}
+
+async function loadFinancialScreener() {
+	const minNetProfitYoY = Number(financialMinNetProfitYoY.value)
+	if (!Number.isFinite(minNetProfitYoY) || minNetProfitYoY < -1000 || minNetProfitYoY > 100000) {
+		financialError.value = '归母净利润同比阈值需在 -1000% 到 100000% 之间'
+		return
+	}
+	const revision = ++financialRevision
+	financialLoading.value = true
+	financialError.value = ''
+	try {
+		const result = await $fetch<{ data: MarketEnvelope<MarketFinancialScreenerData> }>('/api/market/financial-screener', {
+			query: {
+				period: financialPeriod.value,
+				minNetProfitYoY,
+				grossMarginTrend: financialGrossMarginTrend.value,
+				inventoryTrend: financialInventoryTrend.value,
+				q: financialKeyword.value.trim() || undefined,
+				limit: 100,
+			},
+		})
+		if (revision === financialRevision)
+			financialData.value = result.data
+	}
+	catch (cause) {
+		if (revision === financialRevision)
+			financialError.value = cause instanceof Error ? cause.message : '财报筛选加载失败'
+	}
+	finally {
+		if (revision === financialRevision)
+			financialLoading.value = false
+	}
+}
+
+function resetFinancialScreener() {
+	financialPeriod.value = 'semiannual'
+	financialMinNetProfitYoY.value = 50
+	financialGrossMarginTrend.value = 'up'
+	financialInventoryTrend.value = 'up'
+	financialKeyword.value = ''
+	financialSortKey.value = 'netProfitYoY'
+	void loadFinancialScreener()
+}
+
+function financialSortValue(item: MarketFinancialScreenerItem, key: FinancialSortKey) {
+	return item[key] ?? Number.NEGATIVE_INFINITY
+}
+
+function formatFinancialPercent(value: number | null | undefined, signed = false) {
+	if (value === null || value === undefined)
+		return '--'
+	return `${signed && value > 0 ? '+' : ''}${value.toFixed(2)}%`
+}
+
+function formatFinancialPointChange(value: number | null | undefined) {
+	if (value === null || value === undefined)
+		return '--'
+	return `${value > 0 ? '+' : ''}${value.toFixed(2)}pct`
+}
+
+function formatFinancialInventory(value: number | null | undefined) {
+	if (value === null || value === undefined)
+		return '--'
+	if (Math.abs(value) >= 100_000_000)
+		return `${(value / 100_000_000).toFixed(2)}亿`
+	if (Math.abs(value) >= 10_000)
+		return `${(value / 10_000).toFixed(2)}万`
+	return value.toFixed(0)
 }
 
 function isChinaMarketTradingWindow(value: Date) {
@@ -824,6 +943,8 @@ watch(activeWorkspace, (workspace) => {
 		if (workspace === 'signals')
 			void loadWatchlistSession()
 	}
+	if (workspace === 'strategy' && !financialData.value && !financialLoading.value)
+		void loadFinancialScreener()
 })
 
 watch(sectorKind, () => {
@@ -1463,6 +1584,132 @@ onBeforeUnmount(() => {
 		:authenticated="watchlistAuthenticated"
 		:session-loading="watchlistSessionLoading"
 	/>
+
+	<section v-else class="market-panel market-stage-view market-strategy-view">
+		<header class="market-stage-header market-financial-header">
+			<div><span>FINANCIAL SCREEN</span><h2>财报条件筛选</h2><p>同报告期同比 · 真实财报快照 · 条件证据可复核</p></div>
+			<b :data-tone="financialQualityState.tone">{{ financialQualityState.label }}</b>
+		</header>
+
+		<div v-if="financialData?.data" class="market-financial-summary" aria-label="财报筛选快照摘要">
+			<div><span>报告期</span><strong>{{ financialData.data.reportDate }}</strong><small>对比 {{ financialData.data.comparisonReportDate }}</small></div>
+			<div><span>覆盖公司</span><strong>{{ financialData.data.totalAvailable }}</strong><small>当前完整快照</small></div>
+			<div><span>当前命中</span><strong>{{ financialData.data.matchedCount }}</strong><small>按当前条件计算</small></div>
+			<div>
+				<span>数据来源</span>
+				<a v-if="financialSource" :href="financialSource.endpoint" target="_blank" rel="noopener noreferrer">{{ financialSource.sourceName }}</a>
+				<strong v-else>--</strong>
+				<small>{{ formatDateTime(financialData.fetchedAt) }}</small>
+			</div>
+		</div>
+
+		<form class="market-financial-filters" @submit.prevent="loadFinancialScreener()">
+			<label>
+				<span>报告期</span>
+				<select v-model="financialPeriod">
+					<option v-for="option in financialPeriodOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
+				</select>
+			</label>
+			<label>
+				<span>归母净利润同比 ≥</span>
+				<div class="market-financial-number"><input v-model.number="financialMinNetProfitYoY" type="number" min="-1000" max="100000" step="0.1" inputmode="decimal"><em>%</em></div>
+			</label>
+			<label>
+				<span>毛利率同比</span>
+				<select v-model="financialGrossMarginTrend">
+					<option v-for="option in financialTrendOptions" :key="`gm-${option.id}`" :value="option.id">{{ option.label }}</option>
+				</select>
+			</label>
+			<label>
+				<span>存货同比</span>
+				<select v-model="financialInventoryTrend">
+					<option v-for="option in financialTrendOptions" :key="`inv-${option.id}`" :value="option.id">{{ option.label }}</option>
+				</select>
+			</label>
+			<label class="market-financial-search">
+				<span>搜索</span>
+				<input v-model="financialKeyword" type="search" maxlength="40" placeholder="代码 / 名称 / 行业">
+			</label>
+			<label>
+				<span>排序</span>
+				<select v-model="financialSortKey">
+					<option v-for="option in financialSortOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
+				</select>
+			</label>
+			<div class="market-financial-actions">
+				<button type="button" :disabled="financialLoading" @click="resetFinancialScreener">
+					<Icon name="tabler:restore" aria-hidden="true" />恢复三条件
+				</button>
+				<button class="primary" type="submit" :disabled="financialLoading">
+					<Icon name="tabler:filter-check" aria-hidden="true" />{{ financialLoading ? '筛选中' : '应用筛选' }}
+				</button>
+			</div>
+		</form>
+
+		<p class="market-financial-rule">
+			<b>默认三条件</b><span>归母净利润同比 ≥ 50%</span><span>毛利率同报告期同比提升</span><span>存货同报告期同比提升</span>
+		</p>
+
+		<div v-if="financialLoading && !financialData" class="market-loading market-financial-state">
+			<Icon name="tabler:loader-2" />正在读取真实财报快照…
+		</div>
+		<div v-else-if="financialError && !financialData?.data" class="market-error market-financial-state">
+			<Icon name="tabler:alert-triangle" /><div><strong>财报筛选加载失败</strong><p>{{ financialError }}</p></div><button type="button" @click="loadFinancialScreener()">
+				重新加载
+			</button>
+		</div>
+		<div v-else-if="!financialData?.data || financialData.quality === 'unavailable'" class="market-empty market-financial-state">
+			<Icon name="tabler:database-off" /><div><strong>等待真实财报批处理数据</strong><p>当前没有可用的完整财报快照，不使用静态示例公司补位。</p></div>
+		</div>
+		<template v-else>
+			<div v-if="financialData.stale || financialError" class="market-financial-warning">
+				<Icon name="tabler:clock-exclamation" /><span>{{ financialError ? '本次刷新失败，继续展示最近完整财报快照。' : '当前财报快照已超过新鲜度窗口，请结合报告期与同步时间判断。' }}</span>
+			</div>
+
+			<div class="market-financial-result-head">
+				<div><strong>筛选结果</strong><span v-if="financialData.data.matchedCount > financialItems.length">展示前 {{ financialItems.length }} / {{ financialData.data.matchedCount }} 条</span><span v-else>共 {{ financialData.data.matchedCount }} 条</span></div>
+				<small>只说明条件命中，不构成交易结论</small>
+			</div>
+
+			<div v-if="!financialItems.length" class="market-empty market-financial-state">
+				<Icon name="tabler:filter-off" /><div><strong>暂无可用财报筛选结果</strong><p>当前完整快照中没有公司同时满足所选条件，可放宽条件后重新筛选。</p></div>
+			</div>
+
+			<div v-else class="market-financial-desktop">
+				<table>
+					<thead><tr><th>股票</th><th>行业</th><th>归母净利润同比</th><th>毛利率同比</th><th>存货同比</th><th>报告期 / 公告日</th></tr></thead>
+					<tbody>
+						<tr v-for="item in financialItems" :key="`${item.reportDate}-${item.securityCode}`">
+							<td><strong>{{ item.securityName }}</strong><small>{{ item.securityCode }}</small></td>
+							<td>{{ item.industryName || '--' }}</td>
+							<td class="financial-positive">
+								<strong>{{ formatFinancialPercent(item.netProfitYoY, true) }}</strong><small>阈值 ≥ {{ financialData.data.filters.minNetProfitYoY }}%</small>
+							</td>
+							<td :class="{ 'financial-positive': (item.grossMarginYoYChange || 0) > 0 }">
+								<strong>{{ formatFinancialPercent(item.grossMargin) }}</strong><small>上年同期 {{ formatFinancialPercent(item.previousGrossMargin) }} · {{ formatFinancialPointChange(item.grossMarginYoYChange) }}</small>
+							</td>
+							<td :class="{ 'financial-positive': (item.inventoryYoYChange || 0) > 0 }">
+								<strong>{{ formatFinancialInventory(item.inventory) }}</strong><small>上年同期 {{ formatFinancialInventory(item.previousInventory) }} · {{ formatFinancialPercent(item.inventoryYoYPct, true) }}</small>
+							</td>
+							<td><strong>{{ item.reportDate }}</strong><small>公告日 {{ item.noticeDate }}</small></td>
+						</tr>
+					</tbody>
+				</table>
+			</div>
+
+			<div v-if="financialItems.length" class="market-financial-mobile">
+				<article v-for="item in financialItems" :key="`mobile-${item.reportDate}-${item.securityCode}`">
+					<header><div><strong>{{ item.securityName }}</strong><span>{{ item.securityCode }} · {{ item.industryName || '行业未标注' }}</span></div><b>{{ formatFinancialPercent(item.netProfitYoY, true) }}</b></header>
+					<div class="market-financial-mobile-metrics">
+						<div><span>归母净利润同比</span><strong>{{ formatFinancialPercent(item.netProfitYoY, true) }}</strong><small>阈值 ≥ {{ financialData.data.filters.minNetProfitYoY }}%</small></div>
+						<div><span>毛利率同比</span><strong>{{ formatFinancialPointChange(item.grossMarginYoYChange) }}</strong><small>{{ formatFinancialPercent(item.previousGrossMargin) }} → {{ formatFinancialPercent(item.grossMargin) }}</small></div>
+						<div><span>存货同比</span><strong>{{ formatFinancialPercent(item.inventoryYoYPct, true) }}</strong><small>{{ formatFinancialInventory(item.previousInventory) }} → {{ formatFinancialInventory(item.inventory) }}</small></div>
+					</div>
+					<footer><span>报告期 {{ item.reportDate }}</span><span>公告日 {{ item.noticeDate }}</span></footer>
+				</article>
+			</div>
+		</template>
+	</section>
 </section>
 </template>
 
@@ -2614,6 +2861,338 @@ onBeforeUnmount(() => {
 	margin: 0.35rem 0 0;
 	font-size: 0.68rem;
 	line-height: 1.65;
+	color: var(--market-text-3);
+}
+
+.market-strategy-view {
+	min-width: 0;
+}
+
+.market-financial-header > b[data-tone="live"] { color: var(--market-down); }
+.market-financial-header > b[data-tone="warning"] { color: var(--market-up); }
+
+.market-financial-summary {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: 1px;
+	margin: 0.8rem 0.8rem 0;
+	border: 1px solid var(--market-border);
+	background: var(--market-border);
+}
+
+.market-financial-summary > div {
+	display: grid;
+	align-content: center;
+	gap: 0.18rem;
+	min-height: 5.15rem;
+	padding: 0.72rem 0.8rem;
+	background: var(--market-panel);
+}
+
+.market-financial-summary span,
+.market-financial-filters label > span,
+.market-financial-mobile-metrics span {
+	font: 0.56rem var(--font-monospace);
+	letter-spacing: 0.04em;
+	color: var(--market-text-3);
+}
+
+.market-financial-summary strong,
+.market-financial-summary a {
+	overflow: hidden;
+	min-width: 0;
+	font: 700 0.86rem var(--font-monospace);
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	color: var(--market-text);
+}
+
+.market-financial-summary a {
+	text-decoration: none;
+	color: var(--market-accent);
+}
+
+.market-financial-summary small {
+	font: 0.56rem var(--font-monospace);
+	color: var(--market-text-3);
+}
+
+.market-financial-filters {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(8rem, 1fr));
+	gap: 0.55rem;
+	margin: 0.65rem 0.8rem 0;
+	padding: 0.75rem;
+	border: 1px solid var(--market-border);
+	background: var(--market-panel-soft);
+}
+
+.market-financial-filters label {
+	display: grid;
+	align-content: end;
+	gap: 0.32rem;
+	min-width: 0;
+}
+
+.market-financial-filters input,
+.market-financial-filters select,
+.market-financial-actions button {
+	min-height: 44px;
+	border: 1px solid var(--market-border);
+	border-radius: 0.3rem;
+	background: var(--market-panel);
+	color: var(--market-text);
+}
+
+.market-financial-filters input,
+.market-financial-filters select {
+	width: 100%;
+	min-width: 0;
+	padding: 0 0.65rem;
+	font: 0.68rem var(--font-monospace);
+}
+
+.market-financial-filters input:focus-visible,
+.market-financial-filters select:focus-visible,
+.market-financial-actions button:focus-visible {
+	outline: 2px solid var(--market-focus);
+	outline-offset: 2px;
+}
+
+.market-financial-number {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	align-items: center;
+	border: 1px solid var(--market-border);
+	border-radius: 0.3rem;
+	background: var(--market-panel);
+}
+
+.market-financial-number input {
+	border: 0;
+	background: transparent;
+}
+
+.market-financial-number em {
+	padding-right: 0.65rem;
+	font: normal 0.65rem var(--font-monospace);
+	color: var(--market-text-3);
+}
+
+.market-financial-search {
+	grid-column: span 2;
+}
+
+.market-financial-actions {
+	display: grid;
+	grid-column: span 2;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	align-items: end;
+	gap: 0.45rem;
+}
+
+.market-financial-actions button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.35rem;
+	padding: 0 0.7rem;
+	font-size: 0.66rem;
+	cursor: pointer;
+}
+
+.market-financial-actions button.primary {
+	border-color: color-mix(in srgb, var(--market-accent) 55%, var(--market-border));
+	background: var(--market-accent-soft);
+	color: var(--market-accent);
+}
+
+.market-financial-actions button:disabled {
+	opacity: 0.48;
+	cursor: not-allowed;
+}
+
+.market-financial-rule {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.38rem;
+	margin: 0.55rem 0.8rem 0;
+	font-size: 0.6rem;
+	color: var(--market-text-3);
+}
+
+.market-financial-rule b {
+	color: var(--market-accent);
+}
+
+.market-financial-rule span {
+	padding-left: 0.42rem;
+	border-left: 1px solid var(--market-border);
+}
+
+.market-financial-state {
+	margin: 0.7rem 0.8rem;
+}
+
+.market-financial-warning {
+	display: flex;
+	align-items: center;
+	gap: 0.45rem;
+	margin: 0.65rem 0.8rem 0;
+	padding: 0.55rem 0.65rem;
+	border-left: 2px solid var(--market-up);
+	background: var(--market-up-soft);
+	font-size: 0.62rem;
+	line-height: 1.5;
+	color: var(--market-text-2);
+}
+
+.market-financial-result-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+	margin: 0.75rem 0.8rem 0.38rem;
+}
+
+.market-financial-result-head > div {
+	display: flex;
+	align-items: baseline;
+	gap: 0.5rem;
+}
+
+.market-financial-result-head strong { font-size: 0.76rem; }
+
+.market-financial-result-head span,
+.market-financial-result-head small {
+	font-size: 0.58rem;
+	color: var(--market-text-3);
+}
+
+.market-financial-desktop {
+	overflow-x: auto;
+	margin: 0 0.8rem 0.8rem;
+	border: 1px solid var(--market-border);
+}
+
+.market-financial-desktop table {
+	width: 100%;
+	min-width: 64rem;
+	border-collapse: collapse;
+}
+
+.market-financial-desktop th,
+.market-financial-desktop td {
+	padding: 0.62rem 0.72rem;
+	border-bottom: 1px solid var(--market-border);
+	vertical-align: middle;
+	text-align: left;
+}
+
+.market-financial-desktop th {
+	position: sticky;
+	top: 0;
+	background: var(--market-panel-soft);
+	font: 600 0.56rem var(--font-monospace);
+	letter-spacing: 0.03em;
+	color: var(--market-text-3);
+	z-index: 1;
+}
+
+.market-financial-desktop tbody tr:last-child td { border-bottom: 0; }
+.market-financial-desktop tbody tr:hover { background: var(--market-panel-soft); }
+
+.market-financial-desktop td {
+	font-size: 0.66rem;
+	color: var(--market-text-2);
+}
+
+.market-financial-desktop td strong,
+.market-financial-desktop td small {
+	display: block;
+}
+
+.market-financial-desktop td strong {
+	font: 700 0.7rem var(--font-monospace);
+	font-variant-numeric: tabular-nums;
+	color: var(--market-text);
+}
+
+.market-financial-desktop td small {
+	margin-top: 0.18rem;
+	font: 0.54rem var(--font-monospace);
+	color: var(--market-text-3);
+}
+
+.market-financial-desktop td.financial-positive strong {
+	color: var(--market-accent);
+}
+
+.market-financial-mobile { display: none; }
+
+.market-financial-mobile article {
+	padding: 0.75rem;
+	border: 1px solid var(--market-border);
+	background: var(--market-panel);
+}
+
+.market-financial-mobile article > header,
+.market-financial-mobile article > footer {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.6rem;
+}
+
+.market-financial-mobile article > header > div {
+	display: grid;
+	gap: 0.14rem;
+	min-width: 0;
+}
+
+.market-financial-mobile article > header strong {
+	font-size: 0.76rem;
+}
+
+.market-financial-mobile article > header span,
+.market-financial-mobile article > footer {
+	font: 0.54rem var(--font-monospace);
+	color: var(--market-text-3);
+}
+
+.market-financial-mobile article > header b {
+	font: 700 0.78rem var(--font-monospace);
+	color: var(--market-accent);
+}
+
+.market-financial-mobile-metrics {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 1px;
+	margin: 0.65rem 0;
+	background: var(--market-border);
+}
+
+.market-financial-mobile-metrics > div {
+	display: grid;
+	gap: 0.16rem;
+	min-width: 0;
+	padding: 0.55rem;
+	background: var(--market-panel-soft);
+}
+
+.market-financial-mobile-metrics strong {
+	font: 700 0.68rem var(--font-monospace);
+	font-variant-numeric: tabular-nums;
+	color: var(--market-text);
+}
+
+.market-financial-mobile-metrics small {
+	overflow: hidden;
+	font: 0.5rem var(--font-monospace);
+	white-space: nowrap;
+	text-overflow: ellipsis;
 	color: var(--market-text-3);
 }
 
@@ -3782,6 +4361,41 @@ onBeforeUnmount(() => {
 		gap: 0.3rem 0.55rem;
 	}
 
+	.market-financial-summary {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		margin-inline: 0.55rem;
+	}
+
+	.market-financial-filters {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		margin-inline: 0.55rem;
+		padding: 0.6rem;
+	}
+
+	.market-financial-search,
+	.market-financial-actions { grid-column: span 2; }
+
+	.market-financial-rule,
+	.market-financial-warning,
+	.market-financial-result-head,
+	.market-financial-state {
+		margin-inline: 0.55rem;
+	}
+
+	.market-financial-result-head {
+		align-items: flex-start;
+		gap: 0.45rem;
+	}
+
+	.market-financial-result-head small { text-align: right; }
+	.market-financial-desktop { display: none; }
+
+	.market-financial-mobile {
+		display: grid;
+		gap: 0.5rem;
+		margin: 0 0.55rem 0.7rem;
+	}
+
 	.market-watchlist-header-actions {
 		justify-content: space-between;
 		width: 100%;
@@ -3834,6 +4448,14 @@ onBeforeUnmount(() => {
 		justify-self: start;
 	}
 	.market-flow-grid { grid-template-columns: minmax(0, 1fr); }
+	.market-financial-summary { grid-template-columns: minmax(0, 1fr); }
+	.market-financial-filters { grid-template-columns: minmax(0, 1fr); }
+
+	.market-financial-search,
+	.market-financial-actions { grid-column: auto; }
+	.market-financial-mobile-metrics { grid-template-columns: minmax(0, 1fr); }
+	.market-financial-result-head { flex-direction: column; }
+	.market-financial-result-head small { text-align: left; }
 }
 
 @media (prefers-reduced-transparency: reduce) {

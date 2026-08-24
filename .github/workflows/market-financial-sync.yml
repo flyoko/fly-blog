@@ -1,0 +1,58 @@
+name: Market Financial Sync
+
+on:
+  schedule:
+    - cron: '30 12 * * 1-5'
+  workflow_dispatch:
+    inputs:
+      report_date:
+        description: 'Optional report date, for example 2026-06-30'
+        required: false
+        type: string
+      sync_date:
+        description: 'Optional Asia/Shanghai visibility date, for example 2026-08-24'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+  OUTPUT_SQL: /tmp/market-financial-sync.sql
+
+concurrency:
+  group: market-financial-sync
+  cancel-in-progress: false
+
+jobs:
+  sync-market-financial:
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 30
+    environment:
+      name: production
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.8.0
+          dest: ${{ runner.temp }}/setup-pnpm
+          cache: true
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - run: pnpm install --frozen-lockfile
+      - name: Build financial snapshot SQL
+        env:
+          REPORT_DATE: ${{ inputs.report_date || '' }}
+          SYNC_DATE: ${{ inputs.sync_date || '' }}
+        run: pnpm sync:market-financial
+      - name: Apply D1 migrations
+        run: pnpm --filter @fly-living/api-worker exec wrangler d1 migrations apply DB --remote
+      - name: Publish financial snapshot
+        run: pnpm --filter @fly-living/api-worker exec wrangler d1 execute DB --remote --file=/tmp/market-financial-sync.sql
+      - name: Remove temporary SQL
+        if: always()
+        run: rm -f /tmp/market-financial-sync.sql

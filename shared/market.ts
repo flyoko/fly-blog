@@ -73,6 +73,49 @@ export interface MarketEnvelope<T> {
 	quality: MarketDataQuality
 }
 
+export const financialReportPeriods = ['q1', 'semiannual', 'q3', 'annual'] as const
+export type FinancialReportPeriod = typeof financialReportPeriods[number]
+
+export const financialTrendFilters = ['up', 'any'] as const
+export type FinancialTrendFilter = typeof financialTrendFilters[number]
+
+export interface MarketFinancialScreenerFilters {
+	period: FinancialReportPeriod
+	reportDate: string | null
+	minNetProfitYoY: number
+	grossMarginTrend: FinancialTrendFilter
+	inventoryTrend: FinancialTrendFilter
+	keyword: string
+	limit: number
+}
+
+export interface MarketFinancialScreenerItem {
+	securityCode: string
+	secucode: string
+	securityName: string
+	industryName: string | null
+	reportDate: string
+	noticeDate: string
+	netProfitYoY: number | null
+	grossMargin: number | null
+	previousGrossMargin: number | null
+	grossMarginYoYChange: number | null
+	inventory: number | null
+	previousInventory: number | null
+	inventoryYoYChange: number | null
+	inventoryYoYPct: number | null
+}
+
+export interface MarketFinancialScreenerData {
+	period: FinancialReportPeriod
+	reportDate: string
+	comparisonReportDate: string
+	totalAvailable: number
+	matchedCount: number
+	filters: MarketFinancialScreenerFilters
+	items: MarketFinancialScreenerItem[]
+}
+
 export const citicFuturesProducts = ['IF', 'IH', 'IC', 'IM'] as const
 export type CiticFuturesProduct = typeof citicFuturesProducts[number]
 export const citicFuturesSeries = ['ALL', ...citicFuturesProducts] as const
