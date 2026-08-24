@@ -268,6 +268,19 @@ describe('market 博客主题终端页面', () => {
 		expect(page).toContain('中信期货')
 	})
 
+	it('keeps the funds workspace dense on desktop and mobile without empty metric columns', () => {
+		const page = readFileSync(pagePath, 'utf8')
+		const chart = readFileSync('app/components/market/MarketFuturesPositionChart.vue', 'utf8')
+		expect(page).toContain('class=\"market-panel market-stage-view market-funds-view\"')
+		expect(page).toContain('market-funds-primary')
+		expect(page).toContain('market-funds-meta')
+		expect(page).toContain('market-flow-progress-prefix')
+		expect(page).toContain('grid-template-columns: repeat(3, minmax(0, 1fr));')
+		expect(page).not.toContain('.market-futures-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }')
+		expect(page).toMatch(/@media \(max-width: 760px\)[\s\S]*?\.market-flow-progress-prefix,[\s\S]*?display: none;/u)
+		expect(chart).toMatch(/@media \(max-width: 760px\)[\s\S]*?\.chart-meta \{[\s\S]*?flex-direction: row;/u)
+	})
+
 	it('makes the Citic chart inspectable and readable across a 30-day history', () => {
 		const chart = readFileSync('app/components/market/MarketFuturesPositionChart.vue', 'utf8')
 		expect(chart).toContain('day-hitbox')

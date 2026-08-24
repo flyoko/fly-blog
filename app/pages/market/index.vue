@@ -1056,24 +1056,24 @@ onBeforeUnmount(() => {
 		</div>
 	</div>
 
-	<section v-else-if="activeWorkspace === 'funds'" class="market-panel market-stage-view">
+	<section v-else-if="activeWorkspace === 'funds'" class="market-panel market-stage-view market-funds-view">
 		<header class="market-stage-header market-funds-header">
-			<div><span>CAPITAL FLOW</span><h2>资金观察</h2><p>板块资金看横向强弱，中信期货盘后席位看股指多空增减；两类数据分开阅读。</p></div>
+			<div class="market-funds-title">
+				<span>CAPITAL FLOW</span><h2>资金观察</h2><p>板块强弱 · 盘后席位多空</p>
+			</div>
+			<nav class="market-funds-subnav" aria-label="资金观察类型">
+				<button type="button" :class="{ active: fundsPanel === 'sectors' }" :aria-pressed="fundsPanel === 'sectors'" @click="fundsPanel = 'sectors'">
+					<Icon name="tabler:chart-bar" aria-hidden="true" />板块资金
+				</button>
+				<button type="button" :class="{ active: fundsPanel === 'citic' }" :aria-pressed="fundsPanel === 'citic'" @click="fundsPanel = 'citic'">
+					<Icon name="tabler:chart-candle" aria-hidden="true" />中信期货
+				</button>
+			</nav>
 		</header>
 
-		<nav class="market-funds-subnav" aria-label="资金观察类型">
-			<button type="button" :class="{ active: fundsPanel === 'sectors' }" :aria-pressed="fundsPanel === 'sectors'" @click="fundsPanel = 'sectors'">
-				<Icon name="tabler:chart-bar" aria-hidden="true" />板块资金
-			</button>
-			<button type="button" :class="{ active: fundsPanel === 'citic' }" :aria-pressed="fundsPanel === 'citic'" @click="fundsPanel = 'citic'">
-				<Icon name="tabler:chart-candle" aria-hidden="true" />中信期货
-			</button>
-		</nav>
-
 		<template v-if="fundsPanel === 'sectors'">
-			<div class="market-funds-controls">
-				<div>
-					<b :data-tone="sectorQualityState.tone">{{ sectorQualityState.label }}</b>
+			<div class="market-funds-toolbar">
+				<div class="market-funds-primary">
 					<div class="market-kind-switch" aria-label="板块资金类型">
 						<button
 							v-for="option in sectorKindOptions"
@@ -1086,18 +1086,18 @@ onBeforeUnmount(() => {
 							{{ option.label }}
 						</button>
 					</div>
+					<label>
+						<Icon name="tabler:search" aria-hidden="true" />
+						<input v-model="sectorSearch" type="search" autocomplete="off" placeholder="搜索板块 / 代码 / 龙头股">
+					</label>
+				</div>
+				<div class="market-funds-meta">
+					<b :data-tone="sectorQualityState.tone">{{ sectorQualityState.label }}</b>
+					<span>{{ sectorFlowItems.length }} 个 · 匹配 {{ filteredSectorFlowItems.length }} · 10 条/页</span>
 					<button class="market-refresh compact" type="button" :disabled="sectorFlowLoading" @click="loadSectorFlows()">
 						<Icon name="tabler:refresh" aria-hidden="true" />{{ sectorFlowLoading ? '刷新中' : '刷新资金' }}
 					</button>
 				</div>
-			</div>
-
-			<div class="market-funds-toolbar">
-				<label>
-					<Icon name="tabler:search" aria-hidden="true" />
-					<input v-model="sectorSearch" type="search" autocomplete="off" placeholder="搜索板块 / 代码 / 龙头股">
-				</label>
-				<span>已加载 {{ sectorFlowItems.length }} 个 · 匹配 {{ filteredSectorFlowItems.length }} 个 · 10 条/页</span>
 			</div>
 
 			<div v-if="sectorFlowError" class="market-error" role="alert">
@@ -1141,7 +1141,7 @@ onBeforeUnmount(() => {
 							<td><b :class="moveClass(item.mainNetInflow)">{{ formatFlow(item.mainNetInflow) }}</b></td>
 							<td v-for="window in item.windows" :key="window.days">
 								<b :class="moveClass(window.netInflow)">{{ formatFlow(window.netInflow) }}</b>
-								<small v-if="!window.complete">积累中 {{ window.availableDays }}/{{ window.days }}日</small>
+								<small v-if="!window.complete" class="market-flow-window-progress"><span class="market-flow-progress-prefix">积累中 </span>{{ window.availableDays }}/{{ window.days }}<span class="market-flow-progress-suffix">日</span></small>
 							</td>
 						</tr>
 						<tr v-if="!filteredSectorFlowItems.length" class="market-flow-search-empty">
@@ -1182,7 +1182,7 @@ onBeforeUnmount(() => {
 				<div>
 					<span>POST-CLOSE POSITION</span><h3 id="citic-futures-title">
 						中信期货 · 股指席位
-					</h3><p>盘后汇总中金所公开排名中的“中信期货(代客)”持买 / 持卖变化；默认统计 IF、IH、IC、IM 股指合计，保留最近30天。</p>
+					</h3><p>中金所公开席位 · IF / IH / IC / IM · 最近30天</p>
 				</div>
 				<div class="market-futures-actions">
 					<b :data-tone="futuresQualityState.tone">{{ futuresQualityState.label }}</b>
@@ -1220,7 +1220,7 @@ onBeforeUnmount(() => {
 					<span>最新 {{ latestFuturesPosition.tradeDate }} · 持买上榜 {{ latestFuturesPosition.longRankedContractCount }}/{{ latestFuturesPosition.contractCount }} 合约 · 持卖上榜 {{ latestFuturesPosition.shortRankedContractCount }}/{{ latestFuturesPosition.contractCount }} 合约</span><a :href="futuresPositionData.sourceUrl" target="_blank" rel="noopener noreferrer">中金所来源 <Icon name="tabler:arrow-up-right" /></a>
 				</footer>
 				<p class="market-futures-disclaimer">
-					仅汇总中金所公开前20名中出现的中信期货(代客)席位；未上榜合约不按0补齐。该数据不代表中信期货自营观点，也不直接等同于次日涨跌信号。
+					仅统计中金所前20名中出现的中信期货(代客)席位；未上榜不补0。仅作资金观察，不代表自营观点或次日涨跌。
 				</p>
 			</template>
 			<div v-else class="market-stage-notice">
@@ -2234,20 +2234,33 @@ onBeforeUnmount(() => {
 	color: var(--market-text-2);
 }
 
-.market-funds-header { align-items: center; }
+.market-funds-view { min-height: 0; }
+
+.market-funds-header {
+	align-items: center;
+	padding: 0.7rem 0.8rem;
+}
+
+.market-funds-title {
+	display: grid;
+	gap: 0.08rem;
+}
+
+.market-funds-title p { margin-top: 0.12rem; }
 
 .market-funds-subnav {
 	display: flex;
-	gap: 0.45rem;
-	padding: 0.75rem 0.8rem 0;
+	flex: 0 0 auto;
+	gap: 0.4rem;
+	padding: 0;
 }
 
 .market-funds-subnav button {
 	display: inline-flex;
 	align-items: center;
 	gap: 0.4rem;
-	min-height: 44px;
-	padding-inline: 0.85rem;
+	min-height: 40px;
+	padding-inline: 0.75rem;
 	border: 1px solid var(--market-border);
 	border-radius: 0.35rem;
 	font-size: 0.68rem;
@@ -2260,43 +2273,6 @@ onBeforeUnmount(() => {
 	color: var(--market-accent-strong);
 }
 
-.market-funds-controls {
-	display: flex;
-	justify-content: flex-end;
-	padding: 0.65rem 0.8rem 0;
-}
-
-.market-funds-controls > div {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	gap: 0.45rem;
-}
-
-.market-funds-controls b {
-	padding: 0.25rem 0.42rem;
-	border: 1px solid var(--market-border-strong);
-	border-radius: 0.28rem;
-	font: 700 0.58rem/1.2 var(--font-monospace);
-	color: var(--market-accent-strong);
-}
-
-.market-funds-actions {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	justify-content: flex-end;
-	gap: 0.45rem;
-}
-
-.market-funds-actions > b {
-	padding: 0.25rem 0.42rem;
-	border: 1px solid var(--market-border-strong);
-	border-radius: 0.28rem;
-	font: 700 0.58rem/1.2 var(--font-monospace);
-	color: var(--market-accent-strong);
-}
-
 .market-kind-switch {
 	display: flex;
 	padding: 0.16rem;
@@ -2306,8 +2282,8 @@ onBeforeUnmount(() => {
 }
 
 .market-kind-switch button {
-	min-height: 2.75rem;
-	padding-inline: 0.75rem;
+	min-height: 40px;
+	padding-inline: 0.65rem;
 	border-radius: 0.25rem;
 	font-size: 0.66rem;
 	color: var(--market-text-2);
@@ -2319,7 +2295,7 @@ onBeforeUnmount(() => {
 }
 
 .market-refresh.compact {
-	min-height: 2.75rem;
+	min-height: 40px;
 	padding-inline: 0.6rem;
 }
 
@@ -2329,7 +2305,7 @@ onBeforeUnmount(() => {
 	overflow-x: auto;
 	width: calc(100% - 1.6rem);
 	max-width: calc(100% - 1.6rem);
-	margin: 0.8rem;
+	margin: 0.55rem 0.8rem 0.7rem;
 	border: 1px solid var(--market-border);
 	border-radius: 0.35rem;
 	background: var(--market-panel);
@@ -2345,7 +2321,7 @@ onBeforeUnmount(() => {
 
 .market-flow-table th,
 .market-flow-table td {
-	padding: 0.68rem 0.72rem;
+	padding: 0.55rem 0.62rem;
 	border-bottom: 1px solid var(--market-border);
 	white-space: nowrap;
 	text-align: right;
@@ -3234,36 +3210,47 @@ onBeforeUnmount(() => {
 
 .market-futures-previous {
 	display: flex;
-	flex-wrap: wrap;
+	flex-wrap: nowrap;
 	align-items: center;
-	gap: 0.45rem 0.8rem;
-	margin: 0 0.8rem 0.75rem;
-	padding: 0.55rem 0.7rem;
+	gap: 0.45rem 0.7rem;
+	overflow-x: auto;
+	margin: 0.4rem 0 0.55rem;
+	padding: 0.45rem 0.55rem;
 	border: 1px solid var(--market-border);
 	border-radius: 0.32rem;
 	font: 0.62rem/1.45 var(--font-monospace);
+	white-space: nowrap;
 	color: var(--market-text-2);
+	scrollbar-width: thin;
 }
 
 .market-futures-previous b.is-up { color: var(--market-up); }
 .market-futures-previous b.is-down { color: var(--market-down); }
 
 .market-funds-toolbar {
-	display: flex;
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
 	align-items: center;
-	justify-content: space-between;
-	gap: 0.75rem;
-	padding: 0.75rem 0.8rem 0;
+	gap: 0.5rem;
+	padding: 0.5rem 0.8rem 0;
 }
 
-.market-funds-toolbar label {
+.market-funds-primary,
+.market-funds-meta {
+	display: flex;
+	align-items: center;
+	gap: 0.45rem;
+	min-width: 0;
+}
+
+.market-funds-primary label {
 	display: flex;
 	flex: 1 1 22rem;
 	align-items: center;
 	gap: 0.45rem;
 	min-width: 0;
-	min-height: 44px;
-	padding: 0 0.7rem;
+	min-height: 40px;
+	padding: 0 0.65rem;
 	border: 1px solid var(--market-border);
 	border-radius: 0.35rem;
 	background: var(--market-panel-2);
@@ -3276,12 +3263,23 @@ onBeforeUnmount(() => {
 	border: 0;
 	outline: 0;
 	background: transparent;
-	font-size: 0.7rem;
+	font-size: 0.68rem;
 	color: var(--market-text);
 }
 
-.market-funds-toolbar > span {
-	font: 0.58rem/1.4 var(--font-monospace);
+.market-funds-meta { justify-content: flex-end; }
+
+.market-funds-meta > b {
+	padding: 0.25rem 0.42rem;
+	border: 1px solid var(--market-border-strong);
+	border-radius: 0.28rem;
+	font: 700 0.56rem/1.2 var(--font-monospace);
+	color: var(--market-accent-strong);
+}
+
+.market-funds-meta > span {
+	font: 0.56rem/1.35 var(--font-monospace);
+	white-space: nowrap;
 	color: var(--market-text-3);
 }
 
@@ -3293,8 +3291,8 @@ onBeforeUnmount(() => {
 }
 
 .market-futures-section {
-	margin: 1rem 0.8rem 0.8rem;
-	padding: 0.9rem;
+	margin: 0.55rem 0.8rem 0.7rem;
+	padding: 0.7rem;
 	border: 1px solid var(--market-border);
 	border-radius: 0.45rem;
 	background: var(--market-panel-soft);
@@ -3320,9 +3318,9 @@ onBeforeUnmount(() => {
 
 .market-futures-header p {
 	max-width: 52rem;
-	margin: 0.35rem 0 0;
-	font-size: 0.66rem;
-	line-height: 1.65;
+	margin: 0.2rem 0 0;
+	font-size: 0.62rem;
+	line-height: 1.45;
 	color: var(--market-text-2);
 }
 
@@ -3344,7 +3342,7 @@ onBeforeUnmount(() => {
 	display: flex;
 	gap: 0.4rem;
 	overflow-x: auto;
-	padding-block: 0.8rem;
+	padding-block: 0.5rem;
 	overscroll-behavior-inline: contain;
 }
 
@@ -3366,17 +3364,17 @@ onBeforeUnmount(() => {
 
 .market-futures-metrics {
 	display: grid;
-	grid-template-columns: repeat(4, minmax(0, 1fr));
+	grid-template-columns: repeat(3, minmax(0, 1fr));
 	gap: 1px;
-	margin-bottom: 0.85rem;
+	margin-bottom: 0.55rem;
 	border: 1px solid var(--market-border);
 	background: var(--market-border);
 }
 
 .market-futures-metrics > div {
 	display: grid;
-	gap: 0.3rem;
-	padding: 0.72rem;
+	gap: 0.22rem;
+	padding: 0.55rem 0.6rem;
 	background: var(--market-panel);
 }
 
@@ -3395,7 +3393,7 @@ onBeforeUnmount(() => {
 	align-items: center;
 	justify-content: space-between;
 	gap: 0.75rem;
-	margin-top: 0.7rem;
+	margin-top: 0.45rem;
 	font: 0.56rem/1.5 var(--font-monospace);
 	color: var(--market-text-3);
 }
@@ -3409,11 +3407,11 @@ onBeforeUnmount(() => {
 }
 
 .market-futures-disclaimer {
-	margin: 0.2rem 0 0;
-	padding-top: 0.65rem;
+	margin: 0.1rem 0 0;
+	padding-top: 0.5rem;
 	border-top: 1px dashed var(--market-border);
-	font-size: 0.6rem;
-	line-height: 1.65;
+	font-size: 0.58rem;
+	line-height: 1.5;
 	color: var(--market-text-3);
 }
 
@@ -3561,48 +3559,120 @@ onBeforeUnmount(() => {
 	.market-finance-highlights { padding-inline: 0.55rem; }
 	.market-finance-highlights article { padding: 0.7rem; }
 
-	.market-funds-toolbar {
-		flex-direction: column;
-		align-items: stretch;
+	.market-funds-header {
+		gap: 0.5rem;
+		padding: 0.55rem;
+	}
+
+	.market-funds-title p {
+		margin-top: 0.08rem;
+		line-height: 1.4;
 	}
 
 	.market-funds-subnav {
 		display: grid;
 		grid-template-columns: repeat(2, minmax(0, 1fr));
-	}
-
-	.market-funds-subnav button { justify-content: center; }
-
-	.market-funds-controls { justify-content: stretch; }
-
-	.market-funds-controls > div {
+		gap: 0.35rem;
 		width: 100%;
 	}
+
+	.market-funds-subnav button {
+		justify-content: center;
+		min-height: 44px;
+	}
+
+	.market-funds-toolbar {
+		grid-template-columns: minmax(0, 1fr);
+		gap: 0.4rem;
+		padding: 0.45rem 0.55rem 0;
+	}
+
+	.market-funds-primary {
+		display: grid;
+		grid-template-columns: auto minmax(0, 1fr);
+		gap: 0.4rem;
+	}
+
+	.market-kind-switch button {
+		min-height: 40px;
+		padding-inline: 0.55rem;
+	}
+
+	.market-funds-primary label {
+		min-height: 40px;
+		padding-inline: 0.55rem;
+	}
+
+	.market-funds-meta {
+		justify-content: space-between;
+		gap: 0.35rem;
+	}
+
+	.market-funds-meta > span { font-size: 0.52rem; }
+
+	.market-table-scroll {
+		width: calc(100% - 1.1rem);
+		max-width: calc(100% - 1.1rem);
+		margin: 0.4rem 0.55rem 0.55rem;
+	}
+
+	.market-flow-table { min-width: 56rem; }
+
+	.market-flow-table th,
+	.market-flow-table td { padding: 0.46rem 0.5rem; }
+
+	.market-flow-window-progress {
+		display: inline-block;
+		margin: 0 0 0 0.22rem;
+		font-size: 0.48rem;
+	}
+
+	.market-flow-progress-prefix,
+	.market-flow-progress-suffix { display: none; }
 
 	.market-flow-pagination {
 		flex-direction: column;
 		align-items: stretch;
+		gap: 0.35rem;
 	}
+
+	.market-flow-pagination > span:first-child { display: none; }
 
 	.market-flow-pagination > div {
 		justify-content: flex-start;
 		overflow-x: auto;
 	}
 
-	.market-futures-header {
-		flex-direction: column;
+	.market-futures-section {
+		margin: 0.45rem 0.55rem 0.55rem;
+		padding: 0.55rem;
 	}
+
+	.market-futures-header {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto;
+		align-items: start;
+		gap: 0.45rem;
+	}
+
+	.market-futures-header p { font-size: 0.56rem; }
 
 	.market-futures-actions {
-		justify-content: space-between;
-		width: 100%;
+		justify-content: flex-end;
+		width: auto;
 	}
 
-	.market-futures-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+	.market-futures-tabs { padding-block: 0.42rem; }
+
+	.market-futures-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+	.market-futures-metrics > div { padding: 0.48rem 0.42rem; }
+	.market-futures-metrics strong { font-size: 0.7rem; }
 
 	.market-futures-footnote {
-		flex-direction: column;
-		align-items: flex-start;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.3rem 0.55rem;
 	}
 
 	.market-watchlist-header-actions {

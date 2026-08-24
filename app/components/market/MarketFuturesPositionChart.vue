@@ -323,9 +323,21 @@ svg {
 
 @media (max-width: 760px) {
 	.chart-meta {
-		flex-direction: column;
-		align-items: flex-start;
+		flex-direction: row;
+		align-items: center;
+		overflow-x: auto;
+		white-space: nowrap;
+		scrollbar-width: none;
 	}
+
+	.chart-meta::-webkit-scrollbar { display: none; }
+
+	.chart-legend {
+		flex-wrap: nowrap;
+		gap: 0.55rem;
+	}
+
+	svg { height: 13.75rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {
