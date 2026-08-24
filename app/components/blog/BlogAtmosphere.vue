@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { useEventListener, useMediaQuery, useRafFn } from '@vueuse/core'
 
-const route = useRoute()
 const nuxtApp = useNuxtApp()
 const colorMode = useColorMode()
 const root = useTemplateRef<HTMLElement>('root')
@@ -105,9 +104,10 @@ function scheduleRouteResume() {
 	routeSettleTimer = setTimeout(releaseRouteSettling, routePointerSettleMs + 34)
 }
 
+// 路由合成层只由一组生命周期驱动：加载开始时冻结一次，页面完成时恢复一次。
+// 同时监听 page:start / page:loading:end / route.fullPath 会反复重置同一个
+// timer，在重页面与历史导航下放大 macOS Chromium 的合成层时序抖动。
 const unhookLoadingStart = nuxtApp.hook('page:loading:start', beginRouteSettling)
-const unhookLoadingEnd = nuxtApp.hook('page:loading:end', scheduleRouteResume)
-const unhookPageStart = nuxtApp.hook('page:start', beginRouteSettling)
 const unhookPageFinish = nuxtApp.hook('page:finish', scheduleRouteResume)
 
 useEventListener('pointermove', (event) => {
@@ -126,12 +126,6 @@ useEventListener('pointerout', (event) => {
 		resetPointer()
 }, { passive: true })
 
-watch(() => route.fullPath, () => {
-	// Keep the ambient CSS animation alive during route swaps. Only freeze the
-	// two pointer-driven transform layers until the incoming page has mounted.
-	scheduleRouteResume()
-})
-
 watch([isDynamic, isFinePointer, prefersReducedMotion, isMobilePerformanceMode], ([dynamic, fine, reduced, mobile]) => {
 	if (dynamic && fine && !reduced && !mobile) {
 		pointerResumeAt = 0
@@ -149,8 +143,6 @@ watch([isDynamic, isFinePointer, prefersReducedMotion, isMobilePerformanceMode],
 
 onBeforeUnmount(() => {
 	unhookLoadingStart()
-	unhookLoadingEnd()
-	unhookPageStart()
 	unhookPageFinish()
 	clearRouteSettleTimer()
 	pointerResumeAt = 0

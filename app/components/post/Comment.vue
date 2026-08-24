@@ -123,6 +123,66 @@ function wait(ms: number) {
 	return new Promise(resolve => setTimeout(resolve, ms))
 }
 
+function loadTwikooScript(signal: AbortSignal, timeout = 15000) {
+	if (window.twikoo?.init)
+		return Promise.resolve()
+
+	const src = appConfig.twikoo?.script
+	if (!src)
+		return Promise.reject(new Error('评论脚本暂未配置。'))
+
+	return new Promise<void>((resolve, reject) => {
+		let script = document.querySelector<HTMLScriptElement>('script[data-twikoo-loader="true"]')
+		let timer = 0
+
+		function cleanup() {
+			window.clearTimeout(timer)
+			signal.removeEventListener('abort', handleAbort)
+			script?.removeEventListener('load', handleLoad)
+			script?.removeEventListener('error', handleError)
+		}
+
+		function handleLoad() {
+			cleanup()
+			resolve()
+		}
+
+		function handleError() {
+			cleanup()
+			reject(new Error('评论脚本加载失败，请检查网络后重试。'))
+		}
+
+		function handleAbort() {
+			cleanup()
+			reject(new DOMException('评论加载已取消', 'AbortError'))
+		}
+
+		if (signal.aborted) {
+			handleAbort()
+			return
+		}
+
+		if (!script) {
+			script = document.createElement('script')
+			script.src = src
+			script.async = true
+			script.crossOrigin = 'anonymous'
+			script.dataset.twikooLoader = 'true'
+			document.head.append(script)
+		}
+
+		script.addEventListener('load', handleLoad, { once: true })
+		script.addEventListener('error', handleError, { once: true })
+		signal.addEventListener('abort', handleAbort, { once: true })
+		timer = window.setTimeout(handleError, timeout)
+
+		// Another mounted comment surface may have completed the shared script
+		// load between our initial check and listener registration.
+		if (window.twikoo?.init)
+			handleLoad()
+	})
+}
+
 async function waitForTwikoo(signal: AbortSignal, timeout = 15000) {
 	const startedAt = Date.now()
 	while (!window.twikoo?.init) {
@@ -194,6 +254,7 @@ async function initializeTwikoo() {
 	mountRoot.replaceChildren()
 
 	try {
+		await loadTwikooScript(controller.signal)
 		const twikoo = await waitForTwikoo(controller.signal)
 		if (controller.signal.aborted)
 			return
