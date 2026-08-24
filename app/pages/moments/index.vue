@@ -248,15 +248,15 @@ onMounted(() => load(true))
 
 @media (max-width: 600px) {
 	.moments-page {
-		gap: 0.65rem;
-		margin: 0.55rem 0.5rem 1rem;
+		gap: var(--mobile-page-gap);
+		margin: var(--mobile-page-gap) var(--mobile-page-gutter) 1rem;
 	}
 
 	.moments-hero {
 		overflow: hidden;
-		min-height: 14.5rem;
-		padding: 1.05rem 1rem 6.2rem;
-		border-radius: 0.95rem;
+		min-height: 13rem;
+		padding: 1rem 0.95rem 5.35rem;
+		border-radius: var(--mobile-surface-radius);
 	}
 
 	.moments-hero h1 {
@@ -276,12 +276,23 @@ onMounted(() => load(true))
 		width: 8.4rem;
 	}
 
+	.moments-hero :deep(.scene-atmosphere),
+	.moments-hero :deep(.scene-shooting-star),
+	.moments-hero :deep(.scene-orbit),
+	.moments-hero :deep(.scene-track),
+	.moments-hero :deep(.scene-spark),
+	.moments-hero :deep(.scene-rocket),
+	.moments-hero :deep(.scene-speech) {
+		animation: none;
+		will-change: auto;
+	}
+
 	.moments-filter {
 		display: grid;
 		grid-template-columns: repeat(2, minmax(0, 1fr));
 		gap: 0.5rem;
 		padding: 0.6rem;
-		border-radius: 0.95rem;
+		border-radius: var(--mobile-surface-radius);
 	}
 
 	.moments-filter label {
@@ -297,12 +308,17 @@ onMounted(() => load(true))
 	}
 
 	.moments-list {
-		gap: 0.65rem;
+		gap: var(--mobile-page-gap);
+	}
+
+	.moments-list > :deep(.moment-card),
+	.moment-skeleton {
+		animation: none;
 	}
 
 	.moments-more {
 		min-height: var(--touch-target);
-		border-radius: 0.95rem;
+		border-radius: var(--mobile-surface-radius);
 	}
 }
 

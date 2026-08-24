@@ -115,12 +115,12 @@ useSeoMeta({
 @media (max-width: 640px) {
 	.comments-page {
 		width: auto;
-		margin: 0.55rem 0.5rem 1.25rem;
+		margin: var(--mobile-page-gap) var(--mobile-page-gutter) 1.25rem;
 	}
 
 	.comments-intro {
-		padding: 1rem 1rem 0.95rem;
-		border-radius: 0.95rem;
+		padding: 0.95rem;
+		border-radius: var(--mobile-surface-radius);
 
 		h1 {
 			font-size: 1.85rem;
@@ -129,6 +129,7 @@ useSeoMeta({
 		p {
 			font-size: 0.84rem;
 			line-height: 1.62;
+			text-wrap: pretty;
 		}
 	}
 
@@ -149,9 +150,9 @@ useSeoMeta({
 	}
 
 	:deep(.z-comment) {
-		margin: 0.7rem 0 1.25rem;
+		margin: var(--mobile-page-gap) 0 1.25rem;
 		padding: 0.9rem;
-		border-radius: 0.95rem;
+		border-radius: var(--mobile-surface-radius);
 	}
 }
 </style>

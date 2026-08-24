@@ -531,9 +531,9 @@ useSeoMeta({
 
 @media (max-width: 600px) {
 	.about-page {
-		gap: 0.55rem;
-		width: min(calc(100% - 1rem), 72rem);
-		margin: 0.45rem auto 1rem;
+		gap: var(--mobile-page-gap);
+		width: auto;
+		margin: var(--mobile-page-gap) var(--mobile-page-gutter) 1rem;
 	}
 
 	.about-hero {
@@ -541,7 +541,10 @@ useSeoMeta({
 		overflow: hidden;
 		min-height: 13.5rem;
 		padding: 0.9rem 0.85rem 4.7rem;
-		border-radius: 0.95rem;
+		border-radius: var(--mobile-surface-radius);
+		transform: none;
+		transform-style: flat;
+		transition-property: background, border-color, box-shadow, color;
 	}
 
 	.about-hero::after {
@@ -550,8 +553,38 @@ useSeoMeta({
 			linear-gradient(to bottom, color-mix(in srgb, var(--c-surface-fill) 72%, transparent), transparent 76%);
 	}
 
+	.about-hero-spotlight {
+		display: none;
+	}
+
 	.about-hero-copy {
 		width: min(70%, 15.5rem);
+		transform: none;
+	}
+
+	.about-hero :deep(.shinchan-scene) {
+		transform: none;
+	}
+
+	.about-hero :deep(.scene-atmosphere),
+	.about-hero :deep(.scene-shooting-star),
+	.about-hero :deep(.scene-orbit),
+	.about-hero :deep(.scene-track),
+	.about-hero :deep(.scene-spark),
+	.about-hero :deep(.scene-rocket),
+	.about-hero :deep(.scene-speech),
+	.about-hero :deep(.scene-profile-halo),
+	.about-hero :deep(.scene-profile-badge),
+	.about-hero :deep(.scene-planet-clouds),
+	.about-hero :deep(.scene-planet-light),
+	.about-hero :deep(.scene-avatar-tether),
+	.about-hero :deep(.scene-heart) {
+		animation: none;
+		will-change: auto;
+	}
+
+	.about-hero.is-dynamic-mode :deep(.scene-atmosphere) {
+		filter: none;
 	}
 
 	.about-hero .about-eyebrow {
@@ -579,7 +612,7 @@ useSeoMeta({
 
 	.about-section {
 		padding: 1rem;
-		border-radius: 0.95rem;
+		border-radius: var(--mobile-surface-radius);
 	}
 
 	.about-section-heading h2 {
