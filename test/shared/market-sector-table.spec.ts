@@ -31,6 +31,9 @@ describe('market sector table', () => {
 		expect(paginateSectorFlowItems(items, 1)).toHaveLength(10)
 		expect(paginateSectorFlowItems(items, 3)).toHaveLength(3)
 		expect(paginateSectorFlowItems(items, 99).map(value => value.name)).toEqual(['S21', 'S22', 'S23'])
+		expect(sectorPageCount(items.length, 20)).toBe(2)
+		expect(paginateSectorFlowItems(items, 1, 20)).toHaveLength(20)
+		expect(paginateSectorFlowItems(items, 2, 20).map(value => value.name)).toEqual(['S21', 'S22', 'S23'])
 	})
 
 	it('sorts change, current flow and rolling windows while keeping missing values last', () => {

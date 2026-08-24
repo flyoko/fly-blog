@@ -4,6 +4,11 @@ import { describe, expect, it } from 'vitest'
 const pagePath = 'app/pages/market/index.vue'
 
 describe('market 博客主题终端页面', () => {
+	it('restores the shared mobile blog header on the market page', () => {
+		const page = readFileSync(pagePath, 'utf8')
+		expect(page).toMatch(/<div class="mobile-only">[\s\S]*?<BlogHeader class="mobile-page-header" to="\/" \/>[\s\S]*?<\/div>[\s\S]*?<section class="market-terminal">/u)
+	})
+
 	it('inherits the existing blog theme without a separate black-gold skin', () => {
 		expect(existsSync(pagePath)).toBe(true)
 		const page = readFileSync(pagePath, 'utf8')
@@ -99,10 +104,13 @@ describe('market 博客主题终端页面', () => {
 		expect(page).toContain('grid-template-columns: repeat(3, minmax(0, 1fr));')
 	})
 
-	it('exposes the approved market workspace tabs and full loading/error/empty states', () => {
+	it('exposes only implemented market workspace tabs and full loading/error/empty states', () => {
 		const page = readFileSync(pagePath, 'utf8')
-		for (const label of ['市场雷达', '资金', '自选', '信号', '策略'])
+		for (const label of ['市场雷达', '资金', '自选', '信号'])
 			expect(page).toContain(label)
+		expect(page).not.toContain('id: \'strategy\'')
+		expect(page).not.toContain('待批处理')
+		expect(page).not.toContain('BATCH STRATEGY')
 		expect(page).toContain('market-loading')
 		expect(page).toContain('market-error')
 		expect(page).toContain('market-empty')
@@ -243,12 +251,16 @@ describe('market 博客主题终端页面', () => {
 		expect(desk).not.toContain('卖出')
 	})
 
-	it('paginates the full sector universe at 10 rows and supports all approved sort columns', () => {
+	it('paginates the full sector universe with a user-selectable page size and supports all approved sort columns', () => {
 		const page = readFileSync(pagePath, 'utf8')
-		expect(page).toContain('SECTOR_PAGE_SIZE')
+		expect(page).toContain('const sectorPageSize = ref(SECTOR_PAGE_SIZE)')
+		expect(page).toContain('const sectorPageSizeOptions = [10, 20, 50, 100]')
+		expect(page).toContain('countSectorPages(sortedSectorFlowItems.value.length, sectorPageSize.value)')
+		expect(page).toContain('paginateSectorFlowItems(sortedSectorFlowItems.value, sectorPage.value, sectorPageSize.value)')
+		expect(page).toContain('v-model.number="sectorPageSize"')
+		expect(page).toContain('{{ size }} 条/页')
 		expect(page).toContain('paginatedSectorFlowItems')
 		expect(page).toContain('sortSectorFlowItems')
-		expect(page).toContain('10 条/页')
 		expect(page).toContain('market-flow-pagination')
 		for (const key of ['changePct', 'mainNetInflow', '1D', '3D', '5D', '10D', '20D'])
 			expect(page).toContain(key)

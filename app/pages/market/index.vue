@@ -8,7 +8,7 @@ import MarketSignalDesk from '~/components/market/MarketSignalDesk.vue'
 import { isShanghaiMarketWindow, millisecondsUntilNextShanghaiWindow, WATCHLIST_MARKET_WINDOWS } from '~/utils/market-polling'
 import { sectorPageCount as countSectorPages, paginateSectorFlowItems, SECTOR_PAGE_SIZE, sortSectorFlowItems } from '~/utils/market-sector-table'
 
-type MarketWorkspace = 'radar' | 'funds' | 'watchlist' | 'signals' | 'strategy'
+type MarketWorkspace = 'radar' | 'funds' | 'watchlist' | 'signals'
 type WatchlistSortMode = 'custom' | 'change' | 'attention' | 'turnover'
 type FundsPanel = 'sectors' | 'citic'
 
@@ -17,7 +17,6 @@ const workspaceTabs: Array<{ id: MarketWorkspace, label: string, icon: string, n
 	{ id: 'funds', label: '资金', icon: 'tabler:arrows-exchange', note: '板块与周期累计' },
 	{ id: 'watchlist', label: '自选', icon: 'tabler:star', note: '自选雷达' },
 	{ id: 'signals', label: '信号', icon: 'tabler:activity-heartbeat', note: '5分钟观察信号' },
-	{ id: 'strategy', label: '策略', icon: 'tabler:filter-cog', note: '收盘筛选' },
 ]
 
 const sectorKindOptions: Array<{ id: SectorKind, label: string }> = [
@@ -48,6 +47,8 @@ const watchlistSortOptions: Array<{ id: WatchlistSortMode, label: string }> = [
 	{ id: 'attention', label: '距关注价排序' },
 	{ id: 'turnover', label: '成交额排序' },
 ]
+
+const sectorPageSizeOptions = [10, 20, 50, 100]
 
 const sectorWindowOptions: Array<{ days: SectorWindowDays, label: string }> = [
 	{ days: 1, label: '1D' },
@@ -88,6 +89,7 @@ const sectorKind = ref<SectorKind>('industry')
 const sectorSortKey = ref<SectorSortKey>('mainNetInflow')
 const sectorSortDirection = ref<SectorSortDirection>('desc')
 const sectorPage = ref(1)
+const sectorPageSize = ref(SECTOR_PAGE_SIZE)
 const sectorFlowData = ref<MarketEnvelope<SectorFlowItem[]> | null>(null)
 const sectorFlowLoading = ref(false)
 const sectorFlowError = ref('')
@@ -179,8 +181,8 @@ const filteredSectorFlowItems = computed(() => {
 		.some(value => String(value).toLocaleLowerCase('zh-CN').includes(keyword)))
 })
 const sortedSectorFlowItems = computed(() => sortSectorFlowItems(filteredSectorFlowItems.value, sectorSortKey.value, sectorSortDirection.value))
-const sectorPages = computed(() => countSectorPages(sortedSectorFlowItems.value.length, SECTOR_PAGE_SIZE))
-const paginatedSectorFlowItems = computed(() => paginateSectorFlowItems(sortedSectorFlowItems.value, sectorPage.value, SECTOR_PAGE_SIZE))
+const sectorPages = computed(() => countSectorPages(sortedSectorFlowItems.value.length, sectorPageSize.value))
+const paginatedSectorFlowItems = computed(() => paginateSectorFlowItems(sortedSectorFlowItems.value, sectorPage.value, sectorPageSize.value))
 const latestFuturesPosition = computed(() => futuresPositionData.value?.items.at(-1) || null)
 const previousFuturesPosition = computed(() => futuresPositionData.value?.items.at(-2) || null)
 const futuresQualityState = computed(() => {
@@ -812,6 +814,10 @@ watch(sectorSearch, () => {
 	sectorPage.value = 1
 })
 
+watch(sectorPageSize, () => {
+	sectorPage.value = 1
+})
+
 watch(fundsPanel, (panel) => {
 	if (activeWorkspace.value !== 'funds')
 		return
@@ -855,6 +861,9 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
+<div class="mobile-only">
+	<BlogHeader class="mobile-page-header" to="/" />
+</div>
 <section class="market-terminal">
 	<header class="market-terminal-header">
 		<div class="market-title-block">
@@ -1093,7 +1102,13 @@ onBeforeUnmount(() => {
 				</div>
 				<div class="market-funds-meta">
 					<b :data-tone="sectorQualityState.tone">{{ sectorQualityState.label }}</b>
-					<span>{{ sectorFlowItems.length }} 个 · 匹配 {{ filteredSectorFlowItems.length }} · 10 条/页</span>
+					<span>{{ sectorFlowItems.length }} 个 · 匹配 {{ filteredSectorFlowItems.length }}</span>
+					<label class="market-page-size-select">
+						<span>每页</span>
+						<select v-model.number="sectorPageSize" aria-label="每页展示板块数量">
+							<option v-for="size in sectorPageSizeOptions" :key="size" :value="size">{{ size }} 条/页</option>
+						</select>
+					</label>
 					<button class="market-refresh compact" type="button" :disabled="sectorFlowLoading" @click="loadSectorFlows()">
 						<Icon name="tabler:refresh" aria-hidden="true" />{{ sectorFlowLoading ? '刷新中' : '刷新资金' }}
 					</button>
@@ -1410,18 +1425,6 @@ onBeforeUnmount(() => {
 		:authenticated="watchlistAuthenticated"
 		:session-loading="watchlistSessionLoading"
 	/>
-
-	<section v-else class="market-panel market-stage-view">
-		<header class="market-stage-header">
-			<div><span>BATCH STRATEGY</span><h2>策略</h2><p>收盘后统一执行低频筛选与历史整理，盘中观察保持轻量。</p></div>
-			<b>AFTER CLOSE</b>
-		</header>
-		<div class="market-strategy-list">
-			<div><span>01</span><div><strong>财报三条件筛选</strong><p>业绩增速 &gt; 50% · 毛利率上升 · 存货上升。</p></div><b>待批处理</b></div>
-			<div><span>02</span><div><strong>每日收盘筛选</strong><p>收盘后计算，不依赖分钟级调度。</p></div><b>待批处理</b></div>
-			<div><span>03</span><div><strong>历史回填</strong><p>补齐资金历史与筛选结果，方便连续复盘。</p></div><b>待批处理</b></div>
-		</div>
-	</section>
 </section>
 </template>
 
@@ -2573,40 +2576,6 @@ onBeforeUnmount(() => {
 	margin: 0.35rem 0 0;
 	font-size: 0.68rem;
 	line-height: 1.65;
-	color: var(--market-text-3);
-}
-
-.market-strategy-list {
-	display: grid;
-	margin: 0.8rem;
-	border: 1px solid var(--market-border);
-}
-
-.market-strategy-list > div {
-	display: grid;
-	grid-template-columns: 2.5rem minmax(0, 1fr) auto;
-	align-items: center;
-	gap: 0.75rem;
-	min-height: 5rem;
-	padding: 0.75rem 0.85rem;
-	border-bottom: 1px solid var(--market-border);
-}
-.market-strategy-list > div:last-child { border-bottom: 0; }
-
-.market-strategy-list > div > span {
-	font: 0.62rem var(--font-monospace);
-	color: var(--market-accent);
-}
-.market-strategy-list strong { font-size: 0.78rem; }
-
-.market-strategy-list p {
-	margin: 0.22rem 0 0;
-	font-size: 0.64rem;
-	color: var(--market-text-3);
-}
-
-.market-strategy-list > div > b {
-	font: 0.58rem var(--font-monospace);
 	color: var(--market-text-3);
 }
 
@@ -3787,8 +3756,6 @@ onBeforeUnmount(() => {
 		justify-self: start;
 	}
 	.market-flow-grid { grid-template-columns: minmax(0, 1fr); }
-	.market-strategy-list > div { grid-template-columns: 2rem minmax(0, 1fr); }
-	.market-strategy-list > div > b { grid-column: 2; }
 }
 
 @media (prefers-reduced-transparency: reduce) {
