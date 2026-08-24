@@ -50,7 +50,14 @@ export interface CiticFuturesSyncResult {
 	status: 'success' | 'skipped'
 	tradeDate: string | null
 	itemCount: number
-	reason?: 'non-trading-day'
+	reason?: 'non-trading-day' | 'already-complete' | 'source-not-ready'
+}
+
+function isSourceNotReadyError(error: unknown): boolean {
+	const message = error instanceof Error ? error.message : String(error)
+	return message.includes('request failed with HTTP 404')
+		|| message.includes('response was empty')
+		|| message.includes('response contained no usable ranking rows')
 }
 
 function rowDto(row: PositionRow): CiticFuturesPositionPoint {
@@ -111,6 +118,20 @@ export class FuturesPositionService {
 		private readonly now: () => Date = () => new Date(),
 	) {}
 
+	private async hasCompleteTradeDateBefore(tradeDate: string, scheduledAt: Date): Promise<boolean> {
+		const row = await this.env.DB.prepare(`
+			SELECT COUNT(DISTINCT product) AS count, MAX(updated_at) AS latest_updated_at
+			FROM citic_futures_position_daily
+			WHERE trade_date = ?
+				AND complete = 1
+				AND product IN ('IF', 'IH', 'IC', 'IM')
+		`).bind(tradeDate).first<{ count: number, latest_updated_at: string | null }>()
+		const latestUpdatedMs = Date.parse(row?.latest_updated_at || '')
+		return Number(row?.count || 0) === citicFuturesProducts.length
+			&& Number.isFinite(latestUpdatedMs)
+			&& latestUpdatedMs <= scheduledAt.getTime()
+	}
+
 	async syncScheduled(scheduledAt?: string): Promise<CiticFuturesSyncResult> {
 		const runAt = scheduledAt ? new Date(scheduledAt) : this.now()
 		if (!Number.isFinite(runAt.getTime()))
@@ -121,13 +142,18 @@ export class FuturesPositionService {
 		const tradeDate = shanghaiDateKey(runAt)
 		if (!tradeDate)
 			throw new Error('CFFEX trade date is invalid')
+		if (await this.hasCompleteTradeDateBefore(tradeDate, runAt))
+			return { status: 'skipped', tradeDate, itemCount: 0, reason: 'already-complete' }
 
 		const settled = await Promise.allSettled(
 			citicFuturesProducts.map(product => this.provider.fetchProduct(product, tradeDate)),
 		)
 		const successful = settled.flatMap(result => result.status === 'fulfilled' ? [result.value] : [])
 		if (!successful.length) {
-			const messages = settled.flatMap(result => result.status === 'rejected' ? [String(result.reason)] : [])
+			const rejected = settled.flatMap(result => result.status === 'rejected' ? [result.reason] : [])
+			if (rejected.length === citicFuturesProducts.length && rejected.every(isSourceNotReadyError))
+				return { status: 'skipped', tradeDate, itemCount: 0, reason: 'source-not-ready' }
+			const messages = rejected.map(String)
 			throw new Error(`CFFEX position sync failed for all products${messages.length ? `: ${messages.join('; ')}` : ''}`)
 		}
 

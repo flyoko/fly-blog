@@ -68,6 +68,12 @@ const shanghaiTime = new Intl.DateTimeFormat('zh-CN', {
 	timeZone: 'Asia/Shanghai',
 })
 
+const shanghaiDate = new Intl.DateTimeFormat('zh-CN', {
+	month: '2-digit',
+	day: '2-digit',
+	timeZone: 'Asia/Shanghai',
+})
+
 const financeTime = new Intl.DateTimeFormat('zh-CN', {
 	hour: '2-digit',
 	minute: '2-digit',
@@ -189,7 +195,7 @@ const futuresQualityState = computed(() => {
 	switch (futuresPositionData.value?.quality) {
 		case 'live': return { label: '最新盘后排名', tone: 'live' as const }
 		case 'degraded': return { label: '公开排名不完整', tone: 'warning' as const }
-		case 'stale': return { label: '历史盘后快照', tone: 'warning' as const }
+		case 'stale': return { label: '等待今日盘后数据', tone: 'warning' as const }
 		default: return { label: '等待盘后样本', tone: 'muted' as const }
 	}
 })
@@ -260,6 +266,15 @@ function formatDateTime(value: string | null) {
 	if (Number.isNaN(date.getTime()))
 		return '时间未知'
 	return shanghaiTime.format(date).replaceAll('/', '.')
+}
+
+function formatDataDate(value: string | null) {
+	if (!value)
+		return '--.--'
+	const date = new Date(value)
+	if (Number.isNaN(date.getTime()))
+		return '--.--'
+	return shanghaiDate.format(date).replaceAll('/', '.')
 }
 
 function formatFinanceTime(value: string) {
@@ -682,6 +697,13 @@ function handleMarketVisibilityChange() {
 	}
 	if (activeWorkspace.value === 'watchlist' && watchlistSession.value?.authenticated) {
 		void loadWatchlistQuotes().finally(() => startWatchlistPolling())
+		return
+	}
+	if (activeWorkspace.value === 'funds') {
+		if (fundsPanel.value === 'sectors')
+			void loadSectorFlows({ background: true })
+		else
+			void loadFuturesPositions({ background: true })
 	}
 }
 
@@ -841,8 +863,12 @@ onMounted(() => {
 	refreshTimer = setInterval(() => {
 		void loadFinance({ background: true })
 		void loadMarketOverview({ background: true })
-		if (activeWorkspace.value === 'funds' && fundsPanel.value === 'sectors')
-			void loadSectorFlows({ background: true })
+		if (activeWorkspace.value === 'funds') {
+			if (fundsPanel.value === 'sectors')
+				void loadSectorFlows({ background: true })
+			else
+				void loadFuturesPositions({ background: true })
+		}
 	}, 60_000)
 	clockTimer = setInterval(() => {
 		currentClock.value = new Date()
@@ -1115,6 +1141,12 @@ onBeforeUnmount(() => {
 				</div>
 			</div>
 
+			<div v-if="sectorFlowData" class="market-data-freshness" aria-label="板块资金数据时间">
+				<span><b>数据日</b>{{ formatDataDate(sectorFlowData.marketAt) }}</span>
+				<span><b>市场时间</b>{{ formatDateTime(sectorFlowData.marketAt) }}</span>
+				<span><b>抓取时间</b>{{ formatDateTime(sectorFlowData.fetchedAt) }}</span>
+			</div>
+
 			<div v-if="sectorFlowError" class="market-error" role="alert">
 				<Icon name="tabler:alert-triangle" aria-hidden="true" />
 				<div><strong>资金链路暂不可用</strong><span>{{ sectorFlowError }}</span></div>
@@ -1206,6 +1238,12 @@ onBeforeUnmount(() => {
 					</button>
 				</div>
 			</header>
+
+			<div v-if="futuresPositionData" class="market-data-freshness market-futures-freshness" aria-label="中信期货数据时间">
+				<span><b>数据日</b>{{ latestFuturesPosition?.tradeDate || '--' }}</span>
+				<span><b>抓取时间</b>{{ formatDateTime(futuresPositionData.fetchedAt) }}</span>
+				<span><b>同步状态</b>{{ futuresPositionData.quality === 'live' ? '今日已同步' : futuresQualityState.label }}</span>
+			</div>
 
 			<div class="market-futures-tabs" aria-label="股指期货品种">
 				<button v-for="option in futuresProductOptions" :key="option.id" type="button" :class="{ active: futuresProduct === option.id }" :aria-pressed="futuresProduct === option.id" @click="futuresProduct = option.id">
@@ -3310,6 +3348,36 @@ onBeforeUnmount(() => {
 	color: var(--market-text-3);
 }
 
+.market-data-freshness {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.3rem 0.6rem;
+	margin: 0.45rem 0.8rem 0;
+	padding: 0.42rem 0.55rem;
+	border: 1px solid color-mix(in srgb, var(--market-accent) 20%, var(--market-border));
+	border-radius: 0.35rem;
+	background: color-mix(in srgb, var(--market-accent-soft) 42%, var(--market-panel));
+	font: 0.56rem/1.4 var(--font-monospace);
+	color: var(--market-text-2);
+}
+
+.market-data-freshness span {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.28rem;
+	white-space: nowrap;
+}
+
+.market-data-freshness b {
+	font-weight: 700;
+	color: var(--market-accent-strong);
+}
+
+.market-futures-freshness {
+	margin: 0.5rem 0 0;
+}
+
 .market-flow-table .market-flow-search-empty td {
 	position: static;
 	padding: 1.2rem;
@@ -3638,6 +3706,16 @@ onBeforeUnmount(() => {
 	}
 
 	.market-funds-meta > span { font-size: 0.52rem; }
+
+	.market-data-freshness {
+		gap: 0.28rem 0.5rem;
+		margin: 0.4rem 0.55rem 0;
+		padding: 0.42rem 0.48rem;
+	}
+
+	.market-futures-freshness {
+		margin-inline: 0;
+	}
 
 	.market-table-scroll {
 		width: calc(100% - 1.1rem);

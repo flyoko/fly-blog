@@ -36,6 +36,9 @@ export function scheduledJobsFor(cron: string): ScheduledJob[] {
 			return ['moment-backup', 'news-sync', 'finance-sync']
 		case '31 19 * * *':
 			return ['analytics-maintenance', 'content-maintenance']
+		case '10 8 * * 1-5':
+		case '30 8 * * 1-5':
+		case '0 9 * * 1-5':
 		case '30 9 * * 1-5':
 			return ['citic-futures-sync']
 		default:
