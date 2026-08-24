@@ -36,9 +36,6 @@ export function scheduledJobsFor(cron: string): ScheduledJob[] {
 			return ['moment-backup', 'news-sync', 'finance-sync']
 		case '31 19 * * *':
 			return ['analytics-maintenance', 'content-maintenance']
-		case '10 8 * * 1-5':
-		case '30 8 * * 1-5':
-		case '0 9 * * 1-5':
 		case '30 9 * * 1-5':
 			return ['citic-futures-sync']
 		default:
@@ -46,9 +43,27 @@ export function scheduledJobsFor(cron: string): ScheduledJob[] {
 	}
 }
 
+const CITIC_FUTURES_RETRY_SLOTS_UTC = new Set(['08:10', '08:30', '09:00'])
+
+function shouldEnqueueCiticFuturesFromFiveMinuteCron(cron: string, scheduledTime: number): boolean {
+	if (cron !== '*/5 * * * *')
+		return false
+	const scheduledAt = new Date(scheduledTime)
+	if (!Number.isFinite(scheduledAt.getTime()))
+		return false
+	const weekday = scheduledAt.getUTCDay()
+	if (weekday < 1 || weekday > 5)
+		return false
+	const slot = `${String(scheduledAt.getUTCHours()).padStart(2, '0')}:${String(scheduledAt.getUTCMinutes()).padStart(2, '0')}`
+	return CITIC_FUTURES_RETRY_SLOTS_UTC.has(slot)
+}
+
 export function scheduledMessagesFor(cron: string, scheduledTime: number): ScheduledTaskMessage[] {
 	const scheduledAt = new Date(scheduledTime).toISOString()
-	return scheduledJobsFor(cron).map(job => ({ version: 1, job, cron, scheduledAt }))
+	const jobs = scheduledJobsFor(cron)
+	if (shouldEnqueueCiticFuturesFromFiveMinuteCron(cron, scheduledTime))
+		jobs.push('citic-futures-sync')
+	return jobs.map(job => ({ version: 1, job, cron, scheduledAt }))
 }
 
 export async function enqueueScheduledTask(cron: string, scheduledTime: number, env: Env): Promise<number> {
