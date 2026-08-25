@@ -395,6 +395,92 @@ describe('market scheduled sync and sector history', () => {
 			{ days: 10, netInflow: 110, availableDays: 10, complete: true },
 			{ days: 20, netInflow: 210, availableDays: 20, complete: true },
 		])
+		expect(item?.streak).toEqual({ direction: 'inflow', days: 20, complete: false })
+	})
+
+	it('calculates an exact inflow streak until the first opposite trading day', async () => {
+		await seedSectorHistory('industry', 'BK1036', 3, 10)
+		await testEnv.DB.prepare(`
+			UPDATE market_sector_flow_daily
+			SET main_net_inflow = -10
+			WHERE trade_date = '2026-08-19' AND sector_kind = 'industry' AND sector_code = 'BK1036'
+		`).run()
+		const live = provider({ fetchSectorFlows: vi.fn(async kind => result(sector(kind, kind === 'industry' ? 20 : 1))) })
+		const data = await new MarketService(runtimeEnv(), live, () => new Date('2026-08-24T02:31:00.000Z')).sectorFlows('industry', 20)
+
+		expect(data.data?.[0]?.streak).toEqual({ direction: 'inflow', days: 3, complete: true })
+	})
+
+	it('calculates an exact outflow streak until the first positive trading day', async () => {
+		await seedSectorHistory('industry', 'BK1036', 2, 10)
+		await testEnv.DB.prepare(`
+			UPDATE market_sector_flow_daily
+			SET main_net_inflow = -10
+			WHERE trade_date = '2026-08-21' AND sector_kind = 'industry' AND sector_code = 'BK1036'
+		`).run()
+		const live = provider({ fetchSectorFlows: vi.fn(async kind => result(sector(kind, kind === 'industry' ? -20 : 1))) })
+		const data = await new MarketService(runtimeEnv(), live, () => new Date('2026-08-24T02:31:00.000Z')).sectorFlows('industry', 20)
+
+		expect(data.data?.[0]?.streak).toEqual({ direction: 'outflow', days: 2, complete: true })
+	})
+
+	it('treats zero and null latest flows as neutral streaks', async () => {
+		const zeroLive = provider({ fetchSectorFlows: vi.fn(async kind => result(sector(kind, kind === 'industry' ? 0 : 1))) })
+		const zeroData = await new MarketService(runtimeEnv(), zeroLive, () => new Date('2026-08-24T02:31:00.000Z')).sectorFlows('industry', 20)
+		expect(zeroData.data?.[0]?.streak).toEqual({ direction: 'neutral', days: 0, complete: true })
+
+		const nullIndustry = { ...sector('industry')[0]!, mainNetInflow: null }
+		const nullLive = provider({ fetchSectorFlows: vi.fn(async kind => result(kind === 'industry' ? [nullIndustry] : sector(kind))) })
+		const nullData = await new MarketService(runtimeEnv(), nullLive, () => new Date('2026-08-24T02:31:00.000Z')).sectorFlows('industry', 20)
+		expect(nullData.data?.[0]?.streak).toEqual({ direction: 'neutral', days: 0, complete: true })
+	})
+
+	it('stops an inflow streak at null history without pulling in older days', async () => {
+		await seedSectorHistory('industry', 'BK1036', 3, 10)
+		await testEnv.DB.prepare(`
+			UPDATE market_sector_flow_daily
+			SET main_net_inflow = NULL
+			WHERE trade_date = '2026-08-21' AND sector_kind = 'industry' AND sector_code = 'BK1036'
+		`).run()
+		const live = provider({ fetchSectorFlows: vi.fn(async kind => result(sector(kind, kind === 'industry' ? 20 : 1))) })
+		const data = await new MarketService(runtimeEnv(), live, () => new Date('2026-08-24T02:31:00.000Z')).sectorFlows('industry', 20)
+
+		expect(data.data?.[0]?.streak).toEqual({ direction: 'inflow', days: 1, complete: false })
+	})
+
+	it('stops an inflow streak at a missing trading day without pulling in older days', async () => {
+		await seedSectorHistory('industry', 'BK1036', 3, 10)
+		await testEnv.DB.prepare(`
+			DELETE FROM market_sector_flow_daily
+			WHERE trade_date = '2026-08-21' AND sector_kind = 'industry' AND sector_code = 'BK1036'
+		`).run()
+		const live = provider({ fetchSectorFlows: vi.fn(async kind => result(sector(kind, kind === 'industry' ? 20 : 1))) })
+		const data = await new MarketService(runtimeEnv(), live, () => new Date('2026-08-24T02:31:00.000Z')).sectorFlows('industry', 20)
+
+		expect(data.data?.[0]?.streak).toEqual({ direction: 'inflow', days: 1, complete: false })
+	})
+
+	it('marks a one-day live streak as open-ended when no prior history exists', async () => {
+		const live = provider({ fetchSectorFlows: vi.fn(async kind => result(sector(kind, kind === 'industry' ? 20 : 1))) })
+		const data = await new MarketService(runtimeEnv(), live, () => new Date('2026-08-24T02:31:00.000Z')).sectorFlows('industry', 20)
+
+		expect(data.data?.[0]?.streak).toEqual({ direction: 'inflow', days: 1, complete: false })
+	})
+
+	it('keeps the same streak contract when sector flows fall back to D1 history', async () => {
+		await seedSectorHistory('industry', 'BK1036', 3, 10)
+		await testEnv.DB.prepare(`
+			UPDATE market_sector_flow_daily
+			SET main_net_inflow = -10
+			WHERE trade_date = '2026-08-19' AND sector_kind = 'industry' AND sector_code = 'BK1036'
+		`).run()
+		const seed = provider({ fetchSectorFlows: vi.fn(async kind => result(sector(kind, kind === 'industry' ? 20 : 1))) })
+		await new MarketService(runtimeEnv(), seed, () => new Date('2026-08-24T02:31:00.000Z')).syncScheduled()
+
+		const data = await new MarketService(runtimeEnv(), failingProvider(), () => new Date('2026-08-24T02:40:00.000Z')).sectorFlows('industry', 20)
+
+		expect(data.quality).toBe('stale')
+		expect(data.data?.[0]?.streak).toEqual({ direction: 'inflow', days: 3, complete: true })
 	})
 
 	it('does not skip a trading day with a missing fund-flow value to pull in an older day', async () => {
