@@ -40,7 +40,7 @@ describe('mobile quality contracts', () => {
 		expect(mobileJob).toContain('pnpm test:e2e:mobile')
 		expect(mobileJob).toContain('pnpm test:e2e:mobile:visual')
 		expect(mobileJob).toContain('pnpm check:mobile-performance')
-		expect(mobileJob).toContain('uses: actions/upload-artifact@v4')
+		expect(mobileJob).toContain('uses: actions/upload-artifact@v6')
 		expect(mobileJob).toContain(`if: ${githubExpression('failure()')}`)
 		expect(mobileJob).toContain('playwright-report')
 		expect(mobileJob).toContain('test-results')

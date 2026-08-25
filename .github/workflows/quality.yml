@@ -109,7 +109,7 @@ jobs:
       - run: pnpm test:e2e:mobile:visual
       - name: Upload mobile quality diagnostics
         if: ${{ failure() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: mobile-quality-diagnostics
           path: |
