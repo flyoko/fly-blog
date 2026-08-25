@@ -2785,9 +2785,9 @@ onBeforeUnmount(() => {
 
 .market-flow-streak-cell { min-width: 7rem; }
 
-.market-flow-streak[data-direction='inflow'] { color: var(--market-up); }
-.market-flow-streak[data-direction='outflow'] { color: var(--market-down); }
-.market-flow-streak[data-direction='neutral'] { color: var(--market-text-3); }
+.market-flow-streak[data-direction="inflow"] { color: var(--market-up); }
+.market-flow-streak[data-direction="outflow"] { color: var(--market-down); }
+.market-flow-streak[data-direction="neutral"] { color: var(--market-text-3); }
 
 .market-flow-week-cell { min-width: 7.2rem; }
 

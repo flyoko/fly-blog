@@ -280,9 +280,9 @@ describe('market 博客主题终端页面', () => {
 		expect(page).toContain('streak.direction === \'inflow\' ? \'流入\' : \'流出\'')
 		expect(page).toContain('return \'暂无连续\'')
 		expect(page).toMatch(/const days = streak\.complete \? String\(streak\.days\) : `≥\$\{streak\.days\}`/u)
-		expect(page).toContain('.market-flow-streak[data-direction=\'inflow\'] { color: var(--market-up); }')
-		expect(page).toContain('.market-flow-streak[data-direction=\'outflow\'] { color: var(--market-down); }')
-		expect(page).toContain('.market-flow-streak[data-direction=\'neutral\'] { color: var(--market-text-3); }')
+		expect(page).toContain('.market-flow-streak[data-direction="inflow"] { color: var(--market-up); }')
+		expect(page).toContain('.market-flow-streak[data-direction="outflow"] { color: var(--market-down); }')
+		expect(page).toContain('.market-flow-streak[data-direction="neutral"] { color: var(--market-text-3); }')
 		expect(page).toContain('colspan="8"')
 	})
 
