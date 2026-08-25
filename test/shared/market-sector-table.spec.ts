@@ -13,6 +13,7 @@ function item(name: string, changePct: number | null, today: number | null, d3: 
 		leaderStockCode: null,
 		leaderStockName: null,
 		marketAt: '2026-08-21T07:00:00.000Z',
+		streak: { direction: 'neutral', days: 0, complete: true },
 		windows: [
 			{ days: 1, netInflow: today, availableDays: 1, complete: true },
 			{ days: 3, netInflow: d3, availableDays: d3 === null ? 1 : 3, complete: d3 !== null },

@@ -271,6 +271,21 @@ describe('market 博客主题终端页面', () => {
 		expect(page).toContain('下一页')
 	})
 
+	it('shows consecutive sector inflow or outflow days without inventing precision for incomplete history', () => {
+		const page = readFileSync(pagePath, 'utf8')
+		expect(page).toContain('<th>连续流向</th>')
+		expect(page).toContain('formatSectorFlowStreak(item)')
+		expect(page).toContain(':data-direction="item.streak.direction"')
+		expect(page).toContain('market-flow-streak-cell')
+		expect(page).toContain("streak.direction === 'inflow' ? '流入' : '流出'")
+		expect(page).toContain("return '暂无连续'")
+		expect(page).toContain('`≥${streak.days}`')
+		expect(page).toContain(".market-flow-streak[data-direction='inflow'] { color: var(--market-up); }")
+		expect(page).toContain(".market-flow-streak[data-direction='outflow'] { color: var(--market-down); }")
+		expect(page).toContain(".market-flow-streak[data-direction='neutral'] { color: var(--market-text-3); }")
+		expect(page).toContain('colspan="8"')
+	})
+
 	it('switches the funds workspace between sector flow and Citic futures instead of stacking both views', () => {
 		const page = readFileSync(pagePath, 'utf8')
 		expect(page).toContain('type FundsPanel = \'sectors\' | \'citic\'')
@@ -290,6 +305,8 @@ describe('market 博客主题终端页面', () => {
 		expect(page).toContain('market-funds-meta')
 		expect(page).toContain('market-flow-week-range')
 		expect(page).toContain('market-flow-week-progress')
+		expect(page).toContain('min-width: 69rem;')
+		expect(page).toMatch(/@media \(max-width: 760px\)[\s\S]*?\.market-flow-table \{ min-width: 61rem; \}/u)
 		expect(page).toContain('grid-template-columns: repeat(3, minmax(0, 1fr));')
 		expect(page).not.toContain('.market-futures-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }')
 		expect(page).toMatch(/@media \(max-width: 760px\)[\s\S]*?\.market-flow-week-range,[\s\S]*?\.market-flow-week-progress \{ font-size: 0\.48rem; \}/u)

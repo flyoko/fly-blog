@@ -72,9 +72,18 @@ export interface SectorFlowWeek {
 	endDate: string | null
 }
 
+export type SectorFlowStreakDirection = 'inflow' | 'outflow' | 'neutral'
+
+export interface SectorFlowStreak {
+	direction: SectorFlowStreakDirection
+	days: number
+	complete: boolean
+}
+
 export interface SectorFlowItem extends SectorFlowQuote {
 	windows: SectorFlowWindow[]
 	weeks: SectorFlowWeek[]
+	streak: SectorFlowStreak
 }
 
 export interface MarketEnvelope<T> {

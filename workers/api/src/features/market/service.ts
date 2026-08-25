@@ -7,6 +7,7 @@ import type {
 	MarketSourceRef,
 	SectorFlowItem,
 	SectorFlowQuote,
+	SectorFlowStreak,
 	SectorFlowWeek,
 	SectorKind,
 	SectorWeekOffset,
@@ -20,6 +21,7 @@ import { EastMoneyMarketProvider } from './eastmoney'
 import { recordMarketSourceObservation } from './observability'
 
 const SECTOR_FLOW_RETENTION_DAYS = 30
+const SECTOR_FLOW_HISTORY_LIMIT = 20
 const DAY_MS = 86_400_000
 
 interface MarketDailySnapshotRow {
@@ -203,6 +205,48 @@ function aggregateSectorWeek(
 		startDate: availableDates[0] ?? null,
 		endDate: availableDates.at(-1) ?? null,
 	}
+}
+
+function sectorRecentTradingDates(anchorDate: string, limit = SECTOR_FLOW_HISTORY_LIMIT): string[] {
+	const parsed = Date.parse(`${anchorDate}T00:00:00.000Z`)
+	if (!Number.isFinite(parsed) || limit < 1)
+		return []
+	const dates: string[] = []
+	for (let offset = 0; dates.length < limit && offset < 64; offset += 1) {
+		const dateKey = new Date(parsed - offset * DAY_MS).toISOString().slice(0, 10)
+		const shanghaiNoon = new Date(`${dateKey}T04:00:00.000Z`)
+		if (isChinaAShareTradingDate(shanghaiNoon))
+			dates.push(dateKey)
+	}
+	return dates
+}
+
+function sectorFlowStreak(
+	values: Map<string, number | null>,
+	anchorDate: string,
+	limit = SECTOR_FLOW_HISTORY_LIMIT,
+): SectorFlowStreak {
+	const first = values.get(anchorDate) ?? null
+	if (first === null || first === 0)
+		return { direction: 'neutral', days: 0, complete: true }
+
+	const direction = first > 0 ? 'inflow' : 'outflow'
+	const dates = sectorRecentTradingDates(anchorDate, limit)
+	if (dates[0] !== anchorDate)
+		return { direction, days: 1, complete: false }
+
+	let days = 0
+	for (const date of dates) {
+		if (!values.has(date))
+			return { direction, days, complete: false }
+		const value = values.get(date)
+		if (value === null || value === undefined)
+			return { direction, days, complete: false }
+		if (value === 0 || (value > 0) !== (first > 0))
+			return { direction, days, complete: true }
+		days += 1
+	}
+	return { direction, days, complete: false }
 }
 
 export class MarketService {
@@ -503,9 +547,9 @@ export class MarketService {
 				WHERE sector_kind = ?
 					AND sector_code IN (SELECT CAST(value AS TEXT) FROM json_each(?))
 			)
-			WHERE row_number <= 20
+			WHERE row_number <= ?
 			ORDER BY sector_code, trade_date DESC
-		`).bind(items[0]!.kind, JSON.stringify(codes)).all<MarketSectorFlowRow>()
+		`).bind(items[0]!.kind, JSON.stringify(codes), SECTOR_FLOW_HISTORY_LIMIT).all<MarketSectorFlowRow>()
 		const byCode = new Map<string, Map<string, number | null>>()
 		for (const row of history.results) {
 			const values = byCode.get(row.sector_code) || new Map<string, number | null>()
@@ -520,6 +564,7 @@ export class MarketService {
 			const dates = [...values.keys()].sort().reverse()
 			return {
 				...item,
+				streak: sectorFlowStreak(values, anchorDate),
 				windows: sectorWindowDays.map((days) => {
 					const selectedDates = dates.slice(0, days)
 					const selected = selectedDates.map(date => values.get(date) ?? null)

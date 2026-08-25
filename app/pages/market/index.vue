@@ -437,6 +437,15 @@ function formatFlow(value: number | null) {
 	return `${sign}${absolute.toFixed(0)}`
 }
 
+function formatSectorFlowStreak(item: SectorFlowItem) {
+	const { streak } = item
+	if (streak.direction === 'neutral' || streak.days < 1)
+		return '暂无连续'
+	const direction = streak.direction === 'inflow' ? '流入' : '流出'
+	const days = streak.complete ? String(streak.days) : `≥${streak.days}`
+	return `连续${direction} ${days} 天`
+}
+
 function formatLots(value: number) {
 	return `${value > 0 ? '+' : ''}${value.toLocaleString('zh-CN')} 手`
 }
@@ -1330,6 +1339,7 @@ onBeforeUnmount(() => {
 									今日主力 <Icon :name="sectorSortIcon('mainNetInflow')" />
 								</button>
 							</th>
+							<th>连续流向</th>
 							<th v-for="option in sectorWeekOptions" :key="option.key" :aria-sort="sectorSortAria(option.key)">
 								<button class="market-flow-sort" type="button" @click="toggleSectorSort(option.key)">
 									{{ option.label }} <Icon :name="sectorSortIcon(option.key)" />
@@ -1342,6 +1352,9 @@ onBeforeUnmount(() => {
 							<td><strong>{{ item.name }}</strong><small>{{ item.code }}<template v-if="item.leaderStockName"> · {{ item.leaderStockName }}</template></small></td>
 							<td><b :class="moveClass(item.changePct)">{{ formatPercent(item.changePct) }}</b></td>
 							<td><b :class="moveClass(item.mainNetInflow)">{{ formatFlow(item.mainNetInflow) }}</b></td>
+							<td class="market-flow-streak-cell">
+								<b class="market-flow-streak" :data-direction="item.streak.direction">{{ formatSectorFlowStreak(item) }}</b>
+							</td>
 							<td v-for="week in sectorWeekEntries(item)" :key="week.weekOffset" class="market-flow-week-cell">
 								<b :class="moveClass(week.netInflow)">{{ formatFlow(week.netInflow) }}</b>
 								<small class="market-flow-week-range">{{ formatSectorWeekRange(week) }}</small>
@@ -1349,7 +1362,7 @@ onBeforeUnmount(() => {
 							</td>
 						</tr>
 						<tr v-if="!filteredSectorFlowItems.length" class="market-flow-search-empty">
-							<td colspan="7">
+							<td colspan="8">
 								当前 {{ sectorFlowItems.length }} 个板块中没有匹配“{{ sectorSearch }}”的板块。
 							</td>
 						</tr>
@@ -2696,7 +2709,7 @@ onBeforeUnmount(() => {
 
 .market-flow-table {
 	width: 100%;
-	min-width: 62rem;
+	min-width: 69rem;
 	border-collapse: collapse;
 	font-variant-numeric: tabular-nums;
 }
@@ -2769,6 +2782,12 @@ onBeforeUnmount(() => {
 	font-size: 0.54rem;
 	color: var(--market-text-3);
 }
+
+.market-flow-streak-cell { min-width: 7rem; }
+
+.market-flow-streak[data-direction='inflow'] { color: var(--market-up); }
+.market-flow-streak[data-direction='outflow'] { color: var(--market-down); }
+.market-flow-streak[data-direction='neutral'] { color: var(--market-text-3); }
 
 .market-flow-week-cell { min-width: 7.2rem; }
 
@@ -4352,7 +4371,7 @@ onBeforeUnmount(() => {
 		margin: 0.4rem 0.55rem 0.55rem;
 	}
 
-	.market-flow-table { min-width: 54rem; }
+	.market-flow-table { min-width: 61rem; }
 
 	.market-flow-table th,
 	.market-flow-table td { padding: 0.46rem 0.5rem; }
