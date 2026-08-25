@@ -4,5 +4,12 @@
     "date": "2026-08",
     "title": "fly living 上线",
     "description": "开始在自己的空间里记录技术、学习与生活。"
+  },
+  {
+    "id": "timeline-c1df3b41",
+    "date": "2026-8-23",
+    "title": "市场模块上线(股市)",
+    "description": "没事炒点股，将常用的几个功能进行接入",
+    "link": "https://flyovo.cc.cd/market"
   }
 ]
