@@ -17,9 +17,10 @@ jobs:
     timeout-minutes: 5
     outputs:
       eligible: ${{ steps.detect.outputs.eligible || 'false' }}
+      config_visual_exempt: ${{ steps.config_detect.outputs.eligible || 'false' }}
     steps:
       - uses: actions/checkout@v6
-        if: ${{ github.event_name == 'pull_request' && startsWith(github.head_ref, 'admin/article/') }}
+        if: ${{ github.event_name == 'pull_request' && (startsWith(github.head_ref, 'admin/article/') || startsWith(github.head_ref, 'admin/config/')) }}
         with:
           fetch-depth: 2
       - name: 检测文章 PR 快路径
@@ -36,6 +37,22 @@ jobs:
           else
             echo "eligible=false" >> "$GITHUB_OUTPUT"
             echo "文章快路径不适用，改走完整校验。"
+            sed 's/^/ - /' "$diff_file"
+          fi
+      - name: 检测后台配置视觉豁免
+        id: config_detect
+        if: ${{ github.event_name == 'pull_request' && startsWith(github.head_ref, 'admin/config/') }}
+        shell: bash
+        run: |
+          diff_file=$(mktemp)
+          git diff --name-only HEAD^1 HEAD^2 > "$diff_file"
+          changed_count=$(wc -l < "$diff_file" | tr -d ' ')
+          changed_path=$(sed -n '1p' "$diff_file")
+          if [[ "$changed_count" = 1 ]] && bash scripts/is-admin-config-fast-path.sh "$GITHUB_HEAD_REF" "$changed_path" > /dev/null; then
+            echo "eligible=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+            echo "后台配置视觉豁免不适用，保留完整移动端视觉校验。"
             sed 's/^/ - /' "$diff_file"
           fi
 
@@ -107,6 +124,7 @@ jobs:
       - run: pnpm check:mobile-performance
       - run: pnpm test:e2e:mobile
       - run: pnpm test:e2e:mobile:visual
+        if: ${{ needs.article_fast_path.outputs.config_visual_exempt != 'true' }}
       - name: Upload mobile quality diagnostics
         if: ${{ failure() }}
         uses: actions/upload-artifact@v6

@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
 
 const root = fileURLToPath(new URL('../..', import.meta.url))
+const githubExpression = (value: string) => ['$', '{{ ', value, ' }}'].join('')
 
 interface WorkflowJob {
 	environment?: { name?: string, url?: string }
@@ -70,12 +71,17 @@ describe('文章发布工作流', () => {
 		expect(source).toContain('workflow_dispatch:')
 		expect(source).not.toContain('\n  push:')
 		expect(routeJob.outputs).toHaveProperty('eligible')
+		expect(routeJob.outputs).toHaveProperty('config_visual_exempt')
 		expect(verifyJob.needs).toBe('article_fast_path')
 		expect(mobileJob.needs).toBe('article_fast_path')
 		expect(source).toContain('needs.article_fast_path.outputs.eligible != \'true\'')
+		expect(source).toContain(`- run: pnpm test:e2e:mobile:visual\n        if: ${githubExpression('needs.article_fast_path.outputs.config_visual_exempt != \'true\'')}`)
 		expect(source).toContain('id: detect')
+		expect(source).toContain('id: config_detect')
 		expect(source).toContain('startsWith(github.head_ref, \'admin/article/\')')
+		expect(source).toContain('startsWith(github.head_ref, \'admin/config/\')')
 		expect(source).toContain('bash scripts/is-article-fast-path.sh')
+		expect(source).toContain('bash scripts/is-admin-config-fast-path.sh "$GITHUB_HEAD_REF" "$changed_path"')
 		expect(source).toContain('pnpm lint')
 		expect(source).toContain('pnpm typecheck')
 		expect(source).toContain('pnpm test:unit')
