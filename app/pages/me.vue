@@ -2,6 +2,7 @@
 import linksRaw from '~~/config/about/links.json'
 import timelineRaw from '~~/config/about/timeline.json'
 import { aboutLinksSchema, aboutTimelineSchema } from '#shared/admin/about'
+import { normalizeCanonicalSiteHref } from '~/utils/site-link'
 
 const timeline = aboutTimelineSchema.parse(timelineRaw)
 const links = aboutLinksSchema.parse(linksRaw)
@@ -87,7 +88,7 @@ useSeoMeta({
 					</p>
 					<a
 						v-if="item.link"
-						:href="item.link"
+						:href="normalizeCanonicalSiteHref(item.link)"
 						target="_blank"
 						rel="noopener noreferrer"
 					>查看相关内容</a>

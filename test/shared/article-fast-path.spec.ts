@@ -48,13 +48,6 @@ describe('article pull request fast path', () => {
 
 describe('admin config mobile visual exemption', () => {
 	const validCases = [
-		['article', 'config/site/article.json'],
-		['categories', 'config/taxonomy/categories.json'],
-		['navigation', 'config/site/navigation.json'],
-		['footer', 'config/site/footer.json'],
-		['modules', 'config/site/modules.json'],
-		['weather', 'config/site/weather.json'],
-		['newsSources', 'config/news/sources.json'],
 		['aboutTimeline', 'config/about/timeline.json'],
 		['aboutLinks', 'config/about/links.json'],
 	] as const
@@ -67,7 +60,11 @@ describe('admin config mobile visual exemption', () => {
 		})
 	})
 
-	it('fails closed for wrong branches, unknown kinds, and path mismatches', () => {
+	it('fails closed for UI-impacting config, wrong branches, unknown kinds, and path mismatches', () => {
+		expect(classifyConfig('admin/config/navigation/20260825-120000-abc123', 'config/site/navigation.json').status).toBe(1)
+		expect(classifyConfig('admin/config/footer/20260825-120000-abc123', 'config/site/footer.json').status).toBe(1)
+		expect(classifyConfig('admin/config/modules/20260825-120000-abc123', 'config/site/modules.json').status).toBe(1)
+		expect(classifyConfig('admin/config/article/20260825-120000-abc123', 'config/site/article.json').status).toBe(1)
 		expect(classifyConfig('feature/about', 'config/about/timeline.json').status).toBe(1)
 		expect(classifyConfig('admin/config/unknown/20260825-120000-abc123', 'config/about/timeline.json').status).toBe(1)
 		expect(classifyConfig('admin/config/aboutTimeline/20260825-120000-abc123', 'config/site/footer.json').status).toBe(1)

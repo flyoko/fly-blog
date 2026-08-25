@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
@@ -50,5 +51,19 @@ describe('mobile quality contracts', () => {
 		expect(mobileJob).toContain('test-results')
 		expect(mobileJob).not.toContain('vars.CI_RUNNER')
 		expect(mobileJob).not.toContain('vars.MOBILE_QUALITY_RUNNER')
+	})
+
+	it('gates production visual checks only for changes that can affect rendered UI', () => {
+		const script = 'scripts/requires-mobile-quality.sh'
+		const classify = (path: string) => spawnSync('bash', [script, path], { encoding: 'utf8' }).status
+
+		expect(classify('content/posts/2026/hello-world.md')).toBe(1)
+		expect(classify('config/about/timeline.json')).toBe(1)
+		expect(classify('config/about/links.json')).toBe(1)
+		expect(classify('app/assets/css/main.scss')).toBe(0)
+		expect(classify('app/components/blog/BlogHeader.global.vue')).toBe(0)
+		expect(classify('config/site/navigation.json')).toBe(0)
+		expect(classify('nuxt.config.ts')).toBe(0)
+		expect(classify('package.json')).toBe(0)
 	})
 })

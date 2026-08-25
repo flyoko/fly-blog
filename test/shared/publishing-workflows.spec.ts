@@ -94,14 +94,16 @@ describe('文章发布工作流', () => {
 		const jobs = document.jobs ?? {}
 		const sourceJob = jobs.source_quality
 		const buildJob = jobs.build_pages
+		const mobileJob = jobs.production_mobile_quality
 		const deployJob = jobs.deploy_production
 		const packageJson = JSON.parse(await readFile(`${root}/package.json`, 'utf8')) as { scripts: Record<string, string> }
 
-		expect(Object.keys(jobs)).toEqual(['source_quality', 'build_pages', 'deploy_production'])
+		expect(Object.keys(jobs)).toEqual(['source_quality', 'build_pages', 'production_mobile_quality', 'deploy_production'])
 		expect(sourceJob).toBeTruthy()
 		expect(buildJob).toBeTruthy()
+		expect(mobileJob).toBeTruthy()
 		expect(deployJob).toBeTruthy()
-		if (!sourceJob || !buildJob || !deployJob)
+		if (!sourceJob || !buildJob || !mobileJob || !deployJob)
 			throw new Error('production jobs missing')
 		expect(packageJson.scripts['verify:pages-source']).toBe('pnpm lint && nuxt typecheck && pnpm test:unit')
 		expect(packageJson.scripts['verify:pages']).toBe('pnpm generate && pnpm check:smoke && pnpm check:links && pnpm check:secrets')
@@ -113,7 +115,11 @@ describe('文章发布工作流', () => {
 		expect(source).toContain('pnpm verify:pages')
 		expect(source).toContain('actions/upload-artifact@v6')
 		expect(source).toContain('actions/download-artifact@v7')
-		expect(deployJob.needs).toEqual(['source_quality', 'build_pages'])
+		expect(source).toContain('bash scripts/requires-mobile-quality.sh "$changed_path"')
+		expect(source).toContain('pnpm check:mobile-performance')
+		expect(source).toContain('pnpm test:e2e:mobile')
+		expect(source).toContain('pnpm test:e2e:mobile:visual')
+		expect(deployJob.needs).toEqual(['source_quality', 'build_pages', 'production_mobile_quality'])
 		expect(source).toContain('pages deploy .output/public --project-name=fly-living --branch=main')
 		expect(source).toContain('pnpm check:production')
 		expect(source).not.toContain('\n      - run: pnpm verify\n')

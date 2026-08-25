@@ -75,6 +75,7 @@ describe('admin management UI boundaries', () => {
 		expect(about).not.toContain('structuredClone(')
 		expect(me).toContain('profileAvatar')
 		expect(me).toContain(':character-src="profileAvatar || undefined"')
+		expect(me).toContain('normalizeCanonicalSiteHref(item.link)')
 		expect(scene).toContain('characterSrc?: string')
 		expect(scene).toContain('scene-profile-avatar')
 		expect(header).toContain('about:header-avatar')

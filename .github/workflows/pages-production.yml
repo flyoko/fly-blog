@@ -71,8 +71,67 @@ jobs:
           compression-level: 1
           retention-days: 1
 
+  production_mobile_quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      E2E_REUSE_OUTPUT: '1'
+      E2E_SERVER_COMMAND: pnpm preview:e2e:static
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: 检测生产移动质量门禁
+        id: detect
+        shell: bash
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          required=false
+          if [[ "$GITHUB_EVENT_NAME" != 'push' || -z "$BEFORE_SHA" || "$BEFORE_SHA" = '0000000000000000000000000000000000000000' ]]; then
+            required=true
+          else
+            diff_file=$(mktemp)
+            git diff --name-only "$BEFORE_SHA" "$GITHUB_SHA" > "$diff_file"
+            while IFS= read -r changed_path; do
+              [[ -n "$changed_path" ]] || continue
+              if bash scripts/requires-mobile-quality.sh "$changed_path" > /dev/null; then
+                required=true
+                echo "移动质量门禁触发文件: $changed_path"
+                break
+              fi
+            done < "$diff_file"
+          fi
+          echo "required=$required" >> "$GITHUB_OUTPUT"
+      - uses: pnpm/action-setup@v6
+        if: ${{ steps.detect.outputs.required == 'true' }}
+        with:
+          version: 11.8.0
+          dest: ${{ runner.temp }}/setup-pnpm
+          cache: true
+      - uses: actions/setup-node@v6
+        if: ${{ steps.detect.outputs.required == 'true' }}
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - name: Confirm Linux visual environment
+        if: ${{ steps.detect.outputs.required == 'true' }}
+        run: test "$RUNNER_OS" = "Linux"
+      - run: pnpm install --frozen-lockfile
+        if: ${{ steps.detect.outputs.required == 'true' }}
+      - run: pnpm exec playwright install --with-deps chromium
+        if: ${{ steps.detect.outputs.required == 'true' }}
+      - run: pnpm generate
+        if: ${{ steps.detect.outputs.required == 'true' }}
+      - run: pnpm check:mobile-performance
+        if: ${{ steps.detect.outputs.required == 'true' }}
+      - run: pnpm test:e2e:mobile
+        if: ${{ steps.detect.outputs.required == 'true' }}
+      - run: pnpm test:e2e:mobile:visual
+        if: ${{ steps.detect.outputs.required == 'true' }}
+
   deploy_production:
-    needs: [source_quality, build_pages]
+    needs: [source_quality, build_pages, production_mobile_quality]
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 20
     environment:
