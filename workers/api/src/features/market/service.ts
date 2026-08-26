@@ -16,7 +16,7 @@ import type { Env } from '../../env'
 import type { MarketCapability, MarketDataProvider, MarketProviderResult } from './contracts'
 import { marketIndexCodes, sectorWeekOffsets, sectorWindowDays } from '../../../../../shared/market'
 import { isChinaAShareTradingDate } from '../../../../../shared/market-calendar'
-import { isChinaMarketSyncWindow, shanghaiParts } from './contracts'
+import { isChinaMarketSectorSyncWindow, isChinaMarketSyncWindow, shanghaiParts } from './contracts'
 import { EastMoneyMarketProvider } from './eastmoney'
 import { recordMarketSourceObservation } from './observability'
 
@@ -80,7 +80,7 @@ export interface MarketSyncCapabilityResult {
 
 export interface MarketSyncResult {
 	status: 'success' | 'partial' | 'failed' | 'skipped'
-	reason?: 'outside-market-window'
+	reason?: 'outside-market-window' | 'trade-date-mismatch'
 	capabilities: MarketSyncCapabilityResult[]
 }
 
@@ -156,6 +156,14 @@ function capabilityItemCount(capability: MarketCapability, value: MarketProvider
 	if (capability === 'breadth')
 		return 1
 	return Array.isArray(value.data) ? value.data.length : 1
+}
+
+function isSectorResultForTradeDate(result: MarketProviderResult<SectorFlowQuote[]>, tradeDate: string): boolean {
+	const timestamps = [result.marketAt, ...result.data.map(item => item.marketAt)]
+	return timestamps.length > 1 && timestamps.every((timestamp) => {
+		const date = new Date(timestamp)
+		return Number.isFinite(date.getTime()) && shanghaiParts(date).date === tradeDate
+	})
 }
 
 function dateKeyAtOffset(dateKey: string, dayOffset: number): string | null {
@@ -642,13 +650,16 @@ export class MarketService {
 	}
 
 	async syncScheduled(scheduledAt?: string): Promise<MarketSyncResult> {
-		if (!isChinaMarketSyncWindow(this.now())) {
+		const runAt = this.now()
+		if (!isChinaMarketSectorSyncWindow(runAt)) {
 			return {
 				status: 'skipped',
 				reason: 'outside-market-window',
 				capabilities: [],
 			}
 		}
+		if (!isChinaMarketSyncWindow(runAt))
+			return this.syncFinalSectorClose(runAt, scheduledAt)
 
 		const [indicesOutcome, breadthOutcome, industryOutcome, conceptOutcome] = await Promise.all([
 			settle(this.provider.fetchIndices()),
@@ -675,6 +686,50 @@ export class MarketService {
 			await this.persistSectorFlows(conceptOutcome.value)
 
 		const successCount = capabilities.filter(item => item.status === 'success').length
+		return {
+			status: successCount === capabilities.length ? 'success' : successCount > 0 ? 'partial' : 'failed',
+			capabilities,
+		}
+	}
+
+	private async syncFinalSectorClose(runAt: Date, scheduledAt?: string): Promise<MarketSyncResult> {
+		const [rawIndustryOutcome, rawConceptOutcome] = await Promise.all([
+			settle(this.provider.fetchSectorFlows('industry')),
+			settle(this.provider.fetchSectorFlows('concept')),
+		])
+		const tradeDate = shanghaiParts(runAt).date
+		let mismatchCount = 0
+		const validate = (outcome: CapabilityOutcome<SectorFlowQuote[]>): CapabilityOutcome<SectorFlowQuote[]> => {
+			if (!outcome.ok || isSectorResultForTradeDate(outcome.value, tradeDate))
+				return outcome
+			mismatchCount += 1
+			return {
+				ok: false,
+				error: new Error(`Sector final close trade date mismatch: expected ${tradeDate}`),
+			}
+		}
+		const industryOutcome = validate(rawIndustryOutcome)
+		const conceptOutcome = validate(rawConceptOutcome)
+		const outcomes = [
+			{ capability: 'sector-industry' as const, outcome: industryOutcome },
+			{ capability: 'sector-concept' as const, outcome: conceptOutcome },
+		]
+		const capabilities: MarketSyncCapabilityResult[] = []
+		for (const entry of outcomes)
+			capabilities.push(await this.writeHealth(entry.capability, entry.outcome, scheduledAt))
+		if (industryOutcome.ok)
+			await this.persistSectorFlows(industryOutcome.value)
+		if (conceptOutcome.ok)
+			await this.persistSectorFlows(conceptOutcome.value)
+
+		const successCount = capabilities.filter(item => item.status === 'success').length
+		if (successCount === 0 && mismatchCount === outcomes.length) {
+			return {
+				status: 'skipped',
+				reason: 'trade-date-mismatch',
+				capabilities,
+			}
+		}
 		return {
 			status: successCount === capabilities.length ? 'success' : successCount > 0 ? 'partial' : 'failed',
 			capabilities,

@@ -75,6 +75,14 @@ publicFinanceRoutes.get('/flash', async (c) => {
 	c.header('X-Fly-Cache', cached.status)
 	return success(c, cached.data)
 })
+publicFinanceRoutes.get('/themes/today', async (c) => {
+	const service = new FinanceFlashService(c.env)
+	await service.ensureSeeded()
+	const cached = await publicCacheData(c, await service.todayThemesVersion(), () => service.todayThemes(), 20)
+	c.header('Cache-Control', 'no-cache, must-revalidate')
+	c.header('X-Fly-Cache', cached.status)
+	return success(c, cached.data)
+})
 
 export const adminFinanceRoutes = new Hono<AppEnvironment>()
 adminFinanceRoutes.use('*', requireSession)

@@ -1,4 +1,4 @@
-import type { AdminFinanceFlashDto, AdminFinanceFlashListDto, FinanceAdminVisibility, FinanceCategory, FinanceFlashDto, FinanceFlashListDto, FinanceFlashQuality, FinanceImportanceOrigin, FinanceSourceId, FinanceSourceSettingDto } from '../../../../../shared/admin/finance'
+import type { AdminFinanceFlashDto, AdminFinanceFlashListDto, FinanceAdminVisibility, FinanceCategory, FinanceFlashDto, FinanceFlashListDto, FinanceFlashQuality, FinanceImportanceOrigin, FinanceSourceId, FinanceSourceSettingDto, FinanceTodayThemesDto } from '../../../../../shared/admin/finance'
 import type { Env } from '../../env'
 import { financeSourceIds } from '../../../../../shared/admin/finance'
 import { ApiError } from '../../lib/api-error'
@@ -10,12 +10,14 @@ import { prototypeFinanceItems } from './prototype-data'
 import { WallstreetCnFinanceFlashAdapter } from './wallstreetcn'
 
 const FINANCE_EXCLUSION_RETENTION_DAYS = 180
+const FINANCE_FLASH_RETENTION_MS = 24 * 60 * 60_000
 
 const FINANCE_SOURCES: ReadonlyArray<{ sourceId: FinanceSourceId, sourceName: string }> = [
 	{ sourceId: 'cls-telegraph-7x24', sourceName: '财联社' },
 	{ sourceId: 'jin10-mcp-7x24', sourceName: '金十数据' },
 	{ sourceId: 'wallstreetcn-7x24', sourceName: '华尔街见闻' },
 ]
+const FINANCE_ROLLING_SOURCE_IDS = new Set<string>(financeSourceIds)
 
 interface FinanceSourceSettingRow {
 	source_id: FinanceSourceId
@@ -232,9 +234,11 @@ export class FinanceFlashService {
 					changedItems.push({ id, item })
 			}
 
-			const staleIds = existing.results
-				.filter(row => !incomingIds.has(row.id))
-				.map(row => row.id)
+			// 正式 7×24 来源使用滚动窗口，抓取窗口没再次返回的事件不能提前删除；
+			// prototype / 自定义 adapter 仍保留原来的完整快照语义，便于离线样例与扩展源独立工作。
+			const staleIds = FINANCE_ROLLING_SOURCE_IDS.has(adapter.id)
+				? []
+				: existing.results.filter(row => !incomingIds.has(row.id)).map(row => row.id)
 			const statements = changedItems.map(({ id, item }) => this.env.DB.prepare(`
 				INSERT INTO finance_flash_items (
 					id, source_id, title, summary, published_at, category, category_label, topic,
@@ -311,12 +315,22 @@ export class FinanceFlashService {
 	}
 
 	async sync(): Promise<FinanceSyncResult> {
+		let result: FinanceSyncResult
 		if (FINANCE_SOURCES.some(source => source.sourceId === this.adapter.id)) {
 			const setting = (await this.sourceSettings()).find(source => source.sourceId === this.adapter.id)
 			if (setting && !setting.enabled)
-				return { sourceId: this.adapter.id, status: 'skipped', itemCount: 0, reason: 'disabled' }
+				result = { sourceId: this.adapter.id, status: 'skipped', itemCount: 0, reason: 'disabled' }
+			else
+				result = await this.syncAdapter(this.adapter, { replaceFallback: true })
 		}
-		return this.syncAdapter(this.adapter, { replaceFallback: true })
+		else {
+			result = await this.syncAdapter(this.adapter, { replaceFallback: true })
+		}
+		const retentionDeleted = await this.cleanupSourceFlashRetention(this.adapter.id)
+		if (result.status === 'success' && retentionDeleted > 0)
+			result.deletedCount = (result.deletedCount || 0) + retentionDeleted
+		await this.cleanupRetention()
+		return result
 	}
 
 	async syncAll(): Promise<FinanceSyncResult[]> {
@@ -338,8 +352,13 @@ export class FinanceFlashService {
 				results.push({ sourceId: adapter.id, status: 'skipped', itemCount: 0, reason: 'missing-secret' })
 				continue
 			}
-			results.push(await this.syncAdapter(adapter, { replaceFallback: adapter === this.adapter }))
+			const result = await this.syncAdapter(adapter, { replaceFallback: adapter === this.adapter })
+			const retentionDeleted = await this.cleanupSourceFlashRetention(adapter.id)
+			if (result.status === 'success' && retentionDeleted > 0)
+				result.deletedCount = (result.deletedCount || 0) + retentionDeleted
+			results.push(result)
 		}
+		await this.cleanupRetention()
 		return results
 	}
 
@@ -447,6 +466,54 @@ export class FinanceFlashService {
 		}
 	}
 
+	private shanghaiToday(now: Date): { dateKey: string, start: string } {
+		const parts = new Intl.DateTimeFormat('en-CA', {
+			year: 'numeric',
+			month: '2-digit',
+			day: '2-digit',
+			timeZone: 'Asia/Shanghai',
+		}).formatToParts(now)
+		const value = (type: Intl.DateTimeFormatPartTypes) => parts.find(part => part.type === type)?.value || ''
+		const dateKey = `${value('year')}-${value('month')}-${value('day')}`
+		return { dateKey, start: new Date(`${dateKey}T00:00:00+08:00`).toISOString() }
+	}
+
+	async todayThemes(now = new Date()): Promise<FinanceTodayThemesDto> {
+		const { start } = this.shanghaiToday(now)
+		const publicRowCondition = this.publicRowCondition('f')
+		const items = await this.env.DB.prepare(`
+			SELECT f.* FROM finance_flash_items f
+			WHERE ${publicRowCondition}
+				AND NOT EXISTS (
+					SELECT 1 FROM finance_flash_exclusions e
+					WHERE e.item_id = f.id AND e.restored_at IS NULL
+				)
+				AND julianday(f.published_at) >= julianday(?)
+				AND julianday(f.published_at) <= julianday(?)
+			ORDER BY f.published_at DESC, f.id DESC
+		`).bind(start, now.toISOString()).all<FinanceFlashRow>()
+		const groupedItems = groupFinanceEvents(items.results.map(row => this.dto(row)))
+		const counts = new Map<string, number>()
+		for (const item of groupedItems) {
+			const topic = item.topic?.trim()
+			if (topic)
+				counts.set(topic, (counts.get(topic) || 0) + 1)
+		}
+		return {
+			themes: [...counts.entries()]
+				.sort(([leftTopic, leftCount], [rightTopic, rightCount]) => rightCount - leftCount || leftTopic.localeCompare(rightTopic, 'zh-CN'))
+				.map(([topic, count]) => ({ topic, count })),
+			eventCount: groupedItems.length,
+			sourceCount: new Set(items.results.map(row => row.source_id)).size,
+			updatedAt: items.results.reduce<string | null>((latest, row) => !latest || row.updated_at > latest ? row.updated_at : latest, null),
+		}
+	}
+
+	async todayThemesVersion(now = new Date()): Promise<string> {
+		const { dateKey } = this.shanghaiToday(now)
+		return `${await this.listVersion()}:today=${dateKey}`
+	}
+
 	async adminList(options: {
 		importantOnly?: boolean
 		category?: FinanceCategory
@@ -550,13 +617,31 @@ export class FinanceFlashService {
 	}
 
 	async cleanupRetention(now = new Date()): Promise<{ deletedExclusions: number }> {
-		const cutoff = new Date(now.getTime() - FINANCE_EXCLUSION_RETENTION_DAYS * 86_400_000).toISOString()
+		const flashCutoff = new Date(now.getTime() - FINANCE_FLASH_RETENTION_MS).toISOString()
+		const exclusionCutoff = new Date(now.getTime() - FINANCE_EXCLUSION_RETENTION_DAYS * 86_400_000).toISOString()
+		await this.env.DB.prepare(`
+			DELETE FROM finance_flash_items
+			WHERE source_id IN (?, ?, ?)
+				AND julianday(published_at) < julianday(?)
+		`).bind(...financeSourceIds, flashCutoff).run()
 		const result = await this.env.DB.prepare(`
 			DELETE FROM finance_flash_exclusions
 			WHERE COALESCE(restored_at, created_at) < ?
 				AND NOT EXISTS (SELECT 1 FROM finance_flash_items f WHERE f.id = finance_flash_exclusions.item_id)
-		`).bind(cutoff).run()
+		`).bind(exclusionCutoff).run()
 		return { deletedExclusions: result.meta.changes || 0 }
+	}
+
+	private async cleanupSourceFlashRetention(sourceId: string, now = new Date()): Promise<number> {
+		if (!FINANCE_ROLLING_SOURCE_IDS.has(sourceId))
+			return 0
+		const cutoff = new Date(now.getTime() - FINANCE_FLASH_RETENTION_MS).toISOString()
+		const result = await this.env.DB.prepare(`
+			DELETE FROM finance_flash_items
+			WHERE source_id = ?
+				AND julianday(published_at) < julianday(?)
+		`).bind(sourceId, cutoff).run()
+		return result.meta.changes || 0
 	}
 
 	async status() {

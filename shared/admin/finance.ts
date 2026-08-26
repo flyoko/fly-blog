@@ -43,6 +43,18 @@ export interface FinanceFlashListDto {
 	quality: FinanceFlashQuality
 }
 
+export interface FinanceTodayThemeDto {
+	topic: string
+	count: number
+}
+
+export interface FinanceTodayThemesDto {
+	themes: FinanceTodayThemeDto[]
+	eventCount: number
+	sourceCount: number
+	updatedAt: string | null
+}
+
 export interface AdminFinanceFlashDto extends FinanceFlashDto {
 	publicVisible: boolean
 	hidden: boolean

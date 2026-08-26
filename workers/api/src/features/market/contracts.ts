@@ -58,6 +58,10 @@ export const MARKET_SYNC_WINDOWS = [
 	{ startMinute: 9 * 60 + 20, endMinute: 11 * 60 + 35 },
 	{ startMinute: 12 * 60 + 55, endMinute: 15 * 60 + 15 },
 ] as const
+export const MARKET_SECTOR_FINAL_CLOSE_WINDOW = {
+	startMinute: 15 * 60 + 45,
+	endMinute: 15 * 60 + 49,
+} as const
 export const MARKET_SYNC_SLOTS_PER_TRADING_DAY = MARKET_SYNC_WINDOWS.reduce(
 	(total, window) => total + Math.floor((window.endMinute - window.startMinute) / MARKET_SYNC_INTERVAL_MINUTES) + 1,
 	0,
@@ -68,6 +72,16 @@ export function isChinaMarketSyncWindow(date: Date): boolean {
 	if (!isChinaAShareTradingDate(date))
 		return false
 	return MARKET_SYNC_WINDOWS.some(window => minutes >= window.startMinute && minutes <= window.endMinute)
+}
+
+export function isChinaMarketSectorSyncWindow(date: Date): boolean {
+	if (isChinaMarketSyncWindow(date))
+		return true
+	const { minutes } = shanghaiParts(date)
+	if (!isChinaAShareTradingDate(date))
+		return false
+	return minutes >= MARKET_SECTOR_FINAL_CLOSE_WINDOW.startMinute
+		&& minutes <= MARKET_SECTOR_FINAL_CLOSE_WINDOW.endMinute
 }
 
 export interface StockQuoteProviderResult {

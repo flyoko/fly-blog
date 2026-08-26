@@ -102,6 +102,12 @@ export type FinancialReportPeriod = typeof financialReportPeriods[number]
 export const financialTrendFilters = ['up', 'any'] as const
 export type FinancialTrendFilter = typeof financialTrendFilters[number]
 
+export const financialScreenerSorts = ['netProfitYoY', 'grossMarginYoYChange', 'inventoryYoYPct'] as const
+export type FinancialScreenerSort = typeof financialScreenerSorts[number]
+
+export const financialScreenerOrders = ['desc', 'asc'] as const
+export type FinancialScreenerOrder = typeof financialScreenerOrders[number]
+
 export interface MarketFinancialScreenerFilters {
 	period: FinancialReportPeriod
 	reportDate: string | null
@@ -109,6 +115,9 @@ export interface MarketFinancialScreenerFilters {
 	grossMarginTrend: FinancialTrendFilter
 	inventoryTrend: FinancialTrendFilter
 	keyword: string
+	sort: FinancialScreenerSort
+	order: FinancialScreenerOrder
+	offset: number
 	limit: number
 }
 

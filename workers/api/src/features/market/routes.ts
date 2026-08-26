@@ -1,10 +1,10 @@
-import type { CiticFuturesSeries, FinancialReportPeriod, FinancialTrendFilter, MarketFinancialScreenerFilters, SectorKind } from '../../../../../shared/market'
+import type { CiticFuturesSeries, FinancialReportPeriod, FinancialScreenerOrder, FinancialScreenerSort, FinancialTrendFilter, MarketFinancialScreenerFilters, SectorKind } from '../../../../../shared/market'
 import type { AppEnvironment, Env } from '../../env'
 import type { FinancialScreenerService } from './financial-screener-service'
 import type { FuturesPositionService } from './futures-position-service'
 import type { MarketService } from './service'
 import { Hono } from 'hono'
-import { citicFuturesSeries, financialReportPeriods, financialTrendFilters, sectorKinds } from '../../../../../shared/market'
+import { citicFuturesSeries, financialReportPeriods, financialScreenerOrders, financialScreenerSorts, financialTrendFilters, sectorKinds } from '../../../../../shared/market'
 import { ApiError, success } from '../../lib/api-error'
 import { publicCacheData } from '../../lib/public-cache'
 import { FinancialScreenerService as DefaultFinancialScreenerService } from './financial-screener-service'
@@ -86,8 +86,29 @@ function financialTrend(value: string | undefined, field: string): FinancialTren
 
 function financialLimit(value: string | undefined): number {
 	const parsed = value === undefined ? 100 : Number(value)
-	if (!Number.isInteger(parsed) || parsed < 1 || parsed > 500)
+	if (!Number.isInteger(parsed) || parsed < 1 || parsed > 100)
 		throw new ApiError('VALIDATION_FAILED', 400, 'Financial screener limit is invalid')
+	return parsed
+}
+
+function financialSort(value: string | undefined): FinancialScreenerSort {
+	const normalized = value || 'netProfitYoY'
+	if (!financialScreenerSorts.includes(normalized as FinancialScreenerSort))
+		throw new ApiError('VALIDATION_FAILED', 400, 'Financial screener sort is invalid')
+	return normalized as FinancialScreenerSort
+}
+
+function financialOrder(value: string | undefined): FinancialScreenerOrder {
+	const normalized = value || 'desc'
+	if (!financialScreenerOrders.includes(normalized as FinancialScreenerOrder))
+		throw new ApiError('VALIDATION_FAILED', 400, 'Financial screener order is invalid')
+	return normalized as FinancialScreenerOrder
+}
+
+function financialOffset(value: string | undefined): number {
+	const parsed = value === undefined ? 0 : Number(value)
+	if (!Number.isSafeInteger(parsed) || parsed < 0)
+		throw new ApiError('VALIDATION_FAILED', 400, 'Financial screener offset is invalid')
 	return parsed
 }
 
@@ -139,6 +160,9 @@ export function createPublicMarketRoutes(
 			minNetProfitYoY: financialThreshold(c.req.query('minNetProfitYoY')),
 			grossMarginTrend: financialTrend(c.req.query('grossMarginTrend'), 'Gross margin'),
 			inventoryTrend: financialTrend(c.req.query('inventoryTrend'), 'Inventory'),
+			sort: financialSort(c.req.query('sort')),
+			order: financialOrder(c.req.query('order')),
+			offset: financialOffset(c.req.query('offset')),
 			limit: financialLimit(c.req.query('limit')),
 			keyword: financialKeyword(c.req.query('q')),
 		}

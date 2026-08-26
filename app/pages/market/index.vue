@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { AdminSessionDto } from '#shared/admin/auth'
-import type { FinanceFilter, FinanceFlashDto, FinanceFlashListDto, FinanceFlashSourceDto } from '#shared/admin/finance'
-import type { CiticFuturesPositionHistory, CiticFuturesSeries, FinancialReportPeriod, FinancialTrendFilter, MarketDataQuality, MarketEnvelope, MarketFinancialScreenerData, MarketFinancialScreenerItem, MarketOverview, SectorFlowItem, SectorFlowWeek, SectorKind, SectorWeekOffset, WatchlistItem, WatchlistRadarItem, WatchlistRadarResponse } from '#shared/market'
+import type { FinanceFilter, FinanceFlashDto, FinanceFlashListDto, FinanceFlashSourceDto, FinanceTodayThemesDto } from '#shared/admin/finance'
+import type { CiticFuturesPositionHistory, CiticFuturesSeries, FinancialReportPeriod, FinancialTrendFilter, MarketDataQuality, MarketEnvelope, MarketFinancialScreenerData, MarketOverview, SectorFlowItem, SectorFlowWeek, SectorKind, SectorWeekOffset, WatchlistItem, WatchlistRadarItem, WatchlistRadarResponse } from '#shared/market'
 import type { SectorSortDirection, SectorSortKey, SectorWeekSortKey } from '~/utils/market-sector-table'
 import MarketFuturesPositionChart from '~/components/market/MarketFuturesPositionChart.vue'
 import MarketSignalDesk from '~/components/market/MarketSignalDesk.vue'
@@ -12,6 +12,8 @@ type MarketWorkspace = 'radar' | 'funds' | 'watchlist' | 'signals' | 'strategy'
 type WatchlistSortMode = 'custom' | 'change' | 'attention' | 'turnover'
 type FundsPanel = 'sectors' | 'citic'
 type FinancialSortKey = 'netProfitYoY' | 'grossMarginYoYChange' | 'inventoryYoYPct'
+
+const FINANCIAL_PAGE_SIZE = 20
 
 const workspaceTabs: Array<{ id: MarketWorkspace, label: string, icon: string, note: string }> = [
 	{ id: 'radar', label: '市场雷达', icon: 'tabler:radar', note: '行情与财经事件' },
@@ -100,10 +102,23 @@ const financeTime = new Intl.DateTimeFormat('zh-CN', {
 	timeZone: 'Asia/Shanghai',
 })
 
+const shanghaiMarketPhaseTime = new Intl.DateTimeFormat('en-CA', {
+	year: 'numeric',
+	month: '2-digit',
+	day: '2-digit',
+	hour: '2-digit',
+	minute: '2-digit',
+	hour12: false,
+	timeZone: 'Asia/Shanghai',
+})
+
 const activeWorkspace = ref<MarketWorkspace>('radar')
 const financeData = ref<FinanceFlashListDto | null>(null)
+const todayThemesData = ref<FinanceTodayThemesDto | null>(null)
 const financeLoading = ref(true)
 const financeError = ref('')
+const todayThemesLoading = ref(true)
+const todayThemesError = ref('')
 const financeFilter = ref<FinanceFilter>('all')
 const financeImportantOnly = ref(false)
 const marketOverview = ref<MarketEnvelope<MarketOverview> | null>(null)
@@ -131,7 +146,9 @@ const financialKeyword = ref('')
 const financialSortKey = ref<FinancialSortKey>('netProfitYoY')
 const financialData = ref<MarketEnvelope<MarketFinancialScreenerData> | null>(null)
 const financialLoading = ref(false)
+const financialLoadMoreLoading = ref(false)
 const financialError = ref('')
+const financialFiltersExpanded = ref(false)
 const watchlistSession = ref<AdminSessionDto | null>(null)
 const watchlistSessionLoading = ref(false)
 const watchlistConfig = ref<WatchlistItem[]>([])
@@ -151,6 +168,7 @@ const watchlistMutationLoading = ref(false)
 const watchlistSortMode = ref<WatchlistSortMode>('custom')
 const currentClock = ref<Date | null>(null)
 let financeRevision = 0
+let todayThemesRevision = 0
 let marketOverviewRevision = 0
 let sectorFlowRevision = 0
 let futuresPositionRevision = 0
@@ -169,23 +187,13 @@ const visibleFinanceItems = computed(() => financeItems.value.filter(item =>
 	(financeFilter.value === 'all' || item.category === financeFilter.value)
 	&& (!financeImportantOnly.value || item.important),
 ))
-const mainlineTopics = computed(() => {
-	const counts = new Map<string, number>()
-	for (const item of financeItems.value) {
-		const topic = item.topic?.trim()
-		if (!topic)
-			continue
-		counts.set(topic, (counts.get(topic) || 0) + 1)
-	}
-	return [...counts.entries()]
-		.sort(([leftTopic, leftCount], [rightTopic, rightCount]) => rightCount - leftCount || leftTopic.localeCompare(rightTopic, 'zh-CN'))
-		.slice(0, 3)
-		.map(([topic, count]) => ({ topic, count }))
-})
+const mainlineTopics = computed(() => todayThemesData.value?.themes.slice(0, 3) || [])
 const mainlineSummary = computed(() => {
 	if (mainlineTopics.value.length)
 		return mainlineTopics.value.map(item => `${item.topic} ×${item.count}`).join(' · ')
-	return financeLoading.value ? '正在从公开财经事件提取主线。' : '当前公开财经事件暂无可归纳主题。'
+	if (todayThemesLoading.value)
+		return '正在从今日公开财经事件提取主线。'
+	return todayThemesError.value ? '主题待更新' : '今日公开财经事件暂无可归纳主题。'
 })
 const connectionState = computed(() => {
 	if (financeError.value)
@@ -232,15 +240,8 @@ const marketQualityState = computed(() => qualityState(marketOverview.value?.qua
 const sectorQualityState = computed(() => sectorFlowData.value?.quality === 'unavailable'
 	? { label: '暂无可信资金数据', tone: 'muted' as const }
 	: qualityState(sectorFlowData.value?.quality))
-const financialItems = computed(() => {
-	const items = financialData.value?.data?.items || []
-	const key = financialSortKey.value
-	return [...items].sort((left, right) => {
-		const leftValue = financialSortValue(left, key)
-		const rightValue = financialSortValue(right, key)
-		return rightValue - leftValue || left.securityCode.localeCompare(right.securityCode)
-	})
-})
+const financialItems = computed(() => financialData.value?.data?.items || [])
+const financialHasMore = computed(() => financialItems.value.length < (financialData.value?.data?.matchedCount || 0))
 const financialQualityState = computed(() => {
 	if (financialError.value && financialData.value?.data)
 		return { label: '刷新失败 · 保留快照', tone: 'warning' as const }
@@ -324,6 +325,30 @@ function formatDataDate(value: string | null) {
 	if (Number.isNaN(date.getTime()))
 		return '--.--'
 	return shanghaiDate.format(date).replaceAll('/', '.')
+}
+
+function shanghaiMarketPhaseParts(value: string | null) {
+	if (!value)
+		return null
+	const date = new Date(value)
+	if (Number.isNaN(date.getTime()))
+		return null
+	const parts = shanghaiMarketPhaseTime.formatToParts(date)
+	const read = (type: Intl.DateTimeFormatPartTypes) => parts.find(part => part.type === type)?.value || ''
+	return {
+		date: `${read('year')}-${read('month')}-${read('day')}`,
+		minutes: Number(read('hour')) * 60 + Number(read('minute')),
+	}
+}
+
+function sectorSnapshotPhase(marketAt: string | null, fetchedAt: string | null) {
+	const market = shanghaiMarketPhaseParts(marketAt)
+	const fetched = shanghaiMarketPhaseParts(fetchedAt)
+	if (!market)
+		return '待同步'
+	if (fetched?.date === market.date && fetched.minutes >= 15 * 60 + 45)
+		return '收盘最终'
+	return '盘中更新'
 }
 
 function formatSectorDateKey(value: string | null) {
@@ -471,9 +496,7 @@ async function loadFinance(options: { background?: boolean } = {}) {
 		financeLoading.value = true
 	financeError.value = ''
 	try {
-		const result = await $fetch<{ data: FinanceFlashListDto }>('/api/finance/flash', {
-			query: { limit: 100 },
-		})
+		const result = await $fetch<{ data: FinanceFlashListDto }>('/api/finance/flash', { query: { limit: 100 } })
 		if (revision === financeRevision)
 			financeData.value = result.data
 	}
@@ -484,6 +507,26 @@ async function loadFinance(options: { background?: boolean } = {}) {
 	finally {
 		if (revision === financeRevision)
 			financeLoading.value = false
+	}
+}
+
+async function loadTodayThemes(options: { background?: boolean } = {}) {
+	const revision = ++todayThemesRevision
+	if (!options.background)
+		todayThemesLoading.value = true
+	todayThemesError.value = ''
+	try {
+		const result = await $fetch<{ data: FinanceTodayThemesDto }>('/api/finance/themes/today')
+		if (revision === todayThemesRevision)
+			todayThemesData.value = result.data
+	}
+	catch (cause) {
+		if (revision === todayThemesRevision)
+			todayThemesError.value = cause instanceof Error ? cause.message : '今日主题加载失败'
+	}
+	finally {
+		if (revision === todayThemesRevision)
+			todayThemesLoading.value = false
 	}
 }
 
@@ -551,14 +594,28 @@ async function loadFuturesPositions(options: { background?: boolean } = {}) {
 	}
 }
 
-async function loadFinancialScreener() {
+async function loadFinancialScreener(options: { append?: boolean } = {}) {
+	const append = options.append === true
+	if (append && (financialLoading.value || financialLoadMoreLoading.value || !financialHasMore.value))
+		return
+
 	const minNetProfitYoY = Number(financialMinNetProfitYoY.value)
 	if (!Number.isFinite(minNetProfitYoY) || minNetProfitYoY < -1000 || minNetProfitYoY > 100000) {
+		if (!append) {
+			financialRevision += 1
+			financialLoading.value = false
+			financialLoadMoreLoading.value = false
+		}
 		financialError.value = '归母净利润同比阈值需在 -1000% 到 100000% 之间'
 		return
 	}
-	const revision = ++financialRevision
-	financialLoading.value = true
+	const revision = append ? financialRevision : ++financialRevision
+	if (!append)
+		financialLoadMoreLoading.value = false
+	if (append)
+		financialLoadMoreLoading.value = true
+	else
+		financialLoading.value = true
 	financialError.value = ''
 	try {
 		const result = await $fetch<{ data: MarketEnvelope<MarketFinancialScreenerData> }>('/api/market/financial-screener', {
@@ -568,20 +625,48 @@ async function loadFinancialScreener() {
 				grossMarginTrend: financialGrossMarginTrend.value,
 				inventoryTrend: financialInventoryTrend.value,
 				q: financialKeyword.value.trim() || undefined,
-				limit: 100,
+				sort: financialSortKey.value,
+				order: 'desc',
+				offset: append ? financialItems.value.length : 0,
+				limit: FINANCIAL_PAGE_SIZE,
 			},
 		})
-		if (revision === financialRevision)
+		if (revision !== financialRevision)
+			return
+		if (!append) {
 			financialData.value = result.data
+			return
+		}
+		const nextData = result.data.data
+		if (!nextData) {
+			financialData.value = result.data
+			return
+		}
+		const existingItems = financialData.value?.data?.items || []
+		financialData.value = {
+			...result.data,
+			data: {
+				...nextData,
+				items: [...existingItems, ...nextData.items],
+			},
+		}
 	}
 	catch (cause) {
 		if (revision === financialRevision)
 			financialError.value = cause instanceof Error ? cause.message : '财报筛选加载失败'
 	}
 	finally {
-		if (revision === financialRevision)
-			financialLoading.value = false
+		if (revision === financialRevision) {
+			if (append)
+				financialLoadMoreLoading.value = false
+			else
+				financialLoading.value = false
+		}
 	}
+}
+
+async function loadMoreFinancialScreener() {
+	await loadFinancialScreener({ append: true })
 }
 
 function resetFinancialScreener() {
@@ -592,10 +677,6 @@ function resetFinancialScreener() {
 	financialKeyword.value = ''
 	financialSortKey.value = 'netProfitYoY'
 	void loadFinancialScreener()
-}
-
-function financialSortValue(item: MarketFinancialScreenerItem, key: FinancialSortKey) {
-	return item[key] ?? Number.NEGATIVE_INFINITY
 }
 
 function formatFinancialPercent(value: number | null | undefined, signed = false) {
@@ -969,7 +1050,9 @@ async function removeWatchlistItem(item: WatchlistItem) {
 }
 
 function refreshRadar() {
-	void Promise.all([loadFinance(), loadMarketOverview()])
+	void loadFinance()
+	void loadTodayThemes()
+	void loadMarketOverview()
 }
 
 watch(activeWorkspace, (workspace) => {
@@ -1024,9 +1107,11 @@ onMounted(() => {
 	currentClock.value = new Date()
 	document.addEventListener('visibilitychange', handleMarketVisibilityChange)
 	void loadFinance()
+	void loadTodayThemes()
 	void loadMarketOverview()
 	refreshTimer = setInterval(() => {
 		void loadFinance({ background: true })
+		void loadTodayThemes({ background: true })
 		void loadMarketOverview({ background: true })
 		if (activeWorkspace.value === 'funds') {
 			if (fundsPanel.value === 'sectors')
@@ -1147,7 +1232,12 @@ onBeforeUnmount(() => {
 				<header><span>TODAY / THEMES</span><b>NEWS-BASED</b></header>
 				<h3>今日主线</h3>
 				<p>{{ mainlineSummary }}</p>
-				<footer><Icon name="tabler:chart-dots" aria-hidden="true" />按公开财经事件主题频次归纳</footer>
+				<footer v-if="todayThemesData && !todayThemesError">
+					<Icon name="tabler:chart-dots" aria-hidden="true" />今日 {{ todayThemesData.eventCount }} 条去重事件 · {{ todayThemesData.sourceCount }} 个来源 · 更新 {{ formatDateTime(todayThemesData.updatedAt) }}
+				</footer>
+				<footer v-else>
+					<Icon name="tabler:clock-exclamation" aria-hidden="true" />{{ todayThemesLoading ? '今日主题加载中' : '主题待更新' }}
+				</footer>
 			</article>
 			<article class="market-capability">
 				<header><span>WATCHLIST</span><b>自选</b></header>
@@ -1307,6 +1397,7 @@ onBeforeUnmount(() => {
 			</div>
 
 			<div v-if="sectorFlowData" class="market-data-freshness" aria-label="板块资金数据时间">
+				<span><b>阶段</b>{{ sectorSnapshotPhase(sectorFlowData.marketAt, sectorFlowData.fetchedAt) }}</span>
 				<span><b>数据日</b>{{ formatDataDate(sectorFlowData.marketAt) }}</span>
 				<span><b>市场时间</b>{{ formatDateTime(sectorFlowData.marketAt) }}</span>
 				<span><b>抓取时间</b>{{ formatDateTime(sectorFlowData.fetchedAt) }}</span>
@@ -1642,48 +1733,53 @@ onBeforeUnmount(() => {
 
 		<div v-if="financialData?.data" class="market-financial-summary" aria-label="财报筛选快照摘要">
 			<div><span>报告期</span><strong>{{ financialData.data.reportDate }}</strong><small>对比 {{ financialData.data.comparisonReportDate }}</small></div>
-			<div><span>覆盖公司</span><strong>{{ financialData.data.totalAvailable }}</strong><small>当前完整快照</small></div>
-			<div><span>当前命中</span><strong>{{ financialData.data.matchedCount }}</strong><small>按当前条件计算</small></div>
-			<div>
-				<span>数据来源</span>
+			<div><span>已披露公司</span><strong>{{ financialData.data.totalAvailable }}</strong><small>当前完整快照</small></div>
+			<div><span>命中</span><strong>{{ financialData.data.matchedCount }}</strong><small>按当前条件计算</small></div>
+			<div class="market-financial-summary-meta">
+				<span>来源 / 时间</span>
 				<a v-if="financialSource" :href="financialSource.endpoint" target="_blank" rel="noopener noreferrer">{{ financialSource.sourceName }}</a>
 				<strong v-else>--</strong>
-				<small>{{ formatDateTime(financialData.fetchedAt) }}</small>
+				<small>同步 {{ formatDateTime(financialData.fetchedAt) }}</small>
 			</div>
 		</div>
 
-		<form class="market-financial-filters" @submit.prevent="loadFinancialScreener()">
+		<div class="market-financial-condition-bar">
+			<div class="market-financial-condition-chips" aria-label="当前财报筛选条件">
+				<span>净利≥{{ financialMinNetProfitYoY }}%</span>
+				<span>{{ financialGrossMarginTrend === 'up' ? '毛利率↑' : '毛利率不限' }}</span>
+				<span>{{ financialInventoryTrend === 'up' ? '存货↑' : '存货不限' }}</span>
+			</div>
+			<button type="button" :aria-expanded="financialFiltersExpanded" aria-controls="market-financial-filters" @click="financialFiltersExpanded = !financialFiltersExpanded">
+				<Icon name="tabler:adjustments-horizontal" aria-hidden="true" />调整条件
+			</button>
+		</div>
+
+		<form v-show="financialFiltersExpanded" id="market-financial-filters" class="market-financial-filters" @submit.prevent="loadFinancialScreener()">
 			<label>
 				<span>报告期</span>
-				<select v-model="financialPeriod">
+				<select v-model="financialPeriod" @change="loadFinancialScreener()">
 					<option v-for="option in financialPeriodOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
 				</select>
 			</label>
 			<label>
 				<span>归母净利润同比 ≥</span>
-				<div class="market-financial-number"><input v-model.number="financialMinNetProfitYoY" type="number" min="-1000" max="100000" step="0.1" inputmode="decimal"><em>%</em></div>
+				<div class="market-financial-number"><input v-model.number="financialMinNetProfitYoY" type="number" min="-1000" max="100000" step="0.1" inputmode="decimal" @change="loadFinancialScreener()"><em>%</em></div>
 			</label>
 			<label>
 				<span>毛利率同比</span>
-				<select v-model="financialGrossMarginTrend">
+				<select v-model="financialGrossMarginTrend" @change="loadFinancialScreener()">
 					<option v-for="option in financialTrendOptions" :key="`gm-${option.id}`" :value="option.id">{{ option.label }}</option>
 				</select>
 			</label>
 			<label>
 				<span>存货同比</span>
-				<select v-model="financialInventoryTrend">
+				<select v-model="financialInventoryTrend" @change="loadFinancialScreener()">
 					<option v-for="option in financialTrendOptions" :key="`inv-${option.id}`" :value="option.id">{{ option.label }}</option>
 				</select>
 			</label>
 			<label class="market-financial-search">
 				<span>搜索</span>
-				<input v-model="financialKeyword" type="search" maxlength="40" placeholder="代码 / 名称 / 行业">
-			</label>
-			<label>
-				<span>排序</span>
-				<select v-model="financialSortKey">
-					<option v-for="option in financialSortOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
-				</select>
+				<input v-model="financialKeyword" type="search" maxlength="40" placeholder="代码 / 名称 / 行业" @change="loadFinancialScreener()">
 			</label>
 			<div class="market-financial-actions">
 				<button type="button" :disabled="financialLoading" @click="resetFinancialScreener">
@@ -1694,10 +1790,6 @@ onBeforeUnmount(() => {
 				</button>
 			</div>
 		</form>
-
-		<p class="market-financial-rule">
-			<b>默认三条件</b><span>归母净利润同比 ≥ 50%</span><span>毛利率同报告期同比提升</span><span>存货同报告期同比提升</span>
-		</p>
 
 		<div v-if="financialLoading && !financialData" class="market-loading market-financial-state">
 			<Icon name="tabler:loader-2" />正在读取真实财报快照…
@@ -1716,7 +1808,13 @@ onBeforeUnmount(() => {
 			</div>
 
 			<div class="market-financial-result-head">
-				<div><strong>筛选结果</strong><span v-if="financialData.data.matchedCount > financialItems.length">展示前 {{ financialItems.length }} / {{ financialData.data.matchedCount }} 条</span><span v-else>共 {{ financialData.data.matchedCount }} 条</span></div>
+				<div><strong>{{ financialData.data.matchedCount }} 家命中</strong><span>已展示 {{ financialItems.length }} 家</span></div>
+				<label class="market-financial-result-sort">
+					<span>排序</span>
+					<select v-model="financialSortKey" :disabled="financialLoading || financialLoadMoreLoading" @change="loadFinancialScreener()">
+						<option v-for="option in financialSortOptions" :key="option.id" :value="option.id">{{ option.label }}</option>
+					</select>
+				</label>
 				<small>只说明条件命中，不构成交易结论</small>
 			</div>
 
@@ -1748,14 +1846,33 @@ onBeforeUnmount(() => {
 
 			<div v-if="financialItems.length" class="market-financial-mobile">
 				<article v-for="item in financialItems" :key="`mobile-${item.reportDate}-${item.securityCode}`">
-					<header><div><strong>{{ item.securityName }}</strong><span>{{ item.securityCode }} · {{ item.industryName || '行业未标注' }}</span></div><b>{{ formatFinancialPercent(item.netProfitYoY, true) }}</b></header>
+					<header>
+						<div><strong>{{ item.securityName }}</strong><span>{{ item.securityCode }} · {{ item.industryName || '行业未标注' }}</span></div>
+						<div class="market-financial-profit">
+							<span>净利润同比</span><b>{{ formatFinancialPercent(item.netProfitYoY, true) }}</b>
+						</div>
+					</header>
 					<div class="market-financial-mobile-metrics">
-						<div><span>归母净利润同比</span><strong>{{ formatFinancialPercent(item.netProfitYoY, true) }}</strong><small>阈值 ≥ {{ financialData.data.filters.minNetProfitYoY }}%</small></div>
-						<div><span>毛利率同比</span><strong>{{ formatFinancialPointChange(item.grossMarginYoYChange) }}</strong><small>{{ formatFinancialPercent(item.previousGrossMargin) }} → {{ formatFinancialPercent(item.grossMargin) }}</small></div>
-						<div><span>存货同比</span><strong>{{ formatFinancialPercent(item.inventoryYoYPct, true) }}</strong><small>{{ formatFinancialInventory(item.previousInventory) }} → {{ formatFinancialInventory(item.inventory) }}</small></div>
+						<div><span>毛利率改善</span><strong>{{ formatFinancialPointChange(item.grossMarginYoYChange) }}</strong></div>
+						<div><span>存货同比</span><strong>{{ formatFinancialPercent(item.inventoryYoYPct, true) }}</strong></div>
 					</div>
-					<footer><span>报告期 {{ item.reportDate }}</span><span>公告日 {{ item.noticeDate }}</span></footer>
+					<details class="market-financial-evidence">
+						<summary>查看条件证据</summary>
+						<div>
+							<p><span>净利润阈值</span><strong>{{ formatFinancialPercent(item.netProfitYoY, true) }} ≥ {{ financialData.data.filters.minNetProfitYoY }}%</strong></p>
+							<p><span>毛利率</span><strong>{{ formatFinancialPercent(item.previousGrossMargin) }} → {{ formatFinancialPercent(item.grossMargin) }}</strong></p>
+							<p><span>存货</span><strong>{{ formatFinancialInventory(item.previousInventory) }} → {{ formatFinancialInventory(item.inventory) }}</strong></p>
+							<p><span>报告期</span><strong>{{ item.reportDate }}</strong></p>
+							<p><span>公告日</span><strong>{{ item.noticeDate }}</strong></p>
+						</div>
+					</details>
 				</article>
+			</div>
+
+			<div v-if="financialHasMore" class="market-financial-load-more">
+				<button type="button" :disabled="financialLoading || financialLoadMoreLoading" @click="loadMoreFinancialScreener">
+					<Icon name="tabler:plus" aria-hidden="true" />{{ financialLoadMoreLoading ? '加载中' : '加载更多' }}
+				</button>
 			</div>
 		</template>
 	</section>
@@ -2958,6 +3075,10 @@ onBeforeUnmount(() => {
 	background: var(--market-panel);
 }
 
+.market-financial-summary > .market-financial-summary-meta {
+	min-width: 0;
+}
+
 .market-financial-summary span,
 .market-financial-filters label > span,
 .market-financial-mobile-metrics span {
@@ -2984,6 +3105,44 @@ onBeforeUnmount(() => {
 .market-financial-summary small {
 	font: 0.56rem var(--font-monospace);
 	color: var(--market-text-3);
+}
+
+.market-financial-condition-bar {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.65rem;
+	margin: 0.65rem 0.8rem 0;
+}
+
+.market-financial-condition-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.35rem;
+}
+
+.market-financial-condition-chips span {
+	padding: 0.28rem 0.48rem;
+	border: 1px solid var(--market-border-strong);
+	border-radius: 999px;
+	background: var(--market-accent-soft);
+	font: 0.56rem var(--font-monospace);
+	color: var(--market-accent-strong);
+}
+
+.market-financial-condition-bar button,
+.market-financial-load-more button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.3rem;
+	min-height: 44px;
+	padding: 0 0.7rem;
+	border: 1px solid var(--market-border);
+	border-radius: 0.3rem;
+	background: var(--market-panel);
+	font-size: 0.62rem;
+	color: var(--market-text-2);
 }
 
 .market-financial-filters {
@@ -3139,6 +3298,23 @@ onBeforeUnmount(() => {
 	color: var(--market-text-3);
 }
 
+.market-financial-result-sort {
+	display: flex;
+	align-items: center;
+	gap: 0.4rem;
+	margin-left: auto;
+}
+
+.market-financial-result-sort select {
+	min-height: 40px;
+	padding: 0 1.8rem 0 0.55rem;
+	border: 1px solid var(--market-border);
+	border-radius: 0.3rem;
+	background: var(--market-panel);
+	font: 0.6rem var(--font-monospace);
+	color: var(--market-text);
+}
+
 .market-financial-desktop {
 	overflow-x: auto;
 	margin: 0 0.8rem 0.8rem;
@@ -3235,6 +3411,13 @@ onBeforeUnmount(() => {
 	color: var(--market-accent);
 }
 
+.market-financial-profit {
+	display: grid;
+	flex: 0 0 auto;
+	justify-items: end;
+	gap: 0.12rem;
+}
+
 .market-financial-mobile-metrics {
 	display: grid;
 	grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -3257,12 +3440,59 @@ onBeforeUnmount(() => {
 	color: var(--market-text);
 }
 
-.market-financial-mobile-metrics small {
-	overflow: hidden;
+.market-financial-evidence {
+	border-top: 1px solid var(--market-border);
+}
+
+.market-financial-evidence summary {
+	display: flex;
+	align-items: center;
+	min-height: 44px;
+	font: 0.56rem var(--font-monospace);
+	color: var(--market-accent-strong);
+	cursor: pointer;
+}
+
+.market-financial-evidence > div {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 1px;
+	padding-bottom: 0.55rem;
+	background: var(--market-border);
+}
+
+.market-financial-evidence p {
+	display: grid;
+	gap: 0.15rem;
+	margin: 0;
+	padding: 0.45rem;
+	background: var(--market-panel-soft);
+}
+
+.market-financial-evidence p span {
 	font: 0.5rem var(--font-monospace);
-	white-space: nowrap;
-	text-overflow: ellipsis;
 	color: var(--market-text-3);
+}
+
+.market-financial-evidence p strong {
+	overflow-wrap: anywhere;
+	font: 600 0.56rem var(--font-monospace);
+	color: var(--market-text-2);
+}
+
+.market-financial-load-more {
+	display: flex;
+	justify-content: center;
+	margin: 0 0.8rem 0.8rem;
+}
+
+.market-financial-load-more button {
+	min-width: 9rem;
+}
+
+.market-financial-load-more button:disabled {
+	opacity: 0.48;
+	cursor: not-allowed;
 }
 
 .market-watchlist-header { align-items: center; }
@@ -4165,6 +4395,8 @@ onBeforeUnmount(() => {
 		border-radius: 0;
 	}
 
+	.market-strategy-view { overflow-x: clip; }
+
 	.market-terminal-header {
 		grid-template-columns: minmax(0, 1fr);
 		align-items: start;
@@ -4427,9 +4659,35 @@ onBeforeUnmount(() => {
 	}
 
 	.market-financial-summary {
-		grid-template-columns: repeat(2, minmax(0, 1fr));
+		grid-template-columns: repeat(3, minmax(0, 1fr));
 		margin-inline: 0.55rem;
 	}
+
+	.market-financial-summary > div {
+		min-height: 4.2rem;
+		padding: 0.5rem;
+	}
+
+	.market-financial-summary > .market-financial-summary-meta {
+		grid-column: 1 / -1;
+		grid-template-columns: auto minmax(0, auto) minmax(0, 1fr);
+		align-items: center;
+		gap: 0.4rem;
+		min-height: auto;
+	}
+
+	.market-financial-summary-meta small {
+		overflow: hidden;
+		white-space: nowrap;
+		text-overflow: ellipsis;
+	}
+
+	.market-financial-condition-bar {
+		align-items: flex-start;
+		margin-inline: 0.55rem;
+	}
+
+	.market-financial-condition-bar button { flex: 0 0 auto; }
 
 	.market-financial-filters {
 		grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -4443,21 +4701,30 @@ onBeforeUnmount(() => {
 	.market-financial-rule,
 	.market-financial-warning,
 	.market-financial-result-head,
-	.market-financial-state {
+	.market-financial-state,
+	.market-financial-load-more {
 		margin-inline: 0.55rem;
 	}
 
 	.market-financial-result-head {
-		align-items: flex-start;
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto;
+		align-items: center;
 		gap: 0.45rem;
 	}
 
-	.market-financial-result-head small { text-align: right; }
+	.market-financial-result-head small {
+		grid-column: 1 / -1;
+		text-align: left;
+	}
+
+	.market-financial-result-sort { margin-left: 0; }
 	.market-financial-desktop { display: none; }
 
 	.market-financial-mobile {
 		display: grid;
 		gap: 0.5rem;
+		overflow-x: clip;
 		margin: 0 0.55rem 0.7rem;
 	}
 
@@ -4513,14 +4780,50 @@ onBeforeUnmount(() => {
 		justify-self: start;
 	}
 	.market-flow-grid { grid-template-columns: minmax(0, 1fr); }
-	.market-financial-summary { grid-template-columns: minmax(0, 1fr); }
+	.market-financial-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 	.market-financial-filters { grid-template-columns: minmax(0, 1fr); }
 
 	.market-financial-search,
 	.market-financial-actions { grid-column: auto; }
-	.market-financial-mobile-metrics { grid-template-columns: minmax(0, 1fr); }
-	.market-financial-result-head { flex-direction: column; }
-	.market-financial-result-head small { text-align: left; }
+	.market-financial-mobile-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+	.market-financial-summary > div {
+		min-width: 0;
+		padding-inline: 0.35rem;
+	}
+
+	.market-financial-summary strong { font-size: 0.68rem; }
+
+	.market-financial-summary small {
+		overflow: hidden;
+		white-space: nowrap;
+		text-overflow: ellipsis;
+	}
+
+	.market-financial-summary > .market-financial-summary-meta {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.market-financial-condition-bar {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto;
+	}
+
+	.market-financial-condition-chips {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+	}
+
+	.market-financial-condition-chips span {
+		overflow: hidden;
+		padding-inline: 0.3rem;
+		white-space: nowrap;
+		text-align: center;
+		text-overflow: ellipsis;
+	}
+
+	.market-financial-result-head > div { display: grid; }
+	.market-financial-result-sort select { max-width: 8.5rem; }
 }
 
 @media (prefers-reduced-transparency: reduce) {

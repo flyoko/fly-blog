@@ -1,5 +1,6 @@
 import type {
 	FinancialReportPeriod,
+	FinancialScreenerSort,
 	MarketEnvelope,
 	MarketFinancialScreenerData,
 	MarketFinancialScreenerFilters,
@@ -8,6 +9,12 @@ import type {
 import type { Env } from '../../env'
 
 const STALE_AFTER_MS = 96 * 60 * 60 * 1000
+
+const SORT_COLUMNS: Record<FinancialScreenerSort, string> = {
+	netProfitYoY: 'net_profit_yoy',
+	grossMarginYoYChange: 'gross_margin_yoy_change',
+	inventoryYoYPct: 'inventory_yoy_pct',
+}
 
 interface FinancialSyncStateRow {
 	report_date: string
@@ -44,6 +51,9 @@ function defaults(input: Partial<MarketFinancialScreenerFilters>): MarketFinanci
 		grossMarginTrend: input.grossMarginTrend ?? 'up',
 		inventoryTrend: input.inventoryTrend ?? 'up',
 		keyword: input.keyword?.trim() ?? '',
+		sort: input.sort ?? 'netProfitYoY',
+		order: input.order ?? 'desc',
+		offset: input.offset ?? 0,
 		limit: input.limit ?? 100,
 	}
 }
@@ -131,6 +141,8 @@ export class FinancialScreenerService {
 		}
 
 		const where = baseConditions.join(' AND ')
+		const sortColumn = SORT_COLUMNS[filters.sort] ?? SORT_COLUMNS.netProfitYoY
+		const sortOrder = filters.order === 'asc' ? 'ASC' : 'DESC'
 		const totalRow = await this.env.DB.prepare(`
 			SELECT COUNT(*) AS count
 			FROM market_financial_report
@@ -148,9 +160,9 @@ export class FinancialScreenerService {
 				inventory, previous_inventory, inventory_yoy_change, inventory_yoy_pct
 			FROM market_financial_report
 			WHERE ${where}
-			ORDER BY net_profit_yoy DESC, gross_margin_yoy_change DESC, inventory_yoy_change DESC, security_code ASC
-			LIMIT ?
-		`).bind(...bindings, filters.limit).all<FinancialReportRow>()
+			ORDER BY ${sortColumn} IS NULL ASC, ${sortColumn} ${sortOrder}, security_code ASC
+			LIMIT ? OFFSET ?
+		`).bind(...bindings, filters.limit, filters.offset).all<FinancialReportRow>()
 
 		const fetchedMs = Date.parse(state.fetched_at)
 		const staleAgeMs = Number.isFinite(fetchedMs) ? Math.max(0, this.now().getTime() - fetchedMs) : null
