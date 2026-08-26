@@ -18,6 +18,12 @@ const FINANCE_SOURCES: ReadonlyArray<{ sourceId: FinanceSourceId, sourceName: st
 	{ sourceId: 'wallstreetcn-7x24', sourceName: '华尔街见闻' },
 ]
 const FINANCE_ROLLING_SOURCE_IDS = new Set<string>(financeSourceIds)
+const FINANCE_GROUPING_SELECT_COLUMNS = `
+\tf.id, f.source_id, f.title, NULL AS summary, f.published_at,
+\tf.category, f.category_label, f.topic, f.important, f.importance_origin,
+\tf.importance_score, f.source_name, f.source_url, f.public_visible,
+\tf.fetched_at, f.updated_at
+`
 
 interface FinanceSourceSettingRow {
 	source_id: FinanceSourceId
@@ -188,6 +194,18 @@ export class FinanceFlashService {
 			sourceName: row.source_name,
 			sourceUrl: row.source_url,
 		}
+	}
+
+	private async hydratePublicSummaries(items: FinanceFlashDto[]): Promise<FinanceFlashDto[]> {
+		if (!items.length)
+			return []
+		const ids = items.map(item => item.id)
+		const placeholders = ids.map(() => '?').join(', ')
+		const summaries = await this.env.DB.prepare(`
+			SELECT id, summary FROM finance_flash_items WHERE id IN (${placeholders})
+		`).bind(...ids).all<{ id: string, summary: string | null }>()
+		const summaryById = new Map(summaries.results.map(row => [row.id, row.summary]))
+		return items.map(item => ({ ...item, summary: summaryById.get(item.id) ?? null }))
 	}
 
 	private adminDto(row: AdminFinanceFlashRow): AdminFinanceFlashDto {
@@ -406,7 +424,7 @@ export class FinanceFlashService {
 		const where = `WHERE ${conditions.join(' AND ')}`
 		const [items, state, sourceMix, sourceHealth] = await Promise.all([
 			this.env.DB.prepare(`
-				SELECT f.* FROM finance_flash_items f
+				SELECT ${FINANCE_GROUPING_SELECT_COLUMNS} FROM finance_flash_items f
 				${where}
 				ORDER BY f.published_at DESC, f.id DESC
 			`).bind(...bindings).all<FinanceFlashRow>(),
@@ -441,6 +459,7 @@ export class FinanceFlashService {
 		const filteredItems = options.importantOnly
 			? groupedItems.filter(item => item.important)
 			: groupedItems
+		const pageItems = await this.hydratePublicSummaries(filteredItems.slice(offset, offset + limit))
 		const storedTotal = sourceMix?.total || 0
 		const prototypeCount = sourceMix?.prototype_count || 0
 		const prototype = storedTotal > 0 && prototypeCount === storedTotal
@@ -456,7 +475,7 @@ export class FinanceFlashService {
 						? 'degraded'
 						: 'live'
 		return {
-			items: filteredItems.slice(offset, offset + limit),
+			items: pageItems,
 			total: filteredItems.length,
 			updatedAt: state?.updated_at || null,
 			prototype,
@@ -481,7 +500,7 @@ export class FinanceFlashService {
 		const { start } = this.shanghaiToday(now)
 		const publicRowCondition = this.publicRowCondition('f')
 		const items = await this.env.DB.prepare(`
-			SELECT f.* FROM finance_flash_items f
+			SELECT ${FINANCE_GROUPING_SELECT_COLUMNS} FROM finance_flash_items f
 			WHERE ${publicRowCondition}
 				AND NOT EXISTS (
 					SELECT 1 FROM finance_flash_exclusions e

@@ -128,7 +128,7 @@ export function createPublicMarketRoutes(
 
 	routes.get('/overview', async (c) => {
 		const service = factory(c.env)
-		const cached = await publicCacheData(c, await service.listVersion(), () => service.overview(), 20)
+		const cached = await publicCacheData(c, await service.listVersion(), () => service.overview(), 20, [])
 		c.header('Cache-Control', 'public, max-age=20, stale-while-revalidate=60')
 		c.header('X-Fly-Cache', cached.status)
 		return success(c, cached.data)
@@ -138,7 +138,7 @@ export function createPublicMarketRoutes(
 		const kind = sectorKind(c.req.query('kind'))
 		const sectorLimit = limit(c.req.query('limit'))
 		const service = factory(c.env)
-		const cached = await publicCacheData(c, await service.listVersion(), () => service.sectorFlows(kind, sectorLimit), 30)
+		const cached = await publicCacheData(c, await service.listVersion(), () => service.sectorFlows(kind, sectorLimit), 30, ['kind', 'limit'])
 		c.header('Cache-Control', 'public, max-age=30, stale-while-revalidate=60')
 		c.header('X-Fly-Cache', cached.status)
 		return success(c, cached.data)
@@ -167,7 +167,13 @@ export function createPublicMarketRoutes(
 			keyword: financialKeyword(c.req.query('q')),
 		}
 		const service = financialFactory(c.env)
-		const cached = await publicCacheData(c, await service.listVersion(), () => service.screen(filters), 300)
+		const cached = await publicCacheData(
+			c,
+			await service.listVersion(),
+			() => service.screen(filters),
+			300,
+			['period', 'reportDate', 'minNetProfitYoY', 'grossMarginTrend', 'inventoryTrend', 'sort', 'order', 'offset', 'limit', 'q'],
+		)
 		c.header('Cache-Control', 'public, max-age=300, stale-while-revalidate=1800')
 		c.header('X-Fly-Cache', cached.status)
 		return success(c, cached.data)

@@ -80,7 +80,13 @@ publicFinanceRoutes.get('/flash', async (c) => {
 		limit: limit(c.req.query('limit')),
 		offset: offset(c.req.query('offset')),
 	}
-	const cached = await publicCacheData(c, await service.listVersion(), () => service.list(options), FINANCE_PUBLIC_CACHE_TTL_SECONDS)
+	const cached = await publicCacheData(
+		c,
+		await service.listVersion(),
+		() => service.list(options),
+		FINANCE_PUBLIC_CACHE_TTL_SECONDS,
+		['category', 'important', 'limit', 'offset'],
+	)
 	c.header('Cache-Control', 'no-cache, must-revalidate')
 	c.header('X-Fly-Cache', cached.status)
 	return success(c, cached.data)
@@ -88,7 +94,13 @@ publicFinanceRoutes.get('/flash', async (c) => {
 publicFinanceRoutes.get('/themes/today', async (c) => {
 	const service = new FinanceFlashService(c.env)
 	await service.ensureSeeded()
-	const cached = await publicCacheData(c, await service.todayThemesVersion(), () => service.todayThemes(), FINANCE_PUBLIC_CACHE_TTL_SECONDS)
+	const cached = await publicCacheData(
+		c,
+		await service.todayThemesVersion(),
+		() => service.todayThemes(),
+		FINANCE_PUBLIC_CACHE_TTL_SECONDS,
+		[],
+	)
 	c.header('Cache-Control', 'no-cache, must-revalidate')
 	c.header('X-Fly-Cache', cached.status)
 	return success(c, cached.data)

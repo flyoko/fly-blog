@@ -26,11 +26,12 @@ async function seedPublicItems(count: number) {
 				id, source_id, title, summary, published_at, category, category_label, topic,
 				important, importance_origin, importance_score, source_name, source_url,
 				fetched_at, updated_at, public_visible
-			) VALUES (?, ?, ?, NULL, ?, 'market', '市场', '分页测试', 0, 'upstream', NULL, ?, NULL, ?, ?, 1)
+			) VALUES (?, ?, ?, ?, ?, 'market', '市场', '分页测试', 0, 'upstream', NULL, ?, NULL, ?, ?, 1)
 		`).bind(
 			`cls-telegraph-7x24:${index}`,
 			'cls-telegraph-7x24',
 			`独立财经事件 ${index}`,
+			`财经正文 ${index}`,
 			publishedAt,
 			'财联社',
 			publishedAt,
@@ -57,8 +58,8 @@ describe('finance public pagination', () => {
 		const router = app()
 		const first = await router.request('https://blog.test/api/finance/flash?limit=100&offset=0', {}, testEnv)
 		const second = await router.request('https://blog.test/api/finance/flash?limit=100&offset=100', {}, testEnv)
-		const firstBody = await first.json() as { data: { total: number, items: Array<{ id: string }> } }
-		const secondBody = await second.json() as { data: { total: number, items: Array<{ id: string }> } }
+		const firstBody = await first.json() as { data: { total: number, items: Array<{ id: string, summary: string | null }> } }
+		const secondBody = await second.json() as { data: { total: number, items: Array<{ id: string, summary: string | null }> } }
 
 		expect(first.status).toBe(200)
 		expect(second.status).toBe(200)
@@ -66,6 +67,8 @@ describe('finance public pagination', () => {
 		expect(secondBody.data.total).toBe(620)
 		expect(firstBody.data.items).toHaveLength(100)
 		expect(secondBody.data.items).toHaveLength(100)
+		expect(firstBody.data.items[0]?.summary).toBe('财经正文 619')
+		expect(secondBody.data.items[0]?.summary).toBe('财经正文 519')
 		expect(secondBody.data.items[0]?.id).not.toBe(firstBody.data.items[0]?.id)
 	})
 
