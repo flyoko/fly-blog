@@ -9,6 +9,8 @@ import { enforceRateLimit, requireCsrf, requireSession } from '../../middleware/
 import { AuditRepository } from '../../repositories/audit-repository'
 import { FinanceFlashService } from './service'
 
+const FINANCE_PUBLIC_CACHE_TTL_SECONDS = 300
+
 function category(value: string | undefined): FinanceCategory | undefined {
 	if (!value || value === 'all')
 		return undefined
@@ -21,6 +23,13 @@ function limit(value: string | undefined) {
 	const parsed = value ? Number(value) : 50
 	if (!Number.isInteger(parsed) || parsed < 1 || parsed > 100)
 		throw new ApiError('VALIDATION_FAILED', 400, 'Finance limit is invalid')
+	return parsed
+}
+
+function offset(value: string | undefined) {
+	const parsed = value ? Number(value) : 0
+	if (!Number.isSafeInteger(parsed) || parsed < 0)
+		throw new ApiError('VALIDATION_FAILED', 400, 'Finance offset is invalid')
 	return parsed
 }
 
@@ -69,8 +78,9 @@ publicFinanceRoutes.get('/flash', async (c) => {
 		category: category(c.req.query('category')),
 		importantOnly: importantOnly(c.req.query('important')),
 		limit: limit(c.req.query('limit')),
+		offset: offset(c.req.query('offset')),
 	}
-	const cached = await publicCacheData(c, await service.listVersion(), () => service.list(options), 20)
+	const cached = await publicCacheData(c, await service.listVersion(), () => service.list(options), FINANCE_PUBLIC_CACHE_TTL_SECONDS)
 	c.header('Cache-Control', 'no-cache, must-revalidate')
 	c.header('X-Fly-Cache', cached.status)
 	return success(c, cached.data)
@@ -78,7 +88,7 @@ publicFinanceRoutes.get('/flash', async (c) => {
 publicFinanceRoutes.get('/themes/today', async (c) => {
 	const service = new FinanceFlashService(c.env)
 	await service.ensureSeeded()
-	const cached = await publicCacheData(c, await service.todayThemesVersion(), () => service.todayThemes(), 20)
+	const cached = await publicCacheData(c, await service.todayThemesVersion(), () => service.todayThemes(), FINANCE_PUBLIC_CACHE_TTL_SECONDS)
 	c.header('Cache-Control', 'no-cache, must-revalidate')
 	c.header('X-Fly-Cache', cached.status)
 	return success(c, cached.data)

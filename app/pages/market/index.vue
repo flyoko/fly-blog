@@ -14,6 +14,7 @@ type FundsPanel = 'sectors' | 'citic'
 type FinancialSortKey = 'netProfitYoY' | 'grossMarginYoYChange' | 'inventoryYoYPct'
 
 const FINANCIAL_PAGE_SIZE = 20
+const FINANCE_PAGE_SIZE = 100
 
 const workspaceTabs: Array<{ id: MarketWorkspace, label: string, icon: string, note: string }> = [
 	{ id: 'radar', label: '市场雷达', icon: 'tabler:radar', note: '行情与财经事件' },
@@ -116,6 +117,7 @@ const activeWorkspace = ref<MarketWorkspace>('radar')
 const financeData = ref<FinanceFlashListDto | null>(null)
 const todayThemesData = ref<FinanceTodayThemesDto | null>(null)
 const financeLoading = ref(true)
+const financeLoadMoreLoading = ref(false)
 const financeError = ref('')
 const todayThemesLoading = ref(true)
 const todayThemesError = ref('')
@@ -183,6 +185,7 @@ const watchlistRequestInFlight = ref(false)
 
 const financeItems = computed(() => financeData.value?.items || [])
 const importantFinanceCount = computed(() => financeItems.value.filter(item => item.important).length)
+const financeHasMore = computed(() => financeItems.value.length < (financeData.value?.total || 0))
 const visibleFinanceItems = computed(() => financeItems.value.filter(item =>
 	(financeFilter.value === 'all' || item.category === financeFilter.value)
 	&& (!financeImportantOnly.value || item.important),
@@ -490,24 +493,77 @@ function sourceSummary(item: FinanceFlashDto) {
 	return sourceEntries(item).map(source => source.sourceName).join(' · ')
 }
 
-async function loadFinance(options: { background?: boolean } = {}) {
-	const revision = ++financeRevision
-	if (!options.background)
+function mergeFinanceItems(primary: FinanceFlashDto[], secondary: FinanceFlashDto[], maxItems = Number.POSITIVE_INFINITY) {
+	const merged: FinanceFlashDto[] = []
+	const seen = new Set<string>()
+	for (const item of [...primary, ...secondary]) {
+		if (seen.has(item.id))
+			continue
+		seen.add(item.id)
+		merged.push(item)
+		if (merged.length >= maxItems)
+			break
+	}
+	return merged
+}
+
+async function loadFinance(options: { background?: boolean, append?: boolean } = {}) {
+	const append = options.append === true
+	if (append && (financeLoading.value || financeLoadMoreLoading.value || !financeHasMore.value))
+		return
+	const revision = append ? financeRevision : ++financeRevision
+	if (append)
+		financeLoadMoreLoading.value = true
+	else if (!options.background)
 		financeLoading.value = true
 	financeError.value = ''
 	try {
-		const result = await $fetch<{ data: FinanceFlashListDto }>('/api/finance/flash', { query: { limit: 100 } })
-		if (revision === financeRevision)
-			financeData.value = result.data
+		const result = await $fetch<{ data: FinanceFlashListDto }>('/api/finance/flash', {
+			credentials: 'omit',
+			query: {
+				category: financeFilter.value === 'all' ? undefined : financeFilter.value,
+				important: financeImportantOnly.value || undefined,
+				limit: FINANCE_PAGE_SIZE,
+				offset: append ? financeItems.value.length : 0,
+			},
+		})
+		if (revision !== financeRevision)
+			return
+		if (append) {
+			financeData.value = {
+				...result.data,
+				items: mergeFinanceItems(financeItems.value, result.data.items),
+			}
+			return
+		}
+		if (options.background && financeItems.value.length > FINANCE_PAGE_SIZE) {
+			const items = mergeFinanceItems(result.data.items, financeItems.value, Math.min(financeItems.value.length, result.data.total))
+			financeData.value = { ...result.data, items }
+			return
+		}
+		financeData.value = result.data
 	}
 	catch (cause) {
 		if (revision === financeRevision)
 			financeError.value = cause instanceof Error ? cause.message : '财经聚合数据加载失败'
 	}
 	finally {
-		if (revision === financeRevision)
+		if (append)
+			financeLoadMoreLoading.value = false
+		else if (revision === financeRevision)
 			financeLoading.value = false
 	}
+}
+
+async function loadMoreFinance() {
+	await loadFinance({ append: true })
+}
+
+function selectFinanceFilter(filter: FinanceFilter) {
+	if (financeFilter.value === filter)
+		return
+	financeFilter.value = filter
+	void loadFinance()
 }
 
 async function loadTodayThemes(options: { background?: boolean } = {}) {
@@ -516,7 +572,7 @@ async function loadTodayThemes(options: { background?: boolean } = {}) {
 		todayThemesLoading.value = true
 	todayThemesError.value = ''
 	try {
-		const result = await $fetch<{ data: FinanceTodayThemesDto }>('/api/finance/themes/today')
+		const result = await $fetch<{ data: FinanceTodayThemesDto }>('/api/finance/themes/today', { credentials: 'omit' })
 		if (revision === todayThemesRevision)
 			todayThemesData.value = result.data
 	}
@@ -536,7 +592,7 @@ async function loadMarketOverview(options: { background?: boolean } = {}) {
 		marketOverviewLoading.value = true
 	marketOverviewError.value = ''
 	try {
-		const result = await $fetch<{ data: MarketEnvelope<MarketOverview> }>('/api/market/overview')
+		const result = await $fetch<{ data: MarketEnvelope<MarketOverview> }>('/api/market/overview', { credentials: 'omit' })
 		if (revision === marketOverviewRevision)
 			marketOverview.value = result.data
 	}
@@ -557,6 +613,7 @@ async function loadSectorFlows(options: { background?: boolean } = {}) {
 	sectorFlowError.value = ''
 	try {
 		const result = await $fetch<{ data: MarketEnvelope<SectorFlowItem[]> }>('/api/market/sector-flows', {
+			credentials: 'omit',
 			query: { kind: sectorKind.value, limit: 600 },
 		})
 		if (revision === sectorFlowRevision)
@@ -579,6 +636,7 @@ async function loadFuturesPositions(options: { background?: boolean } = {}) {
 	futuresPositionError.value = ''
 	try {
 		const result = await $fetch<{ data: CiticFuturesPositionHistory }>('/api/market/citic-futures-positions', {
+			credentials: 'omit',
 			query: { product: futuresProduct.value, days: 30 },
 		})
 		if (revision === futuresPositionRevision)
@@ -619,6 +677,7 @@ async function loadFinancialScreener(options: { append?: boolean } = {}) {
 	financialError.value = ''
 	try {
 		const result = await $fetch<{ data: MarketEnvelope<MarketFinancialScreenerData> }>('/api/market/financial-screener', {
+			credentials: 'omit',
 			query: {
 				period: financialPeriod.value,
 				minNetProfitYoY,
@@ -1268,7 +1327,7 @@ onBeforeUnmount(() => {
 						</h2>
 					</div>
 					<label class="market-important-switch">
-						<input v-model="financeImportantOnly" type="checkbox">
+						<input v-model="financeImportantOnly" type="checkbox" @change="loadFinance()">
 						<span aria-hidden="true" />只看重要
 					</label>
 				</header>
@@ -1280,16 +1339,16 @@ onBeforeUnmount(() => {
 						type="button"
 						:class="{ active: financeFilter === option.id }"
 						:aria-pressed="financeFilter === option.id"
-						@click="financeFilter = option.id"
+						@click="selectFinanceFilter(option.id)"
 					>
 						{{ option.label }}
 					</button>
 				</div>
 
 				<div class="market-finance-metrics">
-					<div><span>当前事件</span><strong>{{ financeData?.total || 0 }}</strong></div>
-					<div><span>重要事件</span><strong>{{ importantFinanceCount }}</strong></div>
-					<div><span>当前筛选</span><strong>{{ visibleFinanceItems.length }}</strong></div>
+					<div><span>筛选总数</span><strong>{{ financeData?.total || 0 }}</strong></div>
+					<div><span>已载重要</span><strong>{{ importantFinanceCount }}</strong></div>
+					<div><span>已展示</span><strong>{{ visibleFinanceItems.length }}</strong></div>
 				</div>
 
 				<div v-if="financeError" class="market-error" role="alert">
@@ -1327,6 +1386,15 @@ onBeforeUnmount(() => {
 					<strong>当前筛选暂无财经快讯</strong>
 					<p>可以切换分类或关闭“只看重要”。</p>
 				</div>
+				<button
+					v-if="!financeError && visibleFinanceItems.length && financeHasMore"
+					class="market-finance-load-more"
+					type="button"
+					:disabled="financeLoading || financeLoadMoreLoading"
+					@click="loadMoreFinance"
+				>
+					{{ financeLoadMoreLoading ? '加载中…' : `加载更多财经快讯（${financeItems.length}/${financeData?.total || 0}）` }}
+				</button>
 			</section>
 
 			<aside class="market-side-stack" aria-label="市场雷达状态">
@@ -4139,6 +4207,23 @@ onBeforeUnmount(() => {
 	overflow-y: auto;
 	max-height: 48rem;
 	scrollbar-width: thin;
+}
+
+.market-finance-load-more {
+	width: 100%;
+	margin-top: 0.65rem;
+	padding: 0.7rem 0.9rem;
+	border: 1px solid var(--market-border);
+	border-radius: 0.38rem;
+	background: var(--market-panel-soft);
+	font: 0.68rem/1.4 var(--font-monospace);
+	color: var(--market-accent-strong);
+	cursor: pointer;
+}
+
+.market-finance-load-more:disabled {
+	opacity: 0.55;
+	cursor: wait;
 }
 
 .market-finance-sources {

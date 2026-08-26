@@ -85,6 +85,31 @@ describe('market 博客主题终端页面', () => {
 		expect(positions).toEqual(positions.slice().sort((left, right) => left - right))
 	})
 
+	it('paginates the finance stream and keeps public market reads credential-free', () => {
+		const page = readFileSync(pagePath, 'utf8')
+		expect(page).toContain('const FINANCE_PAGE_SIZE = 100')
+		expect(page).toContain('offset: append ? financeItems.value.length : 0')
+		expect(page).toContain('category: financeFilter.value === \'all\' ? undefined : financeFilter.value')
+		expect(page).toContain('important: financeImportantOnly.value || undefined')
+		expect(page).toContain('加载更多财经快讯')
+		expect(page).toContain('function mergeFinanceItems(')
+		expect(page).toContain('items: mergeFinanceItems(financeItems.value, result.data.items)')
+		expect(page).toMatch(/finally \{[\s\S]*?if \(append\)[\s\S]*?financeLoadMoreLoading\.value = false[\s\S]*?else if \(revision === financeRevision\)/u)
+		expect(page).toContain('else if (!options.background)')
+		for (const endpoint of [
+			'\'/api/finance/flash\'',
+			'\'/api/finance/themes/today\'',
+			'\'/api/market/overview\'',
+			'\'/api/market/sector-flows\'',
+			'\'/api/market/citic-futures-positions\'',
+			'\'/api/market/financial-screener\'',
+		]) {
+			const start = page.indexOf(endpoint)
+			expect(start).toBeGreaterThan(-1)
+			expect(page.slice(start, start + 700)).toContain('credentials: \'omit\'')
+		}
+	})
+
 	it('keeps the public market surface focused on live information instead of explanatory copy', () => {
 		const page = readFileSync(pagePath, 'utf8')
 		expect(page).not.toContain('把财经快讯、市场资金、自选和盘后席位放进同一个交易观察入口。')

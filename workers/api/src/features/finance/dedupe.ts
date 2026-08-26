@@ -20,7 +20,18 @@ const SOURCE_PRIORITY: Record<string, number> = {
 }
 
 interface EventGroup {
-	items: FinanceFlashDto[]
+	items: PreparedFinanceEvent[]
+	earliestTime: number
+}
+
+interface PreparedFinanceEvent {
+	item: FinanceFlashDto
+	time: number
+	semanticTitle: string
+	normalizedTitle: string
+	numbers: Set<string>
+	bigrams: Set<string>
+	trigrams: Set<string>
 }
 
 function financeEventSemanticText(value: string): string {
@@ -64,9 +75,7 @@ function materialNumbers(value: string): Set<string> {
 	return new Set(value.match(NUMBER_PATTERN) ?? [])
 }
 
-function numbersConflict(left: string, right: string): boolean {
-	const leftNumbers = materialNumbers(left)
-	const rightNumbers = materialNumbers(right)
+function numbersConflict(leftNumbers: Set<string>, rightNumbers: Set<string>): boolean {
 	if (!leftNumbers.size || !rightNumbers.size)
 		return false
 	if (leftNumbers.size !== rightNumbers.size)
@@ -92,38 +101,40 @@ function directionsConflict(left: string, right: string): boolean {
 	return false
 }
 
-function titlesEquivalent(left: string, right: string): boolean {
-	const semanticLeft = financeEventSemanticText(left)
-	const semanticRight = financeEventSemanticText(right)
-	if (!semanticLeft || !semanticRight)
+function prepareFinanceEvent(item: FinanceFlashDto): PreparedFinanceEvent {
+	const semanticTitle = financeEventSemanticText(item.title)
+	const normalizedTitle = normalizeFinanceEventTitle(semanticTitle)
+	return {
+		item,
+		time: Date.parse(item.publishedAt),
+		semanticTitle,
+		normalizedTitle,
+		numbers: materialNumbers(semanticTitle),
+		bigrams: ngrams(normalizedTitle, 2),
+		trigrams: ngrams(normalizedTitle, 3),
+	}
+}
+
+function titlesEquivalent(left: PreparedFinanceEvent, right: PreparedFinanceEvent): boolean {
+	if (!left.semanticTitle || !right.semanticTitle)
 		return false
-	if (numbersConflict(semanticLeft, semanticRight) || directionsConflict(semanticLeft, semanticRight))
+	if (numbersConflict(left.numbers, right.numbers) || directionsConflict(left.semanticTitle, right.semanticTitle))
 		return false
-	const normalizedLeft = normalizeFinanceEventTitle(semanticLeft)
-	const normalizedRight = normalizeFinanceEventTitle(semanticRight)
-	if (normalizedLeft === normalizedRight)
+	if (left.normalizedTitle === right.normalizedTitle)
 		return true
-	const bigramScore = jaccard(ngrams(normalizedLeft, 2), ngrams(normalizedRight, 2))
-	const trigramScore = jaccard(ngrams(normalizedLeft, 3), ngrams(normalizedRight, 3))
+	const bigramScore = jaccard(left.bigrams, right.bigrams)
+	const trigramScore = jaccard(left.trigrams, right.trigrams)
 	return bigramScore >= BIGRAM_THRESHOLD || trigramScore >= TRIGRAM_THRESHOLD
 }
 
-function sameCandidateWindow(left: FinanceFlashDto, right: FinanceFlashDto): boolean {
-	if (left.category !== right.category)
+function canJoin(group: EventGroup, candidate: PreparedFinanceEvent): boolean {
+	if (group.items.some(item => item.item.sourceId === candidate.item.sourceId))
 		return false
-	const leftTime = Date.parse(left.publishedAt)
-	const rightTime = Date.parse(right.publishedAt)
-	if (!Number.isFinite(leftTime) || !Number.isFinite(rightTime))
+	if (!Number.isFinite(candidate.time) || !Number.isFinite(group.earliestTime))
 		return false
-	return Math.abs(leftTime - rightTime) <= EVENT_WINDOW_MS
-}
-
-function canJoin(group: EventGroup, candidate: FinanceFlashDto): boolean {
-	if (group.items.some(item => item.sourceId === candidate.sourceId))
+	if (candidate.time - group.earliestTime > EVENT_WINDOW_MS)
 		return false
-	if (!group.items.every(item => sameCandidateWindow(item, candidate)))
-		return false
-	return group.items.some(item => titlesEquivalent(item.title, candidate.title))
+	return group.items.some(item => titlesEquivalent(item, candidate))
 }
 
 function sourcePriority(item: FinanceFlashDto): number {
@@ -163,20 +174,21 @@ function importanceOrigin(items: FinanceFlashDto[], primary: FinanceFlashDto): F
 }
 
 function canonicalize(group: EventGroup): FinanceFlashDto {
-	const orderedSources = group.items.slice().sort(comparePrimary)
+	const items = group.items.map(entry => entry.item)
+	const orderedSources = items.slice().sort(comparePrimary)
 	const primary = orderedSources[0]!
-	const earliestPublishedAt = group.items
+	const earliestPublishedAt = items
 		.map(item => item.publishedAt)
 		.sort((left, right) => Date.parse(left) - Date.parse(right))[0]!
-	const scores = group.items
+	const scores = items
 		.map(item => item.importanceScore)
 		.filter((value): value is number => typeof value === 'number' && Number.isFinite(value))
 
 	return {
 		...primary,
 		publishedAt: earliestPublishedAt,
-		important: group.items.some(item => item.important),
-		importanceOrigin: importanceOrigin(group.items, primary),
+		important: items.some(item => item.important),
+		importanceOrigin: importanceOrigin(items, primary),
 		importanceScore: scores.length ? Math.max(...scores) : primary.importanceScore,
 		sourceCount: orderedSources.length,
 		sources: orderedSources.map(sourceDto),
@@ -184,17 +196,30 @@ function canonicalize(group: EventGroup): FinanceFlashDto {
 }
 
 export function groupFinanceEvents(items: FinanceFlashDto[]): FinanceFlashDto[] {
-	const chronological = items.slice().sort((left, right) => {
-		const time = Date.parse(left.publishedAt) - Date.parse(right.publishedAt)
-		return time || comparePrimary(left, right)
+	const chronological = items.map(prepareFinanceEvent).sort((left, right) => {
+		const time = left.time - right.time
+		return time || comparePrimary(left.item, right.item)
 	})
 	const groups: EventGroup[] = []
+	const activeGroups = new Map<string, EventGroup[]>()
 	for (const item of chronological) {
-		const group = groups.find(candidate => canJoin(candidate, item))
-		if (group)
+		const category = item.item.category
+		const candidates = (activeGroups.get(category) || []).filter(group => (
+			Number.isFinite(item.time)
+			&& Number.isFinite(group.earliestTime)
+			&& item.time - group.earliestTime <= EVENT_WINDOW_MS
+		))
+		const group = candidates.find(candidate => canJoin(candidate, item))
+		if (group) {
 			group.items.push(item)
-		else
-			groups.push({ items: [item] })
+		}
+		else {
+			const created = { items: [item], earliestTime: item.time }
+			groups.push(created)
+			if (Number.isFinite(item.time))
+				candidates.push(created)
+		}
+		activeGroups.set(category, candidates)
 	}
 	return groups
 		.map(canonicalize)

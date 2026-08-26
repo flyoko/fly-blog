@@ -390,9 +390,9 @@ export class FinanceFlashService {
 		// 实时来源不可用时保持空列表或最后成功快照，不生成 prototype 新闻。
 	}
 
-	async list(options: { importantOnly?: boolean, category?: FinanceCategory, limit?: number } = {}): Promise<FinanceFlashListDto> {
+	async list(options: { importantOnly?: boolean, category?: FinanceCategory, limit?: number, offset?: number } = {}): Promise<FinanceFlashListDto> {
 		const limit = Math.max(1, Math.min(100, Math.trunc(options.limit || 50)))
-		const rawLimit = 500
+		const offset = Number.isSafeInteger(options.offset) && (options.offset || 0) >= 0 ? options.offset || 0 : 0
 		const publicRowCondition = this.publicRowCondition('f')
 		const conditions = [
 			publicRowCondition,
@@ -409,8 +409,7 @@ export class FinanceFlashService {
 				SELECT f.* FROM finance_flash_items f
 				${where}
 				ORDER BY f.published_at DESC, f.id DESC
-				LIMIT ?
-			`).bind(...bindings, rawLimit).all<FinanceFlashRow>(),
+			`).bind(...bindings).all<FinanceFlashRow>(),
 			this.env.DB.prepare(`
 				SELECT MAX(s.last_success_at) AS updated_at
 				FROM finance_flash_sync_state s
@@ -457,7 +456,7 @@ export class FinanceFlashService {
 						? 'degraded'
 						: 'live'
 		return {
-			items: filteredItems.slice(0, limit),
+			items: filteredItems.slice(offset, offset + limit),
 			total: filteredItems.length,
 			updatedAt: state?.updated_at || null,
 			prototype,
