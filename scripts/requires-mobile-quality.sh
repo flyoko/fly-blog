@@ -8,7 +8,7 @@ fi
 changed_path="$1"
 
 case "$changed_path" in
-	content/*|config/about/timeline.json|config/about/links.json|.github/*|docs/*|test/*|e2e/*|backups/*|workers/*)
+	content/*|config/about/timeline.json|config/about/links.json|eslint.config.mjs|scripts/requires-mobile-quality.sh|.github/*|docs/*|test/*|e2e/*|backups/*|workers/*)
 		exit 1
 		;;
 	*)
