@@ -205,8 +205,8 @@ describe('overview counts and health', () => {
 			`).bind('b'.repeat(64), '2026-08-03T00:00:00.000Z'),
 			testEnv.DB.prepare(`
 				INSERT INTO publish_runs (
-					id, kind, status, repository_ref, pull_number, created_at, updated_at
-				) VALUES ('pr-1', 'pull_request', 'checks_pending', 'admin/test', 1, ?, ?)
+					id, kind, status, repository_ref, commit_sha, pull_number, created_at, updated_at
+				) VALUES ('pr-1', 'pull_request', 'checks_pending', 'admin/test', 'head-sha', 1, ?, ?)
 			`).bind('2026-08-03T00:00:00.000Z', '2026-08-03T00:00:00.000Z'),
 			testEnv.DB.prepare(`
 				INSERT INTO publish_runs (

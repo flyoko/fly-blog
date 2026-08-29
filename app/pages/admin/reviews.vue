@@ -11,7 +11,7 @@ import { nextPublishRefreshDelay } from '#shared/admin/publishing-refresh'
 import AdminReleaseChecklist from '~/components/admin/reviews/AdminReleaseChecklist.vue'
 import AdminReleaseQueue from '~/components/admin/reviews/AdminReleaseQueue.vue'
 import AdminReleaseTechnicalDetails from '~/components/admin/reviews/AdminReleaseTechnicalDetails.vue'
-import { canClosePublishRun, publishNextAction, publishRunGroup, publishStatusMeta } from '~/types/admin'
+import { canClosePublishRun, publishMergeBlockMessage, publishNextAction, publishRunGroup, publishStatusMeta } from '~/types/admin'
 
 interface PullRequestDetail {
 	run: AdminPublishRunDto | null
@@ -234,7 +234,7 @@ async function merge() {
 		)
 		mergeConfirmOpen.value = false
 		if (!result.merged)
-			mergeError.value = `暂时不能上线：${result.reason || '自动检查尚未通过'}`
+			mergeError.value = `暂时不能上线：${publishMergeBlockMessage(result.reason)}`
 		await refreshStatus()
 	}
 	catch (cause) {
@@ -395,8 +395,11 @@ onBeforeUnmount(() => {
 					<a v-if="visibleDetail.deployment?.url" class="admin-button" :href="visibleDetail.deployment.url" target="_blank" rel="noopener">
 						<Icon name="tabler:external-link" />打开完整预览
 					</a>
-					<button v-if="visibleDetail.canMerge" class="admin-button admin-button-primary" type="button" :disabled="merging" @click="requestMerge">
+					<button v-if="canCloseSelected" class="admin-button admin-button-primary" type="button" :disabled="!visibleDetail.canMerge || merging" :title="visibleDetail.canMerge ? '检查与预览均已通过' : publishMergeBlockMessage(visibleDetail.reason)" @click="requestMerge">
 						<Icon name="tabler:rocket" />{{ merging ? '正在上线…' : '确认上线' }}
+					</button>
+					<button v-if="canCloseSelected && !visibleDetail.canMerge" class="admin-button" type="button" :disabled="refreshingSelected || closing" @click="recheckSelected">
+						<Icon name="tabler:refresh" />{{ refreshingSelected ? '正在重新检查…' : '重新检查审核条件' }}
 					</button>
 				</div>
 

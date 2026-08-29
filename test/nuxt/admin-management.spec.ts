@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import {
 	buildConfigPullRequest,
 	canClosePublishRun,
+	publishMergeBlockMessage,
 	publishStatusMeta,
 } from '../../app/types/admin'
 
@@ -154,12 +155,12 @@ describe('admin management UI boundaries', () => {
 
 	it('only exposes merge when checks and preview permit it', async () => {
 		const reviews = await source('app/pages/admin/reviews.vue')
-		const checklist = await source('app/components/admin/reviews/AdminReleaseChecklist.vue')
 		const technical = await source('app/components/admin/reviews/AdminReleaseTechnicalDetails.vue')
 
 		expect(reviews).toContain('visibleDetail.canMerge')
 		expect(reviews).toContain('expectedHeadSha')
-		expect(checklist).toContain('等待检查和预览全部通过')
+		expect(publishMergeBlockMessage()).toBe('等待检查和预览全部通过。')
+		expect(publishMergeBlockMessage('untracked_pull_request')).toContain('未记录的新提交')
 		expect(technical).toContain('变更文件')
 		expect(technical).toContain('Head SHA')
 		expect(technical).toContain('file.patch')
@@ -169,6 +170,16 @@ describe('admin management UI boundaries', () => {
 		expect(reviews).toContain('打开部署结果')
 		expect(reviews).toContain('title="确认上线"')
 		expect(reviews).not.toContain('verification-text="MERGE"')
+	})
+
+	it('keeps the review action visible while explaining blocked merge conditions', async () => {
+		const reviews = await source('app/pages/admin/reviews.vue')
+		const checklist = await source('app/components/admin/reviews/AdminReleaseChecklist.vue')
+
+		expect(reviews).toContain(':disabled="!visibleDetail.canMerge || merging"')
+		expect(reviews).toContain('重新检查审核条件')
+		expect(checklist).toContain('publishMergeBlockMessage')
+		expect(checklist).not.toContain('props.reason ||')
 	})
 
 	it('prevalidates article Markdown and links failed checks back to the editor location', async () => {

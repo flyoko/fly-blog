@@ -2,6 +2,7 @@
 import type { CheckSummaryDto, DeploymentDto } from '#shared/admin/publishing'
 import type { AdminPublishRunDto } from '~/types/admin'
 import { encodeArticleId } from '#shared/admin/articles'
+import { publishMergeBlockMessage } from '~/types/admin'
 
 const props = defineProps<{
 	run: AdminPublishRunDto
@@ -31,7 +32,7 @@ const steps = computed<Array<{ label: string, description: string, state: StepSt
 		},
 		{
 			label: '确认上线',
-			description: completed ? '这次变更已经上线。' : props.canMerge ? '全部条件已满足，等待你确认上线。' : props.reason || '等待检查和预览全部通过。',
+			description: completed ? '这次变更已经上线。' : props.canMerge ? '全部条件已满足，等待你确认上线。' : publishMergeBlockMessage(props.reason),
 			state: completed ? 'complete' : props.canMerge ? 'active' : props.reason ? 'failed' : 'waiting',
 		},
 	]

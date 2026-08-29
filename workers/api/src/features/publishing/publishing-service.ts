@@ -105,6 +105,12 @@ export type MergeBlockReason
 
 const activePullRequestStatuses = new Set(['created', 'commit_created', 'checks_pending', 'preview_ready', 'failed'])
 const activeDirectStatuses = new Set(['created', 'commit_created', 'checks_pending', 'failed'])
+const terminalPublishStatuses = new Set(['closed', 'merged', 'published'])
+const untrackedPullRequestError = {
+	status: 'conflict',
+	errorCode: 'UNTRACKED_PULL_REQUEST',
+	errorMessage: 'PR 分支出现了未由当前发布任务记录的新提交，请关闭任务并重新提交内容。',
+} as const
 
 function checksFailureMessage(checks: CheckSummaryDto): string {
 	const diagnostic = checks.diagnostics?.[0]
@@ -218,6 +224,8 @@ async function reconcilePullRequestRun(
 		return updateReconciledRun(publishRepository, run, { status: 'merged' })
 	if (current.state === 'closed')
 		return updateReconciledRun(publishRepository, run, { status: 'closed' })
+	if (!run.commitSha || run.repositoryRef !== current.headBranch || run.commitSha !== current.headSha)
+		return updateReconciledRun(publishRepository, run, untrackedPullRequestError)
 
 	const [checks, deployment] = await Promise.all([
 		repository.getChecks(current.headSha, run.resourcePath ?? undefined),
@@ -315,19 +323,21 @@ function blockReason(
 	run: PublishRunRow | null,
 	defaultBranch: string,
 ): MergeBlockReason | undefined {
+	if (pullRequest.state !== 'open' || pullRequest.merged)
+		return 'pull_request_closed'
 	if (
 		!run
 		|| run.kind !== 'pull_request'
 		|| run.pullNumber !== pullRequest.number
-		|| run.repositoryRef !== pullRequest.headBranch
-		|| run.commitSha !== pullRequest.headSha
 	) {
 		return 'untracked_pull_request'
 	}
+	if (terminalPublishStatuses.has(run.status))
+		return 'pull_request_closed'
+	if (run.repositoryRef !== pullRequest.headBranch || run.commitSha !== pullRequest.headSha)
+		return 'untracked_pull_request'
 	if (pullRequest.baseBranch !== defaultBranch)
 		return 'wrong_base_branch'
-	if (pullRequest.state !== 'open' || pullRequest.merged)
-		return 'pull_request_closed'
 	if (pullRequest.mergeable !== true)
 		return 'not_mergeable'
 	if (
@@ -494,7 +504,10 @@ export class PublishingService {
 		if (run && reason === 'pull_request_closed') {
 			reconciledRun = await reconcilePublishRun(this.publishRepository, this.repository, run, pullRequest)
 		}
-		else if (!reason && run && run.status !== 'merged') {
+		else if (run && reason === 'untracked_pull_request') {
+			reconciledRun = await updateReconciledRun(this.publishRepository, run, untrackedPullRequestError)
+		}
+		else if (!reason && run && activePullRequestStatuses.has(run.status)) {
 			const updatedAt = new Date().toISOString()
 			await this.publishRepository.updateRun(run.id, {
 				status: 'preview_ready',

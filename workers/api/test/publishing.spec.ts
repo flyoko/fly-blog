@@ -472,6 +472,38 @@ describe('pull request status and merge guard', () => {
 		})
 	})
 
+	it('marks a tracked pull request conflicted when its head changes outside the publishing run', async () => {
+		const repository = new FakePublishingRepository()
+		const run = await createRun(repository)
+		const pull = repository.pulls.get(run.pullRequestNumber)!
+		pull.headSha = 'externally-modified-head'
+		repository.checks = { status: 'success', total: 1, successful: 1, failed: 0, pending: 0 }
+		repository.deployment = {
+			id: 'preview-after-head-change',
+			ref: run.branch,
+			environment: 'Preview',
+			url: 'https://preview.example.test/head-change',
+			status: 'success',
+			updatedAt: '2026-08-29T11:00:00.000Z',
+		}
+
+		const service = new PublishingService(runtimeEnv(), repository)
+		const list = await service.listRuns(1, 30)
+
+		expect(list.items[0]).toMatchObject({
+			id: run.publishRunId,
+			status: 'conflict',
+			errorCode: 'UNTRACKED_PULL_REQUEST',
+		})
+		const detail = await service.getPullRequestDetail(run.pullRequestNumber)
+		expect(detail).toMatchObject({
+			run: { status: 'conflict', errorCode: 'UNTRACKED_PULL_REQUEST' },
+			canMerge: false,
+			reason: 'untracked_pull_request',
+		})
+		expect(repository.mergeCalls).toBe(0)
+	})
+
 	it('recovers a failed pull request after checks and preview succeed', async () => {
 		const repository = new FakePublishingRepository()
 		const run = await createRun(repository)
@@ -522,6 +554,51 @@ describe('pull request status and merge guard', () => {
 		expect(await testEnv.DB.prepare('SELECT status FROM publish_runs WHERE id = ?')
 			.bind(run.publishRunId)
 			.first<{ status: string }>()).toEqual({ status: 'closed' })
+	})
+
+	it('prioritizes a closed pull request over an untracked head mismatch', async () => {
+		const repository = new FakePublishingRepository()
+		const run = await createRun(repository)
+		const pull = repository.pulls.get(run.pullRequestNumber)!
+		pull.headSha = 'external-head-before-close'
+		pull.state = 'closed'
+		pull.mergeable = false
+
+		const detail = await new PublishingService(runtimeEnv(), repository).getPullRequestDetail(run.pullRequestNumber)
+
+		expect(detail).toMatchObject({
+			run: { status: 'closed' },
+			canMerge: false,
+			reason: 'pull_request_closed',
+		})
+	})
+
+	it('keeps a closed publishing run terminal even if its pull request is reopened', async () => {
+		const repository = new FakePublishingRepository()
+		const run = await createRun(repository)
+		await testEnv.DB.prepare('UPDATE publish_runs SET status = ? WHERE id = ?')
+			.bind('closed', run.publishRunId)
+			.run()
+		repository.checks = { status: 'success', total: 1, successful: 1, failed: 0, pending: 0 }
+		repository.deployment = {
+			id: 'preview-reopened-closed-run',
+			ref: run.branch,
+			environment: 'Preview',
+			url: 'https://preview.example.test/reopened-closed-run',
+			status: 'success',
+			updatedAt: '2026-08-29T11:10:00.000Z',
+		}
+
+		const detail = await new PublishingService(runtimeEnv(), repository).getPullRequestDetail(run.pullRequestNumber)
+
+		expect(detail).toMatchObject({
+			run: { status: 'closed' },
+			canMerge: false,
+			reason: 'pull_request_closed',
+		})
+		expect(await testEnv.DB.prepare('SELECT status FROM publish_runs WHERE id = ?')
+			.bind(run.publishRunId)
+			.first()).toEqual({ status: 'closed' })
 	})
 
 	it('reconciles successful direct publishes using checks and the exact commit deployment', async () => {

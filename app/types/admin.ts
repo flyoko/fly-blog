@@ -74,6 +74,26 @@ export function publishStatusMeta(status: string) {
 	return { label: '处理中', tone: 'neutral' as const }
 }
 
+const publishMergeBlockMessages: Record<string, string> = {
+	stale_head: '审核期间提交内容发生了变化，请重新检查后再上线。',
+	untracked_pull_request: '这个审核任务对应的 PR 已出现未记录的新提交。为避免合并未审核内容，请关闭当前任务并重新提交。',
+	wrong_base_branch: '这个 PR 的目标分支不符合安全发布规则，请关闭任务并重新提交。',
+	unexpected_files: '这个 PR 包含当前发布任务之外的文件，不能直接上线，请关闭任务并重新提交。',
+	checks_missing: '还没有检测到自动检查结果，请稍后重新检查。',
+	checks_failed: '自动检查未通过，请先修复检查问题。',
+	checks_pending: '自动检查仍在进行，请稍后重新检查。',
+	preview_missing: '预览站点尚未准备完成，请稍后重新检查。',
+	not_mergeable: 'GitHub 当前无法安全合并这次变更，请处理冲突后重新检查。',
+	pull_request_closed: '对应的 PR 已经关闭，不能再执行上线。',
+	merge_rejected: 'GitHub 拒绝了本次合并，请重新检查后再试。',
+}
+
+export function publishMergeBlockMessage(reason?: string) {
+	if (!reason)
+		return '等待检查和预览全部通过。'
+	return publishMergeBlockMessages[reason] ?? '当前审核条件尚未满足，请重新检查后再试。'
+}
+
 export interface AdminNavigationItem {
 	label: string
 	to: string
