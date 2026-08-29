@@ -145,6 +145,23 @@ async function waitForLoadedImage(locator: Locator) {
 	}), { timeout: 10_000 }).toBe(true)
 }
 
+const stableHomeArticlePaths = [
+	'/2026/article-20260812-030125-fa491d82',
+	'/2026/boss-helper-job-applications',
+	'/2026/welcome',
+] as const
+
+async function stabilizeHomeArticleCards(page: Page) {
+	await page.locator('.post-list .proper-height').evaluate((list, stablePaths) => {
+		const cards = Array.from(list.querySelectorAll<HTMLAnchorElement>('.article-card'))
+		const cardsByPath = new Map(cards.map(card => [new URL(card.href).pathname.replace(/\/$/u, ''), card]))
+		const stableCards = stablePaths.map(path => cardsByPath.get(path))
+		if (stableCards.some(card => !card))
+			throw new Error('移动视觉基线所需的固定文章不存在。')
+		list.replaceChildren(...stableCards as HTMLAnchorElement[])
+	}, stableHomeArticlePaths)
+}
+
 async function waitForStableMainContent(page: Page) {
 	let previousSignature = ''
 	let stableSamples = 0
@@ -278,6 +295,9 @@ export async function prepareStableMobilePage(page: Page, options: StableMobileP
 	await waitForNuxtInteractive(page, options.route)
 
 	if (options.visual) {
+		if (options.route === '/')
+			await stabilizeHomeArticleCards(page)
+
 		const pauseAutoplay = page.getByRole('button', { name: '暂停自动轮播' })
 		if (await pauseAutoplay.isVisible().catch(() => false))
 			await pauseAutoplay.click()
