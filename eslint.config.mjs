@@ -36,6 +36,8 @@ export default antfu({
 	rules: {
 		'antfu/consistent-list-newline': 'off',
 		'eqeqeq': 'off',
+		// 正文中的两个普通乘法星号会被上游规则错误配对成强调标记；后台已有共享 Markdown 校验负责真实强调格式错误。
+		'markdown/no-space-in-emphasis': 'off',
 		'no-irregular-whitespace': 'off',
 		'no-sequences': 'off',
 		'prefer-arrow-callback': 'off',
