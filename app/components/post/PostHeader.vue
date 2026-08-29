@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { ArticleProps } from '~/types/article'
+import { formatArticleShareText } from '~/utils/article-share'
 
 defineOptions({ inheritAttrs: false })
 const props = defineProps<ArticleProps>()
@@ -8,11 +9,14 @@ const appConfig = useAppConfig()
 
 const coverFilter = computed(() => props.meta?.coverFilter || (props.meta?.coverDim && 'brightness(0.75)') || undefined)
 
-const shareText = `【${appConfig.title}】${props.title}\n\n${
-	props.description ? `${props.description}\n\n` : ''}${
-	new URL(props.path!, appConfig.url).href}`
+const shareText = computed(() => formatArticleShareText({
+	siteTitle: appConfig.title,
+	title: props.title,
+	description: props.description,
+	url: new URL(props.path, appConfig.url).href,
+}))
 
-const { copy, copied } = useCopy(shareText)
+const { copy, copied } = useClipboard({ source: shareText, legacy: true })
 </script>
 
 <template>
