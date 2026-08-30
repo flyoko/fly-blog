@@ -41,6 +41,15 @@ interface GitHubCheckAnnotation {
 	blob_href?: string
 }
 
+interface GitHubCheckRun {
+	id?: number
+	name?: string
+	status?: string
+	conclusion?: string | null
+	html_url?: string
+	started_at?: string
+}
+
 const maxCheckDiagnostics = 50
 
 const failedCheckConclusions = new Set([
@@ -53,6 +62,39 @@ const failedCheckConclusions = new Set([
 ])
 
 const successfulCheckConclusions = new Set(['success', 'neutral', 'skipped'])
+
+function checkRunStartedAt(check: GitHubCheckRun): number {
+	if (!check.started_at)
+		return Number.NEGATIVE_INFINITY
+	const timestamp = Date.parse(check.started_at)
+	return Number.isNaN(timestamp) ? Number.NEGATIVE_INFINITY : timestamp
+}
+
+function latestCheckRuns(checkRuns: GitHubCheckRun[]): GitHubCheckRun[] {
+	const latestByName = new Map<string, GitHubCheckRun>()
+	const unnamed: GitHubCheckRun[] = []
+	for (const check of checkRuns) {
+		const name = check.name?.trim()
+		if (!name) {
+			unnamed.push(check)
+			continue
+		}
+		const current = latestByName.get(name)
+		if (!current) {
+			latestByName.set(name, check)
+			continue
+		}
+		const checkStartedAt = checkRunStartedAt(check)
+		const currentStartedAt = checkRunStartedAt(current)
+		if (
+			checkStartedAt > currentStartedAt
+			|| (checkStartedAt === currentStartedAt && (check.id ?? Number.NEGATIVE_INFINITY) > (current.id ?? Number.NEGATIVE_INFINITY))
+		) {
+			latestByName.set(name, check)
+		}
+	}
+	return [...latestByName.values(), ...unnamed]
+}
 
 function assertRepositoryPath(path: string): string {
 	if (
@@ -368,15 +410,16 @@ export class GitHubRepository {
 	async getChecks(ref: string, resourcePath?: string): Promise<CheckSummaryDto> {
 		const payload = await this.request<{
 			total_count?: number
-			check_runs?: Array<{ id?: number, name?: string, status?: string, conclusion?: string | null, html_url?: string }>
+			check_runs?: GitHubCheckRun[]
 		}>(`/commits/${encodeURIComponent(assertBranchName(ref))}/check-runs?per_page=100`)
 		if (!Array.isArray(payload.check_runs))
 			throw new ApiError('UPSTREAM_FAILED', 502, 'GitHub returned invalid check runs')
+		const checkRuns = latestCheckRuns(payload.check_runs)
 
 		let successful = 0
 		let failed = 0
 		let pending = 0
-		for (const check of payload.check_runs) {
+		for (const check of checkRuns) {
 			if (check.status !== 'completed' || !check.conclusion) {
 				pending++
 			}
@@ -407,7 +450,7 @@ export class GitHubRepository {
 			}
 		}
 
-		for (const check of payload.check_runs) {
+		for (const check of checkRuns) {
 			if (diagnostics.length >= maxCheckDiagnostics)
 				break
 			if (!check.id || !failedCheckConclusions.has(check.conclusion ?? ''))
@@ -463,7 +506,7 @@ export class GitHubRepository {
 
 		return {
 			status: failed > 0 ? 'failure' : pending > 0 ? 'pending' : 'success',
-			total: payload.check_runs.length,
+			total: checkRuns.length,
 			successful,
 			failed,
 			pending,
