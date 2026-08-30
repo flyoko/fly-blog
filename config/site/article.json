@@ -2,7 +2,7 @@
   "headerAds": [
     {
       "id": "article-ad-963c39bc",
-      "enabled": true,
+      "enabled": false,
       "label": "支持站长",
       "title": "质保 plus月抛封号",
       "description": "95r 质保封号 gpt-plus，更多联系 fly💗",
@@ -15,7 +15,7 @@
     },
     {
       "id": "home-ad-boss-helper",
-      "enabled": true,
+      "enabled": false,
       "label": "博客推荐",
       "title": "使用Boss-Helper 批量投递简历 省时间更省力！",
       "description": "减少重复筛选、沟通和投递操作，把时间留给简历与面试准备。",
