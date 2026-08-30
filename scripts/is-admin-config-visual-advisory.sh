@@ -11,7 +11,7 @@ content_diff_file="$3"
 branch_pattern='^admin/config/article/[0-9]{8}-[0-9]{6}-[a-z0-9]{6}$'
 enabled_pattern='^[+-][[:space:]]*"enabled":[[:space:]]*(true|false),?[[:space:]]*$'
 
-if [[ ! "$branch" =~ $branch_pattern ]]; then
+if [[ "$branch" != 'main' && ! "$branch" =~ $branch_pattern ]]; then
 	exit 1
 fi
 

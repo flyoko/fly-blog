@@ -88,11 +88,22 @@ jobs:
           BEFORE_SHA: ${{ github.event.before }}
         run: |
           required=false
+          visual_advisory=false
           if [[ "$GITHUB_EVENT_NAME" != 'push' || -z "$BEFORE_SHA" || "$BEFORE_SHA" = '0000000000000000000000000000000000000000' ]]; then
             required=true
           else
             diff_file=$(mktemp)
             git diff --name-only "$BEFORE_SHA" "$GITHUB_SHA" > "$diff_file"
+            changed_count=$(wc -l < "$diff_file" | tr -d ' ')
+            changed_path=$(sed -n '1p' "$diff_file")
+            if [[ "$changed_count" = 1 && -n "$changed_path" ]]; then
+              content_diff_file=$(mktemp)
+              git diff --unified=0 --no-ext-diff "$BEFORE_SHA" "$GITHUB_SHA" -- "$changed_path" > "$content_diff_file"
+              if bash scripts/is-admin-config-visual-advisory.sh main "$changed_path" "$content_diff_file" > /dev/null; then
+                visual_advisory=true
+                echo "后台文章广告开关仅发生 enabled 变化，生产视觉差异保留诊断但不阻断部署。"
+              fi
+            fi
             while IFS= read -r changed_path; do
               [[ -n "$changed_path" ]] || continue
               if bash scripts/requires-mobile-quality.sh "$changed_path" > /dev/null; then
@@ -103,6 +114,7 @@ jobs:
             done < "$diff_file"
           fi
           echo "required=$required" >> "$GITHUB_OUTPUT"
+          echo "visual_advisory=$visual_advisory" >> "$GITHUB_OUTPUT"
       - uses: pnpm/action-setup@v6
         if: ${{ steps.detect.outputs.required == 'true' }}
         with:
@@ -129,6 +141,28 @@ jobs:
         if: ${{ steps.detect.outputs.required == 'true' }}
       - run: pnpm test:e2e:mobile:visual
         if: ${{ steps.detect.outputs.required == 'true' }}
+        id: mobile_visual
+        continue-on-error: ${{ steps.detect.outputs.visual_advisory == 'true' }}
+      - name: Upload production mobile quality diagnostics
+        if: ${{ steps.detect.outputs.required == 'true' && failure() }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: production-mobile-quality-diagnostics-${{ github.sha }}
+          path: |
+            playwright-report
+            test-results
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Upload production advisory mobile visual diagnostics
+        if: ${{ steps.detect.outputs.required == 'true' && !failure() && steps.mobile_visual.outcome == 'failure' }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: production-mobile-quality-diagnostics-${{ github.sha }}
+          path: |
+            playwright-report
+            test-results
+          if-no-files-found: ignore
+          retention-days: 7
 
   deploy_production:
     needs: [source_quality, build_pages, production_mobile_quality]

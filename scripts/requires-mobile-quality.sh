@@ -12,7 +12,7 @@ case "$changed_path" in
 		printf '%s\n' "$changed_path"
 		exit 0
 		;;
-	content/*|config/about/timeline.json|config/about/links.json|eslint.config.mjs|scripts/requires-mobile-quality.sh|.github/*|docs/*|test/*|e2e/*|backups/*|workers/*)
+	content/*|config/about/timeline.json|config/about/links.json|eslint.config.mjs|scripts/requires-mobile-quality.sh|scripts/is-admin-config-visual-advisory.sh|.github/*|docs/*|test/*|e2e/*|backups/*|workers/*)
 		exit 1
 		;;
 	*)
