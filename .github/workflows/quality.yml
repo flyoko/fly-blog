@@ -23,7 +23,7 @@ jobs:
       - uses: actions/checkout@v6
         if: ${{ github.event_name == 'pull_request' && (startsWith(github.head_ref, 'admin/article/') || startsWith(github.head_ref, 'admin/config/')) }}
         with:
-          fetch-depth: 2
+          fetch-depth: 3
       - name: 检测文章 PR 快路径
         id: detect
         if: ${{ github.event_name == 'pull_request' && startsWith(github.head_ref, 'admin/article/') }}
@@ -59,15 +59,18 @@ jobs:
       - name: 检测后台配置视觉告警模式
         id: config_advisory_detect
         if: ${{ github.event_name == 'pull_request' && startsWith(github.head_ref, 'admin/config/') }}
+        env:
+          PR_CHANGED_FILES: ${{ github.event.pull_request.changed_files }}
+          PR_COMMITS: ${{ github.event.pull_request.commits }}
         shell: bash
         run: |
           diff_file=$(mktemp)
-          git diff --name-only HEAD^1 HEAD^2 > "$diff_file"
+          git diff --name-only HEAD^2^ HEAD^2 > "$diff_file"
           changed_count=$(wc -l < "$diff_file" | tr -d ' ')
           changed_path=$(sed -n '1p' "$diff_file")
           content_diff_file=$(mktemp)
-          git diff --unified=0 --no-ext-diff HEAD^1 HEAD^2 -- "$changed_path" > "$content_diff_file"
-          if [[ "$changed_count" = 1 ]] && bash scripts/is-admin-config-visual-advisory.sh "$GITHUB_HEAD_REF" "$changed_path" "$content_diff_file" > /dev/null; then
+          git diff --unified=0 --no-ext-diff HEAD^2^ HEAD^2 -- "$changed_path" > "$content_diff_file"
+          if [[ "$PR_CHANGED_FILES" = 1 && "$PR_COMMITS" = 1 && "$changed_count" = 1 ]] && bash scripts/is-admin-config-visual-advisory.sh "$GITHUB_HEAD_REF" "$changed_path" "$content_diff_file" > /dev/null; then
             echo "eligible=true" >> "$GITHUB_OUTPUT"
           else
             echo "eligible=false" >> "$GITHUB_OUTPUT"
