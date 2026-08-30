@@ -33,6 +33,7 @@ else {
 
 <template>
 <template v-if="post">
+	<PostReadingNavigator />
 	<PostHeader v-bind="post" />
 	<PostExcerpt v-if="excerpt" :excerpt />
 
