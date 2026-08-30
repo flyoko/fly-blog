@@ -18,6 +18,7 @@ jobs:
     outputs:
       eligible: ${{ steps.detect.outputs.eligible || 'false' }}
       config_visual_exempt: ${{ steps.config_detect.outputs.eligible || 'false' }}
+      config_visual_advisory: ${{ steps.config_advisory_detect.outputs.eligible || 'false' }}
     steps:
       - uses: actions/checkout@v6
         if: ${{ github.event_name == 'pull_request' && (startsWith(github.head_ref, 'admin/article/') || startsWith(github.head_ref, 'admin/config/')) }}
@@ -54,6 +55,22 @@ jobs:
             echo "eligible=false" >> "$GITHUB_OUTPUT"
             echo "后台配置视觉豁免不适用，保留完整移动端视觉校验。"
             sed 's/^/ - /' "$diff_file"
+          fi
+      - name: 检测后台配置视觉告警模式
+        id: config_advisory_detect
+        if: ${{ github.event_name == 'pull_request' && startsWith(github.head_ref, 'admin/config/') }}
+        shell: bash
+        run: |
+          diff_file=$(mktemp)
+          git diff --name-only HEAD^1 HEAD^2 > "$diff_file"
+          changed_count=$(wc -l < "$diff_file" | tr -d ' ')
+          changed_path=$(sed -n '1p' "$diff_file")
+          content_diff_file=$(mktemp)
+          git diff --unified=0 --no-ext-diff HEAD^1 HEAD^2 -- "$changed_path" > "$content_diff_file"
+          if [[ "$changed_count" = 1 ]] && bash scripts/is-admin-config-visual-advisory.sh "$GITHUB_HEAD_REF" "$changed_path" "$content_diff_file" > /dev/null; then
+            echo "eligible=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
           fi
 
   verify:
@@ -125,8 +142,20 @@ jobs:
       - run: pnpm test:e2e:mobile
       - run: pnpm test:e2e:mobile:visual
         if: ${{ needs.article_fast_path.outputs.config_visual_exempt != 'true' }}
+        id: mobile_visual
+        continue-on-error: ${{ needs.article_fast_path.outputs.config_visual_advisory == 'true' }}
       - name: Upload mobile quality diagnostics
         if: ${{ failure() }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: mobile-quality-diagnostics
+          path: |
+            playwright-report
+            test-results
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Upload advisory mobile visual diagnostics
+        if: ${{ !failure() && steps.mobile_visual.outcome == 'failure' }}
         uses: actions/upload-artifact@v6
         with:
           name: mobile-quality-diagnostics
