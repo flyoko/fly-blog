@@ -7,11 +7,16 @@ const route = useRoute()
 const layoutStore = useLayoutStore()
 const { avoidTargets } = storeToRefs(layoutStore)
 const navigatorRef = useTemplateRef<HTMLElement>('navigator')
+const panelTransform = ref('')
 const prefersReducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
 const progress = ref(0)
 const isScrollable = ref(false)
 const burstDirection = ref<ScrollEdge>()
-const { transform } = useAvoidTransform(navigatorRef, avoidTargets)
+const { transform: avoidTransform } = useAvoidTransform(navigatorRef, avoidTargets)
+const transform = computed(() => {
+	const shift = Math.max(getUpwardShift(avoidTransform.value), getUpwardShift(panelTransform.value))
+	return shift > 0 ? `translateY(-${shift}px)` : ''
+})
 
 const primaryDirection = computed<ScrollEdge>(() => progress.value >= 52 ? 'top' : 'bottom')
 const primaryLabel = computed(() => primaryDirection.value === 'top' ? '回到顶部' : '直达文末')
@@ -20,6 +25,17 @@ const progressOffset = computed(() => 100 - progress.value)
 let frame = 0
 let burstTimer: ReturnType<typeof setTimeout> | undefined
 let resizeObserver: ResizeObserver | undefined
+let panelObserver: MutationObserver | undefined
+
+function getUpwardShift(value: string) {
+	const match = value.match(/translateY\((-?\d+(?:\.\d+)?)px\)/u)
+	const amount = match?.[1]
+	return amount ? Math.max(0, -Number.parseFloat(amount)) : 0
+}
+
+function syncPanelTransform() {
+	panelTransform.value = document.getElementById('blog-panel-shell')?.style.transform || ''
+}
 
 function updateProgress() {
 	frame = 0
@@ -65,6 +81,12 @@ useEventListener('resize', scheduleUpdate, { passive: true })
 watch(() => route.fullPath, () => nextTick(scheduleUpdate))
 
 onMounted(() => {
+	const panel = document.getElementById('blog-panel-shell')
+	syncPanelTransform()
+	if (panel && 'MutationObserver' in window) {
+		panelObserver = new MutationObserver(syncPanelTransform)
+		panelObserver.observe(panel, { attributes: true, attributeFilter: ['style'] })
+	}
 	scheduleUpdate()
 	if ('ResizeObserver' in window) {
 		resizeObserver = new ResizeObserver(scheduleUpdate)
@@ -78,6 +100,7 @@ onBeforeUnmount(() => {
 	if (burstTimer)
 		clearTimeout(burstTimer)
 	resizeObserver?.disconnect()
+	panelObserver?.disconnect()
 })
 </script>
 
