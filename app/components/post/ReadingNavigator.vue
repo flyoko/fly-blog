@@ -164,7 +164,7 @@ onBeforeUnmount(() => {
 	width: 3.75rem;
 	height: 3.75rem;
 	transition: transform 0.1s ease;
-	z-index: calc(var(--z-index-popover) + 2);
+	z-index: calc(var(--z-index-popover) + 6);
 }
 
 .article-reading-nav-actions {
