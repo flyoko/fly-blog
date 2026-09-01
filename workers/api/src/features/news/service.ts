@@ -696,7 +696,7 @@ export class NewsService {
 
 	private async syncAiHotItems(source: NewsSource, response: Response, fetchedAt: string): Promise<number> {
 		const items = parseAiHotItems(await response.json())
-		await this.env.DB.prepare('UPDATE news_items SET selected = 0, updated_at = ? WHERE source_id IN (\'ai-hot\', \'ai-hot-items\')')
+		await this.env.DB.prepare('UPDATE news_items SET selected = 0, updated_at = ? WHERE source_id IN (\'ai-hot\', \'ai-hot-items\') AND selected = 1')
 			.bind(fetchedAt)
 			.run()
 		let accepted = 0
@@ -912,7 +912,7 @@ export class NewsService {
 			const article = shouldRefresh ? await this.fetchZaihuaArticle(entry.link) : null
 			return { entry, itemId, existing, previousMetadata, rssHash, cleanedDescription, article, shouldRefresh }
 		})))
-		await this.env.DB.prepare('UPDATE news_items SET selected = 0, updated_at = ? WHERE source_id = ?')
+		await this.env.DB.prepare('UPDATE news_items SET selected = 0, updated_at = ? WHERE source_id = ? AND selected = 1')
 			.bind(fetchedAt, source.id)
 			.run()
 		let accepted = 0

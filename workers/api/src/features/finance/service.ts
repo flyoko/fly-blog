@@ -2,6 +2,7 @@ import type { AdminFinanceFlashDto, AdminFinanceFlashListDto, FinanceAdminVisibi
 import type { Env } from '../../env'
 import { financeSourceIds } from '../../../../../shared/admin/finance'
 import { ApiError } from '../../lib/api-error'
+import { preparePublicCacheVersionBump, readPublicCacheVersion } from '../../lib/public-cache-version'
 import { AuditRepository } from '../../repositories/audit-repository'
 import { ClsFinanceFlashAdapter } from './cls'
 import { groupFinanceEvents } from './dedupe'
@@ -152,7 +153,10 @@ export class FinanceFlashService {
 	}
 
 	async setSourceEnabled(sourceId: string, enabled: boolean, actorId: string): Promise<FinanceSourceSettingDto> {
-		await this.sourceSettingStatement(sourceId, enabled, actorId).run()
+		await this.env.DB.batch([
+			this.sourceSettingStatement(sourceId, enabled, actorId),
+			preparePublicCacheVersionBump(this.env.DB, 'finance'),
+		])
 		return (await this.sourceSettings()).find(source => source.sourceId === sourceId)!
 	}
 
@@ -174,7 +178,11 @@ export class FinanceFlashService {
 			requestId,
 			metadata: { sourceId, enabled },
 		})
-		await this.env.DB.batch([settingStatement, auditStatement])
+		await this.env.DB.batch([
+			settingStatement,
+			auditStatement,
+			preparePublicCacheVersionBump(this.env.DB, 'finance'),
+		])
 		return (await this.sourceSettings()).find(source => source.sourceId === sourceId)!
 	}
 
@@ -303,14 +311,15 @@ export class FinanceFlashService {
 					last_success_at = excluded.last_success_at, last_error = NULL,
 					updated_at = excluded.updated_at
 			`).bind(adapter.id, items.length, now, now))
-			await this.env.DB.batch(statements)
 
 			if (options.replaceFallback && !adapter.prototype && this.fallbackAdapter.id !== adapter.id) {
-				await this.env.DB.batch([
+				statements.push(
 					this.env.DB.prepare('DELETE FROM finance_flash_items WHERE source_id = ?').bind(this.fallbackAdapter.id),
 					this.env.DB.prepare('DELETE FROM finance_flash_sync_state WHERE source_id = ?').bind(this.fallbackAdapter.id),
-				])
+				)
 			}
+			statements.push(preparePublicCacheVersionBump(this.env.DB, 'finance', now))
+			await this.env.DB.batch(statements)
 			return {
 				sourceId: adapter.id,
 				status: 'success',
@@ -322,12 +331,15 @@ export class FinanceFlashService {
 		}
 		catch (cause) {
 			const message = cause instanceof Error ? cause.message : String(cause)
-			await this.env.DB.prepare(`
-				INSERT INTO finance_flash_sync_state (source_id, status, item_count, last_success_at, last_error, updated_at)
-				VALUES (?, 'failed', 0, NULL, ?, ?)
-				ON CONFLICT(source_id) DO UPDATE SET
-					status = 'failed', last_error = excluded.last_error, updated_at = excluded.updated_at
-			`).bind(adapter.id, message.slice(0, 2_000), now).run()
+			await this.env.DB.batch([
+				this.env.DB.prepare(`
+					INSERT INTO finance_flash_sync_state (source_id, status, item_count, last_success_at, last_error, updated_at)
+					VALUES (?, 'failed', 0, NULL, ?, ?)
+					ON CONFLICT(source_id) DO UPDATE SET
+						status = 'failed', last_error = excluded.last_error, updated_at = excluded.updated_at
+				`).bind(adapter.id, message.slice(0, 2_000), now),
+				preparePublicCacheVersionBump(this.env.DB, 'finance', now),
+			])
 			return { sourceId: adapter.id, status: 'failed', itemCount: 0, error: message }
 		}
 	}
@@ -344,10 +356,6 @@ export class FinanceFlashService {
 		else {
 			result = await this.syncAdapter(this.adapter, { replaceFallback: true })
 		}
-		const retentionDeleted = await this.cleanupSourceFlashRetention(this.adapter.id)
-		if (result.status === 'success' && retentionDeleted > 0)
-			result.deletedCount = (result.deletedCount || 0) + retentionDeleted
-		await this.cleanupRetention()
 		return result
 	}
 
@@ -371,9 +379,6 @@ export class FinanceFlashService {
 				continue
 			}
 			const result = await this.syncAdapter(adapter, { replaceFallback: adapter === this.adapter })
-			const retentionDeleted = await this.cleanupSourceFlashRetention(adapter.id)
-			if (result.status === 'success' && retentionDeleted > 0)
-				result.deletedCount = (result.deletedCount || 0) + retentionDeleted
 			results.push(result)
 		}
 		await this.cleanupRetention()
@@ -383,12 +388,12 @@ export class FinanceFlashService {
 	async ensureSeeded(): Promise<void> {
 		const publicRowCondition = this.publicRowCondition('f')
 		const snapshot = await this.env.DB.prepare(`
-			SELECT COUNT(*) AS count
+			SELECT 1 AS present
 			FROM finance_flash_items f
 			WHERE ${publicRowCondition}
-		`).first<{ count: number }>()
-		const itemCount = snapshot?.count || 0
-		if (itemCount > 0)
+			LIMIT 1
+		`).first<{ present: number }>()
+		if (snapshot?.present)
 			return
 
 		if (!this.adapter.prototype) {
@@ -506,8 +511,8 @@ export class FinanceFlashService {
 					SELECT 1 FROM finance_flash_exclusions e
 					WHERE e.item_id = f.id AND e.restored_at IS NULL
 				)
-				AND julianday(f.published_at) >= julianday(?)
-				AND julianday(f.published_at) <= julianday(?)
+				AND f.published_at >= ?
+				AND f.published_at <= ?
 			ORDER BY f.published_at DESC, f.id DESC
 		`).bind(start, now.toISOString()).all<FinanceFlashRow>()
 		const groupedItems = groupFinanceEvents(items.results.map(row => this.dto(row)))
@@ -610,11 +615,14 @@ export class FinanceFlashService {
 		if (!item)
 			return null
 		const now = new Date().toISOString()
-		await this.env.DB.prepare(`
-			INSERT INTO finance_flash_exclusions (item_id, created_at, restored_at)
-			VALUES (?, ?, NULL)
-			ON CONFLICT(item_id) DO UPDATE SET created_at = excluded.created_at, restored_at = NULL
-		`).bind(id, now).run()
+		await this.env.DB.batch([
+			this.env.DB.prepare(`
+				INSERT INTO finance_flash_exclusions (item_id, created_at, restored_at)
+				VALUES (?, ?, NULL)
+				ON CONFLICT(item_id) DO UPDATE SET created_at = excluded.created_at, restored_at = NULL
+			`).bind(id, now),
+			preparePublicCacheVersionBump(this.env.DB, 'finance', now),
+		])
 		return this.adminDto({ ...item, hidden_at: now })
 	}
 
@@ -628,38 +636,30 @@ export class FinanceFlashService {
 		if (!item)
 			return null
 		const now = new Date().toISOString()
-		await this.env.DB.prepare('UPDATE finance_flash_exclusions SET restored_at = ? WHERE item_id = ?')
-			.bind(now, id)
-			.run()
+		await this.env.DB.batch([
+			this.env.DB.prepare('UPDATE finance_flash_exclusions SET restored_at = ? WHERE item_id = ?').bind(now, id),
+			preparePublicCacheVersionBump(this.env.DB, 'finance', now),
+		])
 		return this.adminDto({ ...item, hidden_at: null })
 	}
 
 	async cleanupRetention(now = new Date()): Promise<{ deletedExclusions: number }> {
 		const flashCutoff = new Date(now.getTime() - FINANCE_FLASH_RETENTION_MS).toISOString()
 		const exclusionCutoff = new Date(now.getTime() - FINANCE_EXCLUSION_RETENTION_DAYS * 86_400_000).toISOString()
-		await this.env.DB.prepare(`
-			DELETE FROM finance_flash_items
-			WHERE source_id IN (?, ?, ?)
-				AND julianday(published_at) < julianday(?)
-		`).bind(...financeSourceIds, flashCutoff).run()
-		const result = await this.env.DB.prepare(`
-			DELETE FROM finance_flash_exclusions
-			WHERE COALESCE(restored_at, created_at) < ?
-				AND NOT EXISTS (SELECT 1 FROM finance_flash_items f WHERE f.id = finance_flash_exclusions.item_id)
-		`).bind(exclusionCutoff).run()
-		return { deletedExclusions: result.meta.changes || 0 }
-	}
-
-	private async cleanupSourceFlashRetention(sourceId: string, now = new Date()): Promise<number> {
-		if (!FINANCE_ROLLING_SOURCE_IDS.has(sourceId))
-			return 0
-		const cutoff = new Date(now.getTime() - FINANCE_FLASH_RETENTION_MS).toISOString()
-		const result = await this.env.DB.prepare(`
-			DELETE FROM finance_flash_items
-			WHERE source_id = ?
-				AND julianday(published_at) < julianday(?)
-		`).bind(sourceId, cutoff).run()
-		return result.meta.changes || 0
+		const [, exclusions] = await this.env.DB.batch([
+			this.env.DB.prepare(`
+				DELETE FROM finance_flash_items
+				WHERE source_id IN (?, ?, ?)
+					AND published_at < ?
+			`).bind(...financeSourceIds, flashCutoff),
+			this.env.DB.prepare(`
+				DELETE FROM finance_flash_exclusions
+				WHERE COALESCE(restored_at, created_at) < ?
+					AND NOT EXISTS (SELECT 1 FROM finance_flash_items f WHERE f.id = finance_flash_exclusions.item_id)
+			`).bind(exclusionCutoff),
+			preparePublicCacheVersionBump(this.env.DB, 'finance', now.toISOString()),
+		])
+		return { deletedExclusions: exclusions.meta.changes || 0 }
 	}
 
 	async status() {
@@ -716,68 +716,6 @@ export class FinanceFlashService {
 	}
 
 	async listVersion(): Promise<string> {
-		const publicRowCondition = this.publicRowCondition('f')
-		const row = await this.env.DB.prepare(`
-			SELECT
-				(SELECT MAX(version) FROM (
-					SELECT MAX(f.updated_at) AS version
-					FROM finance_flash_items f
-					WHERE ${publicRowCondition}
-					UNION ALL
-					SELECT MAX(COALESCE(e.restored_at, e.created_at)) AS version
-					FROM finance_flash_exclusions e
-					JOIN finance_flash_items f ON f.id = e.item_id
-					WHERE ${publicRowCondition}
-				)) AS version,
-				(SELECT COUNT(*) FROM finance_flash_items f WHERE ${publicRowCondition}) AS item_count,
-				(SELECT COUNT(*)
-				 FROM finance_flash_exclusions e
-				 JOIN finance_flash_items f ON f.id = e.item_id
-				 WHERE e.restored_at IS NULL AND ${publicRowCondition}) AS exclusion_count,
-				(SELECT MAX(s.updated_at)
-				 FROM finance_flash_sync_state s
-				 WHERE EXISTS (
-					 SELECT 1 FROM finance_flash_items f
-					 WHERE f.source_id = s.source_id AND ${publicRowCondition}
-				 )) AS source_state_version,
-				(SELECT COUNT(*)
-				 FROM finance_flash_sync_state s
-				 WHERE s.status = 'success'
-					 AND EXISTS (
-						 SELECT 1 FROM finance_flash_items f
-						 WHERE f.source_id = s.source_id AND ${publicRowCondition}
-					 )) AS success_count,
-				(SELECT COUNT(*)
-				 FROM finance_flash_sync_state s
-				 WHERE s.status = 'failed'
-					 AND EXISTS (
-						 SELECT 1 FROM finance_flash_items f
-						 WHERE f.source_id = s.source_id AND ${publicRowCondition}
-					 )) AS failed_count,
-				(SELECT MAX(updated_at) FROM finance_source_settings) AS source_settings_version,
-				(SELECT COUNT(*) FROM finance_source_settings WHERE enabled = 0) AS disabled_source_count,
-				(SELECT GROUP_CONCAT(source_id || '=' || enabled, ',')
-				 FROM (
-					 SELECT fixed_source.source_id, COALESCE(source_setting.enabled, 1) AS enabled
-					 FROM (
-						 SELECT 'cls-telegraph-7x24' AS source_id
-						 UNION ALL SELECT 'jin10-mcp-7x24'
-						 UNION ALL SELECT 'wallstreetcn-7x24'
-					 ) fixed_source
-					 LEFT JOIN finance_source_settings source_setting ON source_setting.source_id = fixed_source.source_id
-					 ORDER BY fixed_source.source_id
-				 )) AS source_policy_signature
-		`).first<{
-			version: string | null
-			item_count: number
-			exclusion_count: number
-			source_state_version: string | null
-			success_count: number
-			failed_count: number
-			source_settings_version: string | null
-			disabled_source_count: number
-			source_policy_signature: string | null
-		}>()
-		return `${row?.version || 'empty'}:${row?.item_count || 0}:${row?.exclusion_count || 0}:${row?.source_state_version || 'no-state'}:${row?.success_count || 0}:${row?.failed_count || 0}:${row?.source_settings_version || 'no-settings'}:${row?.disabled_source_count || 0}:${row?.source_policy_signature || 'default-enabled'}`
+		return readPublicCacheVersion(this.env.DB, 'finance')
 	}
 }

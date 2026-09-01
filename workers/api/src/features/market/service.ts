@@ -16,6 +16,7 @@ import type { Env } from '../../env'
 import type { MarketCapability, MarketDataProvider, MarketProviderResult } from './contracts'
 import { marketIndexCodes, sectorWeekOffsets, sectorWindowDays } from '../../../../../shared/market'
 import { isChinaAShareTradingDate } from '../../../../../shared/market-calendar'
+import { preparePublicCacheVersionBump, readPublicCacheVersion } from '../../lib/public-cache-version'
 import { isChinaMarketSectorSyncWindow, isChinaMarketSyncWindow, shanghaiParts } from './contracts'
 import { EastMoneyMarketProvider } from './eastmoney'
 import { recordMarketSourceObservation } from './observability'
@@ -316,26 +317,29 @@ export class MarketService {
 		]) || indices.fetchedAt
 		const updatedAt = this.now().toISOString()
 
-		await this.env.DB.prepare(`
-			INSERT INTO market_daily_snapshot (
-				trade_date, market_at, fetched_at, indices_json, breadth_json, sources_json, updated_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?)
-			ON CONFLICT(trade_date) DO UPDATE SET
-				market_at = excluded.market_at,
-				fetched_at = excluded.fetched_at,
-				indices_json = excluded.indices_json,
-				breadth_json = excluded.breadth_json,
-				sources_json = excluded.sources_json,
-				updated_at = excluded.updated_at
-		`).bind(
-			tradeDate,
-			marketTime,
-			fetchedTime,
-			JSON.stringify(indices.data),
-			breadth ? JSON.stringify(breadth) : null,
-			JSON.stringify(sources),
-			updatedAt,
-		).run()
+		await this.env.DB.batch([
+			this.env.DB.prepare(`
+				INSERT INTO market_daily_snapshot (
+					trade_date, market_at, fetched_at, indices_json, breadth_json, sources_json, updated_at
+				) VALUES (?, ?, ?, ?, ?, ?, ?)
+				ON CONFLICT(trade_date) DO UPDATE SET
+					market_at = excluded.market_at,
+					fetched_at = excluded.fetched_at,
+					indices_json = excluded.indices_json,
+					breadth_json = excluded.breadth_json,
+					sources_json = excluded.sources_json,
+					updated_at = excluded.updated_at
+			`).bind(
+				tradeDate,
+				marketTime,
+				fetchedTime,
+				JSON.stringify(indices.data),
+				breadth ? JSON.stringify(breadth) : null,
+				JSON.stringify(sources),
+				updatedAt,
+			),
+			preparePublicCacheVersionBump(this.env.DB, 'market', updatedAt),
+		])
 	}
 
 	private async persistSectorFlows(result: MarketProviderResult<SectorFlowQuote[]>): Promise<void> {
@@ -398,6 +402,7 @@ export class MarketService {
 		const statements = [upsert]
 		if (cutoff)
 			statements.push(this.env.DB.prepare('DELETE FROM market_sector_flow_daily WHERE trade_date < ?').bind(cutoff))
+		statements.push(preparePublicCacheVersionBump(this.env.DB, 'market', updatedAt))
 		await this.env.DB.batch(statements)
 	}
 
@@ -737,18 +742,6 @@ export class MarketService {
 	}
 
 	async listVersion(): Promise<string> {
-		const row = await this.env.DB.prepare(`
-			SELECT
-				(SELECT MAX(updated_at) FROM market_daily_snapshot) AS daily_version,
-				(SELECT MAX(updated_at) FROM market_sector_flow_daily) AS sector_version,
-				(SELECT COUNT(*) FROM market_daily_snapshot) AS daily_count,
-				(SELECT COUNT(*) FROM market_sector_flow_daily) AS sector_count
-		`).first<{
-			daily_version: string | null
-			sector_version: string | null
-			daily_count: number
-			sector_count: number
-		}>()
-		return `${row?.daily_version || 'no-daily'}:${row?.sector_version || 'no-sector'}:${row?.daily_count || 0}:${row?.sector_count || 0}`
+		return readPublicCacheVersion(this.env.DB, 'market')
 	}
 }
