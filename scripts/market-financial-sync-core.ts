@@ -346,7 +346,7 @@ export function buildFinancialReportSql(input: NormalizedFinancialSync): string 
   source_id, source_name, source_url, fetched_at, updated_at`
 	for (let index = 0; index < input.rows.length; index += 50) {
 		const values = input.rows.slice(index, index + 50).map(reportInsertValues).join(',\n')
-		statements.push(`INSERT INTO market_financial_report (${columns}\n) VALUES\n${values}\nON CONFLICT(report_date, fetched_at, security_code) DO UPDATE SET
+		statements.push(`INSERT INTO market_financial_report (${columns}\n) VALUES\n${values}\nON CONFLICT(report_date, security_code) DO UPDATE SET
   period_type = excluded.period_type,
   secucode = excluded.secucode,
   security_name = excluded.security_name,
@@ -364,7 +364,23 @@ export function buildFinancialReportSql(input: NormalizedFinancialSync): string 
   source_name = excluded.source_name,
   source_url = excluded.source_url,
   fetched_at = excluded.fetched_at,
-  updated_at = excluded.updated_at;`)
+  updated_at = excluded.updated_at
+WHERE market_financial_report.period_type IS NOT excluded.period_type
+  OR market_financial_report.secucode IS NOT excluded.secucode
+  OR market_financial_report.security_name IS NOT excluded.security_name
+  OR market_financial_report.industry_name IS NOT excluded.industry_name
+  OR market_financial_report.notice_date IS NOT excluded.notice_date
+  OR market_financial_report.net_profit_yoy IS NOT excluded.net_profit_yoy
+  OR market_financial_report.gross_margin IS NOT excluded.gross_margin
+  OR market_financial_report.previous_gross_margin IS NOT excluded.previous_gross_margin
+  OR market_financial_report.gross_margin_yoy_change IS NOT excluded.gross_margin_yoy_change
+  OR market_financial_report.inventory IS NOT excluded.inventory
+  OR market_financial_report.previous_inventory IS NOT excluded.previous_inventory
+  OR market_financial_report.inventory_yoy_change IS NOT excluded.inventory_yoy_change
+  OR market_financial_report.inventory_yoy_pct IS NOT excluded.inventory_yoy_pct
+  OR market_financial_report.source_id IS NOT excluded.source_id
+  OR market_financial_report.source_name IS NOT excluded.source_name
+  OR market_financial_report.source_url IS NOT excluded.source_url;`)
 	}
 	statements.push(`INSERT INTO market_financial_sync_state (
   report_date, period_type, comparison_report_date, performance_row_count, balance_row_count,
@@ -396,9 +412,10 @@ ON CONFLICT(report_date) DO UPDATE SET
   source_url = excluded.source_url,
   fetched_at = excluded.fetched_at,
   updated_at = excluded.updated_at;`)
+	const currentSecurityCodes = input.rows.map(row => sqlLiteral(row.securityCode)).join(', ')
 	statements.push(`DELETE FROM market_financial_report
 WHERE report_date = ${sqlLiteral(input.reportDate)}
-  AND fetched_at <> ${sqlLiteral(input.fetchedAt)};`)
+  AND security_code NOT IN (${currentSecurityCodes});`)
 	return `${statements.join('\n\n')}\n`
 }
 

@@ -127,8 +127,8 @@ export class FinancialScreenerService {
 			...filters,
 			reportDate: state.report_date,
 		}
-		const baseConditions = ['report_date = ?', 'period_type = ?', 'fetched_at = ?', 'net_profit_yoy >= ?']
-		const bindings: Array<string | number> = [state.report_date, filters.period, state.fetched_at, filters.minNetProfitYoY]
+		const baseConditions = ['report_date = ?', 'period_type = ?', 'net_profit_yoy >= ?']
+		const bindings: Array<string | number> = [state.report_date, filters.period, filters.minNetProfitYoY]
 
 		if (filters.grossMarginTrend === 'up')
 			baseConditions.push('gross_margin_yoy_change > 0')
@@ -146,8 +146,8 @@ export class FinancialScreenerService {
 		const totalRow = await this.env.DB.prepare(`
 			SELECT COUNT(*) AS count
 			FROM market_financial_report
-			WHERE report_date = ? AND period_type = ? AND fetched_at = ?
-		`).bind(state.report_date, filters.period, state.fetched_at).first<{ count: number }>()
+			WHERE report_date = ? AND period_type = ?
+		`).bind(state.report_date, filters.period).first<{ count: number }>()
 		const matchedRow = await this.env.DB.prepare(`
 			SELECT COUNT(*) AS count
 			FROM market_financial_report

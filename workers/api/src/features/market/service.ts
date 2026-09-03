@@ -17,13 +17,12 @@ import type { MarketCapability, MarketDataProvider, MarketProviderResult } from 
 import { marketIndexCodes, sectorWeekOffsets, sectorWindowDays } from '../../../../../shared/market'
 import { isChinaAShareTradingDate } from '../../../../../shared/market-calendar'
 import { preparePublicCacheVersionBump, readPublicCacheVersion } from '../../lib/public-cache-version'
-import { isChinaMarketSectorSyncWindow, isChinaMarketSyncWindow, MARKET_SYNC_WINDOWS, shanghaiParts } from './contracts'
+import { isChinaMarketSectorSyncWindow, isChinaMarketSyncWindow, shanghaiParts } from './contracts'
 import { EastMoneyMarketProvider } from './eastmoney'
 import { recordMarketSourceObservation } from './observability'
 
 const SECTOR_FLOW_RETENTION_DAYS = 30
 const SECTOR_FLOW_HISTORY_LIMIT = 20
-const SECTOR_FLOW_PERSIST_INTERVAL_MINUTES = 15
 const DAY_MS = 86_400_000
 
 interface MarketDailySnapshotRow {
@@ -49,6 +48,15 @@ interface MarketSectorFlowRow {
 	market_at: string
 	fetched_at: string
 	source_id: string
+	updated_at: string
+}
+
+interface MarketSectorFlowIntradaySnapshotRow {
+	sector_kind: SectorKind
+	market_at: string
+	fetched_at: string
+	source_id: string
+	items_json: string
 	updated_at: string
 }
 
@@ -125,19 +133,6 @@ function oldestIso(values: Array<string | null | undefined>): string | null {
 	if (!valid.length)
 		return null
 	return valid.slice().sort((left, right) => Date.parse(left) - Date.parse(right))[0]!
-}
-
-function shouldPersistScheduledSectorFlows(scheduledAt?: string): boolean {
-	if (!scheduledAt)
-		return true
-	const scheduledDate = new Date(scheduledAt)
-	if (!Number.isFinite(scheduledDate.getTime()))
-		return true
-	const { minutes } = shanghaiParts(scheduledDate)
-	const window = MARKET_SYNC_WINDOWS.find(candidate => minutes >= candidate.startMinute && minutes <= candidate.endMinute)
-	if (!window)
-		return true
-	return (minutes - window.startMinute) % SECTOR_FLOW_PERSIST_INTERVAL_MINUTES === 0
 }
 
 function ageMs(now: Date, marketAt: string | null): number | null {
@@ -356,7 +351,38 @@ export class MarketService {
 		])
 	}
 
-	private async persistSectorFlows(result: MarketProviderResult<SectorFlowQuote[]>): Promise<void> {
+	private async persistIntradaySectorSnapshot(result: MarketProviderResult<SectorFlowQuote[]>): Promise<void> {
+		const kind = result.data[0]?.kind
+		if (!kind)
+			return
+		const items = result.data.filter(item => item.kind === kind)
+		if (!items.length)
+			return
+		const updatedAt = this.now().toISOString()
+		await this.env.DB.batch([
+			this.env.DB.prepare(`
+				INSERT INTO market_sector_flow_intraday_snapshot (
+					sector_kind, market_at, fetched_at, source_id, items_json, updated_at
+				) VALUES (?, ?, ?, ?, ?, ?)
+				ON CONFLICT(sector_kind) DO UPDATE SET
+					market_at = excluded.market_at,
+					fetched_at = excluded.fetched_at,
+					source_id = excluded.source_id,
+					items_json = excluded.items_json,
+					updated_at = excluded.updated_at
+			`).bind(
+				kind,
+				result.marketAt,
+				result.fetchedAt,
+				result.source.sourceId,
+				JSON.stringify(items),
+				updatedAt,
+			),
+			preparePublicCacheVersionBump(this.env.DB, 'market', updatedAt),
+		])
+	}
+
+	private async persistDailySectorFlows(result: MarketProviderResult<SectorFlowQuote[]>): Promise<void> {
 		if (!result.data.length)
 			return
 		const updatedAt = this.now().toISOString()
@@ -611,6 +637,35 @@ export class MarketService {
 		})
 	}
 
+	private async latestIntradaySectorSnapshot(kind: SectorKind, limit: number): Promise<{
+		items: SectorFlowQuote[]
+		source: MarketSourceRef
+		fetchedAt: string
+		marketAt: string
+	} | null> {
+		const row = await this.env.DB.prepare(`
+			SELECT sector_kind, market_at, fetched_at, source_id, items_json, updated_at
+			FROM market_sector_flow_intraday_snapshot
+			WHERE sector_kind = ?
+		`).bind(kind).first<MarketSectorFlowIntradaySnapshotRow>()
+		if (!row)
+			return null
+		const parsed = jsonOrNull<SectorFlowQuote[]>(row.items_json)
+		if (!Array.isArray(parsed))
+			return null
+		const items = parsed
+			.filter(item => item?.kind === kind && typeof item.code === 'string' && typeof item.name === 'string')
+			.slice(0, limit)
+		if (!items.length)
+			return null
+		return {
+			items,
+			source: storedSource(row.source_id),
+			fetchedAt: row.fetched_at,
+			marketAt: row.market_at,
+		}
+	}
+
 	private async latestSectorRows(kind: SectorKind, limit: number): Promise<MarketSectorFlowRow[]> {
 		const rows = await this.env.DB.prepare(`
 			SELECT trade_date, sector_kind, sector_code, sector_name, change_pct,
@@ -642,6 +697,19 @@ export class MarketService {
 			}
 		}
 		catch {
+			const intraday = await this.latestIntradaySectorSnapshot(kind, limit)
+			if (intraday) {
+				const items = await this.decorateSectorWindows(intraday.items)
+				return {
+					data: items,
+					source: [intraday.source],
+					fetchedAt: intraday.fetchedAt,
+					marketAt: intraday.marketAt,
+					stale: true,
+					staleAgeMs: ageMs(this.now(), intraday.marketAt),
+					quality: 'stale',
+				}
+			}
 			const rows = await this.latestSectorRows(kind, limit)
 			if (!rows.length) {
 				return {
@@ -699,13 +767,18 @@ export class MarketService {
 		// 只用指数的真实上游 marketAt 锚定交易日，避免法定休市日用本机日期造出新交易日。
 		if (indicesOutcome.ok)
 			await this.persistDailySnapshot(indicesOutcome.value, breadthOutcome.ok ? breadthOutcome.value : null)
-		// 公共接口仍实时直连上游；D1 只承担日内兜底与跨日窗口，因此把整批板块快照降为 15 分钟持久化。
-		// 这样不降低用户实时查询频率，同时避免每 5 分钟覆盖同一交易日近千条板块记录。
-		const persistSectorSnapshot = shouldPersistScheduledSectorFlows(scheduledAt)
-		if (persistSectorSnapshot && industryOutcome.ok)
-			await this.persistSectorFlows(industryOutcome.value)
-		if (persistSectorSnapshot && conceptOutcome.ok)
-			await this.persistSectorFlows(conceptOutcome.value)
+		// 公共接口仍实时直连上游；盘中只覆盖 industry/concept 两行紧凑快照用于故障回退。
+		// 完整板块明细只在收盘落入 daily 历史表，避免每个盘中槽位反复覆盖近千条关系型记录。
+		if (industryOutcome.ok) {
+			await this.persistIntradaySectorSnapshot(industryOutcome.value)
+			if (!scheduledAt)
+				await this.persistDailySectorFlows(industryOutcome.value)
+		}
+		if (conceptOutcome.ok) {
+			await this.persistIntradaySectorSnapshot(conceptOutcome.value)
+			if (!scheduledAt)
+				await this.persistDailySectorFlows(conceptOutcome.value)
+		}
 
 		const successCount = capabilities.filter(item => item.status === 'success').length
 		return {
@@ -739,10 +812,14 @@ export class MarketService {
 		const capabilities: MarketSyncCapabilityResult[] = []
 		for (const entry of outcomes)
 			capabilities.push(await this.writeHealth(entry.capability, entry.outcome, scheduledAt))
-		if (industryOutcome.ok)
-			await this.persistSectorFlows(industryOutcome.value)
-		if (conceptOutcome.ok)
-			await this.persistSectorFlows(conceptOutcome.value)
+		if (industryOutcome.ok) {
+			await this.persistIntradaySectorSnapshot(industryOutcome.value)
+			await this.persistDailySectorFlows(industryOutcome.value)
+		}
+		if (conceptOutcome.ok) {
+			await this.persistIntradaySectorSnapshot(conceptOutcome.value)
+			await this.persistDailySectorFlows(conceptOutcome.value)
+		}
 
 		const successCount = capabilities.filter(item => item.status === 'success').length
 		if (successCount === 0 && mismatchCount === outcomes.length) {

@@ -715,11 +715,27 @@ export class NewsService {
 		).run()
 	}
 
+	private async deselectMissingItems(sourceIds: string[], selectedIds: string[], updatedAt: string): Promise<void> {
+		if (!sourceIds.length)
+			return
+		const placeholders = sourceIds.map(() => '?').join(', ')
+		await this.env.DB.prepare(`
+			UPDATE news_items
+			SET selected = 0, updated_at = ?
+			WHERE source_id IN (${placeholders})
+				AND selected = 1
+				AND id NOT IN (SELECT CAST(value AS TEXT) FROM json_each(?))
+		`).bind(updatedAt, ...sourceIds, JSON.stringify(selectedIds)).run()
+	}
+
 	private async syncAiHotItems(source: NewsSource, response: Response, fetchedAt: string): Promise<number> {
 		const items = parseAiHotItems(await response.json())
-		await this.env.DB.prepare('UPDATE news_items SET selected = 0, updated_at = ? WHERE source_id IN (\'ai-hot\', \'ai-hot-items\') AND selected = 1')
-			.bind(fetchedAt)
-			.run()
+		const selectedIds = source.publishItems
+			? items
+					.filter(item => item.selected && Boolean(publicUrl(item.aihotUrl)))
+					.map(item => `ai-hot:${item.upstreamId}`)
+			: []
+		await this.deselectMissingItems(['ai-hot', 'ai-hot-items'], selectedIds, fetchedAt)
 		let accepted = 0
 		for (const item of items) {
 			const url = publicUrl(item.aihotUrl)
@@ -939,9 +955,8 @@ export class NewsService {
 			const article = shouldRefresh ? await this.fetchZaihuaArticle(entry.link) : null
 			return { entry, itemId, existing, previousMetadata, rssHash, cleanedDescription, article, shouldRefresh }
 		})))
-		await this.env.DB.prepare('UPDATE news_items SET selected = 0, updated_at = ? WHERE source_id = ? AND selected = 1')
-			.bind(fetchedAt, source.id)
-			.run()
+		const selectedIds = source.publishItems ? prepared.map(value => value.itemId) : []
+		await this.deselectMissingItems([source.id], selectedIds, fetchedAt)
 		let accepted = 0
 		for (const value of prepared) {
 			const url = publicUrl(value.entry.link)
