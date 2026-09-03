@@ -17,12 +17,13 @@ import type { MarketCapability, MarketDataProvider, MarketProviderResult } from 
 import { marketIndexCodes, sectorWeekOffsets, sectorWindowDays } from '../../../../../shared/market'
 import { isChinaAShareTradingDate } from '../../../../../shared/market-calendar'
 import { preparePublicCacheVersionBump, readPublicCacheVersion } from '../../lib/public-cache-version'
-import { isChinaMarketSectorSyncWindow, isChinaMarketSyncWindow, shanghaiParts } from './contracts'
+import { isChinaMarketSectorSyncWindow, isChinaMarketSyncWindow, MARKET_SYNC_WINDOWS, shanghaiParts } from './contracts'
 import { EastMoneyMarketProvider } from './eastmoney'
 import { recordMarketSourceObservation } from './observability'
 
 const SECTOR_FLOW_RETENTION_DAYS = 30
 const SECTOR_FLOW_HISTORY_LIMIT = 20
+const SECTOR_FLOW_PERSIST_INTERVAL_MINUTES = 15
 const DAY_MS = 86_400_000
 
 interface MarketDailySnapshotRow {
@@ -124,6 +125,19 @@ function oldestIso(values: Array<string | null | undefined>): string | null {
 	if (!valid.length)
 		return null
 	return valid.slice().sort((left, right) => Date.parse(left) - Date.parse(right))[0]!
+}
+
+function shouldPersistScheduledSectorFlows(scheduledAt?: string): boolean {
+	if (!scheduledAt)
+		return true
+	const scheduledDate = new Date(scheduledAt)
+	if (!Number.isFinite(scheduledDate.getTime()))
+		return true
+	const { minutes } = shanghaiParts(scheduledDate)
+	const window = MARKET_SYNC_WINDOWS.find(candidate => minutes >= candidate.startMinute && minutes <= candidate.endMinute)
+	if (!window)
+		return true
+	return (minutes - window.startMinute) % SECTOR_FLOW_PERSIST_INTERVAL_MINUTES === 0
 }
 
 function ageMs(now: Date, marketAt: string | null): number | null {
@@ -685,9 +699,12 @@ export class MarketService {
 		// 只用指数的真实上游 marketAt 锚定交易日，避免法定休市日用本机日期造出新交易日。
 		if (indicesOutcome.ok)
 			await this.persistDailySnapshot(indicesOutcome.value, breadthOutcome.ok ? breadthOutcome.value : null)
-		if (industryOutcome.ok)
+		// 公共接口仍实时直连上游；D1 只承担日内兜底与跨日窗口，因此把整批板块快照降为 15 分钟持久化。
+		// 这样不降低用户实时查询频率，同时避免每 5 分钟覆盖同一交易日近千条板块记录。
+		const persistSectorSnapshot = shouldPersistScheduledSectorFlows(scheduledAt)
+		if (persistSectorSnapshot && industryOutcome.ok)
 			await this.persistSectorFlows(industryOutcome.value)
-		if (conceptOutcome.ok)
+		if (persistSectorSnapshot && conceptOutcome.ok)
 			await this.persistSectorFlows(conceptOutcome.value)
 
 		const successCount = capabilities.filter(item => item.status === 'success').length

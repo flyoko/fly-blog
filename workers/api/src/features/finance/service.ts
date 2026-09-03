@@ -120,6 +120,20 @@ export class FinanceFlashService {
 		return conditions.join(' AND ')
 	}
 
+	private async publicRetentionCutoff(now = new Date()): Promise<string | null> {
+		if (this.adapter.prototype)
+			return null
+		const state = await this.env.DB.prepare(`
+			SELECT 1 AS present
+			FROM finance_flash_sync_state
+			WHERE source_id IN (?, ?, ?)
+			LIMIT 1
+		`).bind(...financeSourceIds).first<{ present: number }>()
+		return state?.present
+			? new Date(now.getTime() - FINANCE_FLASH_RETENTION_MS).toISOString()
+			: null
+	}
+
 	async sourceSettings(): Promise<FinanceSourceSettingDto[]> {
 		const rows = await this.env.DB.prepare(`
 			SELECT source_id, enabled, updated_at
@@ -387,12 +401,16 @@ export class FinanceFlashService {
 
 	async ensureSeeded(): Promise<void> {
 		const publicRowCondition = this.publicRowCondition('f')
+		const retentionCutoff = await this.publicRetentionCutoff()
+		const retentionCondition = retentionCutoff ? 'AND f.published_at >= ?' : ''
+		const retentionBindings = retentionCutoff ? [retentionCutoff] : []
 		const snapshot = await this.env.DB.prepare(`
 			SELECT 1 AS present
 			FROM finance_flash_items f
 			WHERE ${publicRowCondition}
+				${retentionCondition}
 			LIMIT 1
-		`).first<{ present: number }>()
+		`).bind(...retentionBindings).first<{ present: number }>()
 		if (snapshot?.present)
 			return
 
@@ -417,11 +435,18 @@ export class FinanceFlashService {
 		const limit = Math.max(1, Math.min(100, Math.trunc(options.limit || 50)))
 		const offset = Number.isSafeInteger(options.offset) && (options.offset || 0) >= 0 ? options.offset || 0 : 0
 		const publicRowCondition = this.publicRowCondition('f')
+		const retentionCutoff = await this.publicRetentionCutoff()
 		const conditions = [
 			publicRowCondition,
 			'NOT EXISTS (SELECT 1 FROM finance_flash_exclusions e WHERE e.item_id = f.id AND e.restored_at IS NULL)',
 		]
 		const bindings: Array<string | number> = []
+		if (retentionCutoff) {
+			conditions.push('f.published_at >= ?')
+			bindings.push(retentionCutoff)
+		}
+		const retentionCondition = retentionCutoff ? 'AND f.published_at >= ?' : ''
+		const retentionBindings = retentionCutoff ? [retentionCutoff] : []
 		if (options.category) {
 			conditions.push('f.category = ?')
 			bindings.push(options.category)
@@ -440,15 +465,16 @@ export class FinanceFlashService {
 					AND EXISTS (
 						SELECT 1 FROM finance_flash_items f
 						WHERE f.source_id = s.source_id AND ${publicRowCondition}
+							${retentionCondition}
 					)
-			`)
-				.first<{ updated_at: string | null }>(),
+			`).bind(...retentionBindings).first<{ updated_at: string | null }>(),
 			this.env.DB.prepare(`
 				SELECT COUNT(*) AS total,
 				SUM(CASE WHEN f.importance_origin = 'prototype' THEN 1 ELSE 0 END) AS prototype_count
 				FROM finance_flash_items f
 				WHERE ${publicRowCondition}
-			`).first<{ total: number, prototype_count: number | null }>(),
+					${retentionCondition}
+			`).bind(...retentionBindings).first<{ total: number, prototype_count: number | null }>(),
 			this.env.DB.prepare(`
 				SELECT
 					SUM(CASE WHEN s.status = 'success' THEN 1 ELSE 0 END) AS success_count,
@@ -457,8 +483,9 @@ export class FinanceFlashService {
 				WHERE EXISTS (
 					SELECT 1 FROM finance_flash_items f
 					WHERE f.source_id = s.source_id AND ${publicRowCondition}
+						${retentionCondition}
 				)
-			`).first<{ success_count: number | null, failed_count: number | null }>(),
+			`).bind(...retentionBindings).first<{ success_count: number | null, failed_count: number | null }>(),
 		])
 		const groupedItems = groupFinanceEvents(items.results.map(row => this.dto(row)))
 		const filteredItems = options.importantOnly
@@ -503,6 +530,8 @@ export class FinanceFlashService {
 
 	async todayThemes(now = new Date()): Promise<FinanceTodayThemesDto> {
 		const { start } = this.shanghaiToday(now)
+		const retentionCutoff = await this.publicRetentionCutoff(now)
+		const retentionStart = retentionCutoff && retentionCutoff > start ? retentionCutoff : start
 		const publicRowCondition = this.publicRowCondition('f')
 		const items = await this.env.DB.prepare(`
 			SELECT ${FINANCE_GROUPING_SELECT_COLUMNS} FROM finance_flash_items f
@@ -514,7 +543,7 @@ export class FinanceFlashService {
 				AND f.published_at >= ?
 				AND f.published_at <= ?
 			ORDER BY f.published_at DESC, f.id DESC
-		`).bind(start, now.toISOString()).all<FinanceFlashRow>()
+		`).bind(retentionStart, now.toISOString()).all<FinanceFlashRow>()
 		const groupedItems = groupFinanceEvents(items.results.map(row => this.dto(row)))
 		const counts = new Map<string, number>()
 		for (const item of groupedItems) {

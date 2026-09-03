@@ -43,6 +43,16 @@ export function scheduledJobsFor(cron: string): ScheduledJob[] {
 	}
 }
 
+const HIGH_FREQUENCY_CRON = '*/5 * * * *'
+const HIGH_FREQUENCY_MAX_DELAY_MS = 15 * 60_000
+
+function isStaleHighFrequencyTask(message: ScheduledTaskMessage, nowMs: number): boolean {
+	if (message.cron !== HIGH_FREQUENCY_CRON)
+		return false
+	const scheduledMs = Date.parse(message.scheduledAt)
+	return Number.isFinite(scheduledMs) && nowMs - scheduledMs > HIGH_FREQUENCY_MAX_DELAY_MS
+}
+
 const CITIC_FUTURES_RETRY_SLOTS_UTC = new Set(['08:10', '08:30', '09:00'])
 
 function shouldEnqueueCiticFuturesFromFiveMinuteCron(cron: string, scheduledTime: number): boolean {
@@ -123,11 +133,23 @@ export async function runScheduledJob(
 export async function processScheduledBatch(
 	batch: MessageBatch<ScheduledTaskMessage>,
 	env: Env,
+	services: ScheduledTaskServices = defaultServices(env),
+	now: () => number = () => Date.now(),
 ): Promise<void> {
 	for (const message of batch.messages) {
-		const startedAt = Date.now()
+		const startedAt = now()
+		if (isStaleHighFrequencyTask(message.body, startedAt)) {
+			console.warn(JSON.stringify({
+				event: 'scheduled-job.skipped-stale',
+				job: message.body?.job,
+				cron: message.body?.cron,
+				scheduledAt: message.body?.scheduledAt,
+				delayMs: Math.max(0, startedAt - Date.parse(message.body.scheduledAt)),
+			}))
+			continue
+		}
 		try {
-			await runScheduledJob(message.body, env)
+			await runScheduledJob(message.body, env, services)
 		}
 		catch (error) {
 			console.error(JSON.stringify({
@@ -135,7 +157,7 @@ export async function processScheduledBatch(
 				job: message.body?.job,
 				cron: message.body?.cron,
 				scheduledAt: message.body?.scheduledAt,
-				durationMs: Date.now() - startedAt,
+				durationMs: now() - startedAt,
 				attempts: message.attempts,
 				error: error instanceof Error ? error.message : String(error),
 			}))

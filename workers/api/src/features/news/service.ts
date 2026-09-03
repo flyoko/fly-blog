@@ -590,6 +590,17 @@ export class NewsService {
 				selected = excluded.selected,
 				metadata_json = excluded.metadata_json,
 				updated_at = excluded.updated_at
+			WHERE news_items.source_id IS NOT excluded.source_id
+				OR news_items.kind IS NOT excluded.kind
+				OR news_items.title IS NOT excluded.title
+				OR news_items.summary IS NOT excluded.summary
+				OR news_items.url IS NOT excluded.url
+				OR news_items.original_url IS NOT excluded.original_url
+				OR news_items.category IS NOT excluded.category
+				OR news_items.rank IS NOT excluded.rank
+				OR news_items.published_at IS NOT excluded.published_at
+				OR news_items.selected IS NOT excluded.selected
+				OR news_items.metadata_json IS NOT excluded.metadata_json
 		`).bind(
 			item.id,
 			item.sourceId,
@@ -675,6 +686,16 @@ export class NewsService {
 					WHEN news_documents.content_hash <> excluded.content_hash THEN excluded.updated_at
 					ELSE news_documents.updated_at
 				END
+			WHERE news_documents.reader_key IS NOT excluded.reader_key
+				OR news_documents.source_id IS NOT excluded.source_id
+				OR news_documents.source_url IS NOT excluded.source_url
+				OR news_documents.original_url IS NOT excluded.original_url
+				OR news_documents.title IS NOT excluded.title
+				OR news_documents.content_mode IS NOT excluded.content_mode
+				OR news_documents.attribution_name IS NOT excluded.attribution_name
+				OR news_documents.attribution_url IS NOT excluded.attribution_url
+				OR news_documents.published_at IS NOT excluded.published_at
+				OR news_documents.content_hash IS NOT excluded.content_hash
 		`).bind(
 			input.itemId,
 			readerKey,
@@ -824,17 +845,23 @@ export class NewsService {
 		for (const value of prepared) {
 			if (!value)
 				continue
-			await this.env.DB.prepare(`
-				UPDATE news_items
-				SET title = ?, original_url = ?, category = COALESCE(?, category), updated_at = ?
-				WHERE id = ?
-			`).bind(
-				value.entry.title,
-				value.originalUrl,
-				categoryLabel(value.entry.category),
-				fetchedAt,
-				value.itemId,
-			).run()
+			const category = categoryLabel(value.entry.category)
+			const nextCategory = category || value.existing.category
+			if (value.existing.title !== value.entry.title
+				|| value.existing.original_url !== value.originalUrl
+				|| value.existing.category !== nextCategory) {
+				await this.env.DB.prepare(`
+					UPDATE news_items
+					SET title = ?, original_url = ?, category = ?, updated_at = ?
+					WHERE id = ?
+				`).bind(
+					value.entry.title,
+					value.originalUrl,
+					nextCategory,
+					fetchedAt,
+					value.itemId,
+				).run()
+			}
 			await this.upsertDocument({
 				itemId: value.itemId,
 				sourceId: value.existing.source_id,
