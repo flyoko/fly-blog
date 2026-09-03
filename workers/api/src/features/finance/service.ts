@@ -11,7 +11,7 @@ import { prototypeFinanceItems } from './prototype-data'
 import { WallstreetCnFinanceFlashAdapter } from './wallstreetcn'
 
 const FINANCE_EXCLUSION_RETENTION_DAYS = 180
-const FINANCE_FLASH_RETENTION_MS = 16 * 60 * 60_000
+const FINANCE_FLASH_RETENTION_MS = 18 * 60 * 60_000
 
 const FINANCE_SOURCES: ReadonlyArray<{ sourceId: FinanceSourceId, sourceName: string }> = [
 	{ sourceId: 'cls-telegraph-7x24', sourceName: '财联社' },
