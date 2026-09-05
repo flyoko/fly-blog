@@ -84,7 +84,10 @@ function lifestyleTip(input: { temperature: number, precipitation: number | null
 function parseSnapshot(row: WeatherSnapshotRow, stale: boolean): PublicWeather | null {
 	try {
 		const parsed = publicWeatherSchema.parse(JSON.parse(row.payload_json))
-		return parsed.available ? { ...parsed, stale } : parsed
+		if (!parsed.available)
+			return parsed
+		const mapped = condition(parsed.weatherCode)
+		return { ...parsed, condition: mapped.label, icon: mapped.icon, stale }
 	}
 	catch {
 		return null
