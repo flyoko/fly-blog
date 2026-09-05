@@ -12,7 +12,8 @@ import { WeatherService } from './service'
 const config = weatherConfigSchema.parse(weatherRaw)
 const modules = modulesConfigSchema.parse(modulesRaw)
 const configuredModuleEnabled = modules.some(module => module.id === 'weather' && module.enabled)
-const configuredVersion = JSON.stringify({ config, moduleEnabled: configuredModuleEnabled })
+const responseSemanticsVersion = 2
+const configuredVersion = JSON.stringify({ config, moduleEnabled: configuredModuleEnabled, responseSemanticsVersion })
 
 interface WeatherReader {
 	current: () => Promise<PublicWeather>
