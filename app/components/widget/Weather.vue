@@ -117,7 +117,7 @@ onMounted(() => {
 <BlogWidget v-if="visible" title="站长城市天气" card>
 	<template #action>
 		<span v-if="weather?.available" class="weather-live-label">
-			<i />{{ weather.stale ? '缓存' : '实时' }}
+			<i />{{ weather.stale ? '缓存' : '近期' }}
 		</span>
 	</template>
 
@@ -201,7 +201,7 @@ onMounted(() => {
 
 			<dl class="weather-metrics">
 				<div><dt>风速</dt><dd>{{ weather.windSpeed == null ? '—' : `${Math.round(weather.windSpeed)} km/h` }}</dd></div>
-				<div><dt>降雨概率</dt><dd>{{ weather.precipitationProbability == null ? '—' : `${Math.round(weather.precipitationProbability)}%` }}</dd></div>
+				<div><dt>今日最高降雨概率</dt><dd>{{ weather.precipitationProbability == null ? '—' : `${Math.round(weather.precipitationProbability)}%` }}</dd></div>
 			</dl>
 
 			<footer>
@@ -262,6 +262,16 @@ onMounted(() => {
 	--weather-sky-bottom: #607FA9;
 }
 
+.weather-card.is-overcast {
+	--weather-sky-top: #5A7185;
+	--weather-sky-bottom: #9DB0BF;
+}
+
+.weather-card.is-night.is-overcast {
+	--weather-sky-top: #263748;
+	--weather-sky-bottom: #586C7E;
+}
+
 .weather-card.is-rain {
 	--weather-sky-top: #355F88;
 	--weather-sky-bottom: #7EA5C3;
@@ -301,6 +311,7 @@ onMounted(() => {
 
 .weather-celestial {
 	position: absolute;
+	visibility: hidden;
 	opacity: 0;
 	top: 12%;
 	right: 12%;
@@ -316,6 +327,7 @@ onMounted(() => {
 .is-day.is-cloudy .weather-sun,
 .is-night.is-clear .weather-moon,
 .is-night.is-cloudy .weather-moon {
+	visibility: visible;
 	opacity: 1;
 	transform: scale(1);
 	filter: blur(0);
@@ -461,6 +473,7 @@ onMounted(() => {
 }
 
 .is-cloudy .weather-cloud,
+.is-overcast .weather-cloud,
 .is-rain .weather-cloud,
 .is-storm .weather-cloud,
 .is-snow .weather-cloud {
@@ -484,6 +497,10 @@ onMounted(() => {
 .is-rain .weather-cloud,
 .is-storm .weather-cloud {
 	background: rgb(179 199 217 / 90%);
+}
+
+.is-overcast .weather-cloud {
+	background: rgb(203 216 225 / 92%);
 }
 
 .is-storm .weather-cloud {
