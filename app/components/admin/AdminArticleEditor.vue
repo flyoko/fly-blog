@@ -168,10 +168,19 @@ function editorSelection() {
 }
 
 function restoreEditorSnapshot(snapshot: MarkdownHistorySnapshot) {
+	const currentScrollTop = textarea.value?.scrollTop
+	const currentScrollLeft = textarea.value?.scrollLeft
 	updateBody(snapshot.body)
 	nextTick(() => {
-		textarea.value?.focus()
-		textarea.value?.setSelectionRange(snapshot.selectionStart, snapshot.selectionEnd)
+		const editor = textarea.value
+		if (!editor)
+			return
+		editor.focus({ preventScroll: true })
+		editor.setSelectionRange(snapshot.selectionStart, snapshot.selectionEnd)
+		if (currentScrollTop !== undefined)
+			editor.scrollTop = currentScrollTop
+		if (currentScrollLeft !== undefined)
+			editor.scrollLeft = currentScrollLeft
 	})
 }
 
