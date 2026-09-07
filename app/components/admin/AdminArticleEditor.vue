@@ -223,11 +223,14 @@ function onEditorPaste(event: ClipboardEvent) {
 	const markdown = convertRichTextHtmlToMarkdown(html)
 	if (!markdown)
 		return
+	const target = event.currentTarget as HTMLTextAreaElement
+	const body = target.value
+	const start = target.selectionStart
+	const end = target.selectionEnd
 	event.preventDefault()
-	const { start, end } = editorSelection()
 	editorHistory.value = updateMarkdownHistorySelection(editorHistory.value, start, end)
-	const value = markdownPasteValue(documentModel.value.body, start, end, html, markdown)
-	const result = applyMarkdownEdit(documentModel.value.body, start, end, {
+	const value = markdownPasteValue(body, start, end, html, markdown)
+	const result = applyMarkdownEdit(body, start, end, {
 		type: 'insert',
 		value,
 	})
@@ -796,6 +799,120 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped lang="scss">
+.admin-format-button.is-section-start {
+	position: relative;
+	margin-inline-start: 0.45rem;
+}
+
+.admin-format-button.is-section-start::before {
+	content: "";
+	position: absolute;
+	top: 20%;
+	bottom: 20%;
+	left: -0.42rem;
+	width: 1px;
+	background: var(--admin-border);
+	pointer-events: none;
+}
+
+.admin-format-button.is-active {
+	border-color: color-mix(in srgb, var(--admin-accent) 35%, var(--admin-border));
+	background: var(--admin-accent-soft);
+	color: var(--admin-accent-strong);
+}
+
+.admin-format-color-panel {
+	display: grid;
+	grid-template-columns: minmax(7rem, auto) minmax(0, 1fr);
+	align-items: center;
+	gap: 0.7rem 1rem;
+	padding: 0.65rem 1rem;
+	border-bottom: 1px solid var(--admin-border);
+	background: color-mix(in srgb, var(--admin-accent-soft) 38%, var(--admin-surface));
+}
+
+.admin-format-color-heading {
+	display: grid;
+	grid-template-columns: auto auto;
+	align-items: center;
+	gap: 0.15rem 0.38rem;
+	font-size: 0.72rem;
+	font-weight: 700;
+	color: var(--admin-text);
+}
+
+.admin-format-color-heading small {
+	grid-column: 1 / -1;
+	font-size: 0.62rem;
+	font-weight: 500;
+	color: var(--admin-muted);
+}
+
+.admin-format-color-presets {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.32rem;
+}
+
+.admin-format-color-swatch {
+	display: grid;
+	place-items: center;
+	width: 1.85rem;
+	height: 1.85rem;
+	padding: 0;
+	border: 1px solid var(--admin-border);
+	border-radius: 999px;
+	box-shadow: 0 0.2rem 0.6rem rgb(25 90 84 / 6%);
+	background: var(--admin-surface);
+	cursor: pointer;
+}
+
+.admin-format-color-swatch > span {
+	width: 1rem;
+	height: 1rem;
+	border-radius: inherit;
+	background: var(--admin-text-color);
+}
+
+.admin-format-color-swatch:hover,
+.admin-format-color-swatch:focus-visible {
+	border-color: var(--admin-accent);
+	box-shadow: 0 0 0 3px var(--admin-accent-soft);
+	outline: 0;
+}
+
+.admin-format-color-custom {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.45rem;
+	font-size: 0.68rem;
+	font-weight: 600;
+	color: var(--admin-muted);
+}
+
+.admin-format-color-custom input[type="color"] {
+	width: 2.2rem;
+	height: 2rem;
+	padding: 0.15rem;
+	border: 1px solid var(--admin-border);
+	border-radius: 0.55rem;
+	background: var(--admin-surface);
+	cursor: pointer;
+}
+
+.admin-format-color-actions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 0.28rem;
+}
+
+.admin-format-color-actions .admin-format-button {
+	white-space: nowrap;
+}
+
 .admin-article-comparison {
 	display: grid;
 	gap: 1rem;
@@ -856,6 +973,55 @@ onBeforeUnmount(() => {
 	.admin-article-comparison pre {
 		min-height: 14rem;
 		max-height: 32vh;
+	}
+}
+
+@media (max-width: 680px) {
+	.admin-format-color-panel {
+		grid-template-columns: 1fr;
+		gap: 0.55rem;
+		padding: 0.65rem 0.7rem 0.75rem;
+	}
+
+	.admin-format-color-heading {
+		grid-template-columns: auto 1fr;
+	}
+
+	.admin-format-color-presets {
+		gap: 0.38rem;
+	}
+
+	.admin-format-color-swatch {
+		width: var(--touch-target);
+		height: var(--touch-target);
+	}
+
+	.admin-format-color-swatch > span {
+		width: 1.2rem;
+		height: 1.2rem;
+	}
+
+	.admin-format-color-custom {
+		justify-content: space-between;
+		min-height: var(--touch-target);
+	}
+
+	.admin-format-color-custom input[type="color"] {
+		width: var(--touch-target);
+		height: var(--touch-target);
+	}
+
+	.admin-format-color-actions {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		width: 100%;
+	}
+
+	.admin-format-color-actions .admin-format-button {
+		width: 100%;
+		min-width: 0;
+		padding-inline: 0.35rem;
+		font-size: 0.62rem;
 	}
 }
 </style>
