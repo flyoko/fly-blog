@@ -95,6 +95,13 @@
 		margin: 0.5em 0;
 	}
 
+	.article-highlight {
+		padding-inline: 0.1em;
+		border-radius: 0.18em;
+		box-decoration-break: clone;
+		background: color-mix(in srgb, #FACC15 38%, transparent);
+	}
+
 	> *, > p {
 		margin: 1rem 0;
 	}

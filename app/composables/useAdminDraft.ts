@@ -58,6 +58,10 @@ export interface MarkdownHistoryRecordOptions {
 	limit?: number
 }
 
+const markdownTextColorPrefix = ':text-color['
+const markdownTextColorSuffixPattern = /^\]\{color="(#[0-9A-Fa-f]{6})"\}/u
+const markdownTextColorLinePattern = /^:text-color\[([\s\S]*)\]\{color="#[0-9A-Fa-f]{6}"\}$/u
+
 function normalizeSelection(body: string, selectionStart: number, selectionEnd: number) {
 	const start = Math.max(0, Math.min(selectionStart, body.length))
 	const end = Math.max(start, Math.min(selectionEnd, body.length))
@@ -122,6 +126,171 @@ export function applyMarkdownEdit(
 	const replacement = `${leading}${edit.before}${content}${edit.after}${trailing}`
 	const resultStart = start + leading.length + edit.before.length
 	return replaceMarkdownSelection(body, start, end, replacement, resultStart, resultStart + content.length)
+}
+
+export function normalizeMarkdownTextColor(value: string): string | null {
+	const normalized = value.trim().toUpperCase()
+	return /^#[0-9A-F]{6}$/u.test(normalized) ? normalized : null
+}
+
+const markdownTextColorGeneratedOpenBracket = '&#00091;'
+const markdownTextColorGeneratedCloseBracket = '&#00093;'
+
+function isEscapedMarkdownBracket(content: string, index: number) {
+	let slashCount = 0
+	for (let cursor = index - 1; cursor >= 0 && content[cursor] === '\\'; cursor -= 1)
+		slashCount += 1
+	return slashCount % 2 === 1
+}
+
+function escapeMarkdownTextColorContent(content: string) {
+	const balancedBrackets = new Set<number>()
+	const openBrackets: number[] = []
+
+	for (let index = 0; index < content.length; index += 1) {
+		if (isEscapedMarkdownBracket(content, index))
+			continue
+		if (content[index] === '[') {
+			openBrackets.push(index)
+			continue
+		}
+		if (content[index] !== ']')
+			continue
+		const openIndex = openBrackets.pop()
+		if (openIndex === undefined)
+			continue
+		balancedBrackets.add(openIndex)
+		balancedBrackets.add(index)
+	}
+
+	let escaped = ''
+	for (let index = 0; index < content.length; index += 1) {
+		const char = content[index]!
+		if (!isEscapedMarkdownBracket(content, index) && !balancedBrackets.has(index)) {
+			if (char === '[') {
+				escaped += markdownTextColorGeneratedOpenBracket
+				continue
+			}
+			if (char === ']') {
+				escaped += markdownTextColorGeneratedCloseBracket
+				continue
+			}
+		}
+		escaped += char
+	}
+	return escaped
+}
+
+function restoreMarkdownTextColorContent(content: string) {
+	return content
+		.replaceAll(markdownTextColorGeneratedOpenBracket, '[')
+		.replaceAll(markdownTextColorGeneratedCloseBracket, ']')
+}
+
+function markdownTextColorWrapper(content: string, color: string) {
+	return `${markdownTextColorPrefix}${escapeMarkdownTextColorContent(content)}]{color="${color}"}`
+}
+
+function unwrapMarkdownTextColorLines(content: string) {
+	let changed = false
+	const replacement = content
+		.split('\n')
+		.map((line) => {
+			const match = line.match(markdownTextColorLinePattern)
+			if (!match)
+				return line
+			changed = true
+			return restoreMarkdownTextColorContent(match[1] ?? '')
+		})
+		.join('\n')
+	return changed ? replacement : null
+}
+
+export function applyMarkdownTextColor(
+	body: string,
+	selectionStart: number,
+	selectionEnd: number,
+	color: string | null,
+): MarkdownEditResult | null {
+	const { start, end } = normalizeSelection(body, selectionStart, selectionEnd)
+	const selected = body.slice(start, end)
+
+	if (selected && !selected.includes('\n')) {
+		const wrapperStart = start - markdownTextColorPrefix.length
+		const hasGeneratedPrefix = wrapperStart >= 0
+			&& body.slice(wrapperStart, start) === markdownTextColorPrefix
+		const suffix = body.slice(end).match(markdownTextColorSuffixPattern)?.[0]
+
+		if (hasGeneratedPrefix && suffix) {
+			if (color === null) {
+				const restored = restoreMarkdownTextColorContent(selected)
+				return replaceMarkdownSelection(
+					body,
+					wrapperStart,
+					end + suffix.length,
+					restored,
+					wrapperStart,
+					wrapperStart + restored.length,
+				)
+			}
+
+			const normalizedColor = normalizeMarkdownTextColor(color)
+			if (!normalizedColor)
+				return null
+			const replacement = markdownTextColorWrapper(selected, normalizedColor)
+			const innerStart = wrapperStart + markdownTextColorPrefix.length
+			return replaceMarkdownSelection(
+				body,
+				wrapperStart,
+				end + suffix.length,
+				replacement,
+				innerStart,
+				innerStart + selected.length,
+			)
+		}
+	}
+
+	if (color === null) {
+		if (!selected)
+			return null
+		const replacement = unwrapMarkdownTextColorLines(selected)
+		if (replacement === null)
+			return null
+		return replaceMarkdownSelection(body, start, end, replacement, start, start + replacement.length)
+	}
+
+	const normalizedColor = normalizeMarkdownTextColor(color)
+	if (!normalizedColor)
+		return null
+
+	const content = selected || '彩色文字'
+	let replacement = markdownTextColorWrapper(content, normalizedColor)
+	if (content.includes('\n')) {
+		replacement = content
+			.split('\n')
+			.map(line => line ? markdownTextColorWrapper(line, normalizedColor) : '')
+			.join('\n')
+	}
+
+	if (content.includes('\n'))
+		return replaceMarkdownSelection(body, start, end, replacement, start, start + replacement.length)
+
+	const resultStart = start + markdownTextColorPrefix.length
+	const escapedContent = escapeMarkdownTextColorContent(content)
+	return replaceMarkdownSelection(body, start, end, replacement, resultStart, resultStart + escapedContent.length)
+}
+
+export function insertCopyBlock(
+	body: string,
+	selectionStart: number,
+	selectionEnd: number,
+): MarkdownEditResult {
+	return applyMarkdownEdit(body, selectionStart, selectionEnd, {
+		type: 'block',
+		before: '::copy-block\n',
+		after: '\n::',
+		placeholder: 'Chunk1:\n第一段内容\n\nChunk2:\n第二段内容',
+	})
 }
 
 export function createMarkdownHistory(

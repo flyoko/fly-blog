@@ -6,7 +6,9 @@ import type { MarkdownEdit, MarkdownHistorySnapshot } from '~/composables/useAdm
 import { isChunkLoadError } from '#shared/admin/feedback'
 import {
 	applyMarkdownEdit,
+	applyMarkdownTextColor,
 	createMarkdownHistory,
+	insertCopyBlock,
 	insertMacWindowBlock,
 	insertMarkdownImage,
 	recordMarkdownHistory,
@@ -14,6 +16,7 @@ import {
 	updateArticleFrontmatter,
 	updateMarkdownHistorySelection,
 } from '~/composables/useAdminDraft'
+import { convertRichTextHtmlToMarkdown } from '~/utils/rich-text-markdown'
 
 const props = withDefaults(defineProps<{
 	modelValue: ArticleDocument
@@ -64,7 +67,21 @@ const previewLoading = ref(false)
 const previewMarkdown = ref('')
 const previewRevision = ref(0)
 const editorHistory = ref(createMarkdownHistory(props.modelValue.body))
+const colorPanelOpen = ref(false)
+const customTextColor = ref('#2563EB')
 let previewTimer: ReturnType<typeof setTimeout> | undefined
+
+const textColorPresets = [
+	{ label: '红', value: '#EF4444' },
+	{ label: '橙', value: '#F97316' },
+	{ label: '黄', value: '#CA8A04' },
+	{ label: '绿', value: '#16A34A' },
+	{ label: '青', value: '#0891B2' },
+	{ label: '蓝', value: '#2563EB' },
+	{ label: '紫', value: '#7C3AED' },
+	{ label: '粉', value: '#DB2777' },
+	{ label: '灰', value: '#64748B' },
+] as const
 
 const documentModel = computed({
 	get: () => props.modelValue,
@@ -115,19 +132,28 @@ const formattingActions: Array<{
 	label: string
 	ariaLabel?: string
 	icon: string
-	edit: MarkdownEdit | 'mac-window'
+	sectionStart?: boolean
+	edit: MarkdownEdit | 'mac-window' | 'copy-block' | 'color'
 }> = [
 	{ label: '二级标题', ariaLabel: 'H2', icon: 'tabler:h-2', edit: { type: 'line-prefix', prefix: '## ', placeholder: '二级标题' } },
 	{ label: '三级标题', ariaLabel: 'H3', icon: 'tabler:h-3', edit: { type: 'line-prefix', prefix: '### ', placeholder: '三级标题' } },
-	{ label: '粗体', icon: 'tabler:bold', edit: { type: 'wrap', before: '**', after: '**', placeholder: '粗体文本' } },
+	{ label: '粗体', icon: 'tabler:bold', sectionStart: true, edit: { type: 'wrap', before: '**', after: '**', placeholder: '粗体文本' } },
 	{ label: '斜体', icon: 'tabler:italic', edit: { type: 'wrap', before: '*', after: '*', placeholder: '斜体文本' } },
-	{ label: '链接', icon: 'tabler:link', edit: { type: 'wrap', before: '[', after: '](https://)', placeholder: '链接文字' } },
+	{ label: '删除线', icon: 'tabler:strikethrough', edit: { type: 'wrap', before: '~~', after: '~~', placeholder: '删除文本' } },
+	{ label: '高亮', icon: 'tabler:highlight', edit: { type: 'wrap', before: '[', after: ']{.article-highlight}', placeholder: '高亮文本' } },
+	{ label: '文字颜色', icon: 'tabler:palette', edit: 'color' },
+	{ label: '链接', icon: 'tabler:link', sectionStart: true, edit: { type: 'wrap', before: '[', after: '](https://)', placeholder: '链接文字' } },
 	{ label: '引用', icon: 'tabler:blockquote', edit: { type: 'line-prefix', prefix: '> ', placeholder: '引用内容' } },
-	{ label: '行内代码', icon: 'tabler:code', edit: { type: 'wrap', before: '`', after: '`', placeholder: '代码' } },
+	{ label: '行内代码', icon: 'tabler:code', sectionStart: true, edit: { type: 'wrap', before: '`', after: '`', placeholder: '代码' } },
 	{ label: '代码块', icon: 'tabler:code-dots', edit: { type: 'block', before: '```text\n', after: '\n```', placeholder: '代码' } },
-	{ label: '无序列表', icon: 'tabler:list', edit: { type: 'line-prefix', prefix: '- ', placeholder: '列表项' } },
+	{ label: '可复制块', icon: 'tabler:copy', edit: 'copy-block' },
+	{ label: '无序列表', icon: 'tabler:list', sectionStart: true, edit: { type: 'line-prefix', prefix: '- ', placeholder: '列表项' } },
 	{ label: '有序列表', icon: 'tabler:list-numbers', edit: { type: 'line-prefix', prefix: '1. ', placeholder: '列表项' } },
-	{ label: '分隔线', icon: 'tabler:separator-horizontal', edit: { type: 'insert', value: '\n\n---\n\n' } },
+	{ label: '任务列表', icon: 'tabler:list-check', edit: { type: 'line-prefix', prefix: '- [ ] ', placeholder: '待办事项' } },
+	{ label: '表格', icon: 'tabler:table', edit: { type: 'block', before: '| 列1 | 列2 | 列3 |\n| --- | --- | --- |\n| ', after: ' | 内容2 | 内容3 |', placeholder: '内容1' } },
+	{ label: '折叠内容', icon: 'tabler:chevron-down', sectionStart: true, edit: { type: 'block', before: '::folding{title="展开查看"}\n', after: '\n::', placeholder: '折叠内容' } },
+	{ label: '提醒块', icon: 'tabler:info-circle', edit: { type: 'block', before: '::alert{type="tip"}\n', after: '\n::', placeholder: '提醒内容' } },
+	{ label: '分隔线', icon: 'tabler:separator-horizontal', sectionStart: true, edit: { type: 'insert', value: '\n\n---\n\n' } },
 	{ label: '插入 macOS 窗口', icon: 'tabler:browser', edit: 'mac-window' },
 ]
 
@@ -168,6 +194,44 @@ function onEditorInput(event: Event) {
 		selectionEnd: target.selectionEnd,
 	}, { group: inputEvent.inputType || 'input' })
 	updateBody(target.value)
+}
+
+function isBlockRichTextPaste(html: string) {
+	return /<(?:h[1-6]|p|pre|blockquote|ul|ol|table|hr)\b/iu.test(html)
+}
+
+function markdownPasteValue(body: string, start: number, end: number, html: string, markdown: string) {
+	if (!isBlockRichTextPaste(html))
+		return markdown
+	const left = body.slice(0, start)
+	const right = body.slice(end)
+	const leading = left && !left.endsWith('\n\n')
+		? (left.endsWith('\n') ? '\n' : '\n\n')
+		: ''
+	const trailing = right && !right.startsWith('\n\n')
+		? (right.startsWith('\n') ? '\n' : '\n\n')
+		: ''
+	return `${leading}${markdown}${trailing}`
+}
+
+function onEditorPaste(event: ClipboardEvent) {
+	if (writeLocked.value)
+		return
+	const html = event.clipboardData?.getData('text/html')
+	if (!html)
+		return
+	const markdown = convertRichTextHtmlToMarkdown(html)
+	if (!markdown)
+		return
+	event.preventDefault()
+	const { start, end } = editorSelection()
+	editorHistory.value = updateMarkdownHistorySelection(editorHistory.value, start, end)
+	const value = markdownPasteValue(documentModel.value.body, start, end, html, markdown)
+	const result = applyMarkdownEdit(documentModel.value.body, start, end, {
+		type: 'insert',
+		value,
+	})
+	recordEditorSnapshot(result)
 }
 
 function onEditorKeydown(event: KeyboardEvent) {
@@ -246,14 +310,36 @@ function insertMedia(media: MediaObjectDto) {
 	})
 }
 
-function applyEditorEdit(edit: MarkdownEdit | 'mac-window') {
+function applyEditorEdit(edit: MarkdownEdit | 'mac-window' | 'copy-block' | 'color') {
 	if (writeLocked.value)
 		return
+	if (edit === 'color') {
+		colorPanelOpen.value = !colorPanelOpen.value
+		return
+	}
 	const { start, end } = editorSelection()
 	editorHistory.value = updateMarkdownHistorySelection(editorHistory.value, start, end)
 	const result = edit === 'mac-window'
 		? insertMacWindowBlock(documentModel.value.body, start, end)
-		: applyMarkdownEdit(documentModel.value.body, start, end, edit)
+		: edit === 'copy-block'
+			? insertCopyBlock(documentModel.value.body, start, end)
+			: applyMarkdownEdit(documentModel.value.body, start, end, edit)
+	recordEditorSnapshot(result)
+}
+
+function applyTextColor(color: string | null) {
+	if (writeLocked.value)
+		return
+	const { start, end } = editorSelection()
+	editorHistory.value = updateMarkdownHistorySelection(editorHistory.value, start, end)
+	const result = applyMarkdownTextColor(documentModel.value.body, start, end, color)
+	if (!result) {
+		notifications.warning(
+			color === null ? '没有可恢复的字体颜色' : '颜色没有应用',
+			color === null ? '请先选中由字体颜色工具生成的文字。' : '请选择有效的六位十六进制颜色。',
+		)
+		return
+	}
 	recordEditorSnapshot(result)
 }
 
@@ -308,8 +394,10 @@ function retryPreview(clearError: () => void) {
 onMounted(() => window.addEventListener('keydown', onSaveShortcut))
 
 watch(writeLocked, (locked) => {
-	if (locked)
+	if (locked) {
 		mediaPickerOpen.value = false
+		colorPanelOpen.value = false
+	}
 })
 
 watch(
@@ -317,6 +405,7 @@ watch(
 	() => {
 		editorHistory.value = createMarkdownHistory(documentModel.value.body)
 		mobilePane.value = 'write'
+		colorPanelOpen.value = false
 	},
 )
 
@@ -458,15 +547,74 @@ onBeforeUnmount(() => {
 				v-for="action in formattingActions"
 				:key="action.label"
 				class="admin-format-button"
+				:class="{
+					'is-section-start': action.sectionStart,
+					'is-active': action.edit === 'color' && colorPanelOpen,
+				}"
 				type="button"
 				:disabled="writeLocked"
 				:aria-label="action.ariaLabel || action.label"
+				:aria-pressed="action.edit === 'color' ? colorPanelOpen : undefined"
 				:title="action.label"
 				@click="applyEditorEdit(action.edit)"
 			>
 				<Icon :name="action.icon" />
 				<span>{{ action.label }}</span>
 			</button>
+		</div>
+
+		<div
+			v-if="colorPanelOpen"
+			class="admin-format-color-panel"
+			role="group"
+			aria-label="字体颜色"
+		>
+			<div class="admin-format-color-heading">
+				<Icon name="tabler:palette" aria-hidden="true" />
+				<span>字体颜色</span>
+				<small>先选中文字，再选择颜色</small>
+			</div>
+
+			<div class="admin-format-color-presets" aria-label="预设字体颜色">
+				<button
+					v-for="preset in textColorPresets"
+					:key="preset.value"
+					class="admin-format-color-swatch"
+					type="button"
+					:disabled="writeLocked"
+					:style="{ '--admin-text-color': preset.value }"
+					:aria-label="`设置字体颜色：${preset.label}`"
+					:title="`${preset.label} ${preset.value}`"
+					@click="applyTextColor(preset.value)"
+				>
+					<span aria-hidden="true" />
+				</button>
+			</div>
+
+			<label class="admin-format-color-custom">
+				<span>自定义</span>
+				<input
+					v-model="customTextColor"
+					type="color"
+					:disabled="writeLocked"
+					aria-label="自定义字体颜色"
+				>
+			</label>
+
+			<div class="admin-format-color-actions">
+				<button class="admin-format-button" type="button" :disabled="writeLocked" @click="applyTextColor(customTextColor)">
+					<Icon name="tabler:check" aria-hidden="true" />
+					应用颜色
+				</button>
+				<button class="admin-format-button" type="button" :disabled="writeLocked" @click="applyTextColor(null)">
+					<Icon name="tabler:color-swatch-off" aria-hidden="true" />
+					恢复默认
+				</button>
+				<button class="admin-format-button" type="button" aria-label="关闭字体颜色面板" title="关闭" @click="colorPanelOpen = false">
+					<Icon name="tabler:x" aria-hidden="true" />
+					关闭
+				</button>
+			</div>
 		</div>
 
 		<div class="admin-editor-mobile-tabs" role="group" aria-label="编辑器视图">
@@ -491,6 +639,7 @@ onBeforeUnmount(() => {
 						spellcheck="false"
 						placeholder="开始写作…"
 						@input="onEditorInput"
+						@paste="onEditorPaste"
 						@keydown="onEditorKeydown"
 					/>
 				</label>
