@@ -29,6 +29,19 @@ const markdownRehypePlugins = {
 	'rehype-katex': {},
 }
 
+// rehype-katex 已锁定安装 KaTeX。只保留 WOFF2 字体源，避免同一字体的
+// WOFF/TTF fallback 被 Vite 一并复制，稳定公式显示的同时守住移动资产预算。
+const katexLegacyFontSourcePattern = /,url\(fonts\/[^)]*\.woff\) format\("woff"\),url\(fonts\/[^)]*\.ttf\) format\("truetype"\)/gu
+const katexWoff2OnlyPlugin = {
+	name: 'fly:katex-woff2-only',
+	enforce: 'pre' as const,
+	transform(code: string, id: string) {
+		if (!id.includes('/katex/dist/katex.min.css'))
+			return null
+		return code.replace(katexLegacyFontSourcePattern, '')
+	},
+}
+
 const cloudflareWebAnalyticsToken = env.NUXT_PUBLIC_CLOUDFLARE_WEB_ANALYTICS_TOKEN?.trim()
 const devApiOrigin = env.NUXT_DEV_API_ORIGIN?.trim().replace(/\/+$/u, '')
 const configuredModules = modulesConfigSchema.parse(modulesRaw)
@@ -56,7 +69,6 @@ export default defineNuxtConfig({
 				{ rel: 'icon', href: blogConfig.favicon },
 				...(articlesEnabled ? [{ rel: 'alternate', type: 'application/atom+xml', href: '/atom.xml' }] : []),
 				{ rel: 'preconnect', href: blogConfig.twikoo.preload },
-				{ rel: 'stylesheet', href: 'https://cdnjs.snrat.com/ajax/libs/KaTeX/0.16.44/katex.min.css', media: 'print', onload: 'this.media="all"' },
 				// "InterVariable", "Inter", "InterDisplay"
 				{ rel: 'stylesheet', href: 'https://rsms.me/inter/inter.css', media: 'print', onload: 'this.media="all"' },
 				// "JetBrains Mono", 思源宋体 "Noto Serif SC"
@@ -160,6 +172,7 @@ export default defineNuxtConfig({
 	},
 
 	vite: {
+		plugins: [katexWoff2OnlyPlugin],
 		worker: {
 			format: 'es',
 		},

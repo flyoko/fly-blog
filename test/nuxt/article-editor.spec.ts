@@ -304,6 +304,19 @@ describe('article editor UI boundaries', () => {
 		expect(carousel).toContain('noopener sponsored')
 	})
 
+	it('preserves intentional prose spacing and gives the textarea the full remaining editor track', async () => {
+		const [articleStyles, editorStyles] = await Promise.all([
+			source('app/assets/css/article.scss'),
+			source('app/assets/css/admin-management.scss'),
+		])
+
+		expect(articleStyles).toContain(':where(p, li, blockquote, td, th, h1, h2, h3, h4, h5, h6)')
+		expect(articleStyles).toContain('white-space: break-spaces;')
+		expect(editorStyles).toMatch(/\.admin-field-grow \{[\s\S]*?grid-template-rows: auto minmax\(0, 1fr\);/u)
+		expect(editorStyles).toMatch(/\.admin-field-grow textarea \{[\s\S]*?height: 100%;[\s\S]*?min-height: 0;/u)
+		expect(editorStyles).not.toMatch(/\.admin-field-grow textarea \{[\s\S]*?min-height: 100%;/u)
+	})
+
 	it('offers direct and Pull Request publishing plus media insertion', async () => {
 		const editor = await source('app/components/admin/AdminArticleEditor.vue')
 		expect(editor).toContain('保存草稿')

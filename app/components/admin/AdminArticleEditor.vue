@@ -16,7 +16,9 @@ import {
 	updateArticleFrontmatter,
 	updateMarkdownHistorySelection,
 } from '~/composables/useAdminDraft'
-import { convertRichTextHtmlToMarkdown } from '~/utils/rich-text-markdown'
+import { collectMarkdownPreviewBlocks, findMarkdownPreviewPosition } from '~/utils/markdown-preview-source'
+import { convertRichTextHtmlToMarkdown, normalizePastedMathText } from '~/utils/rich-text-markdown'
+import 'katex/dist/katex.min.css'
 
 const props = withDefaults(defineProps<{
 	modelValue: ArticleDocument
@@ -261,8 +263,8 @@ function isBlockRichTextPaste(html: string) {
 	return /<(?:h[1-6]|p|pre|blockquote|ul|ol|table|hr)\b/iu.test(html)
 }
 
-function markdownPasteValue(body: string, start: number, end: number, html: string, markdown: string) {
-	if (!isBlockRichTextPaste(html))
+function markdownPasteValue(body: string, start: number, end: number, markdown: string, block: boolean) {
+	if (!block)
 		return markdown
 	const left = body.slice(0, start)
 	const right = body.slice(end)
@@ -279,11 +281,13 @@ function onEditorPaste(event: ClipboardEvent) {
 	if (writeLocked.value)
 		return
 	clearPendingEditorInteraction()
-	const html = event.clipboardData?.getData('text/html')
-	if (!html)
-		return
-	const markdown = convertRichTextHtmlToMarkdown(html)
-	if (!markdown)
+	const html = event.clipboardData?.getData('text/html') || ''
+	const plain = event.clipboardData?.getData('text/plain') || ''
+	const richMarkdown = html ? convertRichTextHtmlToMarkdown(html) : ''
+	const normalizedPlain = plain ? normalizePastedMathText(plain) : ''
+	const markdown = richMarkdown || normalizedPlain
+	const normalizedPlainMath = Boolean(plain) && normalizedPlain !== plain
+	if (!markdown || (!html && !normalizedPlainMath))
 		return
 	const target = event.currentTarget as HTMLTextAreaElement
 	const body = target.value
@@ -291,7 +295,10 @@ function onEditorPaste(event: ClipboardEvent) {
 	const end = target.selectionEnd
 	event.preventDefault()
 	editorHistory.value = updateMarkdownHistorySelection(editorHistory.value, start, end)
-	const value = markdownPasteValue(body, start, end, html, markdown)
+	const block = html
+		? isBlockRichTextPaste(html)
+		: /^\s*\$\$/u.test(markdown) || /\n\s*\$\$/u.test(markdown)
+	const value = markdownPasteValue(body, start, end, markdown, block)
 	const result = applyMarkdownEdit(body, start, end, {
 		type: 'insert',
 		value,
@@ -440,6 +447,67 @@ function requestRegeneratePath() {
 function requestSave(mode: 'direct' | 'pull_request') {
 	if (!writeLocked.value && !props.saving && canSave.value)
 		emit('save', mode)
+}
+
+function directPreviewBlock(target: Element, preview: HTMLElement) {
+	let block: Element | null = target
+	while (block && block.parentElement !== preview)
+		block = block.parentElement
+	return block
+}
+
+function scrollEditorToPosition(editor: HTMLTextAreaElement, position: number) {
+	const body = documentModel.value.body
+	const lineIndex = body.slice(0, position).split('\n').length - 1
+	const totalLines = Math.max(1, body.split('\n').length)
+	const maxScrollTop = Math.max(0, editor.scrollHeight - editor.clientHeight)
+	const progress = totalLines <= 1 ? 0 : lineIndex / (totalLines - 1)
+	const targetScrollTop = progress * maxScrollTop - editor.clientHeight * 0.35
+	editor.scrollTop = Math.min(maxScrollTop, Math.max(0, targetScrollTop))
+}
+
+function focusPreviewSource(position: number) {
+	mobilePane.value = 'write'
+	nextTick(() => {
+		const editor = textarea.value
+		if (!editor)
+			return
+		editor.focus({ preventScroll: true })
+		editor.setSelectionRange(position, position)
+		scrollEditorToPosition(editor, position)
+		editorHistory.value = updateMarkdownHistorySelection(editorHistory.value, position, position)
+	})
+}
+
+function onPreviewClick(event: MouseEvent) {
+	const target = event.target
+	if (!(target instanceof Element))
+		return
+	if (target.closest('button, input, textarea, select, summary'))
+		return
+
+	const preview = target.closest('.admin-preview-content')
+	if (!(preview instanceof HTMLElement))
+		return
+	const block = directPreviewBlock(target, preview)
+	if (!block)
+		return
+
+	const previewChildren = [...preview.children]
+	const blockIndex = previewChildren.indexOf(block)
+	if (blockIndex < 0)
+		return
+	const sourceBlock = collectMarkdownPreviewBlocks(previewMarkdown.value)[blockIndex]
+	if (!sourceBlock)
+		return
+
+	event.preventDefault()
+	const position = findMarkdownPreviewPosition(
+		previewMarkdown.value,
+		sourceBlock,
+		target.textContent || block.textContent || '',
+	)
+	focusPreviewSource(position)
 }
 
 function onPreviewError(error: unknown) {
@@ -732,10 +800,10 @@ onBeforeUnmount(() => {
 					/>
 				</label>
 			</div>
-			<div class="admin-editor-pane admin-editor-preview">
+			<div class="admin-editor-pane admin-editor-preview" @click="onPreviewClick">
 				<div class="admin-preview-header">
 					<span>实时预览</span>
-					<small v-if="previewLoading">解析中…</small>
+					<small>{{ previewLoading ? '解析中…' : '点击内容可定位正文' }}</small>
 				</div>
 				<NuxtErrorBoundary
 					v-if="previewMarkdown"

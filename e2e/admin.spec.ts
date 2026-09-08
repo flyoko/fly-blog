@@ -129,9 +129,31 @@ test.describe('admin desktop workflows', () => {
 
 		await expect(editor).toHaveValue(/::mac-window\n选中窗口内容\n::/u)
 		await editor.fill(`${await editor.inputValue()}\n\n::mac-window\n第二个窗口\n::`)
-		await expect(page.locator('.admin-preview-content .article-window')).toHaveCount(2)
+		const previewWindows = page.locator('.admin-preview-content .article-window')
+		await expect(previewWindows).toHaveCount(2)
 		await expect(page.locator('.admin-preview-content')).toContainText('窗口外开头')
 		await expect(page.locator('.admin-preview-content')).toContainText('窗口外结尾')
+		const glassStyle = await previewWindows.first().evaluate((element) => {
+			const style = getComputedStyle(element)
+			return {
+				backdropFilter: style.backdropFilter,
+				backgroundImage: style.backgroundImage,
+				borderColor: style.borderColor,
+			}
+		})
+		expect(glassStyle.backdropFilter).not.toBe('none')
+		expect(glassStyle.backgroundImage).toContain('gradient')
+		expect(glassStyle.borderColor).not.toBe('rgba(0, 0, 0, 0)')
+
+		await page.evaluate(() => document.documentElement.classList.add('dark'))
+		const darkGlassStyle = await previewWindows.first().evaluate((element) => {
+			const style = getComputedStyle(element)
+			return { backdropFilter: style.backdropFilter, color: style.color, backgroundImage: style.backgroundImage }
+		})
+		expect(darkGlassStyle.backdropFilter).not.toBe('none')
+		expect(darkGlassStyle.backgroundImage).toContain('gradient')
+		expect(darkGlassStyle.color).not.toBe('rgb(23, 61, 64)')
+		await page.evaluate(() => document.documentElement.classList.remove('dark'))
 
 		for (const viewport of [
 			{ width: 1440, height: 900 },
@@ -153,6 +175,137 @@ test.describe('admin desktop workflows', () => {
 			expect(dimensions.contentLeft).toBeGreaterThanOrEqual(0)
 			expect(dimensions.contentRight).toBeLessThanOrEqual(dimensions.clientWidth + 1)
 		}
+	})
+
+	test('clicking preview content focuses the matching Markdown source position', async ({ page }) => {
+		await mockAuthenticatedAdmin(page)
+		await page.goto('/admin/articles/new')
+		const editor = page.getByLabel('Markdown 正文')
+		const body = [
+			'## 预览定位标题',
+			'',
+			'正文 **粗体定位目标** 继续',
+			'',
+			'- 第一项',
+			'- 第二项定位目标',
+			'',
+			'> 引用定位目标',
+			'',
+			'| 列1 | 列2 |',
+			'| --- | --- |',
+			'| 表格定位目标 | B |',
+			'',
+			'```ts',
+			'const previewTarget = 42',
+			'```',
+			'',
+			'::copy-block',
+			'复制块定位目标',
+			'::',
+			'',
+			'::mac-window',
+			'窗口定位目标',
+			'::',
+		].join('\n')
+		await editor.fill(body)
+		await expect(page.getByText('点击内容可定位正文')).toBeVisible()
+		await expect(page.locator('.admin-preview-content h2')).toHaveText('预览定位标题')
+
+		const assertPreviewJump = async (locator: Locator, text: string) => {
+			await locator.click()
+			await expect(editor).toBeFocused()
+			const selection = await editor.evaluate((element) => {
+				const textarea = element as HTMLTextAreaElement
+				return { start: textarea.selectionStart, end: textarea.selectionEnd }
+			})
+			expect(selection).toEqual({ start: body.indexOf(text), end: body.indexOf(text) })
+		}
+
+		await assertPreviewJump(page.locator('.admin-preview-content strong'), '粗体定位目标')
+		await assertPreviewJump(page.locator('.admin-preview-content li').filter({ hasText: '第二项定位目标' }), '第二项定位目标')
+		await assertPreviewJump(page.locator('.admin-preview-content blockquote'), '引用定位目标')
+		await assertPreviewJump(page.locator('.admin-preview-content td').filter({ hasText: '表格定位目标' }), '表格定位目标')
+		await assertPreviewJump(page.locator('.admin-preview-content .z-codeblock pre'), 'const previewTarget = 42')
+		await assertPreviewJump(page.locator('.admin-preview-content .article-copy-block-body').getByText('复制块定位目标'), '复制块定位目标')
+		await assertPreviewJump(page.locator('.admin-preview-content .article-window-body').getByText('窗口定位目标'), '窗口定位目标')
+
+		await page.setViewportSize({ width: 390, height: 844 })
+		await page.getByRole('button', { name: '预览', exact: true }).click()
+		await page.locator('.admin-preview-content h2').click()
+		await expect(page.getByRole('button', { name: '写作', exact: true })).toHaveAttribute('aria-pressed', 'true')
+		await expect(editor).toBeFocused()
+	})
+
+	test('article editor preserves repeated spaces, renders pasted formulas, and fills the writing pane', async ({ page }) => {
+		await mockAuthenticatedAdmin(page)
+		await page.goto('/admin/articles/new')
+		const editor = page.getByLabel('Markdown 正文')
+
+		await editor.fill('空格A   空格B')
+		const prose = page.locator('.admin-preview-content p').filter({ hasText: '空格A' })
+		await expect(prose).toBeVisible()
+		const spacing = await prose.evaluate(element => ({
+			text: element.textContent,
+			whiteSpace: getComputedStyle(element).whiteSpace,
+		}))
+		expect(spacing.text).toContain('空格A   空格B')
+		expect(spacing.whiteSpace).toBe('break-spaces')
+
+		await page.getByRole('button', { name: '文字颜色' }).click()
+		const layout = await editor.evaluate((element) => {
+			const textarea = element as HTMLTextAreaElement
+			const label = textarea.closest('label')!
+			const title = label.querySelector(':scope > span')!
+			const pane = label.closest('.admin-editor-pane')!
+			const editorRect = textarea.getBoundingClientRect()
+			const titleRect = title.getBoundingClientRect()
+			const paneRect = pane.getBoundingClientRect()
+			return {
+				gapAfterTitle: editorRect.top - titleRect.bottom,
+				bottomGap: paneRect.bottom - editorRect.bottom,
+				height: editorRect.height,
+			}
+		})
+		expect(layout.gapAfterTitle).toBeLessThan(24)
+		expect(layout.bottomGap).toBeLessThan(32)
+		expect(layout.height).toBeGreaterThan(280)
+
+		const formulaHtml = String.raw`
+			<p>公式：<span class="katex"><span class="katex-mathml"><math><semantics><annotation encoding="application/x-tex">\cos(A,B)=\frac{A \cdot B}{\|A\|\|B\|}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true">cos(A,B)=A·B//A//B//</span></span></p>
+			<div class="katex-display"><span class="katex"><span class="katex-mathml"><math display="block"><semantics><annotation encoding="application/x-tex">E=mc^2</annotation></semantics></math></span><span class="katex-html" aria-hidden="true">E = mc²</span></span></div>
+		`
+		await editor.fill('')
+		await editor.focus()
+		await editor.evaluate((element, html) => {
+			const data = new DataTransfer()
+			data.setData('text/html', html)
+			data.setData('text/plain', 'formula')
+			element.dispatchEvent(new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: data }))
+		}, formulaHtml)
+
+		await expect(editor).toHaveValue(String.raw`公式：$\cos(A,B)=\frac{A \cdot B}{\|A\|\|B\|}$
+
+$$
+E=mc^2
+$$`)
+		await expect(page.locator('.admin-preview-content .katex')).toHaveCount(2)
+		await expect(page.locator('.admin-preview-content')).not.toContainText('A·B//A//B//')
+		await expect(page.locator('.admin-preview-content .katex-mathml').first()).toHaveCSS('position', 'absolute')
+		await expect(page.locator('.admin-preview-content .katex-mathml').first()).toHaveCSS('height', '1px')
+
+		await editor.fill('')
+		const plainFormulaPrevented = await editor.evaluate((element) => {
+			const data = new DataTransfer()
+			data.setData('text/plain', String.raw`\cos(A,B)=\frac{A \cdot B}{\|A\|\|B\|}`)
+			const event = new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: data })
+			element.dispatchEvent(event)
+			return event.defaultPrevented
+		})
+		expect(plainFormulaPrevented).toBe(true)
+		await expect(editor).toHaveValue(String.raw`$$
+\cos(A,B)=\frac{A \cdot B}{\|A\|\|B\|}
+$$`)
+		await expect(page.locator('.admin-preview-content .katex-display')).toBeVisible()
 	})
 
 	test('article editor renders single returns and supports undo across macOS formatting', async ({ page }) => {

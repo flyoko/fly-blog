@@ -26,8 +26,85 @@ function normalizeInline(value: string) {
 	return value.replace(/[\t\r\n ]+/gu, ' ')
 }
 
+const latexCommandPattern = /\\(?:alpha|beta|cdot|cos|delta|div|dfrac|frac|gamma|int|lambda|left|ln|log|mathbf|mathrm|mu|omega|overline|phi|pi|prod|right|sigma|sin|sqrt|sum|tan|text|tfrac|theta|times|underline|vec)\b/gu
+
+function looksLikeStandaloneLatex(value: string) {
+	const source = value.trim()
+	if (!source || source.includes('\n') || source.startsWith('$'))
+		return false
+	const commands = [...source.matchAll(latexCommandPattern)]
+	return commands.length >= 2 && /[=^_{}]/u.test(source)
+}
+
+function replaceDelimitedMath(value: string, open: string, close: string, display: boolean) {
+	let output = ''
+	let cursor = 0
+	while (cursor < value.length) {
+		const start = value.indexOf(open, cursor)
+		if (start < 0) {
+			output += value.slice(cursor)
+			break
+		}
+		const end = value.indexOf(close, start + open.length)
+		if (end < 0) {
+			output += value.slice(cursor)
+			break
+		}
+		output += value.slice(cursor, start)
+		const source = value.slice(start + open.length, end).trim()
+		output += source
+			? (display ? `$$\n${source}\n$$` : `$${source}$`)
+			: value.slice(start, end + close.length)
+		cursor = end + close.length
+	}
+	return output
+}
+
+export function normalizePastedMathText(value: string) {
+	const normalizedDelimiters = replaceDelimitedMath(
+		replaceDelimitedMath(value.replace(/\r\n?/gu, '\n'), '\\[', '\\]', true),
+		'\\(',
+		'\\)',
+		false,
+	)
+	const lines = normalizedDelimiters.split('\n')
+	let activeFence = ''
+	let activeDisplayMath = false
+
+	return lines.map((line) => {
+		const trimmed = line.trim()
+		if (!activeFence && trimmed === '$$') {
+			activeDisplayMath = !activeDisplayMath
+			return line
+		}
+		if (activeDisplayMath)
+			return line
+		const fence = /^(`{3,}|~{3,})/u.exec(trimmed)?.[1] || ''
+		if (fence) {
+			if (!activeFence)
+				activeFence = fence[0]!
+			else if (fence[0] === activeFence)
+				activeFence = ''
+			return line
+		}
+		if (activeFence || !looksLikeStandaloneLatex(trimmed))
+			return line
+		return `$$\n${trimmed}\n$$`
+	}).join('\n')
+}
+
 function escapeInline(value: string) {
 	return normalizeInline(value).replace(/([\\*_[\]<>])/gu, '\\$1')
+}
+
+function textNodeMarkdown(value: string) {
+	const source = value.trim()
+	if ((source.startsWith('\\[') && source.endsWith('\\]'))
+		|| (source.startsWith('\\(') && source.endsWith('\\)'))
+		|| looksLikeStandaloneLatex(source)) {
+		return normalizePastedMathText(source)
+	}
+	return escapeInline(value)
 }
 
 function collapseBlankLinesOutsideCode(value: string) {
@@ -64,6 +141,52 @@ function trimBlock(value: string) {
 
 function safeLanguage(value: string | null | undefined) {
 	return value && /^[\w+.-]{1,40}$/u.test(value) ? value : ''
+}
+
+function normalizedMathSource(value: string) {
+	const source = value.trim()
+	if (!source)
+		return ''
+	if (source.startsWith('$$') && source.endsWith('$$') && source.length > 4)
+		return source.slice(2, -2).trim()
+	if (source.startsWith('\\[') && source.endsWith('\\]') && source.length > 4)
+		return source.slice(2, -2).trim()
+	if (source.startsWith('\\(') && source.endsWith('\\)') && source.length > 4)
+		return source.slice(2, -2).trim()
+	if (source.startsWith('$') && source.endsWith('$') && source.length > 2)
+		return source.slice(1, -1).trim()
+	return source
+}
+
+function mathMarkdown(element: Element) {
+	const isMathContainer = element.matches([
+		'.katex',
+		'.katex-display',
+		'math',
+		'mjx-container',
+		'[data-latex]',
+		'[data-tex]',
+	].join(', '))
+	if (!isMathContainer)
+		return null
+
+	const directSource = element.getAttribute('data-latex')
+		|| element.getAttribute('data-tex')
+		|| element.getAttribute('data-math')
+		|| element.getAttribute('alttext')
+		|| element.getAttribute('aria-label')
+	const annotation = element.matches('annotation[encoding="application/x-tex"], annotation[encoding="application/tex"]')
+		? element
+		: element.querySelector('annotation[encoding="application/x-tex"], annotation[encoding="application/tex"]')
+	const source = normalizedMathSource(directSource || annotation?.textContent || '')
+	if (!source)
+		return null
+
+	const display = element.classList.contains('katex-display')
+		|| element.getAttribute('display') === 'block'
+		|| element.getAttribute('display') === 'true'
+		|| Boolean(element.querySelector('math[display="block"]'))
+	return display ? `\n\n$$\n${source}\n$$\n\n` : `$${source}$`
 }
 
 function languageFor(element: Element, code: Element | null) {
@@ -158,9 +281,13 @@ export function convertRichTextHtmlToMarkdown(html: string): string {
 
 	function render(node: Node, context: { listDepth?: number } = {}): string {
 		if (node.nodeType === Node.TEXT_NODE)
-			return escapeInline(node.textContent || '')
+			return textNodeMarkdown(node.textContent || '')
 		if (!(node instanceof Element) || ignoredElements.has(node.tagName))
 			return ''
+
+		const math = mathMarkdown(node)
+		if (math !== null)
+			return math
 
 		const children = () => renderChildren(node, context)
 		const tag = node.tagName
