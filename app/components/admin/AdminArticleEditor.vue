@@ -456,6 +456,14 @@ function directPreviewBlock(target: Element, preview: HTMLElement) {
 	return block
 }
 
+function previewTextWithBreaks(node: Node): string {
+	if (node.nodeType === Node.TEXT_NODE)
+		return node.textContent || ''
+	if (node instanceof HTMLElement && node.matches('br'))
+		return '\n'
+	return [...node.childNodes].map(previewTextWithBreaks).join('')
+}
+
 function scrollEditorToPosition(editor: HTMLTextAreaElement, position: number) {
 	const body = documentModel.value.body
 	const lineIndex = body.slice(0, position).split('\n').length - 1
@@ -505,7 +513,7 @@ function onPreviewClick(event: MouseEvent) {
 	const position = findMarkdownPreviewPosition(
 		previewMarkdown.value,
 		sourceBlock,
-		target.textContent || block.textContent || '',
+		previewTextWithBreaks(target) || previewTextWithBreaks(block),
 	)
 	focusPreviewSource(position)
 }

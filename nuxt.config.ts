@@ -25,6 +25,7 @@ const markdownRemarkPlugins = {
 	'remark-math': {},
 }
 const markdownRehypePlugins = {
+	[pluginPath('rehype-trim-break-whitespace')]: {},
 	[pluginPath('rehype-meta-slots')]: {},
 	'rehype-katex': {},
 }

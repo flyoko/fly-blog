@@ -19,6 +19,16 @@ function scheduleReset() {
 	}, 2_000)
 }
 
+function textWithBreaks(node: Node): string {
+	if (node.nodeType === Node.TEXT_NODE)
+		return node.textContent || ''
+	if (!(node instanceof HTMLElement))
+		return ''
+	if (node.matches('br'))
+		return '\n'
+	return [...node.childNodes].map(textWithBreaks).join('')
+}
+
 function copyBlockSegment(node: Node) {
 	if (node.nodeType === Node.TEXT_NODE)
 		return node.textContent?.trim() || ''
@@ -27,7 +37,7 @@ function copyBlockSegment(node: Node) {
 
 	if (node.matches('ul, ol')) {
 		return [...node.children]
-			.map(item => item.textContent?.trim() || '')
+			.map(item => textWithBreaks(item).trim())
 			.filter(Boolean)
 			.join('\n')
 	}
@@ -35,13 +45,13 @@ function copyBlockSegment(node: Node) {
 	if (node.matches('table')) {
 		return [...node.querySelectorAll('tr')]
 			.map(row => [...row.querySelectorAll('th, td')]
-				.map(cell => cell.textContent?.trim() || '')
+				.map(cell => textWithBreaks(cell).trim())
 				.join('\t'))
 			.filter(Boolean)
 			.join('\n')
 	}
 
-	return node.textContent?.trim() || ''
+	return textWithBreaks(node).trim()
 }
 
 function copyBlockText(root: HTMLElement) {
@@ -132,10 +142,7 @@ onBeforeUnmount(() => {
 	min-width: 0;
 	font-size: 0.94em;
 	line-height: 1.58;
-	white-space: normal;
 
-	// remark-breaks 已经为软换行插入 <br>，同时 DOM 里还会保留换行文本节点。
-	// 保持 normal 让 <br> 负责唯一一次换行，避免 pre-line/pre-wrap 把同一换行渲染两次。
 	:deep(p) {
 		margin: 0;
 	}
