@@ -19,10 +19,41 @@ function scheduleReset() {
 	}, 2_000)
 }
 
+function copyBlockSegment(node: Node) {
+	if (node.nodeType === Node.TEXT_NODE)
+		return node.textContent?.trim() || ''
+	if (!(node instanceof HTMLElement))
+		return ''
+
+	if (node.matches('ul, ol')) {
+		return [...node.children]
+			.map(item => item.textContent?.trim() || '')
+			.filter(Boolean)
+			.join('\n')
+	}
+
+	if (node.matches('table')) {
+		return [...node.querySelectorAll('tr')]
+			.map(row => [...row.querySelectorAll('th, td')]
+				.map(cell => cell.textContent?.trim() || '')
+				.join('\t'))
+			.filter(Boolean)
+			.join('\n')
+	}
+
+	return node.textContent?.trim() || ''
+}
+
+function copyBlockText(root: HTMLElement) {
+	return [...root.childNodes]
+		.map(copyBlockSegment)
+		.filter(Boolean)
+		.join('\n\n')
+		.trim()
+}
+
 async function copyText() {
-	// 这里必须复制用户实际看到的段落换行，textContent 会把块级内容直接拼接。
-	// eslint-disable-next-line unicorn/prefer-dom-node-text-content
-	const value = body.value?.innerText.trim() || ''
+	const value = body.value ? copyBlockText(body.value) : ''
 	if (!value) {
 		copyStatus.value = 'failed'
 		scheduleReset()
@@ -92,6 +123,7 @@ onBeforeUnmount(() => {
 	min-width: 0;
 	font-size: 0.92em;
 	line-height: 1.75;
+	white-space: pre-wrap;
 
 	:deep(p) {
 		margin: 0.65em 0;

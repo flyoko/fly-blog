@@ -62,6 +62,7 @@ const notifications = useAdminNotifications()
 const mediaPickerOpen = ref(false)
 const deleteDialogOpen = ref(false)
 const focusMode = useLocalStorage('fly_admin_editor_focus_mode', false)
+const articleListCollapsed = useLocalStorage('fly_admin_editor_article_list_collapsed', false)
 const mobilePane = ref<'write' | 'preview'>('write')
 const previewLoading = ref(false)
 const previewMarkdown = ref('')
@@ -161,15 +162,63 @@ function updateBody(body: string) {
 	documentModel.value = { ...documentModel.value, body }
 }
 
+interface EditorInteractionSnapshot {
+	selectionStart: number
+	selectionEnd: number
+	scrollTop: number
+	scrollLeft: number
+	pageX: number
+	pageY: number
+}
+
+let pendingEditorInteraction: EditorInteractionSnapshot | null = null
+let pendingEditorInteractionTimer: ReturnType<typeof setTimeout> | undefined
+
+function currentEditorInteraction(): EditorInteractionSnapshot | null {
+	const editor = textarea.value
+	if (!editor)
+		return null
+	return {
+		selectionStart: editor.selectionStart,
+		selectionEnd: editor.selectionEnd,
+		scrollTop: editor.scrollTop,
+		scrollLeft: editor.scrollLeft,
+		pageX: window.scrollX,
+		pageY: window.scrollY,
+	}
+}
+
+function clearPendingEditorInteraction() {
+	pendingEditorInteraction = null
+	if (pendingEditorInteractionTimer) {
+		clearTimeout(pendingEditorInteractionTimer)
+		pendingEditorInteractionTimer = undefined
+	}
+}
+
+function captureEditorInteraction() {
+	const interaction = currentEditorInteraction()
+	clearPendingEditorInteraction()
+	pendingEditorInteraction = interaction
+	if (!interaction)
+		return
+	pendingEditorInteractionTimer = setTimeout(() => {
+		if (pendingEditorInteraction === interaction)
+			pendingEditorInteraction = null
+		pendingEditorInteractionTimer = undefined
+	}, 0)
+}
+
 function editorSelection() {
-	const start = textarea.value?.selectionStart ?? documentModel.value.body.length
-	const end = textarea.value?.selectionEnd ?? start
+	const interaction = currentEditorInteraction()
+	const start = interaction?.selectionStart ?? documentModel.value.body.length
+	const end = interaction?.selectionEnd ?? start
 	return { start, end }
 }
 
 function restoreEditorSnapshot(snapshot: MarkdownHistorySnapshot) {
-	const currentScrollTop = textarea.value?.scrollTop
-	const currentScrollLeft = textarea.value?.scrollLeft
+	const interaction = pendingEditorInteraction ?? currentEditorInteraction()
+	clearPendingEditorInteraction()
 	updateBody(snapshot.body)
 	nextTick(() => {
 		const editor = textarea.value
@@ -177,10 +226,12 @@ function restoreEditorSnapshot(snapshot: MarkdownHistorySnapshot) {
 			return
 		editor.focus({ preventScroll: true })
 		editor.setSelectionRange(snapshot.selectionStart, snapshot.selectionEnd)
-		if (currentScrollTop !== undefined)
-			editor.scrollTop = currentScrollTop
-		if (currentScrollLeft !== undefined)
-			editor.scrollLeft = currentScrollLeft
+		if (!interaction)
+			return
+		editor.scrollTop = interaction.scrollTop
+		editor.scrollLeft = interaction.scrollLeft
+		if (window.scrollX !== interaction.pageX || window.scrollY !== interaction.pageY)
+			window.scrollTo(interaction.pageX, interaction.pageY)
 	})
 }
 
@@ -195,6 +246,7 @@ function recordEditorSnapshot(
 function onEditorInput(event: Event) {
 	if (writeLocked.value)
 		return
+	clearPendingEditorInteraction()
 	const target = event.target as HTMLTextAreaElement
 	const inputEvent = event as InputEvent
 	editorHistory.value = recordMarkdownHistory(editorHistory.value, {
@@ -226,6 +278,7 @@ function markdownPasteValue(body: string, start: number, end: number, html: stri
 function onEditorPaste(event: ClipboardEvent) {
 	if (writeLocked.value)
 		return
+	clearPendingEditorInteraction()
 	const html = event.clipboardData?.getData('text/html')
 	if (!html)
 		return
@@ -249,6 +302,7 @@ function onEditorPaste(event: ClipboardEvent) {
 function onEditorKeydown(event: KeyboardEvent) {
 	if (writeLocked.value)
 		return
+	clearPendingEditorInteraction()
 	if (!(event.metaKey || event.ctrlKey) || event.altKey)
 		return
 	const key = event.key.toLowerCase()
@@ -452,27 +506,47 @@ watch(() => documentModel.value.body, (body) => {
 
 onBeforeUnmount(() => {
 	window.removeEventListener('keydown', onSaveShortcut)
+	clearPendingEditorInteraction()
 	if (previewTimer)
 		clearTimeout(previewTimer)
 })
 </script>
 
 <template>
-<div class="admin-editor-shell" :class="{ 'is-focus-mode': focusMode }">
+<div
+	class="admin-editor-shell"
+	:class="{
+		'is-focus-mode': focusMode,
+		'is-article-list-collapsed': articleListCollapsed,
+	}"
+>
 	<h1 class="visually-hidden">
 		{{ isNew ? '新建文章' : `编辑文章：${documentModel.frontmatter.title || '未命名文章'}` }}
 	</h1>
 	<aside class="admin-editor-list">
 		<header>
-			<div>
+			<div class="admin-editor-list-title">
 				<span>内容</span>
 				<strong>文章列表</strong>
 			</div>
-			<NuxtLink class="admin-icon-button" to="/admin/articles/new" aria-label="新建文章">
-				<Icon name="tabler:plus" />
-			</NuxtLink>
+			<div class="admin-editor-list-actions">
+				<button
+					class="admin-icon-button admin-editor-list-toggle"
+					type="button"
+					:aria-expanded="!articleListCollapsed"
+					:aria-label="articleListCollapsed ? '展开文章列表' : '收起文章列表'"
+					:title="articleListCollapsed ? '展开文章列表' : '收起文章列表'"
+					aria-controls="admin-editor-article-list-nav"
+					@click="articleListCollapsed = !articleListCollapsed"
+				>
+					<Icon :name="articleListCollapsed ? 'tabler:chevron-right' : 'tabler:chevron-left'" />
+				</button>
+				<NuxtLink class="admin-icon-button" to="/admin/articles/new" aria-label="新建文章">
+					<Icon name="tabler:plus" />
+				</NuxtLink>
+			</div>
 		</header>
-		<nav>
+		<nav id="admin-editor-article-list-nav">
 			<button
 				v-for="article in articles"
 				:key="article.id"
@@ -568,6 +642,7 @@ onBeforeUnmount(() => {
 				:aria-label="action.ariaLabel || action.label"
 				:aria-pressed="action.edit === 'color' ? colorPanelOpen : undefined"
 				:title="action.label"
+				@mousedown.prevent="captureEditorInteraction"
 				@click="applyEditorEdit(action.edit)"
 			>
 				<Icon :name="action.icon" />
@@ -597,6 +672,7 @@ onBeforeUnmount(() => {
 					:style="{ '--admin-text-color': preset.value }"
 					:aria-label="`设置字体颜色：${preset.label}`"
 					:title="`${preset.label} ${preset.value}`"
+					@mousedown.prevent="captureEditorInteraction"
 					@click="applyTextColor(preset.value)"
 				>
 					<span aria-hidden="true" />
@@ -614,11 +690,11 @@ onBeforeUnmount(() => {
 			</label>
 
 			<div class="admin-format-color-actions">
-				<button class="admin-format-button" type="button" :disabled="writeLocked" @click="applyTextColor(customTextColor)">
+				<button class="admin-format-button" type="button" :disabled="writeLocked" @mousedown.prevent="captureEditorInteraction" @click="applyTextColor(customTextColor)">
 					<Icon name="tabler:check" aria-hidden="true" />
 					应用颜色
 				</button>
-				<button class="admin-format-button" type="button" :disabled="writeLocked" @click="applyTextColor(null)">
+				<button class="admin-format-button" type="button" :disabled="writeLocked" @mousedown.prevent="captureEditorInteraction" @click="applyTextColor(null)">
 					<Icon name="tabler:color-swatch-off" aria-hidden="true" />
 					恢复默认
 				</button>
