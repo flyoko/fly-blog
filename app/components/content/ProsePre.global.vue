@@ -42,6 +42,7 @@ const codeblock = useTemplateRef('codeblock')
 const { copy, copied } = useCopy(codeblock)
 const shiki = useShiki()
 const rawHtml = ref(escape(props.code))
+let renderRevision = 0
 
 function getIndent() {
 	if (meta.value.indent)
@@ -53,14 +54,40 @@ function getIndent() {
 	return compConf.value.indent
 }
 
-onMounted(async () => {
-	rawHtml.value = await shiki.codeToHtml(props.code.trimEnd(), {
-		language: props.language,
-		transformerOptions: [compConf.value.enableIndentGuide ? 'ignoreRenderWhitespace' : 'ignoreRenderIndentGuides'],
-		shikiOptions: { meta: { indent: getIndent() } },
+async function renderCode() {
+	const revision = ++renderRevision
+	const code = props.code
+	const language = props.language
+	const enableIndentGuide = compConf.value.enableIndentGuide
+	const indent = getIndent()
+
+	// Markdown 实时预览会复用同一个 ProsePre 实例。先同步展示最新源码，
+	// 再异步高亮，避免 Shiki 完成前仍显示上一次代码块内容。
+	rawHtml.value = escape(code)
+	const highlighted = await shiki.codeToHtml(code.trimEnd(), {
+		language,
+		transformerOptions: [enableIndentGuide ? 'ignoreRenderWhitespace' : 'ignoreRenderIndentGuides'],
+		shikiOptions: { meta: { indent } },
 		embeddedLanguages: true,
 	})
-})
+	if (revision === renderRevision)
+		rawHtml.value = highlighted
+}
+
+watch(
+	[
+		() => props.code,
+		() => props.language,
+		() => meta.value.indent,
+		() => compConf.value.enableIndentGuide,
+		() => compConf.value.indent,
+	],
+	() => {
+		if (import.meta.client)
+			void renderCode()
+	},
+	{ immediate: true },
+)
 </script>
 
 <template>
