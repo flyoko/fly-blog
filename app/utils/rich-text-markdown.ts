@@ -27,6 +27,11 @@ function normalizeInline(value: string) {
 }
 
 const latexCommandPattern = /\\(?:alpha|beta|cdot|cos|delta|div|dfrac|frac|gamma|int|lambda|left|ln|log|mathbf|mathrm|mu|omega|overline|phi|pi|prod|right|sigma|sin|sqrt|sum|tan|text|tfrac|theta|times|underline|vec)\b/gu
+const mathFenceLanguagePattern = /^(?:math|latex|tex|katex)$/iu
+
+function isMathFenceLanguage(value: string) {
+	return mathFenceLanguagePattern.test(value.trim())
+}
 
 function looksLikeStandaloneLatex(value: string) {
 	const source = value.trim()
@@ -68,29 +73,67 @@ export function normalizePastedMathText(value: string) {
 		false,
 	)
 	const lines = normalizedDelimiters.split('\n')
+	const output: string[] = []
 	let activeFence = ''
 	let activeDisplayMath = false
 
-	return lines.map((line) => {
+	for (let index = 0; index < lines.length; index += 1) {
+		const line = lines[index]!
 		const trimmed = line.trim()
+
 		if (!activeFence && trimmed === '$$') {
 			activeDisplayMath = !activeDisplayMath
-			return line
+			output.push(line)
+			continue
 		}
-		if (activeDisplayMath)
-			return line
+		if (activeDisplayMath) {
+			output.push(line)
+			continue
+		}
+
+		if (activeFence) {
+			output.push(line)
+			const closingFence = /^(`{3,}|~{3,})\s*$/u.exec(trimmed)?.[1] || ''
+			if (closingFence
+				&& closingFence[0] === activeFence[0]
+				&& closingFence.length >= activeFence.length) {
+				activeFence = ''
+			}
+			continue
+		}
+
+		const mathFence = /^(`{3,}|~{3,})\s*(?:math|latex|tex|katex)\s*$/iu.exec(trimmed)
+		if (mathFence) {
+			const openingFence = mathFence[1]!
+			const marker = openingFence[0] === '`' ? '`' : '~'
+			const closingPattern = new RegExp(`^${marker}{${openingFence.length},}\\s*$`, 'u')
+			let closingIndex = index + 1
+			while (closingIndex < lines.length && !closingPattern.test(lines[closingIndex]!.trim()))
+				closingIndex += 1
+			if (closingIndex < lines.length) {
+				const source = normalizedMathSource(lines.slice(index + 1, closingIndex).join('\n'))
+				if (source) {
+					output.push('$$', source, '$$')
+					index = closingIndex
+					continue
+				}
+			}
+		}
+
 		const fence = /^(`{3,}|~{3,})/u.exec(trimmed)?.[1] || ''
 		if (fence) {
-			if (!activeFence)
-				activeFence = fence[0]!
-			else if (fence[0] === activeFence)
-				activeFence = ''
-			return line
+			activeFence = fence
+			output.push(line)
+			continue
 		}
-		if (activeFence || !looksLikeStandaloneLatex(trimmed))
-			return line
-		return `$$\n${trimmed}\n$$`
-	}).join('\n')
+		if (!looksLikeStandaloneLatex(trimmed)) {
+			output.push(line)
+			continue
+		}
+		output.push('$$', trimmed, '$$')
+	}
+
+	return output.join('\n')
 }
 
 function escapeInline(value: string) {
@@ -317,9 +360,15 @@ export function convertRichTextHtmlToMarkdown(html: string): string {
 		if (tag === 'PRE') {
 			const code = node.querySelector(':scope > code')
 			const value = (code?.textContent ?? node.textContent ?? '').replace(/^\n|\n$/gu, '')
+			const language = languageFor(node, code)
+			if (isMathFenceLanguage(language)) {
+				const source = normalizedMathSource(value)
+				if (source)
+					return `\n\n$$\n${source}\n$$\n\n`
+			}
 			const longestRun = Math.max(0, ...[...value.matchAll(/`+/gu)].map(match => match[0].length))
 			const fence = '`'.repeat(Math.max(3, longestRun + 1))
-			return `\n\n${fence}${languageFor(node, code)}\n${value}\n${fence}\n\n`
+			return `\n\n${fence}${language}\n${value}\n${fence}\n\n`
 		}
 		if (tag === 'CODE') {
 			const value = node.textContent || ''

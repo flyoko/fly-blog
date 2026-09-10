@@ -287,10 +287,10 @@ function onEditorPaste(event: ClipboardEvent) {
 	clearPendingEditorInteraction()
 	const html = event.clipboardData?.getData('text/html') || ''
 	const plain = event.clipboardData?.getData('text/plain') || ''
-	const richMarkdown = html ? convertRichTextHtmlToMarkdown(html) : ''
+	const richMarkdown = html ? normalizePastedMathText(convertRichTextHtmlToMarkdown(html)) : ''
 	const normalizedPlain = plain ? normalizePastedMathText(plain) : ''
-	const markdown = richMarkdown || normalizedPlain
 	const normalizedPlainMath = Boolean(plain) && normalizedPlain !== plain
+	const markdown = normalizedPlainMath ? normalizedPlain : richMarkdown || normalizedPlain
 	if (!markdown || (!html && !normalizedPlainMath))
 		return
 	const target = event.currentTarget as HTMLTextAreaElement
@@ -534,6 +534,20 @@ function focusPreviewSource(position: number) {
 	})
 }
 
+function previewMathSource(target: Element) {
+	const mathTarget = target.closest('.katex-display, .katex, math, mjx-container, [data-latex], [data-tex]')
+	if (!mathTarget)
+		return ''
+	const annotation = mathTarget.matches('annotation[encoding="application/x-tex"], annotation[encoding="application/tex"]')
+		? mathTarget
+		: mathTarget.querySelector('annotation[encoding="application/x-tex"], annotation[encoding="application/tex"]')
+	return (annotation?.textContent
+		|| mathTarget.getAttribute('data-latex')
+		|| mathTarget.getAttribute('data-tex')
+		|| mathTarget.getAttribute('alttext')
+		|| '').trim()
+}
+
 function onPreviewClick(event: MouseEvent) {
 	const target = event.target
 	if (!(target instanceof Element))
@@ -544,6 +558,16 @@ function onPreviewClick(event: MouseEvent) {
 	const preview = target.closest('.admin-preview-content')
 	if (!(preview instanceof HTMLElement))
 		return
+
+	const mathSource = previewMathSource(target)
+	const mathPosition = mathSource
+		? findUniqueMarkdownPreviewPosition(previewMarkdown.value, mathSource)
+		: null
+	if (mathPosition !== null) {
+		event.preventDefault()
+		focusPreviewSource(mathPosition)
+		return
+	}
 
 	const headingTarget = target.closest('h1, h2, h3, h4, h5, h6')
 	const sourceTarget = headingTarget && preview.contains(headingTarget) ? headingTarget : target
