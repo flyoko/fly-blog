@@ -38,6 +38,7 @@ const props = withDefaults(defineProps<{
 	diagnostics?: ArticleDiagnostic[]
 	initialDiagnostic?: Pick<ArticleDiagnostic, 'bodyLine' | 'bodyColumn'>
 	rawComparisonOpen?: boolean
+	matchesRemote?: boolean
 }>(), {
 	remoteDocument: null,
 	articles: () => [],
@@ -50,6 +51,7 @@ const props = withDefaults(defineProps<{
 	diagnostics: () => [],
 	initialDiagnostic: undefined,
 	rawComparisonOpen: false,
+	matchesRemote: false,
 })
 
 const emit = defineEmits<{
@@ -132,7 +134,22 @@ function focusDiagnostic(diagnostic: Pick<ArticleDiagnostic, 'bodyLine' | 'bodyC
 		textarea.value?.setSelectionRange(position, position)
 	})
 }
-const directSaveLabel = computed(() => documentModel.value.frontmatter.draft ? '保存草稿' : '发布文章')
+const syncedWithRemote = computed(() => !props.isNew && props.matchesRemote)
+const remoteIsPublished = computed(() => props.remoteDocument?.frontmatter.draft === false)
+const publicationStateLabel = computed(() => {
+	if (documentModel.value.frontmatter.draft)
+		return '仅自己可见'
+	if (remoteIsPublished.value)
+		return syncedWithRemote.value ? '已公开' : '公开文章有未发布改动'
+	return '准备公开'
+})
+const directSaveLabel = computed(() => {
+	if (syncedWithRemote.value)
+		return documentModel.value.frontmatter.draft ? '草稿已保存' : '已发布'
+	if (documentModel.value.frontmatter.draft)
+		return '保存草稿'
+	return remoteIsPublished.value ? '发布更新' : '发布文章'
+})
 const deleteDescription = computed(() => `“${documentModel.value.frontmatter.title || '未命名文章'}”将从当前博客中删除。删除后不可恢复到当前博客；如需找回，只能从 Git 历史恢复。`)
 
 const formattingActions: Array<{
@@ -656,6 +673,8 @@ watch(() => documentModel.value.body, (body) => {
 		clearTimeout(previewTimer)
 	previewLoading.value = true
 	previewTimer = setTimeout(() => {
+		if (previewMarkdown.value !== body)
+			previewRevision.value += 1
 		previewMarkdown.value = body
 		previewLoading.value = false
 	}, 300)
@@ -756,7 +775,7 @@ onBeforeUnmount(() => {
 			<div class="admin-editor-state">
 				<span class="admin-badge">{{ isNew ? '新文章' : '编辑文章' }}</span>
 				<span class="admin-editor-state-copy">
-					<strong>{{ documentModel.frontmatter.draft ? '仅自己可见' : '准备公开' }}</strong>
+					<strong>{{ publicationStateLabel }}</strong>
 					<small>{{ draftStatus }}</small>
 				</span>
 				<span class="admin-editor-metrics">{{ contentLength }} 字 · 约 {{ readingMinutes }} 分钟</span>
@@ -774,11 +793,11 @@ onBeforeUnmount(() => {
 					<Icon :name="deleted ? 'tabler:check' : 'tabler:trash'" />
 					{{ deleted ? '已删除' : '删除文章' }}
 				</button>
-				<button class="admin-button" type="button" :disabled="saving || writeLocked || !canSave" @click="requestSave('pull_request')">
+				<button class="admin-button" type="button" :disabled="saving || writeLocked || !canSave || syncedWithRemote" @click="requestSave('pull_request')">
 					<Icon name="tabler:git-pull-request" />
 					提交审核
 				</button>
-				<button class="admin-button admin-button-primary" type="button" :disabled="saving || writeLocked || !canSave" title="快捷键：⌘/Ctrl + S" @click="requestSave('direct')">
+				<button class="admin-button admin-button-primary" type="button" :disabled="saving || writeLocked || !canSave || syncedWithRemote" :title="syncedWithRemote ? '当前内容已经同步到内容仓库' : '快捷键：⌘/Ctrl + S'" @click="requestSave('direct')">
 					<Icon :name="documentModel.frontmatter.draft ? 'tabler:device-floppy' : 'tabler:send'" />
 					{{ saving ? '正在保存…' : directSaveLabel }}
 				</button>

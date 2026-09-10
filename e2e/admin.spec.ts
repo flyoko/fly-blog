@@ -338,6 +338,36 @@ $$`)
 		await expect(editor).toHaveValue('::mac-window\n窗口粗体\n::')
 	})
 
+	test('existing public article is reported as already published instead of failing a duplicate publish', async ({ page }) => {
+		const capture = await mockAuthenticatedAdmin(page)
+		await page.goto(`/admin/articles/${articleId}`)
+
+		await expect(page.getByText('已公开', { exact: true })).toBeVisible()
+		await expect(page.getByRole('button', { name: '已发布' })).toBeDisabled()
+		await page.keyboard.press('Control+s')
+		await expect(page.getByText('文章已经公开，当前内容与线上版本一致。', { exact: true })).toBeVisible()
+		expect(capture.articleWrites).toHaveLength(0)
+
+		await page.getByLabel('Markdown 正文').fill('# Existing article\n\n新增内容')
+		await expect(page.getByText('公开文章有未发布改动', { exact: true })).toBeVisible()
+		await expect(page.getByRole('button', { name: '发布更新' })).toBeEnabled()
+	})
+
+	test('live preview remounts stateful code blocks when markdown changes', async ({ page }) => {
+		await mockAuthenticatedAdmin(page)
+		await page.goto('/admin/articles/new')
+		const editor = page.getByLabel('Markdown 正文')
+		const codeBlock = page.locator('.admin-preview-content pre').first()
+
+		await editor.fill('```text\nSHA256(file)\n```')
+		await expect(codeBlock).toContainText('SHA256(file)')
+
+		await editor.fill('```text\nSHA256(file)\n或者:\ncontentHash\n```')
+		await expect(codeBlock).toContainText('或者:')
+		await expect(codeBlock).toContainText('contentHash')
+		await expect(codeBlock.locator('.line')).toHaveCount(3)
+	})
+
 	test('homepage WeChat ads validate inline and submit contact details', async ({ page }) => {
 		const capture = await mockAuthenticatedAdmin(page)
 		await page.goto('/admin/settings')

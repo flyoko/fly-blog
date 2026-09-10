@@ -325,4 +325,26 @@ describe('article editor UI boundaries', () => {
 		expect(editor).toContain('插入媒体')
 		expect(editor).toContain('<h1 class="visually-hidden">')
 	})
+
+	it('treats an unchanged public article as already published instead of a failed publish', async () => {
+		const [editor, editorComposable, editPage] = await Promise.all([
+			source('app/components/admin/AdminArticleEditor.vue'),
+			source('app/composables/useAdminArticleEditor.ts'),
+			source('app/pages/admin/articles/[id].vue'),
+		])
+
+		expect(editor).toContain('return syncedWithRemote.value ? \'已公开\' : \'公开文章有未发布改动\'')
+		expect(editor).toContain('return documentModel.value.frontmatter.draft ? \'草稿已保存\' : \'已发布\'')
+		expect(editor).toContain('!canSave || syncedWithRemote')
+		expect(editPage).toContain(':matches-remote="editor.matchesRemote.value"')
+		expect(editorComposable).toContain('if (!options.isNew && matchesRemote.value)')
+		expect(editorComposable).toContain('success.value = \'文章已经公开，当前内容与线上版本一致。\'')
+		expect(editorComposable).toContain('matchesRemote,')
+	})
+
+	it('remounts the MDC preview for every committed markdown snapshot', async () => {
+		const editor = await source('app/components/admin/AdminArticleEditor.vue')
+		expect(editor).toContain(':key="previewRevision"')
+		expect(editor).toMatch(/if \(previewMarkdown\.value !== body\)\s+previewRevision\.value \+= 1\s+previewMarkdown\.value = body/u)
+	})
 })

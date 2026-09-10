@@ -248,6 +248,16 @@ export function useAdminArticleEditor(options: AdminArticleEditorOptions) {
 			error.value = '文章正文存在格式问题，请先修正。'
 			return
 		}
+		if (!options.isNew && matchesRemote.value) {
+			error.value = null
+			if (mode === 'pull_request')
+				success.value = '当前内容与远端版本一致，没有需要提交审核的改动。'
+			else if (document.value.frontmatter.draft)
+				success.value = '草稿已经是仓库中的最新版本，无需重复保存。'
+			else
+				success.value = '文章已经公开，当前内容与线上版本一致。'
+			return
+		}
 		saving.value = true
 		error.value = null
 		success.value = null
@@ -482,6 +492,7 @@ export function useAdminArticleEditor(options: AdminArticleEditorOptions) {
 		rawComparisonOpen,
 		draftStatus,
 		hasUnsavedChanges,
+		matchesRemote,
 		initialize,
 		flushPendingDraft,
 		save,

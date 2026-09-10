@@ -56,6 +56,7 @@ useSeoMeta({ title: '编辑文章', robots: 'noindex, nofollow' })
 		:diagnostics="editor.diagnostics.value"
 		:initial-diagnostic="initialDiagnostic"
 		:draft-status="editor.draftStatus.value"
+		:matches-remote="editor.matchesRemote.value"
 		@save="editor.save"
 		@delete="editor.deleteArticle"
 		@navigate="editor.navigate"
