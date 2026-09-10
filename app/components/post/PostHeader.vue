@@ -73,8 +73,8 @@ const { copy, copied } = useClipboard({ source: shareText, legacy: true })
 	display: flex;
 	flex-direction: column;
 	justify-content: space-between;
-	gap: 1rem;
-	margin: 0.5rem;
+	gap: 0.75rem;
+	margin: 0.4rem 0.5rem;
 	border-radius: 1rem;
 	background-color: var(--c-bg-2);
 	color: var(--c-text);
@@ -91,8 +91,8 @@ const { copy, copied } = useClipboard({ source: shareText, legacy: true })
 	}
 
 	&.has-cover {
-		min-height: 16rem;
-		max-height: 20rem;
+		min-height: 14rem;
+		max-height: 17.5rem;
 		color: white;
 		transition: font-size 0.2s;
 
@@ -132,16 +132,16 @@ const { copy, copied } = useClipboard({ source: shareText, legacy: true })
 }
 
 .post-title {
-	padding: 0.8em 1rem;
-	font-size: 1.6em;
-	line-height: 1.2;
+	padding: 0.65em 0.9rem;
+	font-size: 1.45em;
+	line-height: 1.18;
 	text-wrap: balance;
 	z-index: 1;
 }
 
 .post-nav {
-	padding: 0.8em 1rem;
-	font-size: 0.8em;
+	padding: 0.65em 0.9rem;
+	font-size: 0.76em;
 
 	.post-info {
 		display: flex;
@@ -153,24 +153,28 @@ const { copy, copied } = useClipboard({ source: shareText, legacy: true })
 }
 
 @media (max-width: $breakpoint-mobile) {
+	.post-header {
+		gap: 0.45rem;
+	}
+
 	.post-header.has-cover {
-		min-height: clamp(13rem, 58vw, 16rem);
+		min-height: clamp(11.5rem, 48vw, 14rem);
 	}
 
 	.post-nav {
-		padding: 0.72rem 0.9rem 0;
-		font-size: 0.78rem;
+		padding: 0.6rem 0.75rem 0;
+		font-size: 0.74rem;
 	}
 
 	.post-title {
-		padding: 0.65rem 0.9rem 0.9rem;
-		font-size: clamp(1.6rem, 8.4vw, 2.15rem);
-		line-height: 1.14;
+		padding: 0.52rem 0.75rem 0.72rem;
+		font-size: clamp(1.38rem, 6.3vw, 1.62rem);
+		line-height: 1.12;
 	}
 
 	.post-nav .post-info {
 		align-items: center;
-		gap: 0.45rem 0.9rem;
+		gap: 0.38rem 0.75rem;
 	}
 }
 

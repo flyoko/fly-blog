@@ -39,9 +39,9 @@ if (import.meta.dev) {
 <style lang="scss" scoped>
 .md-excerpt {
 	opacity: 0.6;
-	margin: 1rem 0.5rem;
-	padding: 0.5rem;
-	font-size: 0.9em;
+	margin: 0.72rem 0.5rem;
+	padding: 0.42rem 0.55rem;
+	font-size: 0.84em;
 	transition: opacity 0.2s;
 
 	> .static {
@@ -67,10 +67,11 @@ if (import.meta.dev) {
 @media (max-width: $breakpoint-mobile) {
 	.md-excerpt {
 		opacity: 0.78;
-		margin: var(--mobile-page-gap) var(--mobile-page-gutter);
-		padding: 0.65rem 0.75rem;
+		margin: 0.5rem var(--mobile-page-gutter);
+		padding: 0.52rem 0.65rem;
 		border-radius: var(--mobile-surface-radius-inner);
-		line-height: 1.6;
+		font-size: 0.82rem;
+		line-height: 1.5;
 	}
 }
 </style>

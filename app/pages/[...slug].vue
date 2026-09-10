@@ -41,7 +41,7 @@ else {
 
 	<!-- 使用 float-in 动画会导致搜索跳转不准确 -->
 	<ContentRenderer
-		class="article"
+		class="article article-reading"
 		:class="getPostTypeClassName(post?.type, { prefix: 'md' })"
 		:value="post"
 		tag="article"

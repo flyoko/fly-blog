@@ -136,6 +136,31 @@ describe('public blog presentation', () => {
 		expect(reusable).toContain('@media (prefers-reduced-transparency: reduce)')
 	})
 
+	it('keeps public article reading density compact on MacBook and mobile without shrinking admin previews', () => {
+		const articlePage = read('app/pages/[...slug].vue')
+		const articleStyles = read('app/assets/css/article.scss')
+		const postHeader = read('app/components/post/PostHeader.vue')
+		const excerpt = read('app/components/post/Excerpt.vue')
+
+		expect(articlePage).toContain('class="article article-reading"')
+		expect(articleStyles).toContain('.article-reading {')
+		expect(articleStyles).toContain('font-size: 0.94rem')
+		expect(articleStyles).toContain('line-height: 1.68')
+		expect(articleStyles).toContain('--reader-block-gap: 0.72rem')
+		expect(articleStyles).toContain('font-size: clamp(0.93rem, 3.7vw, 0.96rem)')
+		expect(articleStyles).toContain('line-height: 1.66')
+		expect(articleStyles).toContain('--reader-block-gap: 0.62rem')
+		expect(articleStyles).toContain('> h2 {')
+		expect(articleStyles).toContain('font-size: 1.34em')
+		expect(articleStyles).toContain('margin-block: 1.8em')
+		expect(postHeader).toContain('font-size: 1.45em')
+		expect(postHeader).toContain('min-height: clamp(11.5rem, 48vw, 14rem)')
+		expect(postHeader).toContain('font-size: clamp(1.38rem, 6.3vw, 1.62rem)')
+		expect(excerpt).toContain('font-size: 0.84em')
+		expect(excerpt).toContain('font-size: 0.82rem')
+		expect(articleStyles).toContain('Keep the generic `.article` scale intact for admin previews')
+	})
+
 	it('keeps public GitHub entry points behind one disabled profile switch', () => {
 		const appConfig = read('app/app.config.ts')
 		const footer = read('config/site/footer.json')
