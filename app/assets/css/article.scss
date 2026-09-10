@@ -176,6 +176,7 @@
 }
 
 // Public reading pages use a denser rhythm than the shared article renderer.
+// This density is intentional and covered by the mobile visual baselines below.
 // Keep the generic `.article` scale intact for admin previews and embedded MDC.
 .article-reading {
 	--reader-block-gap: 0.72rem;
