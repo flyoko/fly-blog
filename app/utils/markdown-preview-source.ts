@@ -193,6 +193,26 @@ export function collectMarkdownPreviewBlocks(markdown: string): MarkdownPreviewB
 	return blocks
 }
 
+function renderedTextCandidates(renderedText: string) {
+	const raw = renderedText.trim()
+	const compact = raw.replace(/\s+/gu, ' ')
+	return [raw, compact, ...compact.split(/\s+/u)]
+		.map(value => value.trim())
+		.filter((value, index, values) => value.length >= 2 && values.indexOf(value) === index)
+		.sort((left, right) => right.length - left.length)
+}
+
+export function findUniqueMarkdownPreviewPosition(markdown: string, renderedText = '') {
+	for (const candidate of renderedTextCandidates(renderedText)) {
+		const first = markdown.indexOf(candidate)
+		if (first < 0)
+			continue
+		if (markdown.indexOf(candidate, first + candidate.length) < 0)
+			return first
+	}
+	return null
+}
+
 function firstMeaningfulSourceOffset(source: string) {
 	const match = source.match(/[\p{L}\p{N}]/u)
 	return match?.index ?? 0

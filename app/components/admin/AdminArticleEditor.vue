@@ -16,7 +16,11 @@ import {
 	updateArticleFrontmatter,
 	updateMarkdownHistorySelection,
 } from '~/composables/useAdminDraft'
-import { collectMarkdownPreviewBlocks, findMarkdownPreviewPosition } from '~/utils/markdown-preview-source'
+import {
+	collectMarkdownPreviewBlocks,
+	findMarkdownPreviewPosition,
+	findUniqueMarkdownPreviewPosition,
+} from '~/utils/markdown-preview-source'
 import { convertRichTextHtmlToMarkdown, normalizePastedMathText } from '~/utils/rich-text-markdown'
 import 'katex/dist/katex.min.css'
 
@@ -464,13 +468,56 @@ function previewTextWithBreaks(node: Node): string {
 	return [...node.childNodes].map(previewTextWithBreaks).join('')
 }
 
+function measuredEditorCaretTop(editor: HTMLTextAreaElement, position: number) {
+	const style = window.getComputedStyle(editor)
+	const mirror = document.createElement('div')
+	mirror.setAttribute('aria-hidden', 'true')
+	mirror.style.position = 'fixed'
+	mirror.style.top = '0'
+	mirror.style.left = '-100000px'
+	mirror.style.visibility = 'hidden'
+	mirror.style.pointerEvents = 'none'
+	mirror.style.boxSizing = 'border-box'
+	mirror.style.width = `${editor.clientWidth}px`
+	mirror.style.paddingTop = style.paddingTop
+	mirror.style.paddingRight = style.paddingRight
+	mirror.style.paddingBottom = style.paddingBottom
+	mirror.style.paddingLeft = style.paddingLeft
+	mirror.style.fontFamily = style.fontFamily
+	mirror.style.fontSize = style.fontSize
+	mirror.style.fontStyle = style.fontStyle
+	mirror.style.fontWeight = style.fontWeight
+	mirror.style.letterSpacing = style.letterSpacing
+	mirror.style.lineHeight = style.lineHeight
+	mirror.style.textAlign = style.textAlign
+	mirror.style.textIndent = style.textIndent
+	mirror.style.textTransform = style.textTransform
+	mirror.style.wordSpacing = style.wordSpacing
+	mirror.style.whiteSpace = 'pre-wrap'
+	mirror.style.overflowWrap = style.overflowWrap
+	mirror.style.wordBreak = style.wordBreak
+	mirror.style.tabSize = style.tabSize
+
+	mirror.append(document.createTextNode(editor.value.slice(0, position)))
+	const marker = document.createElement('span')
+	marker.textContent = '\u200b'
+	mirror.append(marker)
+	document.body.append(mirror)
+	const top = marker.offsetTop
+	mirror.remove()
+	return top
+}
+
 function scrollEditorToPosition(editor: HTMLTextAreaElement, position: number) {
-	const body = documentModel.value.body
-	const lineIndex = body.slice(0, position).split('\n').length - 1
-	const totalLines = Math.max(1, body.split('\n').length)
 	const maxScrollTop = Math.max(0, editor.scrollHeight - editor.clientHeight)
-	const progress = totalLines <= 1 ? 0 : lineIndex / (totalLines - 1)
-	const targetScrollTop = progress * maxScrollTop - editor.clientHeight * 0.35
+	if (!maxScrollTop) {
+		editor.scrollTop = 0
+		return
+	}
+	const caretTop = editor.clientWidth > 0
+		? measuredEditorCaretTop(editor, position)
+		: 0
+	const targetScrollTop = caretTop - editor.clientHeight * 0.35
 	editor.scrollTop = Math.min(maxScrollTop, Math.max(0, targetScrollTop))
 }
 
@@ -497,10 +544,20 @@ function onPreviewClick(event: MouseEvent) {
 	const preview = target.closest('.admin-preview-content')
 	if (!(preview instanceof HTMLElement))
 		return
+
+	const headingTarget = target.closest('h1, h2, h3, h4, h5, h6')
+	const sourceTarget = headingTarget && preview.contains(headingTarget) ? headingTarget : target
+	const clickedText = previewTextWithBreaks(sourceTarget)
+	const uniquePosition = findUniqueMarkdownPreviewPosition(previewMarkdown.value, clickedText)
+	if (uniquePosition !== null) {
+		event.preventDefault()
+		focusPreviewSource(uniquePosition)
+		return
+	}
+
 	const block = directPreviewBlock(target, preview)
 	if (!block)
 		return
-
 	const previewChildren = [...preview.children]
 	const blockIndex = previewChildren.indexOf(block)
 	if (blockIndex < 0)
@@ -513,7 +570,7 @@ function onPreviewClick(event: MouseEvent) {
 	const position = findMarkdownPreviewPosition(
 		previewMarkdown.value,
 		sourceBlock,
-		previewTextWithBreaks(target) || previewTextWithBreaks(block),
+		clickedText || previewTextWithBreaks(block),
 	)
 	focusPreviewSource(position)
 }
