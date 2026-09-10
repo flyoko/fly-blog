@@ -207,7 +207,7 @@ export function findUniqueMarkdownPreviewPosition(markdown: string, renderedText
 		const first = markdown.indexOf(candidate)
 		if (first < 0)
 			continue
-		if (markdown.indexOf(candidate, first + candidate.length) < 0)
+		if (!markdown.includes(candidate, first + candidate.length))
 			return first
 	}
 	return null

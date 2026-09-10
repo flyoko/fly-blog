@@ -500,7 +500,7 @@ function measuredEditorCaretTop(editor: HTMLTextAreaElement, position: number) {
 
 	mirror.append(document.createTextNode(editor.value.slice(0, position)))
 	const marker = document.createElement('span')
-	marker.textContent = '\u200b'
+	marker.textContent = '\u200B'
 	mirror.append(marker)
 	document.body.append(mirror)
 	const top = marker.offsetTop
